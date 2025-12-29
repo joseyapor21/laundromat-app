@@ -1,0 +1,56 @@
+import mongoose, { Model, Types } from 'mongoose';
+
+export type MachineType = 'washer' | 'dryer';
+export type MachineStatus = 'available' | 'in_use' | 'maintenance';
+
+export interface MachineDoc {
+  _id: Types.ObjectId;
+  name: string;
+  type: MachineType;
+  qrCode: string;
+  status: MachineStatus;
+  currentOrderId?: string;
+  lastUsedAt?: Date;
+  createdAt: Date;
+}
+
+const machineSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  type: {
+    type: String,
+    enum: ['washer', 'dryer'],
+    required: true,
+  },
+  qrCode: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+  status: {
+    type: String,
+    enum: ['available', 'in_use', 'maintenance'],
+    default: 'available',
+  },
+  currentOrderId: {
+    type: String,
+    default: null,
+  },
+  lastUsedAt: {
+    type: Date,
+    default: null,
+  },
+  createdAt: {
+    type: Date,
+    default: Date.now,
+  },
+}, {
+  collection: 'machines',
+  timestamps: false,
+});
+
+const Machine: Model<MachineDoc> = mongoose.models.Machine || mongoose.model<MachineDoc>('Machine', machineSchema);
+
+export default Machine;
