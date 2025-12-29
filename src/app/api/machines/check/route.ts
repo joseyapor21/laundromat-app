@@ -70,8 +70,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Update the assignment with checker info - use toObject() to get plain object
-    const assignmentData = typeof assignment.toObject === 'function'
-      ? assignment.toObject()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const assignmentData = typeof (assignment as any).toObject === 'function'
+      ? (assignment as any).toObject()
       : { ...assignment };
 
     order.machineAssignments![assignmentIndex] = {
