@@ -51,8 +51,9 @@ export async function POST(request: NextRequest) {
     const assignment = order.machineAssignments![assignmentIndex];
 
     // Remove the check - use toObject() to get plain object
-    const assignmentData = typeof assignment.toObject === 'function'
-      ? assignment.toObject()
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const assignmentData = typeof (assignment as any).toObject === 'function'
+      ? (assignment as any).toObject()
       : { ...assignment };
 
     order.machineAssignments![assignmentIndex] = {

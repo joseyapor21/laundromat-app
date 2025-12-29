@@ -40,6 +40,7 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
           if (data && data._id) {
             setCurrentUser({
               userId: data._id,
+              email: data.email,
               name: `${data.firstName} ${data.lastName}`,
               role: data.role,
             });
@@ -250,7 +251,7 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
           {/* Actions */}
           <div className="flex gap-2">
             <button
-              onClick={loadOrders}
+              onClick={() => loadOrders()}
               disabled={loading}
               className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors disabled:opacity-50"
             >

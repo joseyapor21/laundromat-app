@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     // Log activity
     await ActivityLog.create({
-      userId: user?._id || 'system',
+      userId: user?.userId || 'system',
       userName: user?.name || 'System',
       action: 'release_machine',
       entityType: 'order',

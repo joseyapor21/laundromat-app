@@ -85,6 +85,7 @@ export interface OrderItem {
   serviceId: string;
   serviceName: string;
   quantity: number;
+  pricePerUnit?: number;
   service?: Service;
   bagIdentifier: string;
   notes: string;
