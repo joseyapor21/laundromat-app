@@ -1,17 +1,20 @@
 // User types
-export type UserRole = 'super_admin' | 'admin' | 'supervisor' | 'employee' | 'driver' | 'cashier';
+export type UserRole = 'super_admin' | 'admin' | 'supervisor' | 'employee' | 'driver' | 'cashier' | 'user';
 
 export interface User {
   _id: string;
   email: string;
   password?: string;
+  name?: string;
   firstName: string;
   lastName: string;
   role: UserRole;
   isActive: boolean;
-  mustChangePassword: boolean;
-  createdAt: Date;
-  createdBy: string;
+  mustChangePassword?: boolean;
+  isSuperUser?: boolean;
+  isDeptAdmin?: boolean;
+  createdAt?: Date;
+  createdBy?: string;
 }
 
 export interface UserWithoutPassword extends Omit<User, 'password'> {}
