@@ -1,10 +1,12 @@
 import mongoose from 'mongoose';
 import { MongoClient, Db } from 'mongodb';
 
-// Shared auth database connection (for v5users and v5departments)
-const AUTH_MONGODB_URI = 'process.env.MONGODB_URI/emergency?authSource=admin';
+// MongoDB connection settings
+const MONGODB_URI = 'process.env.MONGODB_URI';
 const AUTH_DB_NAME = 'emergency';
+const APP_DB_NAME = 'laundromat';
 
+// Shared auth database connection (for v5users and v5departments)
 let cachedAuthClient: MongoClient | null = null;
 let cachedAuthDb: Db | null = null;
 
@@ -13,7 +15,7 @@ export async function getAuthDatabase(): Promise<Db> {
     return cachedAuthDb;
   }
 
-  const client = new MongoClient(AUTH_MONGODB_URI, {
+  const client = new MongoClient(`${MONGODB_URI}/${AUTH_DB_NAME}?authSource=admin`, {
     serverSelectionTimeoutMS: 5000,
   });
 
@@ -44,12 +46,6 @@ if (!global.mongoose) {
 }
 
 export async function connectDB(): Promise<typeof mongoose> {
-  const MONGODB_URI = process.env.MONGODB_URI;
-
-  if (!MONGODB_URI) {
-    throw new Error('Please define the MONGODB_URI environment variable');
-  }
-
   if (cached.conn) {
     return cached.conn;
   }
@@ -60,8 +56,8 @@ export async function connectDB(): Promise<typeof mongoose> {
       maxPoolSize: 10,
     };
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      console.log('MongoDB connected successfully');
+    cached.promise = mongoose.connect(`${MONGODB_URI}/${APP_DB_NAME}?authSource=admin`, opts).then((mongoose) => {
+      console.log('MongoDB connected successfully to laundromat database');
       return mongoose;
     });
   }
