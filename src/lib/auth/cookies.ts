@@ -3,7 +3,7 @@ import { cookies } from 'next/headers';
 const AUTH_COOKIE_NAME = 'auth-token';
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
+  secure: false, // Set to false for HTTP access on local network
   sameSite: 'lax' as const,
   maxAge: 30 * 24 * 60 * 60, // 30 days in seconds
   path: '/',
