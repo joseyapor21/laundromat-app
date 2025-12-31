@@ -462,64 +462,12 @@ export default function AdminPage() {
         {/* Users Tab */}
         {activeTab === 'users' && (
           <div className="space-y-6">
-            {/* Invite User Form */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Invite New User</h2>
-              <form onSubmit={handleInviteUser} className="grid md:grid-cols-4 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                  <input
-                    type="email"
-                    required
-                    value={inviteForm.email}
-                    onChange={e => setInviteForm(f => ({ ...f, email: e.target.value }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={inviteForm.firstName}
-                    onChange={e => setInviteForm(f => ({ ...f, firstName: e.target.value }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={inviteForm.lastName}
-                    onChange={e => setInviteForm(f => ({ ...f, lastName: e.target.value }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                  <select
-                    value={inviteForm.role}
-                    onChange={e => setInviteForm(f => ({ ...f, role: e.target.value as UserRole }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  >
-                    <option value="employee">Employee</option>
-                    <option value="driver">Driver</option>
-                    <option value="cashier">Cashier</option>
-                    <option value="supervisor">Supervisor</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </div>
-                <div className="md:col-span-4">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    Invite User
-                  </button>
-                </div>
-              </form>
+            {/* Info Banner */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <p className="text-blue-800 text-sm">
+                <strong>Note:</strong> Users are managed through the shared authentication system.
+                Here you can change their role within the Laundromat Department (Admin or Member).
+              </p>
             </div>
 
             {/* Users List */}
@@ -538,12 +486,16 @@ export default function AdminPage() {
                 {filteredUsers.map(user => (
                   <div key={user._id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
                     <div>
-                      <div className="font-medium text-gray-900">{user.firstName} {user.lastName}</div>
-                      <div className="text-sm text-gray-600">{user.email} • {user.role}</div>
+                      <div className="font-medium text-gray-900">
+                        {user.firstName || user.name?.split(' ')[0]} {user.lastName || user.name?.split(' ').slice(1).join(' ')}
+                      </div>
+                      <div className="text-sm text-gray-600">{user.email}</div>
                     </div>
                     <div className="flex gap-2">
-                      <span className={`px-2 py-1 text-xs rounded ${user.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {user.isActive ? 'Active' : 'Inactive'}
+                      <span className={`px-2 py-1 text-xs rounded font-medium ${
+                        user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {user.role === 'admin' ? 'Admin' : 'Member'}
                       </span>
                       <button
                         onClick={() => setEditingUser(user)}
@@ -555,7 +507,7 @@ export default function AdminPage() {
                         onClick={() => handleDeleteUser(user._id)}
                         className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
                       >
-                        Delete
+                        Remove
                       </button>
                     </div>
                   </div>
@@ -1018,28 +970,16 @@ export default function AdminPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department Role</label>
                 <select
                   value={editingUser.role}
                   onChange={e => setEditingUser(u => u ? { ...u, role: e.target.value as UserRole } : u)}
                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
                 >
-                  <option value="employee">Employee</option>
-                  <option value="driver">Driver</option>
-                  <option value="cashier">Cashier</option>
-                  <option value="supervisor">Supervisor</option>
+                  <option value="user">Member</option>
                   <option value="admin">Admin</option>
                 </select>
-              </div>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="isActive"
-                  checked={editingUser.isActive}
-                  onChange={e => setEditingUser(u => u ? { ...u, isActive: e.target.checked } : u)}
-                  className="w-4 h-4"
-                />
-                <label htmlFor="isActive" className="text-sm text-gray-700">Active</label>
+                <p className="text-xs text-gray-500 mt-1">Admins can manage users and settings</p>
               </div>
             </div>
             <div className="flex gap-3 mt-6">
