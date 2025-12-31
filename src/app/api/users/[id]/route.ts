@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db/connection';
-import { User, ActivityLog } from '@/lib/db/models';
-import { getCurrentUser, isAdmin, isSupervisor } from '@/lib/auth/server';
+import { getAuthDatabase } from '@/lib/db/connection';
+import { getCurrentUser, isAdmin } from '@/lib/auth/server';
+import { ObjectId } from 'mongodb';
+
+const DEPARTMENT_NAME = 'Laundromat Department';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -18,18 +20,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    if (!isSupervisor(currentUser)) {
+    if (!isAdmin(currentUser)) {
       return NextResponse.json(
-        { error: 'Not authorized' },
+        { error: 'Not authorized. Admin access required.' },
         { status: 403 }
       );
     }
 
-    await connectDB();
+    const db = await getAuthDatabase();
     const { id } = await params;
     const updates = await request.json();
 
-    const user = await User.findById(id);
+    // Find the user
+    const user = await db.collection('v5users').findOne({ _id: new ObjectId(id) });
 
     if (!user) {
       return NextResponse.json(
@@ -38,55 +41,58 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Prevent role escalation
-    if (updates.role) {
-      const highRoles = ['super_admin', 'admin'];
-      if (highRoles.includes(updates.role) && !isAdmin(currentUser)) {
-        return NextResponse.json(
-          { error: 'Cannot assign admin roles' },
-          { status: 403 }
-        );
+    // Get the department
+    const department = await db.collection('v5departments').findOne({ name: DEPARTMENT_NAME });
+
+    if (!department) {
+      return NextResponse.json(
+        { error: 'Department not found' },
+        { status: 404 }
+      );
+    }
+
+    // Handle role change (move between adminIds and memberIds)
+    if (updates.role !== undefined) {
+      const adminIds = department.adminIds || [];
+      const memberIds = department.memberIds || [];
+
+      // Remove user from both arrays first
+      const newAdminIds = adminIds.filter((aid: string) => aid !== id);
+      const newMemberIds = memberIds.filter((mid: string) => mid !== id);
+
+      // Add to appropriate array based on new role
+      if (updates.role === 'admin') {
+        newAdminIds.push(id);
+      } else {
+        newMemberIds.push(id);
       }
+
+      // Update the department
+      await db.collection('v5departments').updateOne(
+        { _id: department._id },
+        {
+          $set: {
+            adminIds: newAdminIds,
+            memberIds: newMemberIds,
+            updatedAt: new Date()
+          }
+        }
+      );
     }
 
-    // Update allowed fields
-    if (updates.firstName !== undefined) user.firstName = updates.firstName;
-    if (updates.lastName !== undefined) user.lastName = updates.lastName;
-    if (updates.role !== undefined) user.role = updates.role;
-    if (updates.isActive !== undefined) user.isActive = updates.isActive;
-
-    // Handle password reset
-    if (updates.resetPassword && updates.temporaryPassword) {
-      user.password = updates.temporaryPassword;
-      user.mustChangePassword = true;
-    }
-
-    await user.save();
-
-    // Log the activity
-    try {
-      await ActivityLog.create({
-        userId: currentUser.userId,
-        userName: currentUser.name,
-        action: 'update_user',
-        entityType: 'user',
-        entityId: user._id.toString(),
-        details: `Updated user ${user.email}`,
-        metadata: { email: user.email, updates: Object.keys(updates) },
-        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown',
-      });
-    } catch (logError) {
-      console.error('Failed to log activity:', logError);
-    }
+    // Determine the user's current role after update
+    const updatedDept = await db.collection('v5departments').findOne({ name: DEPARTMENT_NAME });
+    const isNowAdmin = (updatedDept?.adminIds || []).includes(id);
 
     return NextResponse.json({
-      _id: user._id.toString(),
+      _id: id,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      isActive: user.isActive,
+      name: user.name || '',
+      firstName: user.name?.split(' ')[0] || '',
+      lastName: user.name?.split(' ').slice(1).join(' ') || '',
+      role: isNowAdmin ? 'admin' : 'user',
+      isActive: true,
+      isSuperUser: user.isSuperUser || false,
     });
   } catch (error) {
     console.error('Update user error:', error);
@@ -110,23 +116,24 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
 
     if (!isAdmin(currentUser)) {
       return NextResponse.json(
-        { error: 'Not authorized' },
+        { error: 'Not authorized. Admin access required.' },
         { status: 403 }
       );
     }
 
-    await connectDB();
+    const db = await getAuthDatabase();
     const { id } = await params;
 
-    // Prevent self-deletion
+    // Prevent self-removal
     if (id === currentUser.userId) {
       return NextResponse.json(
-        { error: 'Cannot delete your own account' },
+        { error: 'Cannot remove yourself from the department' },
         { status: 400 }
       );
     }
 
-    const user = await User.findByIdAndDelete(id);
+    // Find the user
+    const user = await db.collection('v5users').findOne({ _id: new ObjectId(id) });
 
     if (!user) {
       return NextResponse.json(
@@ -135,26 +142,35 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Log the activity
-    try {
-      await ActivityLog.create({
-        userId: currentUser.userId,
-        userName: currentUser.name,
-        action: 'delete_user',
-        entityType: 'user',
-        entityId: id,
-        details: `Deleted user ${user.email}`,
-        metadata: { email: user.email, role: user.role },
-        ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown',
-      });
-    } catch (logError) {
-      console.error('Failed to log activity:', logError);
+    // Get the department and remove user from both arrays
+    const department = await db.collection('v5departments').findOne({ name: DEPARTMENT_NAME });
+
+    if (!department) {
+      return NextResponse.json(
+        { error: 'Department not found' },
+        { status: 404 }
+      );
     }
 
-    return NextResponse.json({ message: 'User deleted successfully' });
+    const adminIds = (department.adminIds || []).filter((aid: string) => aid !== id);
+    const memberIds = (department.memberIds || []).filter((mid: string) => mid !== id);
+
+    await db.collection('v5departments').updateOne(
+      { _id: department._id },
+      {
+        $set: {
+          adminIds,
+          memberIds,
+          updatedAt: new Date()
+        }
+      }
+    );
+
+    return NextResponse.json({
+      message: `User ${user.email} removed from Laundromat Department`
+    });
   } catch (error) {
-    console.error('Delete user error:', error);
+    console.error('Remove user error:', error);
     return NextResponse.json(
       { error: 'An error occurred' },
       { status: 500 }
