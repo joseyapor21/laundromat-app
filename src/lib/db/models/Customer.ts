@@ -89,7 +89,7 @@ const customerSchema = new mongoose.Schema({
     default: [],
   },
 }, {
-  collection: 'v1customers',
+  collection: 'customers',
   timestamps: false,
 });
 
