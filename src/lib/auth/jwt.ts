@@ -1,5 +1,4 @@
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
-import type { UserWithoutPassword, UserRole } from '@/types';
 
 const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'laundromat-secret-key-2024');
 const TOKEN_EXPIRY = '30d';
@@ -7,12 +6,21 @@ const TOKEN_EXPIRY = '30d';
 export interface TokenPayload extends JWTPayload {
   userId: string;
   email: string;
-  role: UserRole;
+  role: string;
   firstName: string;
   lastName: string;
 }
 
-export async function createToken(user: UserWithoutPassword): Promise<string> {
+// Simplified user type for token creation
+export interface TokenUserPayload {
+  _id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
+
+export async function createToken(user: TokenUserPayload): Promise<string> {
   const token = await new SignJWT({
     userId: user._id,
     email: user.email,

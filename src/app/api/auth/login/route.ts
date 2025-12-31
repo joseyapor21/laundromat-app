@@ -1,12 +1,60 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db/connection';
-import { User, ActivityLog } from '@/lib/db/models';
+import { getAuthDatabase } from '@/lib/db/connection';
+import { createHash, createHmac, pbkdf2Sync } from 'crypto';
 import { createToken, getTokenExpiry, setAuthCookie } from '@/lib/auth';
+
+const DEPARTMENT_NAME = 'Laundromat Department';
+
+function verifyPassword(storedPassword: string, providedPassword: string): boolean {
+  // Handle old sha256$salt$hash format (uses HMAC-SHA256)
+  if (storedPassword.startsWith('sha256$')) {
+    try {
+      const parts = storedPassword.split('$');
+      if (parts.length === 3) {
+        const [, salt, storedHash] = parts;
+        const testHash = createHmac('sha256', salt).update(providedPassword).digest('hex');
+        if (testHash === storedHash) {
+          return true;
+        }
+      }
+    } catch {
+      // Continue to other methods
+    }
+  }
+
+  // Handle pbkdf2:sha256 format
+  if (storedPassword.startsWith('pbkdf2:sha256')) {
+    try {
+      const parts = storedPassword.split('$');
+      if (parts.length === 3) {
+        const [method, salt, storedHash] = parts;
+        const iterations = parseInt(method.split(':')[2] || '150000');
+        const testHash = pbkdf2Sync(providedPassword, salt, iterations, 32, 'sha256').toString('hex');
+        if (testHash === storedHash) {
+          return true;
+        }
+      }
+    } catch {
+      // Continue to other methods
+    }
+  }
+
+  // Plain text comparison (fallback)
+  if (storedPassword === providedPassword) {
+    return true;
+  }
+
+  // Simple SHA256 hash comparison
+  const hashedProvided = createHash('sha256').update(providedPassword).digest('hex');
+  if (storedPassword === hashedProvided) {
+    return true;
+  }
+
+  return false;
+}
 
 export async function POST(request: NextRequest) {
   try {
-    await connectDB();
-
     const { email, password } = await request.json();
 
     if (!email || !password) {
@@ -16,8 +64,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find user by email
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const db = await getAuthDatabase();
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Find user in shared v5users collection
+    const user = await db.collection('v5users').findOne({ email: normalizedEmail });
 
     if (!user) {
       return NextResponse.json(
@@ -26,60 +77,64 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user is active
-    if (!user.isActive) {
-      return NextResponse.json(
-        { error: 'Account is disabled. Please contact an administrator.' },
-        { status: 403 }
-      );
-    }
-
     // Verify password
-    const isValidPassword = await user.comparePassword(password);
-
-    if (!isValidPassword) {
+    if (!verifyPassword(user.password, password)) {
       return NextResponse.json(
         { error: 'Invalid credentials' },
         { status: 401 }
       );
     }
 
-    // Create JWT token
-    const userWithoutPassword = {
-      _id: user._id.toString(),
+    const userId = user._id.toString();
+
+    // Check if user is SuperUser (they can access everything)
+    const isSuperUser = user.isSuperUser || false;
+
+    // Find the Laundromat Department
+    const department = await db.collection('v5departments').findOne({ name: DEPARTMENT_NAME });
+
+    if (!department) {
+      return NextResponse.json(
+        { error: 'Laundromat Department not configured. Please contact an administrator.' },
+        { status: 500 }
+      );
+    }
+
+    // Check if user is in the department (as admin or member) or is a SuperUser
+    const isAdmin = (department.adminIds || []).includes(userId);
+    const isMember = (department.memberIds || []).includes(userId);
+    const isInDepartment = isSuperUser || isAdmin || isMember;
+
+    if (!isInDepartment) {
+      return NextResponse.json({
+        error: 'Access denied. You are not a member of the Laundromat Department.'
+      }, { status: 403 });
+    }
+
+    // Determine role: admin if in adminIds or is SuperUser, otherwise user
+    const role = (isAdmin || isSuperUser) ? 'admin' : 'user';
+
+    // Create JWT token with user info
+    const userPayload = {
+      _id: userId,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      isActive: user.isActive,
-      mustChangePassword: user.mustChangePassword,
-      createdAt: user.createdAt,
-      createdBy: user.createdBy,
+      firstName: user.name?.split(' ')[0] || '',
+      lastName: user.name?.split(' ').slice(1).join(' ') || '',
+      role: role,
+      isActive: true,
+      isSuperUser: isSuperUser,
+      isDeptAdmin: isAdmin,
     };
 
-    const token = await createToken(userWithoutPassword);
+    const token = await createToken(userPayload);
 
     // Set the auth cookie
     await setAuthCookie(token);
 
-    // Log the login activity
-    try {
-      await ActivityLog.create({
-        userId: user._id,
-        userName: `${user.firstName} ${user.lastName}`,
-        action: 'login',
-        details: `User logged in`,
-        ipAddress: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown',
-        userAgent: request.headers.get('user-agent') || 'unknown',
-      });
-    } catch (logError) {
-      console.error('Failed to log activity:', logError);
-    }
-
     return NextResponse.json({
       token,
       expiresAt: getTokenExpiry().toISOString(),
-      user: userWithoutPassword,
+      user: userPayload,
     });
   } catch (error) {
     console.error('Login error:', error);

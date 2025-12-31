@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db/connection';
-import { User } from '@/lib/db/models';
+import { getAuthDatabase } from '@/lib/db/connection';
 import { getCurrentUser } from '@/lib/auth/server';
+import { ObjectId } from 'mongodb';
+
+const DEPARTMENT_NAME = 'Laundromat Department';
 
 export async function GET() {
   try {
@@ -14,9 +16,11 @@ export async function GET() {
       );
     }
 
-    await connectDB();
+    const db = await getAuthDatabase();
 
-    const user = await User.findById(currentUser.userId).select('-password');
+    const user = await db.collection('v5users').findOne({
+      _id: new ObjectId(currentUser.userId)
+    });
 
     if (!user) {
       return NextResponse.json(
@@ -25,15 +29,22 @@ export async function GET() {
       );
     }
 
+    // Get department info to determine role
+    const department = await db.collection('v5departments').findOne({ name: DEPARTMENT_NAME });
+    const userId = user._id.toString();
+    const isSuperUser = user.isSuperUser || false;
+    const isAdmin = department ? (department.adminIds || []).includes(userId) : false;
+    const role = (isAdmin || isSuperUser) ? 'admin' : 'user';
+
     return NextResponse.json({
-      _id: user._id.toString(),
+      _id: userId,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
-      role: user.role,
-      isActive: user.isActive,
-      mustChangePassword: user.mustChangePassword,
-      createdAt: user.createdAt,
+      firstName: user.name?.split(' ')[0] || '',
+      lastName: user.name?.split(' ').slice(1).join(' ') || '',
+      role: role,
+      isActive: true,
+      isSuperUser: isSuperUser,
+      isDeptAdmin: isAdmin,
     });
   } catch (error) {
     console.error('Get current user error:', error);

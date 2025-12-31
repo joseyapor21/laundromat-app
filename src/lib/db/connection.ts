@@ -1,5 +1,32 @@
 import mongoose from 'mongoose';
+import { MongoClient, Db } from 'mongodb';
 
+// Shared auth database connection (for v5users and v5departments)
+const AUTH_MONGODB_URI = 'process.env.MONGODB_URI/emergency?authSource=admin';
+const AUTH_DB_NAME = 'emergency';
+
+let cachedAuthClient: MongoClient | null = null;
+let cachedAuthDb: Db | null = null;
+
+export async function getAuthDatabase(): Promise<Db> {
+  if (cachedAuthClient && cachedAuthDb) {
+    return cachedAuthDb;
+  }
+
+  const client = new MongoClient(AUTH_MONGODB_URI, {
+    serverSelectionTimeoutMS: 5000,
+  });
+
+  await client.connect();
+  const db = client.db(AUTH_DB_NAME);
+
+  cachedAuthClient = client;
+  cachedAuthDb = db;
+
+  return db;
+}
+
+// App-specific database connection (for laundromat data)
 interface MongooseCache {
   conn: typeof mongoose | null;
   promise: Promise<typeof mongoose> | null;
