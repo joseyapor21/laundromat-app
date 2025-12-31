@@ -627,12 +627,14 @@ class PrinterService {
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
 
-    // Order number (inverted)
+    // Order number (large, inverted)
+    r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` #${orderNum} \n`;
     r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
 
-    r += '\n\n';  // Extra space after order number
+    r += '\n';  // Space after order number
 
     // === CUSTOMER NAME (large) ===
     r += ESC.DOUBLE_SIZE_ON;
@@ -649,7 +651,7 @@ class PrinterService {
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
 
-    // Pickup date/time
+    // Pickup date/time (large)
     if (order.estimatedPickupDate) {
       const pickupDate = new Date(order.estimatedPickupDate);
       const pickupDateStr = pickupDate.toLocaleDateString('en-US', {
@@ -662,9 +664,12 @@ class PrinterService {
         minute: '2-digit',
         hour12: true,
       });
+      r += ESC.DOUBLE_SIZE_ON;
       r += ESC.INVERT_ON;
-      r += ` ${pickupDateStr} ${pickupTimeStr} \n`;
+      r += ` ${pickupDateStr} \n`;
+      r += ` ${pickupTimeStr} \n`;
       r += ESC.INVERT_OFF;
+      r += ESC.NORMAL_SIZE;
     }
 
     r += '------------------------------------------------\n';

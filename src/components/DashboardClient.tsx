@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Order, OrderStatus } from '@/types';
@@ -30,6 +30,8 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(user);
+  const [showQRScanner, setShowQRScanner] = useState(false);
+  const [manualOrderInput, setManualOrderInput] = useState('');
 
   // Fetch current user if not provided from server
   useEffect(() => {
@@ -95,6 +97,25 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
         return order.status !== 'completed';
     }
   });
+
+  // Find and open order by order number
+  const findOrderByNumber = (orderNum: string) => {
+    const num = orderNum.replace(/^#/, '').trim();
+    const found = orders.find(o =>
+      o.orderId?.toString() === num ||
+      o._id?.slice(-6) === num ||
+      o._id === num
+    );
+
+    if (found) {
+      setSelectedOrder(found);
+      setShowQRScanner(false);
+      setManualOrderInput('');
+      toast.success(`Found order #${num}`);
+    } else {
+      toast.error(`Order #${num} not found`);
+    }
+  };
 
   // Handle logout
   const handleLogout = async () => {
@@ -251,6 +272,16 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
           {/* Actions */}
           <div className="flex gap-2">
             <button
+              onClick={() => setShowQRScanner(true)}
+              className="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+              </svg>
+              Scan QR
+            </button>
+
+            <button
               onClick={() => loadOrders()}
               disabled={loading}
               className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors disabled:opacity-50"
@@ -315,6 +346,112 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
           }}
           currentUser={currentUser}
         />
+      )}
+
+      {/* QR Scanner Modal */}
+      {showQRScanner && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowQRScanner(false)}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-gray-900">Find Order</h2>
+              <button
+                onClick={() => setShowQRScanner(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Manual Input */}
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Enter Order Number
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={manualOrderInput}
+                    onChange={e => setManualOrderInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && manualOrderInput) {
+                        findOrderByNumber(manualOrderInput);
+                      }
+                    }}
+                    placeholder="e.g., 123 or #123"
+                    className="flex-1 px-4 py-3 text-lg border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => findOrderByNumber(manualOrderInput)}
+                    disabled={!manualOrderInput}
+                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                  >
+                    Find
+                  </button>
+                </div>
+              </div>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <div className="w-full border-t border-gray-200"></div>
+                </div>
+                <div className="relative flex justify-center text-sm">
+                  <span className="px-2 bg-white text-gray-500">or scan QR code with camera</span>
+                </div>
+              </div>
+
+              {/* Camera Scanner Placeholder */}
+              <div className="bg-gray-100 rounded-lg p-8 text-center">
+                <div className="text-6xl mb-4">📷</div>
+                <p className="text-gray-600 mb-4">
+                  Use your device camera to scan the QR code on the order receipt or bag label
+                </p>
+                <button
+                  onClick={() => {
+                    // Try to use the browser's barcode detection API or fallback to input
+                    if ('BarcodeDetector' in window) {
+                      toast('Camera scanning starting...');
+                      // Would need full implementation with video stream
+                    } else {
+                      toast('Camera scanning not supported. Please enter order number manually.', {
+                        icon: '📝',
+                      });
+                    }
+                  }}
+                  className="px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium inline-flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Open Camera
+                </button>
+              </div>
+
+              {/* Recent Orders Quick Access */}
+              <div className="pt-4 border-t">
+                <p className="text-sm font-medium text-gray-700 mb-2">Recent Orders</p>
+                <div className="flex flex-wrap gap-2">
+                  {orders.slice(0, 6).map(order => (
+                    <button
+                      key={order._id}
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setShowQRScanner(false);
+                      }}
+                      className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
+                    >
+                      #{order.orderId || order._id?.slice(-6)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
