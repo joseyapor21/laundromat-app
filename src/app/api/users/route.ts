@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db/connection';
-import { User } from '@/lib/db/models';
-import { getCurrentUser, isSupervisor } from '@/lib/auth/server';
+import { getAuthDatabase } from '@/lib/db/connection';
+import { getCurrentUser, isAdmin } from '@/lib/auth/server';
+import { ObjectId } from 'mongodb';
+
+const DEPARTMENT_NAME = 'Laundromat Department';
 
 export async function GET() {
   try {
@@ -14,33 +16,66 @@ export async function GET() {
       );
     }
 
-    if (!isSupervisor(currentUser)) {
+    if (!isAdmin(currentUser)) {
       return NextResponse.json(
-        { error: 'Not authorized' },
+        { error: 'Not authorized. Admin access required.' },
         { status: 403 }
       );
     }
 
-    await connectDB();
+    const db = await getAuthDatabase();
 
-    // Filter users based on role
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const query: any = {};
+    // Get the Laundromat Department
+    const department = await db.collection('v5departments').findOne({ name: DEPARTMENT_NAME });
 
-    // Supervisors can only see employees and drivers
-    if (currentUser.role === 'supervisor') {
-      query.role = { $in: ['employee', 'driver'] };
+    if (!department) {
+      return NextResponse.json(
+        { error: 'Department not found' },
+        { status: 404 }
+      );
     }
 
-    const users = await User.find(query)
-      .select('-password')
-      .sort({ createdAt: -1 })
-      .lean();
+    // Get all user IDs in the department
+    const adminIds = department.adminIds || [];
+    const memberIds = department.memberIds || [];
+    const allUserIds = [...adminIds, ...memberIds];
 
-    return NextResponse.json(users.map(u => ({
-      ...u,
-      _id: u._id.toString(),
-    })));
+    if (allUserIds.length === 0) {
+      return NextResponse.json([]);
+    }
+
+    // Fetch all users in the department
+    const userObjectIds: ObjectId[] = [];
+    for (const id of allUserIds) {
+      try {
+        userObjectIds.push(new ObjectId(id));
+      } catch {
+        // Skip invalid IDs
+      }
+    }
+
+    const users = await db.collection('v5users')
+      .find({ _id: { $in: userObjectIds } })
+      .project({ password: 0 })
+      .toArray();
+
+    // Map users with their department role
+    const usersWithRoles = users.map(user => {
+      const odId = user._id.toString();
+      const isDeptAdmin = adminIds.includes(odId);
+      return {
+        _id: odId,
+        email: user.email,
+        name: user.name || '',
+        firstName: user.name?.split(' ')[0] || '',
+        lastName: user.name?.split(' ').slice(1).join(' ') || '',
+        role: isDeptAdmin ? 'admin' : 'user',
+        isActive: true,
+        isSuperUser: user.isSuperUser || false,
+      };
+    });
+
+    return NextResponse.json(usersWithRoles);
   } catch (error) {
     console.error('Get users error:', error);
     return NextResponse.json(
