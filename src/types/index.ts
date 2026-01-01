@@ -154,6 +154,9 @@ export interface Order {
   // Price override fields
   priceOverride?: number;
   priceChangeNote?: string;
+  // Same day service
+  isSameDay?: boolean;
+  sameDayPricePerPound?: number;  // The combined price per pound (regular + same day extra)
   // Customer reference (populated)
   customer?: Customer;
 }
@@ -164,6 +167,9 @@ export interface Settings {
   minimumWeight: number;
   minimumPrice: number;
   pricePerPound: number;
+  // Same day service settings
+  sameDayMinimumCharge: number;      // Minimum charge for same day service (e.g., $5)
+  sameDayExtraPercentage: number;    // Extra percentage per pound (e.g., 50 = 50%)
   printerIP: string;
   printerPort: number;
   updatedAt: Date;

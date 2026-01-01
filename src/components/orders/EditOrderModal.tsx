@@ -36,6 +36,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
   const [deliverySchedule, setDeliverySchedule] = useState('');
   const [deliveryPrice, setDeliveryPrice] = useState<number>(0);
 
+  // Same day service
+  const [isSameDay, setIsSameDay] = useState(false);
+
   const populateOrderData = useCallback(() => {
     setCustomerName(order.customerName || '');
     setCustomerPhone(order.customerPhone || '');
@@ -77,6 +80,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
       setShowPriceOverride(true);
       setPriceChangeNote(order.priceChangeNote || '');
     }
+
+    // Same day service
+    setIsSameDay(order.isSameDay || false);
   }, [order]);
 
   useEffect(() => {
@@ -106,6 +112,34 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     }
   };
 
+  // Helper function to round to nearest quarter (0.25)
+  const roundToQuarter = (value: number): number => {
+    return Math.round(value * 4) / 4;
+  };
+
+  // Calculate same day price per pound
+  const getSameDayPricePerPound = (): number => {
+    if (!settings) return 0;
+    const regularPrice = settings.pricePerPound || 1.25;
+    const extraPercentage = settings.sameDayExtraPercentage || 50;
+    const sameDayPrice = regularPrice * (1 + extraPercentage / 100);
+    return roundToQuarter(sameDayPrice);
+  };
+
+  // Calculate same day extra charge
+  const getSameDayExtraCharge = (): number => {
+    if (!settings || !isSameDay || weight <= 0) return 0;
+
+    const regularPrice = settings.pricePerPound || 1.25;
+    const sameDayPricePerPound = getSameDayPricePerPound();
+    const extraPerPound = sameDayPricePerPound - regularPrice;
+    const calculatedExtra = weight * extraPerPound;
+
+    // Use minimum charge if calculated is less
+    const minimumCharge = settings.sameDayMinimumCharge || 5;
+    return Math.max(calculatedExtra, minimumCharge);
+  };
+
   const calculateTotalPrice = () => {
     if (!settings) return order.totalAmount || 0;
 
@@ -119,6 +153,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
       }
     }
 
+    // Add same day extra charge (not shown separately, but added to total)
+    const sameDayExtra = getSameDayExtraCharge();
+
     const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, quantity]) => {
       const item = extraItems.find(i => i._id === itemId);
       return total + (item ? item.price * quantity : 0);
@@ -130,7 +167,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
       deliveryFee = deliveryPrice;
     }
 
-    return basePrice + extraItemsTotal + deliveryFee;
+    return basePrice + sameDayExtra + extraItemsTotal + deliveryFee;
   };
 
   const getFinalPrice = () => {
@@ -200,6 +237,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
         dropOffDate: dropOffDate ? new Date(dropOffDate) : undefined,
         estimatedPickupDate: estimatedPickupDate ? new Date(estimatedPickupDate) : undefined,
         deliverySchedule: deliverySchedule ? new Date(deliverySchedule) : undefined,
+        // Same day service
+        isSameDay,
+        sameDayPricePerPound: isSameDay ? getSameDayPricePerPound() : undefined,
       };
 
       // Update customer address if it's a delivery order
@@ -429,6 +469,43 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none resize-y min-h-[80px]"
                 />
               </div>
+
+              {/* Same Day Service Toggle */}
+              <div className={`p-4 rounded-lg border-2 ${isSameDay ? 'bg-amber-50 border-amber-300' : 'bg-gray-50 border-gray-200'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      id="sameDay"
+                      checked={isSameDay}
+                      onChange={(e) => setIsSameDay(e.target.checked)}
+                      className="w-5 h-5 text-amber-600 border-2 border-gray-300 rounded focus:ring-amber-500"
+                    />
+                    <label htmlFor="sameDay" className="font-medium text-gray-800 cursor-pointer">
+                      Same Day Service
+                    </label>
+                  </div>
+                  {isSameDay && settings && (
+                    <span className="px-3 py-1 bg-amber-500 text-white text-sm font-medium rounded-full">
+                      ${getSameDayPricePerPound().toFixed(2)}/lb
+                    </span>
+                  )}
+                </div>
+                {isSameDay && settings && (
+                  <div className="mt-3 text-sm text-amber-800">
+                    <p>
+                      Regular: ${settings.pricePerPound?.toFixed(2)}/lb →
+                      Same Day: <strong>${getSameDayPricePerPound().toFixed(2)}/lb</strong>
+                    </p>
+                    <p className="mt-1">
+                      Extra charge: <strong>${getSameDayExtraCharge().toFixed(2)}</strong>
+                      {getSameDayExtraCharge() === (settings.sameDayMinimumCharge || 5) && weight > 0 && (
+                        <span className="text-amber-600 ml-1">(minimum charge applied)</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Extra Items Toggle */}
@@ -588,6 +665,37 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
               </h3>
 
               <div className="bg-gray-100 p-4 rounded-lg">
+                {/* Price breakdown */}
+                {settings && weight > 0 && (
+                  <div className="space-y-1 mb-3 text-sm text-gray-600 border-b border-gray-300 pb-3">
+                    <div className="flex justify-between">
+                      <span>Base ({weight} lbs × ${settings.pricePerPound?.toFixed(2)}):</span>
+                      <span>${(weight >= settings.minimumWeight ? weight * settings.pricePerPound : settings.minimumPrice).toFixed(2)}</span>
+                    </div>
+                    {isSameDay && (
+                      <div className="flex justify-between text-amber-700">
+                        <span>Same Day Extra:</span>
+                        <span>+${getSameDayExtraCharge().toFixed(2)}</span>
+                      </div>
+                    )}
+                    {Object.entries(selectedExtraItems).filter(([, qty]) => qty > 0).length > 0 && (
+                      <div className="flex justify-between">
+                        <span>Extra Items:</span>
+                        <span>+${Object.entries(selectedExtraItems).reduce((total, [itemId, quantity]) => {
+                          const item = extraItems.find(i => i._id === itemId);
+                          return total + (item ? item.price * quantity : 0);
+                        }, 0).toFixed(2)}</span>
+                      </div>
+                    )}
+                    {orderType === 'delivery' && deliveryPrice > 0 && (
+                      <div className="flex justify-between">
+                        <span>Delivery Fee:</span>
+                        <span>+${deliveryPrice.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-between items-center font-semibold text-gray-700 mb-2">
                   <span>Calculated Price:</span>
                   <span>${calculateTotalPrice().toFixed(2)}</span>

@@ -35,6 +35,9 @@ export interface OrderDoc {
   deliverySchedule?: Date | null;
   paymentMethod?: PaymentMethod | null;
   isPaid: boolean;
+  // Same day service
+  isSameDay?: boolean;
+  sameDayPricePerPound?: number;
   statusHistory: Array<{
     status?: string;
     changedBy?: string;
@@ -195,6 +198,15 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   isPaid: {
     type: Boolean,
     default: false,
+  },
+  // Same day service
+  isSameDay: {
+    type: Boolean,
+    default: false,
+  },
+  sameDayPricePerPound: {
+    type: Number,
+    default: null,
   },
   statusHistory: [{
     status: String,
