@@ -36,6 +36,7 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
   const [isScanning, setIsScanning] = useState(false);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerRef = useRef<HTMLDivElement>(null);
+  const hasScannedRef = useRef(false);
 
   // Fetch current user if not provided from server
   useEffect(() => {
@@ -106,6 +107,8 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
   const startScanner = useCallback(async () => {
     if (isScanning || !scannerContainerRef.current) return;
 
+    hasScannedRef.current = false;
+
     try {
       const html5QrCode = new Html5Qrcode('qr-reader');
       html5QrCodeRef.current = html5QrCode;
@@ -116,10 +119,37 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
           fps: 10,
           qrbox: { width: 250, height: 250 },
         },
-        (decodedText) => {
-          // QR code scanned successfully
-          stopScanner();
-          findOrderByNumber(decodedText);
+        async (decodedText) => {
+          // Prevent multiple scans
+          if (hasScannedRef.current) return;
+          hasScannedRef.current = true;
+
+          // Stop scanner first
+          try {
+            await html5QrCode.stop();
+            html5QrCodeRef.current = null;
+            setIsScanning(false);
+          } catch (e) {
+            console.error('Error stopping scanner:', e);
+          }
+
+          // Then find the order
+          const num = decodedText.replace(/^#/, '').trim();
+          const found = orders.find(o =>
+            o.orderId?.toString() === num ||
+            o._id?.slice(-6) === num ||
+            o._id === num
+          );
+
+          if (found) {
+            setSelectedOrder(found);
+            setShowQRScanner(false);
+            setManualOrderInput('');
+            toast.success(`Found order #${num}`);
+          } else {
+            toast.error(`Order #${num} not found`);
+            hasScannedRef.current = false; // Allow retry
+          }
         },
         () => {
           // QR code not detected (ignore)
@@ -131,7 +161,7 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
       console.error('Failed to start scanner:', err);
       toast.error('Could not access camera. Please enter order number manually.');
     }
-  }, [isScanning]);
+  }, [isScanning, orders]);
 
   // Stop QR scanner
   const stopScanner = useCallback(async () => {
