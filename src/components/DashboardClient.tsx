@@ -141,6 +141,12 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
             return { width: size, height: size };
           },
           aspectRatio: 1.0,
+          videoConstraints: {
+            facingMode: 'environment',
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            advanced: [{ focusMode: 'continuous' } as MediaTrackConstraintSet],
+          },
         },
         async (decodedText) => {
           // Prevent multiple scans
