@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
+import { Html5Qrcode } from 'html5-qrcode';
 import type { Order, OrderStatus } from '@/types';
 import type { CurrentUser } from '@/lib/auth/server';
 import OrderCard from './orders/OrderCard';
@@ -32,6 +33,9 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(user);
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [manualOrderInput, setManualOrderInput] = useState('');
+  const [isScanning, setIsScanning] = useState(false);
+  const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
+  const scannerContainerRef = useRef<HTMLDivElement>(null);
 
   // Fetch current user if not provided from server
   useEffect(() => {
@@ -97,6 +101,57 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
         return order.status !== 'completed';
     }
   });
+
+  // Start QR scanner
+  const startScanner = useCallback(async () => {
+    if (isScanning || !scannerContainerRef.current) return;
+
+    try {
+      const html5QrCode = new Html5Qrcode('qr-reader');
+      html5QrCodeRef.current = html5QrCode;
+
+      await html5QrCode.start(
+        { facingMode: 'environment' },
+        {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+        },
+        (decodedText) => {
+          // QR code scanned successfully
+          stopScanner();
+          findOrderByNumber(decodedText);
+        },
+        () => {
+          // QR code not detected (ignore)
+        }
+      );
+
+      setIsScanning(true);
+    } catch (err) {
+      console.error('Failed to start scanner:', err);
+      toast.error('Could not access camera. Please enter order number manually.');
+    }
+  }, [isScanning]);
+
+  // Stop QR scanner
+  const stopScanner = useCallback(async () => {
+    if (html5QrCodeRef.current && isScanning) {
+      try {
+        await html5QrCodeRef.current.stop();
+        html5QrCodeRef.current = null;
+      } catch (err) {
+        console.error('Failed to stop scanner:', err);
+      }
+    }
+    setIsScanning(false);
+  }, [isScanning]);
+
+  // Cleanup scanner when modal closes
+  useEffect(() => {
+    if (!showQRScanner && isScanning) {
+      stopScanner();
+    }
+  }, [showQRScanner, isScanning, stopScanner]);
 
   // Find and open order by order number
   const findOrderByNumber = (orderNum: string) => {
@@ -350,12 +405,12 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
 
       {/* QR Scanner Modal */}
       {showQRScanner && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowQRScanner(false)}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => { stopScanner(); setShowQRScanner(false); }}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold text-gray-900">Find Order</h2>
               <button
-                onClick={() => setShowQRScanner(false)}
+                onClick={() => { stopScanner(); setShowQRScanner(false); }}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >
                 <svg className="w-5 h-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -364,70 +419,67 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
               </button>
             </div>
 
-            {/* Manual Input */}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter Order Number
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={manualOrderInput}
-                    onChange={e => setManualOrderInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter' && manualOrderInput) {
-                        findOrderByNumber(manualOrderInput);
-                      }
-                    }}
-                    placeholder="e.g., 123 or #123"
-                    className="flex-1 px-4 py-3 text-lg border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                    autoFocus
-                  />
-                  <button
-                    onClick={() => findOrderByNumber(manualOrderInput)}
-                    disabled={!manualOrderInput}
-                    className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-                  >
-                    Find
-                  </button>
-                </div>
-              </div>
+            {/* Camera Scanner */}
+            <div className="mb-4">
+              <div
+                id="qr-reader"
+                ref={scannerContainerRef}
+                className="w-full rounded-lg overflow-hidden bg-black"
+                style={{ minHeight: isScanning ? '300px' : '0' }}
+              ></div>
 
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">or scan QR code with camera</span>
-                </div>
-              </div>
-
-              {/* Camera Scanner Placeholder */}
-              <div className="bg-gray-100 rounded-lg p-8 text-center">
-                <div className="text-6xl mb-4">📷</div>
-                <p className="text-gray-600 mb-4">
-                  Use your device camera to scan the QR code on the order receipt or bag label
-                </p>
+              {!isScanning ? (
                 <button
-                  onClick={() => {
-                    // Try to use the browser's barcode detection API or fallback to input
-                    if ('BarcodeDetector' in window) {
-                      toast('Camera scanning starting...');
-                      // Would need full implementation with video stream
-                    } else {
-                      toast('Camera scanning not supported. Please enter order number manually.', {
-                        icon: '📝',
-                      });
-                    }
-                  }}
-                  className="px-6 py-3 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium inline-flex items-center gap-2"
+                  onClick={startScanner}
+                  className="w-full py-4 bg-amber-500 text-white rounded-lg hover:bg-amber-600 font-medium flex items-center justify-center gap-2"
                 >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
-                  Open Camera
+                  Start Camera Scanner
+                </button>
+              ) : (
+                <button
+                  onClick={stopScanner}
+                  className="w-full py-3 mt-2 bg-red-500 text-white rounded-lg hover:bg-red-600 font-medium"
+                >
+                  Stop Scanner
+                </button>
+              )}
+            </div>
+
+            <div className="relative mb-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">or enter order number</span>
+              </div>
+            </div>
+
+            {/* Manual Input */}
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={manualOrderInput}
+                  onChange={e => setManualOrderInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && manualOrderInput) {
+                      findOrderByNumber(manualOrderInput);
+                    }
+                  }}
+                  placeholder="Enter order # (e.g., 123)"
+                  className="flex-1 px-4 py-3 text-lg border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                />
+                <button
+                  onClick={() => findOrderByNumber(manualOrderInput)}
+                  disabled={!manualOrderInput}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+                >
+                  Find
                 </button>
               </div>
 
@@ -435,14 +487,15 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
               <div className="pt-4 border-t">
                 <p className="text-sm font-medium text-gray-700 mb-2">Recent Orders</p>
                 <div className="flex flex-wrap gap-2">
-                  {orders.slice(0, 6).map(order => (
+                  {orders.slice(0, 8).map(order => (
                     <button
                       key={order._id}
                       onClick={() => {
+                        stopScanner();
                         setSelectedOrder(order);
                         setShowQRScanner(false);
                       }}
-                      className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors"
+                      className="px-3 py-2 text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
                     >
                       #{order.orderId || order._id?.slice(-6)}
                     </button>
