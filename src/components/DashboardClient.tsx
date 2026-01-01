@@ -110,14 +110,37 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
     hasScannedRef.current = false;
 
     try {
-      const html5QrCode = new Html5Qrcode('qr-reader');
+      const html5QrCode = new Html5Qrcode('qr-reader', {
+        verbose: false,
+        formatsToSupport: [0], // QR_CODE only for faster scanning
+      });
       html5QrCodeRef.current = html5QrCode;
 
+      // Get available cameras
+      const cameras = await Html5Qrcode.getCameras();
+      if (!cameras || cameras.length === 0) {
+        throw new Error('No cameras found');
+      }
+
+      // Prefer back camera
+      const backCamera = cameras.find(c =>
+        c.label.toLowerCase().includes('back') ||
+        c.label.toLowerCase().includes('rear') ||
+        c.label.toLowerCase().includes('environment')
+      );
+      const cameraId = backCamera ? backCamera.id : cameras[cameras.length - 1].id;
+
       await html5QrCode.start(
-        { facingMode: 'environment' },
+        cameraId,
         {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
+          fps: 15,
+          qrbox: (viewfinderWidth, viewfinderHeight) => {
+            // Make scanning area larger - 80% of viewfinder
+            const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+            const size = Math.floor(minEdge * 0.8);
+            return { width: size, height: size };
+          },
+          aspectRatio: 1.0,
         },
         async (decodedText) => {
           // Prevent multiple scans
