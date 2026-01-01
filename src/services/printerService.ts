@@ -25,8 +25,11 @@ const ESC = {
 
   // QR Code commands (GS ( k)
   QR_MODEL: '\x1D\x28\x6B\x04\x00\x31\x41\x32\x00',     // Set QR model 2
-  QR_SIZE: (n: number) => `\x1D\x28\x6B\x03\x00\x31\x43${String.fromCharCode(n)}`, // Set QR size (3-8)
-  QR_ERROR: '\x1D\x28\x6B\x03\x00\x31\x45\x31',         // Set error correction level M
+  QR_SIZE: (n: number) => `\x1D\x28\x6B\x03\x00\x31\x43${String.fromCharCode(n)}`, // Set QR size (3-16)
+  QR_ERROR_L: '\x1D\x28\x6B\x03\x00\x31\x45\x30',       // Error correction L (7% - larger modules)
+  QR_ERROR_M: '\x1D\x28\x6B\x03\x00\x31\x45\x31',       // Error correction M (15%)
+  QR_ERROR_Q: '\x1D\x28\x6B\x03\x00\x31\x45\x32',       // Error correction Q (25%)
+  QR_ERROR_H: '\x1D\x28\x6B\x03\x00\x31\x45\x33',       // Error correction H (30% - best for scanning)
   QR_STORE: (data: string) => {
     const len = data.length + 3;
     const pL = len % 256;
@@ -48,14 +51,17 @@ class PrinterService {
   private cutCommand = ESC.FEED_AND_CUT;
 
   // Generate QR code ESC/POS commands
-  private generateQRCode(data: string, size: number = 4): string {
+  // Size: 1-16 (bigger = easier to scan), Error: L/M/Q/H (H = most error tolerant)
+  private generateQRCode(data: string, size: number = 10): string {
     let qr = '';
+    qr += '\n\n';                 // Add space before QR
     qr += ESC.CENTER;
-    qr += ESC.QR_MODEL;           // Set model
-    qr += ESC.QR_SIZE(size);      // Set size (1-8, 4 is medium)
-    qr += ESC.QR_ERROR;           // Set error correction
+    qr += ESC.QR_MODEL;           // Set model 2
+    qr += ESC.QR_SIZE(size);      // Set size (bigger = easier to scan)
+    qr += ESC.QR_ERROR_L;         // Use L for larger modules (easier scanning with simple data)
     qr += ESC.QR_STORE(data);     // Store data
     qr += ESC.QR_PRINT;           // Print QR
+    qr += '\n\n';                 // Add space after QR
     return qr;
   }
   // Queue print job through the API
@@ -417,10 +423,9 @@ class PrinterService {
       `$${(order.totalAmount || 0).toFixed(2)}`
     ) + '\n';
 
-    // === QR CODE ===
+    // === QR CODE (Large for easy scanning) ===
+    r += this.generateQRCode(orderNum, 12);  // Size 12 = very large, easy to scan
     r += '\n\n';
-    r += this.generateQRCode(orderNum, 8);  // Size 8 = largest
-    r += '\n\n\n\n';  // Extra space after QR code
 
     r += this.cutCommand;
 
@@ -594,10 +599,9 @@ class PrinterService {
       `$${(order.totalAmount || 0).toFixed(2)}`
     ) + '\n';
 
-    // === QR CODE ===
-    r += '\n\n';
-    r += this.generateQRCode(orderNum, 8);  // Size 8 = largest
-    r += '\n\n\n\n';  // Extra space after QR code
+    // === QR CODE (Large for easy scanning) ===
+    r += this.generateQRCode(orderNum, 12);  // Size 12 = very large, easy to scan
+    r += '\n';
 
     // Footer
     r += ESC.CENTER;
@@ -690,10 +694,9 @@ class PrinterService {
       r += ESC.INVERT_OFF;
     }
 
-    // === QR CODE ===
-    r += '\n\n';
-    r += this.generateQRCode(orderNum, 6);  // Size 6 for bag labels
-    r += '\n\n\n';  // Extra space after QR code
+    // === QR CODE (Large for easy scanning) ===
+    r += this.generateQRCode(orderNum, 10);  // Size 10 = large, easy to scan
+    r += '\n';
 
     r += ESC.CENTER;
     r += ESC.DOUBLE_SIZE_ON;
