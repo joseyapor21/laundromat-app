@@ -471,44 +471,46 @@ export default function AdminPage() {
             </div>
 
             {/* Users List */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <div className="flex items-center justify-between mb-4 border-b pb-2">
+            <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 border-b pb-2">
                 <h2 className="text-lg font-semibold text-gray-900">Users ({users.length})</h2>
                 <input
                   type="text"
                   placeholder="Search users..."
                   value={userSearch}
                   onChange={e => setUserSearch(e.target.value)}
-                  className="px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500 w-64"
+                  className="px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500 w-full md:w-64"
                 />
               </div>
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {filteredUsers.map(user => (
-                  <div key={user._id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
-                    <div>
-                      <div className="font-medium text-gray-900">
-                        {user.firstName || user.name?.split(' ')[0]} {user.lastName || user.name?.split(' ').slice(1).join(' ')}
+                  <div key={user._id} className="p-3 border border-gray-200 rounded-lg bg-gray-50">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-gray-900 truncate">
+                          {user.firstName || user.name?.split(' ')[0]} {user.lastName || user.name?.split(' ').slice(1).join(' ')}
+                        </div>
+                        <div className="text-sm text-gray-600 truncate">{user.email}</div>
                       </div>
-                      <div className="text-sm text-gray-600">{user.email}</div>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className={`px-2 py-1 text-xs rounded font-medium ${
-                        user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
-                      }`}>
-                        {user.role === 'admin' ? 'Admin' : 'Member'}
-                      </span>
-                      <button
-                        onClick={() => setEditingUser(user)}
-                        className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 text-gray-900 bg-white"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteUser(user._id)}
-                        className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-                      >
-                        Remove
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`px-2 py-1 text-xs rounded font-medium ${
+                          user.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+                        }`}>
+                          {user.role === 'admin' ? 'Admin' : 'Member'}
+                        </span>
+                        <button
+                          onClick={() => setEditingUser(user)}
+                          className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 text-gray-900 bg-white"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(user._id)}
+                          className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -519,27 +521,27 @@ export default function AdminPage() {
 
         {/* Customers Tab */}
         {activeTab === 'customers' && (
-          <div className="bg-white rounded-xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4 border-b pb-2">
+          <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 border-b pb-2">
               <h2 className="text-lg font-semibold text-gray-900">Customers ({customers.length})</h2>
               <input
                 type="text"
                 placeholder="Search customers..."
                 value={customerSearch}
                 onChange={e => setCustomerSearch(e.target.value)}
-                className="px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500 w-64"
+                className="px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500 w-full md:w-64"
               />
             </div>
             <div className="space-y-3 max-h-[60vh] overflow-y-auto">
               {filteredCustomers.map(customer => (
-                <div key={customer._id} className="p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <div key={customer._id} className="p-3 md:p-4 border border-gray-200 rounded-lg bg-gray-50">
                   {/* Customer Info Row */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <div className="font-medium text-gray-900">{customer.name}</div>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 mb-3">
+                    <div className="min-w-0">
+                      <div className="font-medium text-gray-900 truncate">{customer.name}</div>
                       <div className="text-sm text-gray-600">{customer.phoneNumber}</div>
                     </div>
-                    <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                    <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded w-fit">
                       Delivery: {customer.deliveryFee || '$3.00'}
                     </span>
                   </div>
@@ -591,7 +593,7 @@ export default function AdminPage() {
 
         {/* Settings Tab */}
         {activeTab === 'settings' && settings && (
-          <div className="bg-white rounded-xl p-6 shadow-sm">
+          <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
             <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Pricing & Settings</h2>
             <form onSubmit={handleUpdateSettings} className="space-y-4">
               <div className="grid md:grid-cols-2 gap-4">
@@ -700,9 +702,9 @@ export default function AdminPage() {
         {activeTab === 'extra-items' && (
           <div className="space-y-6">
             {/* Create Extra Item */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
+            <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Create Extra Item</h2>
-              <form onSubmit={handleCreateExtraItem} className="grid md:grid-cols-4 gap-4">
+              <form onSubmit={handleCreateExtraItem} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                   <input
@@ -746,31 +748,33 @@ export default function AdminPage() {
             </div>
 
             {/* Extra Items List */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
+            <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Extra Items ({extraItems.length})</h2>
               <div className="space-y-3 max-h-96 overflow-y-auto">
                 {extraItems.map(item => (
-                  <div key={item._id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-gray-50">
-                    <div>
-                      <div className="font-medium text-gray-900">{item.name}</div>
-                      <div className="text-sm text-gray-600">{item.description} • ${item.price.toFixed(2)}</div>
-                    </div>
-                    <div className="flex gap-2">
-                      <span className={`px-2 py-1 text-xs rounded ${item.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                        {item.isActive ? 'Active' : 'Inactive'}
-                      </span>
-                      <button
-                        onClick={() => setEditingExtraItem(item)}
-                        className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 text-gray-900 bg-white"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteExtraItem(item._id)}
-                        className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-                      >
-                        Delete
-                      </button>
+                  <div key={item._id} className="p-3 border border-gray-200 rounded-lg bg-gray-50">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-medium text-gray-900 truncate">{item.name}</div>
+                        <div className="text-sm text-gray-600">{item.description} - ${item.price.toFixed(2)}</div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`px-2 py-1 text-xs rounded ${item.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                          {item.isActive ? 'Active' : 'Inactive'}
+                        </span>
+                        <button
+                          onClick={() => setEditingExtraItem(item)}
+                          className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 text-gray-900 bg-white"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteExtraItem(item._id)}
+                          className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -783,9 +787,9 @@ export default function AdminPage() {
         {activeTab === 'machines' && (
           <div className="space-y-6">
             {/* Create Machine */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
+            <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Add New Machine</h2>
-              <form onSubmit={handleCreateMachine} className="grid md:grid-cols-4 gap-4">
+              <form onSubmit={handleCreateMachine} className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                   <input
@@ -832,7 +836,7 @@ export default function AdminPage() {
             </div>
 
             {/* Machines List */}
-            <div className="bg-white rounded-xl p-6 shadow-sm">
+            <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">
                 Machines ({machines.length})
               </h2>
@@ -849,32 +853,34 @@ export default function AdminPage() {
                 </h3>
                 <div className="space-y-2">
                   {machines.filter(m => m.type === 'washer').map(machine => (
-                    <div key={machine._id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-cyan-50">
-                      <div>
-                        <div className="font-medium text-gray-900">{machine.name}</div>
-                        <div className="text-sm text-gray-600">QR: {machine.qrCode}</div>
-                      </div>
-                      <div className="flex gap-2">
-                        <span className={`px-2 py-1 text-xs rounded ${
-                          machine.status === 'available' ? 'bg-green-100 text-green-800' :
-                          machine.status === 'in_use' ? 'bg-blue-100 text-blue-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {machine.status === 'available' ? 'Available' :
-                           machine.status === 'in_use' ? 'In Use' : 'Maintenance'}
-                        </span>
-                        <button
-                          onClick={() => setEditingMachine(machine)}
-                          className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 text-gray-900 bg-white"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteMachine(machine._id)}
-                          className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-                        >
-                          Delete
-                        </button>
+                    <div key={machine._id} className="p-3 border border-gray-200 rounded-lg bg-cyan-50">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{machine.name}</div>
+                          <div className="text-sm text-gray-600 truncate">QR: {machine.qrCode}</div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`px-2 py-1 text-xs rounded ${
+                            machine.status === 'available' ? 'bg-green-100 text-green-800' :
+                            machine.status === 'in_use' ? 'bg-blue-100 text-blue-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {machine.status === 'available' ? 'Available' :
+                             machine.status === 'in_use' ? 'In Use' : 'Maintenance'}
+                          </span>
+                          <button
+                            onClick={() => setEditingMachine(machine)}
+                            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 text-gray-900 bg-white"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMachine(machine._id)}
+                            className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -896,32 +902,34 @@ export default function AdminPage() {
                 </h3>
                 <div className="space-y-2">
                   {machines.filter(m => m.type === 'dryer').map(machine => (
-                    <div key={machine._id} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg bg-orange-50">
-                      <div>
-                        <div className="font-medium text-gray-900">{machine.name}</div>
-                        <div className="text-sm text-gray-600">QR: {machine.qrCode}</div>
-                      </div>
-                      <div className="flex gap-2">
-                        <span className={`px-2 py-1 text-xs rounded ${
-                          machine.status === 'available' ? 'bg-green-100 text-green-800' :
-                          machine.status === 'in_use' ? 'bg-blue-100 text-blue-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {machine.status === 'available' ? 'Available' :
-                           machine.status === 'in_use' ? 'In Use' : 'Maintenance'}
-                        </span>
-                        <button
-                          onClick={() => setEditingMachine(machine)}
-                          className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 text-gray-900 bg-white"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteMachine(machine._id)}
-                          className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
-                        >
-                          Delete
-                        </button>
+                    <div key={machine._id} className="p-3 border border-gray-200 rounded-lg bg-orange-50">
+                      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-medium text-gray-900 truncate">{machine.name}</div>
+                          <div className="text-sm text-gray-600 truncate">QR: {machine.qrCode}</div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className={`px-2 py-1 text-xs rounded ${
+                            machine.status === 'available' ? 'bg-green-100 text-green-800' :
+                            machine.status === 'in_use' ? 'bg-blue-100 text-blue-800' :
+                            'bg-red-100 text-red-800'
+                          }`}>
+                            {machine.status === 'available' ? 'Available' :
+                             machine.status === 'in_use' ? 'In Use' : 'Maintenance'}
+                          </span>
+                          <button
+                            onClick={() => setEditingMachine(machine)}
+                            className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 text-gray-900 bg-white"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteMachine(machine._id)}
+                            className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -936,13 +944,13 @@ export default function AdminPage() {
 
         {/* Activity Logs Tab */}
         {activeTab === 'activity' && (
-          <div className="bg-white rounded-xl p-6 shadow-sm">
-            <div className="flex items-center justify-between mb-4 border-b pb-2">
+          <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4 border-b pb-2">
               <h2 className="text-lg font-semibold text-gray-900">Activity Logs</h2>
               <select
                 value={activityFilter}
                 onChange={e => setActivityFilter(e.target.value)}
-                className="px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                className="px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500 w-full md:w-auto"
               >
                 <option value="all">All Actions</option>
                 <option value="login">Logins</option>
