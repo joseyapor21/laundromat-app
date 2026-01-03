@@ -32,8 +32,16 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Get the auth token from cookies
-  const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+  // Get the auth token from cookies OR Authorization header (for mobile apps)
+  let token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
+
+  // Check for Bearer token in Authorization header (mobile app support)
+  if (!token) {
+    const authHeader = request.headers.get('Authorization');
+    if (authHeader?.startsWith('Bearer ')) {
+      token = authHeader.substring(7);
+    }
+  }
 
   if (!token) {
     // For API routes, return 401 JSON response

@@ -14,9 +14,11 @@ class ApiService {
     this.token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
   }
 
-  async setToken(token: string) {
-    this.token = token;
-    await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token);
+  async setToken(token: string | undefined | null) {
+    if (token && typeof token === 'string') {
+      this.token = token;
+      await SecureStore.setItemAsync(AUTH_TOKEN_KEY, token);
+    }
   }
 
   async clearToken() {
@@ -40,13 +42,12 @@ class ApiService {
     };
 
     if (this.token) {
-      (headers as Record<string, string>)['Cookie'] = `auth-token=${this.token}`;
+      (headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`;
     }
 
     const response = await fetch(url, {
       ...options,
       headers,
-      credentials: 'include',
     });
 
     if (!response.ok) {
@@ -59,12 +60,28 @@ class ApiService {
 
   // Auth
   async login(email: string, password: string): Promise<{ token: string; user: User }> {
-    const response = await this.request<{ token: string; user: User }>('/auth/login', {
+    const url = `${API_BASE_URL}/api/auth/login`;
+
+    const response = await fetch(url, {
       method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({ email, password }),
     });
-    await this.setToken(response.token);
-    return response;
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Login failed' }));
+      throw new Error(error.error || 'Login failed');
+    }
+
+    const data = await response.json();
+
+    if (data.token) {
+      await this.setToken(data.token);
+    }
+
+    return { token: data.token, user: data.user };
   }
 
   async logout(): Promise<void> {
