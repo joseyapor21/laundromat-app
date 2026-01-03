@@ -101,8 +101,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if user is in the department (as admin or member) or is a SuperUser
-    const isAdmin = (department.adminIds || []).includes(userId);
-    const isMember = (department.memberIds || []).includes(userId);
+    // Compare as strings to handle both ObjectId and string formats in the database
+    const adminIds = (department.adminIds || []).map((id: unknown) => id?.toString());
+    const memberIds = (department.memberIds || []).map((id: unknown) => id?.toString());
+    const isAdmin = adminIds.includes(userId);
+    const isMember = memberIds.includes(userId);
     const isInDepartment = isSuperUser || isAdmin || isMember;
 
     if (!isInDepartment) {

@@ -33,7 +33,9 @@ export async function GET() {
     const department = await db.collection('v5departments').findOne({ name: DEPARTMENT_NAME });
     const userId = user._id.toString();
     const isSuperUser = user.isSuperUser || false;
-    const isAdmin = department ? (department.adminIds || []).includes(userId) : false;
+    // Compare as strings to handle both ObjectId and string formats in the database
+    const adminIds = department ? (department.adminIds || []).map((id: unknown) => id?.toString()) : [];
+    const isAdmin = adminIds.includes(userId);
     const role = (isAdmin || isSuperUser) ? 'admin' : 'user';
 
     return NextResponse.json({
