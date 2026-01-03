@@ -423,30 +423,30 @@ export default function AdminPage() {
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <header className="bg-white shadow-sm sticky top-0 z-40">
-        <div className="px-4 md:px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl md:text-2xl font-bold text-slate-800">Admin Panel</h1>
+        <div className="px-4 md:px-6 py-3 md:py-4 flex items-center justify-between">
+          <h1 className="text-lg md:text-2xl font-bold text-slate-800">Admin</h1>
           <button
             onClick={() => router.push('/')}
-            className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-gray-900 rounded-lg transition-colors"
+            className="px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm bg-slate-100 hover:bg-slate-200 text-gray-900 rounded-lg transition-colors"
           >
-            Back to Dashboard
+            Dashboard
           </button>
         </div>
 
         {/* Tabs */}
-        <div className="px-4 md:px-6 pb-4 flex gap-2 overflow-x-auto">
+        <div className="px-2 md:px-6 pb-3 md:pb-4 flex gap-1 md:gap-2 overflow-x-auto">
           {tabs.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as TabType)}
-              className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-colors ${
+              className={`px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.key
                   ? 'bg-blue-600 text-white'
                   : 'bg-white text-gray-700 border border-slate-200 hover:border-blue-300'
               }`}
             >
-              <span className="mr-2">{tab.icon}</span>
-              {tab.label}
+              <span className="md:mr-2">{tab.icon}</span>
+              <span className="hidden md:inline">{tab.label}</span>
             </button>
           ))}
         </div>
