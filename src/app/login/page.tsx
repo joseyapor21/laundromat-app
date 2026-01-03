@@ -1,11 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -39,10 +37,11 @@ export default function LoginPage() {
       toast.success('Login successful!');
 
       // Check if user needs to change password
+      // Use window.location for full page reload to get fresh server data with new auth token
       if (data.user?.mustChangePassword) {
-        router.push('/profile?changePassword=true');
+        window.location.href = '/profile?changePassword=true';
       } else {
-        router.push('/');
+        window.location.href = '/';
       }
     } catch (error) {
       console.error('Login error:', error);
