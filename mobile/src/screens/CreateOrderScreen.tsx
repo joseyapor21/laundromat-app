@@ -26,7 +26,7 @@ export default function CreateOrderScreen() {
   // Form state
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
-  const [orderType, setOrderType] = useState<'in-store' | 'delivery'>('in-store');
+  const [orderType, setOrderType] = useState<'storePickup' | 'delivery'>('storePickup');
   const [weight, setWeight] = useState('');
   const [isSameDay, setIsSameDay] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
@@ -131,7 +131,7 @@ export default function CreateOrderScreen() {
           : 0,
         paymentMethod: 'pending',
         paymentStatus: 'pending',
-        status: orderType === 'delivery' ? 'scheduled_pickup' : 'new_order',
+        status: orderType === 'delivery' ? 'scheduled_pickup' : 'received',
       };
 
       await api.createOrder(orderData);
@@ -208,15 +208,15 @@ export default function CreateOrderScreen() {
         <Text style={styles.sectionTitle}>Order Type</Text>
         <View style={styles.typeButtons}>
           <TouchableOpacity
-            style={[styles.typeButton, orderType === 'in-store' && styles.typeButtonActive]}
-            onPress={() => setOrderType('in-store')}
+            style={[styles.typeButton, orderType === 'storePickup' && styles.typeButtonActive]}
+            onPress={() => setOrderType('storePickup')}
           >
             <Ionicons
               name="storefront"
               size={24}
-              color={orderType === 'in-store' ? '#fff' : '#64748b'}
+              color={orderType === 'storePickup' ? '#fff' : '#64748b'}
             />
-            <Text style={[styles.typeButtonText, orderType === 'in-store' && styles.typeButtonTextActive]}>
+            <Text style={[styles.typeButtonText, orderType === 'storePickup' && styles.typeButtonTextActive]}>
               In-Store
             </Text>
           </TouchableOpacity>

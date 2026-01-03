@@ -51,29 +51,39 @@ export default function OrderDetailScreen() {
     }
   }
 
+  // Status groups matching web app
+  const STATUS_GROUPS: Record<string, string[]> = {
+    new_order: ['new_order', 'received', 'scheduled_pickup'],
+    processing: ['in_washer', 'in_dryer', 'laid_on_cart', 'folding'],
+    ready: ['ready_for_pickup', 'ready_for_delivery', 'picked_up'],
+  };
+
   function getStatusColor(status: string) {
-    switch (status) {
-      case 'new_order': return '#3b82f6';
-      case 'scheduled_pickup': return '#f59e0b';
-      case 'picked_up': return '#10b981';
-      case 'received': return '#06b6d4';
-      case 'processing': return '#f59e0b';
-      case 'ready': return '#10b981';
-      case 'ready_for_delivery': return '#8b5cf6';
-      case 'completed': return '#6b7280';
-      default: return '#94a3b8';
-    }
+    if (STATUS_GROUPS.new_order.includes(status)) return '#3b82f6'; // blue
+    if (STATUS_GROUPS.processing.includes(status)) return '#f59e0b'; // amber
+    if (STATUS_GROUPS.ready.includes(status)) return '#10b981'; // green
+    if (status === 'out_for_delivery') return '#8b5cf6'; // purple
+    if (status === 'completed') return '#6b7280'; // gray
+    return '#94a3b8';
   }
 
   function getNextStatus(current: string): { status: string; label: string } | null {
+    // Match web app's status progression
     const flow: Record<string, { status: string; label: string }> = {
+      // New orders
       new_order: { status: 'received', label: 'Mark Received' },
       scheduled_pickup: { status: 'picked_up', label: 'Mark Picked Up' },
       picked_up: { status: 'received', label: 'Mark at Store' },
-      received: { status: 'processing', label: 'Start Processing' },
-      processing: { status: 'ready', label: 'Mark Ready' },
-      ready: { status: 'completed', label: 'Complete Order' },
-      ready_for_delivery: { status: 'completed', label: 'Mark Delivered' },
+      received: { status: 'in_washer', label: 'Start Washing' },
+      // Processing
+      in_washer: { status: 'in_dryer', label: 'Move to Dryer' },
+      in_dryer: { status: 'laid_on_cart', label: 'Move to Cart' },
+      laid_on_cart: { status: 'folding', label: 'Start Folding' },
+      folding: { status: 'ready_for_pickup', label: 'Mark Ready' },
+      // Ready
+      ready_for_pickup: { status: 'completed', label: 'Complete Order' },
+      ready_for_delivery: { status: 'out_for_delivery', label: 'Out for Delivery' },
+      out_for_delivery: { status: 'completed', label: 'Mark Delivered' },
     };
     return flow[current] || null;
   }

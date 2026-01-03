@@ -45,14 +45,17 @@ export type OrderStatus =
   | 'scheduled_pickup'
   | 'picked_up'
   | 'received'
-  | 'processing'
-  | 'ready'
+  | 'in_washer'
+  | 'in_dryer'
+  | 'laid_on_cart'
+  | 'folding'
+  | 'ready_for_pickup'
   | 'ready_for_delivery'
   | 'out_for_delivery'
   | 'completed'
   | 'cancelled';
 
-export type OrderType = 'in-store' | 'delivery';
+export type OrderType = 'storePickup' | 'delivery';
 export type PaymentMethod = 'cash' | 'credit_card' | 'zelle' | 'credit' | 'pending';
 export type PaymentStatus = 'pending' | 'paid' | 'partial';
 
