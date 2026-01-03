@@ -310,7 +310,7 @@ export default function CreateOrderScreen() {
           onChangeText={setSpecialInstructions}
           placeholder="Any special notes..."
           placeholderTextColor="#94a3b8"
-          multiline
+          multiline={true}
           numberOfLines={3}
         />
       </View>

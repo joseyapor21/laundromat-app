@@ -157,7 +157,7 @@ export default function DashboardScreen() {
       {/* Filter Tabs */}
       <View style={styles.filterContainer}>
         <FlatList
-          horizontal
+          horizontal={true}
           data={filters}
           showsHorizontalScrollIndicator={false}
           keyExtractor={(item) => item.key}
