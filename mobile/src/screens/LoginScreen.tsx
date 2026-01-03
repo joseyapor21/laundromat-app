@@ -77,7 +77,7 @@ export default function LoginScreen() {
               onChangeText={setPassword}
               placeholder="Enter your password"
               placeholderTextColor="#94a3b8"
-              secureTextEntry
+              secureTextEntry={true}
               editable={!isLoading}
             />
           </View>

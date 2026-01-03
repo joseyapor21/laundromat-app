@@ -118,7 +118,7 @@ export default function AdminScreen() {
       </View>
 
       {/* Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabsContainer}>
+      <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={styles.tabsContainer}>
         <View style={styles.tabs}>
           {tabs.map(tab => (
             <TouchableOpacity
