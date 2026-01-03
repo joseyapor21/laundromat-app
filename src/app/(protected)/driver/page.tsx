@@ -6,10 +6,11 @@ import toast from 'react-hot-toast';
 import type { Order, Customer } from '@/types';
 import { useBluetoothPrinter } from '@/services/client/bluetoothPrinterService';
 
-// Store location (can be configured in settings)
+// Store location - UPDATE THESE COORDINATES to your actual laundry store location
+// You can get coordinates from Google Maps by right-clicking on your store location
 const STORE_LOCATION = {
-  lat: 40.7128, // Default NYC - will be updated from settings
-  lng: -74.0060,
+  lat: 40.7128, // TODO: Replace with your store's latitude
+  lng: -74.0060, // TODO: Replace with your store's longitude
   address: 'Store Location'
 };
 
@@ -255,9 +256,10 @@ export default function DriverPage() {
         if (address) await delay(1100);
       }
 
-      // Optimize routes
-      const optimizedPickups = optimizeRoute(pickupsWithCoords, currentLocation.lat, currentLocation.lng);
-      const optimizedDeliveries = optimizeRoute(deliveriesWithCoords, currentLocation.lat, currentLocation.lng);
+      // Optimize routes starting from the STORE location (not current GPS)
+      // This ensures the route goes: Store -> closest stop -> next closest -> etc.
+      const optimizedPickups = optimizeRoute(pickupsWithCoords, STORE_LOCATION.lat, STORE_LOCATION.lng);
+      const optimizedDeliveries = optimizeRoute(deliveriesWithCoords, STORE_LOCATION.lat, STORE_LOCATION.lng);
 
       setPickupOrders(optimizedPickups);
       setDeliveryOrders(optimizedDeliveries);
@@ -282,10 +284,8 @@ export default function DriverPage() {
       return;
     }
 
-    // Build Google Maps multi-stop URL
-    const origin = currentLocation
-      ? `${currentLocation.lat},${currentLocation.lng}`
-      : STORE_LOCATION.address;
+    // Build Google Maps multi-stop URL - start from STORE location
+    const origin = `${STORE_LOCATION.lat},${STORE_LOCATION.lng}`;
 
     const waypoints = ordersWithAddresses.slice(0, -1).map(addr => encodeURIComponent(addr!)).join('|');
     const destination = encodeURIComponent(ordersWithAddresses[ordersWithAddresses.length - 1]!);
