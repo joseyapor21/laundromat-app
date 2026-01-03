@@ -38,24 +38,22 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
   const scannerContainerRef = useRef<HTMLDivElement>(null);
   const hasScannedRef = useRef(false);
 
-  // Fetch current user if not provided from server
+  // Always fetch fresh user data to ensure admin status is up to date
   useEffect(() => {
-    if (!currentUser) {
-      fetch('/api/auth/me', { credentials: 'include' })
-        .then(res => res.ok ? res.json() : null)
-        .then(data => {
-          if (data && data._id) {
-            setCurrentUser({
-              userId: data._id,
-              email: data.email,
-              name: `${data.firstName} ${data.lastName}`,
-              role: data.role,
-            });
-          }
-        })
-        .catch(err => console.error('Failed to fetch user:', err));
-    }
-  }, [currentUser]);
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && data._id) {
+          setCurrentUser({
+            userId: data._id,
+            email: data.email,
+            name: `${data.firstName} ${data.lastName}`,
+            role: data.role,
+          });
+        }
+      })
+      .catch(err => console.error('Failed to fetch user:', err));
+  }, []);
 
   // Refresh orders
   const loadOrders = async (showLoading = true) => {

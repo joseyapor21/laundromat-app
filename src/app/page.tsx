@@ -3,6 +3,9 @@ import { Order, Customer } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
 import DashboardClient from '@/components/DashboardClient';
 
+// Force dynamic rendering to ensure fresh user data on each request
+export const dynamic = 'force-dynamic';
+
 async function getInitialData() {
   await connectDB();
 

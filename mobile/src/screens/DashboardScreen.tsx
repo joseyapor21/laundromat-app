@@ -17,6 +17,13 @@ import type { Order } from '../types';
 
 type FilterType = 'all' | 'in-store' | 'delivery' | 'new_order' | 'processing' | 'ready' | 'completed';
 
+// Status groups matching web app
+const STATUS_GROUPS: Record<string, string[]> = {
+  new_order: ['new_order', 'received', 'scheduled_pickup'],
+  processing: ['in_washer', 'in_dryer', 'laid_on_cart', 'folding'],
+  ready: ['ready_for_pickup', 'ready_for_delivery', 'picked_up'],
+};
+
 export default function DashboardScreen() {
   const navigation = useNavigation<any>();
   const { user } = useAuth();
@@ -48,21 +55,32 @@ export default function DashboardScreen() {
   }, [loadOrders]);
 
   const filteredOrders = orders.filter(order => {
-    if (filter === 'all') return true;
-    if (filter === 'in-store') return order.orderType === 'in-store';
-    if (filter === 'delivery') return order.orderType === 'delivery';
-    return order.status === filter;
+    switch (filter) {
+      case 'in-store':
+        return order.orderType === 'storePickup' && order.status !== 'completed';
+      case 'delivery':
+        return order.orderType === 'delivery' && order.status !== 'completed';
+      case 'new_order':
+        return STATUS_GROUPS.new_order.includes(order.status);
+      case 'processing':
+        return STATUS_GROUPS.processing.includes(order.status);
+      case 'ready':
+        return STATUS_GROUPS.ready.includes(order.status);
+      case 'completed':
+        return order.status === 'completed';
+      default: // 'all'
+        return order.status !== 'completed';
+    }
   });
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'new_order': return '#3b82f6';
-      case 'processing': return '#f59e0b';
-      case 'ready': return '#10b981';
-      case 'ready_for_delivery': return '#8b5cf6';
-      case 'completed': return '#6b7280';
-      default: return '#94a3b8';
-    }
+    // Match web status colors
+    if (STATUS_GROUPS.new_order.includes(status)) return '#3b82f6'; // blue
+    if (STATUS_GROUPS.processing.includes(status)) return '#f59e0b'; // amber
+    if (STATUS_GROUPS.ready.includes(status)) return '#10b981'; // green
+    if (status === 'out_for_delivery') return '#8b5cf6'; // purple
+    if (status === 'completed') return '#6b7280'; // gray
+    return '#94a3b8';
   };
 
   const getStatusLabel = (status: string) => {
@@ -71,12 +89,13 @@ export default function DashboardScreen() {
 
   const getCounts = () => {
     return {
-      all: orders.length,
-      inStore: orders.filter(o => o.orderType === 'in-store').length,
-      delivery: orders.filter(o => o.orderType === 'delivery').length,
-      newOrder: orders.filter(o => o.status === 'new_order').length,
-      processing: orders.filter(o => o.status === 'processing').length,
-      ready: orders.filter(o => o.status === 'ready').length,
+      all: orders.filter(o => o.status !== 'completed').length,
+      inStore: orders.filter(o => o.orderType === 'storePickup' && o.status !== 'completed').length,
+      delivery: orders.filter(o => o.orderType === 'delivery' && o.status !== 'completed').length,
+      newOrder: orders.filter(o => STATUS_GROUPS.new_order.includes(o.status)).length,
+      processing: orders.filter(o => STATUS_GROUPS.processing.includes(o.status)).length,
+      ready: orders.filter(o => STATUS_GROUPS.ready.includes(o.status)).length,
+      completed: orders.filter(o => o.status === 'completed').length,
     };
   };
 
@@ -108,7 +127,7 @@ export default function DashboardScreen() {
         </View>
         <View style={styles.detailRow}>
           <Ionicons name={order.orderType === 'delivery' ? 'car-outline' : 'storefront-outline'} size={16} color="#64748b" />
-          <Text style={styles.detailText}>{order.orderType === 'delivery' ? 'Delivery' : 'In-Store'}</Text>
+          <Text style={styles.detailText}>{order.orderType === 'delivery' ? 'Delivery' : 'Store Pickup'}</Text>
         </View>
       </View>
 
@@ -128,6 +147,7 @@ export default function DashboardScreen() {
     { key: 'new_order', label: 'New', count: counts.newOrder },
     { key: 'processing', label: 'Processing', count: counts.processing },
     { key: 'ready', label: 'Ready', count: counts.ready },
+    { key: 'completed', label: 'Completed', count: counts.completed },
   ];
 
   if (loading) {
