@@ -2,7 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog } from '../types';
 
 const API_BASE_URL = __DEV__
-  ? 'http://192.168.8.254:3000'
+  ? 'http://192.168.8.254:3002'
   : 'https://cloud.homation.us';
 
 const AUTH_TOKEN_KEY = 'auth_token';
