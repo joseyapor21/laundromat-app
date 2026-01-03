@@ -43,7 +43,6 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={styles.content}>
-        {/* Logo */}
         <View style={styles.logoContainer}>
           <View style={styles.logo}>
             <Text style={styles.logoIcon}>🧺</Text>
@@ -52,7 +51,6 @@ export default function LoginScreen() {
           <Text style={styles.subtitle}>Sign in to your account</Text>
         </View>
 
-        {/* Form */}
         <View style={styles.form}>
           <View style={styles.inputContainer}>
             <Text style={styles.label}>Email</Text>
@@ -65,7 +63,6 @@ export default function LoginScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
-              editable={!isLoading}
             />
           </View>
 
@@ -78,7 +75,6 @@ export default function LoginScreen() {
               placeholder="Enter your password"
               placeholderTextColor="#94a3b8"
               secureTextEntry={true}
-              editable={!isLoading}
             />
           </View>
 
