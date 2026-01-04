@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,12 @@ import {
   RefreshControl,
   ActivityIndicator,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Order } from '../types';
@@ -31,6 +34,12 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
+
+  // QR Scanner state
+  const [showScanner, setShowScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [manualOrderInput, setManualOrderInput] = useState('');
+  const hasScannedRef = useRef(false);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -53,6 +62,45 @@ export default function DashboardScreen() {
     setRefreshing(true);
     loadOrders();
   }, [loadOrders]);
+
+  // QR Scanner functions
+  const openScanner = async () => {
+    if (!permission?.granted) {
+      const result = await requestPermission();
+      if (!result.granted) {
+        Alert.alert('Permission Required', 'Camera permission is needed to scan QR codes');
+        return;
+      }
+    }
+    hasScannedRef.current = false;
+    setShowScanner(true);
+  };
+
+  const handleBarcodeScanned = ({ data }: { data: string }) => {
+    if (hasScannedRef.current) return;
+    hasScannedRef.current = true;
+
+    const orderNum = data.replace(/^#/, '').trim();
+    findOrderByNumber(orderNum);
+  };
+
+  const findOrderByNumber = (orderNum: string) => {
+    const num = orderNum.replace(/^#/, '').trim();
+    const found = orders.find(o =>
+      o.orderId?.toString() === num ||
+      o._id?.slice(-6) === num ||
+      o._id === num
+    );
+
+    if (found) {
+      setShowScanner(false);
+      setManualOrderInput('');
+      navigation.navigate('OrderDetail', { orderId: found._id });
+    } else {
+      Alert.alert('Not Found', `Order #${num} not found`);
+      hasScannedRef.current = false;
+    }
+  };
 
   const filteredOrders = orders.filter(order => {
     switch (filter) {
@@ -166,12 +214,20 @@ export default function DashboardScreen() {
           <Text style={styles.headerTitle}>Dashboard</Text>
           <Text style={styles.headerSubtitle}>Welcome, {user?.firstName || 'User'}</Text>
         </View>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => navigation.navigate('CreateOrder')}
-        >
-          <Ionicons name="add" size={24} color="#fff" />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity
+            style={styles.scanButton}
+            onPress={openScanner}
+          >
+            <Ionicons name="qr-code" size={24} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => navigation.navigate('CreateOrder')}
+          >
+            <Ionicons name="add" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Filter Tabs */}
@@ -230,6 +286,80 @@ export default function DashboardScreen() {
           </View>
         }
       />
+
+      {/* QR Scanner Modal */}
+      <Modal
+        visible={showScanner}
+        animationType="slide"
+        onRequestClose={() => setShowScanner(false)}
+      >
+        <View style={styles.scannerContainer}>
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>Scan Order QR Code</Text>
+            <TouchableOpacity
+              style={styles.closeButton}
+              onPress={() => setShowScanner(false)}
+            >
+              <Ionicons name="close" size={28} color="#1e293b" />
+            </TouchableOpacity>
+          </View>
+
+          <CameraView
+            style={styles.camera}
+            facing="back"
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr'],
+            }}
+            onBarcodeScanned={handleBarcodeScanned}
+          />
+
+          <View style={styles.scannerOverlay}>
+            <View style={styles.scannerFrame} />
+          </View>
+
+          <View style={styles.manualInputContainer}>
+            <Text style={styles.orText}>or enter order number</Text>
+            <View style={styles.manualInputRow}>
+              <TextInput
+                style={styles.manualInput}
+                value={manualOrderInput}
+                onChangeText={setManualOrderInput}
+                placeholder="Order #"
+                placeholderTextColor="#94a3b8"
+                keyboardType="number-pad"
+                onSubmitEditing={() => {
+                  if (manualOrderInput) findOrderByNumber(manualOrderInput);
+                }}
+              />
+              <TouchableOpacity
+                style={styles.findButton}
+                onPress={() => {
+                  if (manualOrderInput) findOrderByNumber(manualOrderInput);
+                }}
+              >
+                <Text style={styles.findButtonText}>Find</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Recent Orders */}
+            <Text style={styles.recentLabel}>Recent Orders</Text>
+            <View style={styles.recentOrders}>
+              {orders.slice(0, 6).map(order => (
+                <TouchableOpacity
+                  key={order._id}
+                  style={styles.recentOrderButton}
+                  onPress={() => {
+                    setShowScanner(false);
+                    navigation.navigate('OrderDetail', { orderId: order._id });
+                  }}
+                >
+                  <Text style={styles.recentOrderText}>#{order.orderId}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -263,6 +393,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
     marginTop: 2,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  scanButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f59e0b',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   addButton: {
     width: 48,
@@ -400,5 +542,100 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#94a3b8',
     marginTop: 16,
+  },
+  // Scanner styles
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  scannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    paddingTop: 60,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+  },
+  scannerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  camera: {
+    flex: 1,
+  },
+  scannerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scannerFrame: {
+    width: 250,
+    height: 250,
+    borderWidth: 3,
+    borderColor: '#fff',
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+  },
+  manualInputContainer: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  orText: {
+    textAlign: 'center',
+    color: '#64748b',
+    marginBottom: 12,
+  },
+  manualInputRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  manualInput: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 18,
+    color: '#1e293b',
+  },
+  findButton: {
+    backgroundColor: '#2563eb',
+    borderRadius: 12,
+    paddingHorizontal: 24,
+    justifyContent: 'center',
+  },
+  findButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  recentLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  recentOrders: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  recentOrderButton: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  recentOrderText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
   },
 });

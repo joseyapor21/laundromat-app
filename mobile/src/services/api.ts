@@ -216,6 +216,27 @@ class ApiService {
   async getUsers(): Promise<User[]> {
     return this.request<User[]>('/users');
   }
+
+  // Printing
+  async printOrder(orderId: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/orders/${orderId}/print`, {
+      method: 'POST',
+    });
+  }
+
+  async printDirect(content: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>('/print', {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
+
+  async queuePrintJob(content: string, priority: string = 'normal'): Promise<{ jobId: string }> {
+    return this.request<{ jobId: string }>('/print-jobs/queue', {
+      method: 'POST',
+      body: JSON.stringify({ content, printerId: 'main', priority }),
+    });
+  }
 }
 
 export const api = new ApiService();

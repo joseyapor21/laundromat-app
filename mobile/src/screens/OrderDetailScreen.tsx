@@ -20,6 +20,7 @@ export default function OrderDetailScreen() {
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
     loadOrder();
@@ -45,9 +46,26 @@ export default function OrderDetailScreen() {
       await loadOrder();
       Alert.alert('Success', 'Order status updated');
     } catch (error) {
-      Alert.alert('Error', 'Failed to update status');
+      console.error('Status update error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update status';
+      Alert.alert('Error', errorMessage);
     } finally {
       setUpdating(false);
+    }
+  }
+
+  async function handlePrint() {
+    if (!order) return;
+    setPrinting(true);
+    try {
+      await api.printOrder(order._id);
+      Alert.alert('Success', 'Print job sent to printer');
+    } catch (error) {
+      console.error('Print error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to print';
+      Alert.alert('Print Error', errorMessage);
+    } finally {
+      setPrinting(false);
     }
   }
 
@@ -208,8 +226,25 @@ export default function OrderDetailScreen() {
       )}
 
       {/* Actions */}
-      {nextStatus && (
-        <View style={styles.actionSection}>
+      <View style={styles.actionSection}>
+        {/* Print Button */}
+        <TouchableOpacity
+          style={[styles.printButton, printing && styles.actionButtonDisabled]}
+          onPress={handlePrint}
+          disabled={printing}
+        >
+          {printing ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <>
+              <Ionicons name="print" size={24} color="#fff" />
+              <Text style={styles.actionButtonText}>Print Receipt</Text>
+            </>
+          )}
+        </TouchableOpacity>
+
+        {/* Status Update Button */}
+        {nextStatus && (
           <TouchableOpacity
             style={[styles.actionButton, updating && styles.actionButtonDisabled]}
             onPress={() => updateStatus(nextStatus.status)}
@@ -224,8 +259,8 @@ export default function OrderDetailScreen() {
               </>
             )}
           </TouchableOpacity>
-        </View>
-      )}
+        )}
+      </View>
 
       <View style={{ height: 40 }} />
     </ScrollView>
@@ -381,6 +416,16 @@ const styles = StyleSheet.create({
   actionSection: {
     margin: 16,
   },
+  printButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563eb',
+    paddingVertical: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
   actionButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -391,7 +436,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   actionButtonDisabled: {
-    backgroundColor: '#6ee7b7',
+    opacity: 0.6,
   },
   actionButtonText: {
     color: '#fff',
