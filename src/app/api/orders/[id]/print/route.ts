@@ -1,0 +1,271 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { connectDB } from '@/lib/db/connection';
+import { Order, Settings } from '@/lib/db/models';
+import { getCurrentUser } from '@/lib/auth/server';
+import { Socket } from 'net';
+
+interface RouteParams {
+  params: Promise<{ id: string }>;
+}
+
+// ESC/POS commands
+const ESC = {
+  FULL_CUT: '\x1D\x56\x00',
+  FEED_AND_CUT: '\n\n\n\x1D\x56\x00',
+  INIT: '\x1B\x40',
+  INVERT_ON: '\x1D\x42\x01',
+  INVERT_OFF: '\x1D\x42\x00',
+  BOLD_ON: '\x1B\x45\x01',
+  BOLD_OFF: '\x1B\x45\x00',
+  DOUBLE_HEIGHT_ON: '\x1B\x21\x10',
+  DOUBLE_WIDTH_ON: '\x1B\x21\x20',
+  DOUBLE_SIZE_ON: '\x1B\x21\x30',
+  NORMAL_SIZE: '\x1B\x21\x00',
+  CENTER: '\x1B\x61\x01',
+  LEFT: '\x1B\x61\x00',
+  RIGHT: '\x1B\x61\x02',
+  QR_MODEL: '\x1D\x28\x6B\x04\x00\x31\x41\x32\x00',
+  QR_SIZE: (n: number) => `\x1D\x28\x6B\x03\x00\x31\x43${String.fromCharCode(n)}`,
+  QR_ERROR_L: '\x1D\x28\x6B\x03\x00\x31\x45\x30',
+  QR_STORE: (data: string) => {
+    const len = data.length + 3;
+    const pL = len % 256;
+    const pH = Math.floor(len / 256);
+    return `\x1D\x28\x6B${String.fromCharCode(pL)}${String.fromCharCode(pH)}\x31\x50\x30${data}`;
+  },
+  QR_PRINT: '\x1D\x28\x6B\x03\x00\x31\x51\x30',
+};
+
+const STORE_CONFIG = {
+  name: 'E&F Laundromat',
+  address: '215-23 73rd Ave',
+  city: 'Oakland Gardens, NY 11364',
+  phone: '(347) 204-1333',
+};
+
+function centerText(text: string): string {
+  const maxWidth = 48;
+  if (text.length >= maxWidth) return text;
+  const padding = Math.floor((maxWidth - text.length) / 2);
+  return ' '.repeat(padding) + text;
+}
+
+function leftRightAlign(left: string, right: string): string {
+  const maxWidth = 48;
+  const totalContentLength = left.length + right.length;
+  if (totalContentLength >= maxWidth) {
+    return `${left} ${right}`;
+  }
+  const padding = maxWidth - totalContentLength;
+  return left + ' '.repeat(padding) + right;
+}
+
+function generateQRCode(data: string, size: number = 10): string {
+  let qr = '';
+  qr += '\n\n';
+  qr += ESC.CENTER;
+  qr += ESC.QR_MODEL;
+  qr += ESC.QR_SIZE(size);
+  qr += ESC.QR_ERROR_L;
+  qr += ESC.QR_STORE(data);
+  qr += ESC.QR_PRINT;
+  qr += '\n\n';
+  return qr;
+}
+
+function generateReceipt(order: any): string {
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  }).replace(/\//g, '-');
+  const timeStr = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+
+  const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
+  const isDelivery = order.orderType === 'delivery';
+
+  let r = '';
+  r += ESC.INIT;
+  r += ESC.CENTER;
+
+  // Header
+  r += ESC.DOUBLE_SIZE_ON;
+  r += ESC.INVERT_ON;
+  r += ` ${isDelivery ? 'Pickup &' : 'In-Store'} \n`;
+  r += ` ${isDelivery ? 'Delivery' : 'Pick Up'} \n`;
+  if (order.isSameDay) {
+    r += ' SAME DAY \n';
+  }
+  r += ESC.INVERT_OFF;
+
+  // Order number
+  r += ESC.INVERT_ON;
+  r += ` ${orderNum} \n`;
+  r += ESC.INVERT_OFF;
+  r += ESC.NORMAL_SIZE;
+
+  r += '\n';
+  r += `${dateStr} ${timeStr}\n`;
+
+  // Store info
+  r += ESC.BOLD_ON;
+  r += ESC.DOUBLE_HEIGHT_ON;
+  r += `${STORE_CONFIG.name}\n`;
+  r += ESC.NORMAL_SIZE;
+  r += ESC.BOLD_OFF;
+  r += `${STORE_CONFIG.address}\n`;
+  r += `${STORE_CONFIG.city}\n`;
+  r += `TEL ${STORE_CONFIG.phone}\n`;
+  r += '------------------------------------------------\n';
+
+  // Customer info
+  r += ESC.DOUBLE_HEIGHT_ON;
+  r += `${order.customerName || 'Customer'}\n`;
+  r += ESC.NORMAL_SIZE;
+  r += `${order.customerPhone || ''}\n`;
+
+  if (order.specialInstructions) {
+    r += ESC.INVERT_ON;
+    r += ` Notes : \n`;
+    r += ` ${order.specialInstructions.substring(0, 20)} \n`;
+    r += ESC.INVERT_OFF;
+  }
+
+  r += '------------------------------------------------\n';
+
+  // Order details
+  r += ESC.CENTER;
+  r += ESC.BOLD_ON;
+  r += 'Laundry Order\n';
+  r += ESC.BOLD_OFF;
+  r += ESC.LEFT;
+
+  r += leftRightAlign('Item', 'WEIGHT') + '\n';
+  r += leftRightAlign('Laundry', `${order.weight || 0} LBS`) + '\n';
+
+  r += '------------------------------------------------\n';
+
+  // Total
+  r += ESC.LEFT;
+  const totalWeight = order.weight || 0;
+  r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
+
+  r += '\n';
+  r += ESC.CENTER;
+  r += ESC.DOUBLE_HEIGHT_ON;
+  r += 'TOTAL\n';
+  r += ESC.NORMAL_SIZE;
+  r += ESC.LEFT;
+  r += leftRightAlign(
+    order.paymentStatus === 'paid' ? `Paid` : 'Cash on Pickup',
+    `$${(order.totalAmount || 0).toFixed(2)}`
+  ) + '\n';
+
+  // QR Code
+  r += generateQRCode(orderNum, 12);
+  r += '\n';
+  r += ESC.FEED_AND_CUT;
+
+  return r;
+}
+
+async function sendToPrinter(content: string, printerIP: string, printerPort: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const socket = new Socket();
+
+    const timeout = setTimeout(() => {
+      socket.destroy();
+      reject(new Error('Printer connection timeout'));
+    }, 10000);
+
+    socket.connect(printerPort, printerIP, () => {
+      const buffer = Buffer.from(content, 'utf8');
+
+      socket.write(buffer, () => {
+        clearTimeout(timeout);
+        socket.end();
+        resolve();
+      });
+    });
+
+    socket.on('error', (err) => {
+      clearTimeout(timeout);
+      socket.destroy();
+      reject(err);
+    });
+  });
+}
+
+export async function POST(request: NextRequest, { params }: RouteParams) {
+  try {
+    const currentUser = await getCurrentUser();
+
+    if (!currentUser) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
+
+    await connectDB();
+    const { id } = await params;
+
+    // Find the order
+    let order = await Order.findById(id).lean();
+
+    if (!order) {
+      const numericId = parseInt(id);
+      if (!isNaN(numericId)) {
+        order = await Order.findOne({ orderId: numericId }).lean();
+      }
+    }
+
+    if (!order) {
+      return NextResponse.json(
+        { error: 'Order not found' },
+        { status: 404 }
+      );
+    }
+
+    // Get printer settings
+    const settings = await Settings.findOne().lean();
+
+    if (!settings?.printerIP) {
+      return NextResponse.json(
+        { error: 'Printer not configured. Please set up printer IP in admin settings.' },
+        { status: 400 }
+      );
+    }
+
+    const printerIP = settings.printerIP;
+    const printerPort = settings.printerPort || 9100;
+
+    // Generate and print receipt
+    const receipt = generateReceipt(order);
+
+    try {
+      await sendToPrinter(receipt, printerIP, printerPort);
+      return NextResponse.json({
+        message: 'Print job sent successfully',
+        printer: { ip: printerIP, port: printerPort },
+      });
+    } catch (printError) {
+      console.error('Print error:', printError);
+      return NextResponse.json(
+        { error: `Printer error: ${printError instanceof Error ? printError.message : 'Unknown error'}` },
+        { status: 500 }
+      );
+    }
+  } catch (error) {
+    console.error('Print order error:', error);
+    return NextResponse.json(
+      { error: 'An error occurred while printing' },
+      { status: 500 }
+    );
+  }
+}
