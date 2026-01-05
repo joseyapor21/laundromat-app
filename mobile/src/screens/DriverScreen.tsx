@@ -10,6 +10,7 @@ import {
   Linking,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
 import type { Order } from '../types';
@@ -17,6 +18,7 @@ import type { Order } from '../types';
 type Tab = 'pickups' | 'deliveries';
 
 export default function DriverScreen() {
+  const insets = useSafeAreaInsets();
   const [pickupOrders, setPickupOrders] = useState<Order[]>([]);
   const [deliveryOrders, setDeliveryOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -194,7 +196,7 @@ export default function DriverScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Text style={styles.headerTitle}>Driver Dashboard</Text>
         <Text style={styles.headerSubtitle}>Manage pickups & deliveries</Text>
       </View>
@@ -291,7 +293,6 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 20,
-    paddingTop: 60,
     paddingBottom: 16,
     backgroundColor: '#fff',
   },
