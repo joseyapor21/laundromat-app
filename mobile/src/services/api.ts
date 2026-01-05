@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog } from '../types';
+import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog, OrderStatus, PaymentMethod } from '../types';
 
 const API_BASE_URL = __DEV__
   ? 'http://192.168.8.254:3002'
@@ -217,6 +217,34 @@ class ApiService {
     });
   }
 
+  async scanMachine(qrCode: string, orderId: string): Promise<{ message: string; machine: Machine; order: Order }> {
+    return this.request<{ message: string; machine: Machine; order: Order }>('/machines/scan', {
+      method: 'POST',
+      body: JSON.stringify({ qrCode, orderId }),
+    });
+  }
+
+  async checkMachine(orderId: string, machineId: string, checkerInitials: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>('/machines/check', {
+      method: 'POST',
+      body: JSON.stringify({ orderId, machineId, checkerInitials }),
+    });
+  }
+
+  async uncheckMachine(orderId: string, machineId: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>('/machines/uncheck', {
+      method: 'POST',
+      body: JSON.stringify({ orderId, machineId }),
+    });
+  }
+
+  async releaseMachine(machineId: string, orderId: string): Promise<{ message: string; order: Order }> {
+    return this.request<{ message: string; order: Order }>('/machines/release', {
+      method: 'POST',
+      body: JSON.stringify({ machineId, orderId }),
+    });
+  }
+
   // Activity Logs
   async getActivityLogs(limit: number = 50): Promise<{ logs: ActivityLog[] }> {
     return this.request<{ logs: ActivityLog[] }>(`/activity-logs?limit=${limit}`);
@@ -245,6 +273,19 @@ class ApiService {
     return this.request<{ jobId: string }>('/print-jobs/queue', {
       method: 'POST',
       body: JSON.stringify({ content, printerId: 'main', priority }),
+    });
+  }
+
+  async printBagLabels(orderId: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/orders/${orderId}/print-labels`, {
+      method: 'POST',
+    });
+  }
+
+  async printSingleBagLabel(orderId: string, bagIndex: number): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/orders/${orderId}/print-labels`, {
+      method: 'POST',
+      body: JSON.stringify({ bagIndex }),
     });
   }
 }
