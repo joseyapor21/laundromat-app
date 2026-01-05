@@ -13,7 +13,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
-import type { Customer, Settings, ExtraItem } from '../types';
+import type { Customer, Settings, ExtraItem, OrderStatus, PaymentMethod, PaymentStatus } from '../types';
 
 export default function CreateOrderScreen() {
   const navigation = useNavigation();
@@ -129,9 +129,9 @@ export default function CreateOrderScreen() {
         deliveryFee: orderType === 'delivery'
           ? parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0
           : 0,
-        paymentMethod: 'pending',
-        paymentStatus: 'pending',
-        status: orderType === 'delivery' ? 'scheduled_pickup' : 'received',
+        paymentMethod: 'pending' as PaymentMethod,
+        paymentStatus: 'pending' as PaymentStatus,
+        status: (orderType === 'delivery' ? 'scheduled_pickup' : 'received') as OrderStatus,
       };
 
       await api.createOrder(orderData);
