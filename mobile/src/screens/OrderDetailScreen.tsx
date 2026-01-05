@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,35 @@ import {
   Alert,
   ActivityIndicator,
   Linking,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
-import type { Order } from '../types';
+import type { Order, OrderStatus, MachineAssignment, PaymentMethod } from '../types';
+
+const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'check', label: 'Check' },
+  { value: 'venmo', label: 'Venmo' },
+  { value: 'zelle', label: 'Zelle' },
+];
+
+const STATUS_OPTIONS: { value: OrderStatus; label: string; color: string }[] = [
+  { value: 'new_order', label: 'New Order', color: '#3b82f6' },
+  { value: 'received', label: 'Received', color: '#6366f1' },
+  { value: 'scheduled_pickup', label: 'Scheduled Pickup', color: '#8b5cf6' },
+  { value: 'picked_up', label: 'Picked Up', color: '#a78bfa' },
+  { value: 'in_washer', label: 'In Washer', color: '#06b6d4' },
+  { value: 'in_dryer', label: 'In Dryer', color: '#f97316' },
+  { value: 'laid_on_cart', label: 'On Cart', color: '#eab308' },
+  { value: 'folding', label: 'Folding', color: '#ec4899' },
+  { value: 'ready_for_pickup', label: 'Ready for Pickup', color: '#10b981' },
+  { value: 'ready_for_delivery', label: 'Ready for Delivery', color: '#059669' },
+  { value: 'completed', label: 'Completed', color: '#6b7280' },
+];
 
 export default function OrderDetailScreen() {
   const route = useRoute<any>();
@@ -21,30 +45,39 @@ export default function OrderDetailScreen() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [printing, setPrinting] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [manualQRCode, setManualQRCode] = useState('');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('cash');
+  const [checkingMachine, setCheckingMachine] = useState<string | null>(null);
+  const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadOrder();
-  }, []);
-
-  async function loadOrder() {
+  const loadOrder = useCallback(async () => {
     try {
       const data = await api.getOrder(route.params.orderId);
       setOrder(data);
+      if (data.paymentMethod && data.paymentMethod !== 'pending') {
+        setSelectedPaymentMethod(data.paymentMethod);
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to load order');
       navigation.goBack();
     } finally {
       setLoading(false);
     }
-  }
+  }, [route.params.orderId, navigation]);
 
-  async function updateStatus(newStatus: string) {
+  useEffect(() => {
+    loadOrder();
+  }, [loadOrder]);
+
+  async function updateStatus(newStatus: OrderStatus) {
     if (!order) return;
     setUpdating(true);
     try {
       await api.updateOrderStatus(order._id, newStatus);
       await loadOrder();
-      Alert.alert('Success', 'Order status updated');
+      Alert.alert('Success', `Status updated to ${STATUS_OPTIONS.find(s => s.value === newStatus)?.label}`);
     } catch (error) {
       console.error('Status update error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to update status';
@@ -57,11 +90,9 @@ export default function OrderDetailScreen() {
   async function handlePrint() {
     if (!order) return;
     setPrinting(true);
-    console.log('Printing order:', order._id);
     try {
-      const result = await api.printOrder(order._id);
-      console.log('Print result:', result);
-      Alert.alert('Success', 'Print job sent to printer');
+      await api.printOrder(order._id);
+      Alert.alert('Success', 'Receipt sent to printer');
     } catch (error) {
       console.error('Print error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to print';
@@ -71,42 +102,177 @@ export default function OrderDetailScreen() {
     }
   }
 
-  // Status groups matching web app
-  const STATUS_GROUPS: Record<string, string[]> = {
-    new_order: ['new_order', 'received', 'scheduled_pickup'],
-    processing: ['in_washer', 'in_dryer', 'laid_on_cart', 'folding'],
-    ready: ['ready_for_pickup', 'ready_for_delivery', 'picked_up'],
-  };
-
-  function getStatusColor(status: string) {
-    if (STATUS_GROUPS.new_order.includes(status)) return '#3b82f6'; // blue
-    if (STATUS_GROUPS.processing.includes(status)) return '#f59e0b'; // amber
-    if (STATUS_GROUPS.ready.includes(status)) return '#10b981'; // green
-    if (status === 'out_for_delivery') return '#8b5cf6'; // purple
-    if (status === 'completed') return '#6b7280'; // gray
-    return '#94a3b8';
+  async function handlePrintBagLabels() {
+    if (!order) return;
+    setPrinting(true);
+    try {
+      await api.printBagLabels(order._id);
+      Alert.alert('Success', `${order.bags?.length || 0} bag labels sent to printer`);
+    } catch (error) {
+      console.error('Print error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to print bag labels';
+      Alert.alert('Print Error', errorMessage);
+    } finally {
+      setPrinting(false);
+    }
   }
 
-  function getNextStatus(current: string): { status: string; label: string } | null {
-    // Match web app's status progression
-    const flow: Record<string, { status: string; label: string }> = {
-      // New orders
-      new_order: { status: 'received', label: 'Mark Received' },
-      scheduled_pickup: { status: 'picked_up', label: 'Mark Picked Up' },
-      picked_up: { status: 'received', label: 'Mark at Store' },
-      received: { status: 'in_washer', label: 'Start Washing' },
-      // Processing
-      in_washer: { status: 'in_dryer', label: 'Move to Dryer' },
-      in_dryer: { status: 'laid_on_cart', label: 'Move to Cart' },
-      laid_on_cart: { status: 'folding', label: 'Start Folding' },
-      folding: { status: 'ready_for_pickup', label: 'Mark Ready' },
-      // Ready
-      ready_for_pickup: { status: 'completed', label: 'Complete Order' },
-      ready_for_delivery: { status: 'out_for_delivery', label: 'Out for Delivery' },
-      out_for_delivery: { status: 'completed', label: 'Mark Delivered' },
-    };
-    return flow[current] || null;
+  async function handlePrintSingleBag(bagIndex: number) {
+    if (!order) return;
+    setPrinting(true);
+    try {
+      await api.printSingleBagLabel(order._id, bagIndex);
+      Alert.alert('Success', `Bag ${bagIndex + 1} label sent to printer`);
+    } catch (error) {
+      console.error('Print error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to print bag label';
+      Alert.alert('Print Error', errorMessage);
+    } finally {
+      setPrinting(false);
+    }
   }
+
+  // Handle QR scan for machine assignment
+  async function handleMachineScan(qrCode: string) {
+    if (!order) return;
+    setShowScanner(false);
+    setManualQRCode('');
+    setUpdating(true);
+
+    try {
+      const result = await api.scanMachine(qrCode, order._id);
+      Alert.alert('Success', result.message);
+      await loadOrder();
+    } catch (error) {
+      console.error('Scan error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to assign machine';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  async function handleReleaseMachine(machineId: string, machineName: string) {
+    if (!order) return;
+
+    Alert.alert(
+      'Remove Machine',
+      `Remove order from ${machineName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setUpdating(true);
+            try {
+              await api.releaseMachine(machineId, order._id);
+              Alert.alert('Success', `Order removed from ${machineName}`);
+              await loadOrder();
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to release machine';
+              Alert.alert('Error', errorMessage);
+            } finally {
+              setUpdating(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
+  async function handleCheckMachine(assignment: MachineAssignment) {
+    if (!order) return;
+
+    setCheckingMachine(assignment.machineId);
+    try {
+      // Use first two letters of user name as initials (or 'MB' as default for mobile)
+      const result = await api.checkMachine(order._id, assignment.machineId, 'MB');
+      Alert.alert('Success', result.message);
+      await loadOrder();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to check machine';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setCheckingMachine(null);
+    }
+  }
+
+  async function handleUncheckMachine(assignment: MachineAssignment) {
+    if (!order) return;
+
+    setUncheckingMachine(assignment.machineId);
+    try {
+      const result = await api.uncheckMachine(order._id, assignment.machineId);
+      Alert.alert('Success', result.message);
+      await loadOrder();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to uncheck machine';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setUncheckingMachine(null);
+    }
+  }
+
+  async function handlePaymentToggle() {
+    if (!order) return;
+    setUpdating(true);
+    try {
+      const updateData = order.isPaid
+        ? { isPaid: false, paymentMethod: 'pending' as PaymentMethod }
+        : { isPaid: true, paymentMethod: selectedPaymentMethod };
+
+      await api.updateOrder(order._id, updateData);
+      Alert.alert('Success', order.isPaid ? 'Payment status cleared' : `Order marked as paid (${selectedPaymentMethod})`);
+      await loadOrder();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update payment';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  function openScanner() {
+    if (!permission?.granted) {
+      requestPermission().then(result => {
+        if (result.granted) {
+          setShowScanner(true);
+        } else {
+          Alert.alert('Permission Required', 'Camera permission is needed to scan QR codes');
+        }
+      });
+    } else {
+      setShowScanner(true);
+    }
+  }
+
+  function formatDate(date: Date | string | undefined | null): string {
+    if (!date) return '';
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return '';
+    }
+  }
+
+  // Get active machine assignments (not removed)
+  const activeMachines = order?.machineAssignments?.filter(
+    (a: MachineAssignment) => !a.removedAt
+  ) || [];
+
+  // Get all machine assignments for history
+  const allMachineAssignments = order?.machineAssignments || [];
+
+  const currentStatusOption = STATUS_OPTIONS.find(s => s.value === order?.status);
 
   if (loading) {
     return (
@@ -118,154 +284,475 @@ export default function OrderDetailScreen() {
 
   if (!order) return null;
 
-  const nextStatus = getNextStatus(order.status);
-
   return (
-    <ScrollView style={styles.container}>
-      {/* Header Card */}
-      <View style={styles.headerCard}>
-        <View style={styles.headerRow}>
-          <Text style={styles.orderId}>Order #{order.orderId}</Text>
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) }]}>
-            <Text style={styles.statusText}>
-              {order.status.replace(/_/g, ' ').toUpperCase()}
-            </Text>
+    <>
+      <ScrollView style={styles.container}>
+        {/* Header Card */}
+        <View style={styles.headerCard}>
+          <View style={styles.headerRow}>
+            <Text style={styles.orderId}>Order #{order.orderId}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: currentStatusOption?.color || '#94a3b8' }]}>
+              <Text style={styles.statusText}>
+                {order.status.replace(/_/g, ' ').toUpperCase()}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.headerBottom}>
+            <Text style={styles.totalAmount}>${(order.totalAmount || 0).toFixed(2)}</Text>
+            <TouchableOpacity
+              style={styles.editButton}
+              onPress={() => navigation.navigate('EditOrder', { orderId: order._id })}
+            >
+              <Ionicons name="pencil" size={18} color="#fff" />
+              <Text style={styles.editButtonText}>Edit</Text>
+            </TouchableOpacity>
           </View>
         </View>
-        <Text style={styles.totalAmount}>${(order.totalAmount || 0).toFixed(2)}</Text>
-      </View>
 
-      {/* Customer Info */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Customer</Text>
-        <View style={styles.card}>
-          <Text style={styles.customerName}>{order.customerName}</Text>
-          <TouchableOpacity
-            style={styles.contactRow}
-            onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
-          >
-            <Ionicons name="call" size={20} color="#2563eb" />
-            <Text style={styles.contactText}>{order.customerPhone}</Text>
-          </TouchableOpacity>
-          {order.customer?.address && (
+        {/* Customer Info */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Customer</Text>
+          <View style={styles.card}>
+            <Text style={styles.customerName}>{order.customerName}</Text>
             <TouchableOpacity
               style={styles.contactRow}
-              onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(order.customer!.address)}`)}
+              onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
             >
-              <Ionicons name="location" size={20} color="#2563eb" />
-              <Text style={styles.contactText}>{order.customer.address}</Text>
+              <Ionicons name="call" size={20} color="#2563eb" />
+              <Text style={styles.contactText}>{order.customerPhone}</Text>
             </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Order Details */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Details</Text>
-        <View style={styles.card}>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Type</Text>
-            <Text style={styles.detailValue}>
-              {order.orderType === 'delivery' ? 'Pickup & Delivery' : 'In-Store'}
-            </Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Weight</Text>
-            <Text style={styles.detailValue}>{order.weight || 0} lbs</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Payment</Text>
-            <Text style={styles.detailValue}>
-              {order.paymentMethod} - {order.paymentStatus}
-            </Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={styles.detailLabel}>Created</Text>
-            <Text style={styles.detailValue}>
-              {new Date(order.dropOffDate).toLocaleString()}
-            </Text>
-          </View>
-          {order.isSameDay && (
-            <View style={styles.sameDayBadge}>
-              <Ionicons name="flash" size={16} color="#f59e0b" />
-              <Text style={styles.sameDayText}>Same Day Service</Text>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* Items */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Items</Text>
-        <View style={styles.card}>
-          {order.items?.map((item, index) => (
-            <View key={index} style={styles.itemRow}>
-              <Text style={styles.itemName}>{item.serviceName}</Text>
-              <Text style={styles.itemPrice}>${item.total.toFixed(2)}</Text>
-            </View>
-          ))}
-          {order.extraItems?.map((item, index) => (
-            <View key={`extra-${index}`} style={styles.itemRow}>
-              <Text style={styles.itemName}>{item.name} x{item.quantity}</Text>
-              <Text style={styles.itemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
-            </View>
-          ))}
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total</Text>
-            <Text style={styles.totalValue}>${(order.totalAmount || 0).toFixed(2)}</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Notes */}
-      {order.specialInstructions && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Special Instructions</Text>
-          <View style={styles.notesCard}>
-            <Text style={styles.notesText}>{order.specialInstructions}</Text>
-          </View>
-        </View>
-      )}
-
-      {/* Actions */}
-      <View style={styles.actionSection}>
-        {/* Print Button */}
-        <TouchableOpacity
-          style={[styles.printButton, printing && styles.actionButtonDisabled]}
-          onPress={handlePrint}
-          disabled={printing}
-        >
-          {printing ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Ionicons name="print" size={24} color="#fff" />
-              <Text style={styles.actionButtonText}>Print Receipt</Text>
-            </>
-          )}
-        </TouchableOpacity>
-
-        {/* Status Update Button */}
-        {nextStatus && (
-          <TouchableOpacity
-            style={[styles.actionButton, updating && styles.actionButtonDisabled]}
-            onPress={() => updateStatus(nextStatus.status)}
-            disabled={updating}
-          >
-            {updating ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="checkmark-circle" size={24} color="#fff" />
-                <Text style={styles.actionButtonText}>{nextStatus.label}</Text>
-              </>
+            {order.customer?.address && (
+              <TouchableOpacity
+                style={styles.contactRow}
+                onPress={() => Linking.openURL(`https://maps.google.com/?q=${encodeURIComponent(order.customer!.address)}`)}
+              >
+                <Ionicons name="location" size={20} color="#2563eb" />
+                <Text style={styles.contactText}>{order.customer.address}</Text>
+              </TouchableOpacity>
             )}
-          </TouchableOpacity>
-        )}
-      </View>
+            <View style={styles.tagRow}>
+              <View style={[styles.tag, { backgroundColor: order.orderType === 'delivery' ? '#8b5cf6' : '#3b82f6' }]}>
+                <Text style={styles.tagText}>{order.orderType === 'delivery' ? 'Delivery' : 'In-Store'}</Text>
+              </View>
+              {order.isSameDay && (
+                <View style={[styles.tag, { backgroundColor: '#f59e0b' }]}>
+                  <Ionicons name="flash" size={12} color="#fff" />
+                  <Text style={styles.tagText}>Same Day</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
 
-      <View style={{ height: 40 }} />
-    </ScrollView>
+        {/* Print Actions */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Print Labels</Text>
+          <View style={styles.printCard}>
+            <View style={styles.printButtons}>
+              <TouchableOpacity
+                style={[styles.printButton, printing && styles.buttonDisabled]}
+                onPress={handlePrint}
+                disabled={printing}
+              >
+                <Ionicons name="print" size={20} color="#fff" />
+                <Text style={styles.printButtonText}>Print Receipt</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.printButton, styles.printButtonPurple, (printing || !order.bags?.length) && styles.buttonDisabled]}
+                onPress={handlePrintBagLabels}
+                disabled={printing || !order.bags?.length}
+              >
+                <Ionicons name="pricetag" size={20} color="#fff" />
+                <Text style={styles.printButtonText}>All Bag Labels</Text>
+              </TouchableOpacity>
+            </View>
+            {order.bags && order.bags.length > 0 && (
+              <View style={styles.bagButtonsContainer}>
+                <Text style={styles.bagButtonsLabel}>Print individual bags:</Text>
+                <View style={styles.bagButtons}>
+                  {order.bags.map((bag, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={[styles.bagButton, printing && styles.buttonDisabled]}
+                      onPress={() => handlePrintSingleBag(index)}
+                      disabled={printing}
+                    >
+                      <Text style={styles.bagButtonText}>Bag {bag.identifier || index + 1}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Machine Assignments */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Washer / Dryer</Text>
+            <TouchableOpacity
+              style={[styles.scanButton, updating && styles.buttonDisabled]}
+              onPress={openScanner}
+              disabled={updating}
+            >
+              <Ionicons name="qr-code" size={16} color="#fff" />
+              <Text style={styles.scanButtonText}>Scan QR</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.machineCard}>
+            {activeMachines.length === 0 ? (
+              <Text style={styles.noMachinesText}>No machines assigned. Tap "Scan QR" to add.</Text>
+            ) : (
+              activeMachines.map((assignment: MachineAssignment, index: number) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.machineItem,
+                    assignment.isChecked && styles.machineItemChecked,
+                  ]}
+                >
+                  <View style={styles.machineInfo}>
+                    <View style={[
+                      styles.machineIcon,
+                      assignment.isChecked
+                        ? styles.machineIconChecked
+                        : assignment.machineType === 'washer'
+                          ? styles.machineIconWasher
+                          : styles.machineIconDryer,
+                    ]}>
+                      {assignment.isChecked ? (
+                        <Ionicons name="checkmark" size={20} color="#10b981" />
+                      ) : (
+                        <Ionicons
+                          name={assignment.machineType === 'washer' ? 'water' : 'flame'}
+                          size={20}
+                          color={assignment.machineType === 'washer' ? '#06b6d4' : '#f97316'}
+                        />
+                      )}
+                    </View>
+                    <View>
+                      <Text style={styles.machineName}>{assignment.machineName}</Text>
+                      <Text style={styles.machineType}>
+                        {assignment.machineType}
+                        {assignment.isChecked && (
+                          <Text style={styles.checkedText}> - Checked by {assignment.checkedByInitials}</Text>
+                        )}
+                      </Text>
+                    </View>
+                  </View>
+                  {!assignment.isChecked && (
+                    <TouchableOpacity
+                      onPress={() => handleReleaseMachine(assignment.machineId, assignment.machineName)}
+                      disabled={updating}
+                    >
+                      <Text style={styles.removeText}>Remove</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {/* Check/Uncheck section */}
+                  <View style={styles.checkSection}>
+                    {!assignment.isChecked ? (
+                      <>
+                        <Text style={styles.checkHint}>When done, another person must verify:</Text>
+                        <TouchableOpacity
+                          style={[styles.checkButton, checkingMachine === assignment.machineId && styles.buttonDisabled]}
+                          onPress={() => handleCheckMachine(assignment)}
+                          disabled={checkingMachine === assignment.machineId}
+                        >
+                          {checkingMachine === assignment.machineId ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <Text style={styles.checkButtonText}>Mark as Checked</Text>
+                          )}
+                        </TouchableOpacity>
+                      </>
+                    ) : (
+                      <View style={styles.checkedInfo}>
+                        <Text style={styles.checkedByText}>
+                          Checked by: {assignment.checkedBy}
+                          {assignment.checkedByInitials && ` (${assignment.checkedByInitials})`}
+                          {formatDate(assignment.checkedAt) && ` - ${formatDate(assignment.checkedAt)}`}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.uncheckButton}
+                          onPress={() => handleUncheckMachine(assignment)}
+                          disabled={uncheckingMachine === assignment.machineId}
+                        >
+                          <Text style={styles.uncheckButtonText}>
+                            {uncheckingMachine === assignment.machineId ? 'Unchecking...' : 'Uncheck'}
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+                  </View>
+
+                  {(assignment.assignedBy || assignment.assignedAt) && (
+                    <View style={styles.assignedInfo}>
+                      <Ionicons name="time-outline" size={12} color="#94a3b8" />
+                      <Text style={styles.assignedText}>
+                        Added by {assignment.assignedBy} - {formatDate(assignment.assignedAt)}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ))
+            )}
+          </View>
+        </View>
+
+        {/* Machine History */}
+        {allMachineAssignments.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Machine History</Text>
+            <View style={styles.historyCard}>
+              {allMachineAssignments
+                .sort((a: MachineAssignment, b: MachineAssignment) =>
+                  new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime()
+                )
+                .map((assignment: MachineAssignment, index: number) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.historyItem,
+                      assignment.removedAt && styles.historyItemDone,
+                      !assignment.removedAt && assignment.isChecked && styles.historyItemChecked,
+                    ]}
+                  >
+                    <View style={styles.historyHeader}>
+                      <Text style={styles.historyMachine}>
+                        {assignment.machineType === 'washer' ? '🧺' : '🔥'} {assignment.machineName}
+                      </Text>
+                      <View style={[
+                        styles.historyBadge,
+                        assignment.removedAt
+                          ? styles.historyBadgeDone
+                          : assignment.isChecked
+                            ? styles.historyBadgeChecked
+                            : styles.historyBadgePending,
+                      ]}>
+                        <Text style={styles.historyBadgeText}>
+                          {assignment.removedAt ? 'Done' : assignment.isChecked ? 'Checked' : 'Pending'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.historyDetail}>
+                      Assigned by {assignment.assignedBy || 'Unknown'} - {formatDate(assignment.assignedAt)}
+                    </Text>
+                    {assignment.isChecked && assignment.checkedBy && (
+                      <Text style={styles.historyDetail}>
+                        Checked by {assignment.checkedBy} - {formatDate(assignment.checkedAt)}
+                      </Text>
+                    )}
+                    {assignment.removedAt && (
+                      <Text style={styles.historyDetail}>
+                        Removed: {formatDate(assignment.removedAt)}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+            </View>
+          </View>
+        )}
+
+        {/* Status Update */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Process Status</Text>
+          <View style={styles.statusGrid}>
+            {STATUS_OPTIONS.map(option => (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.statusButton,
+                  order.status === option.value && { backgroundColor: option.color },
+                ]}
+                onPress={() => updateStatus(option.value)}
+                disabled={updating || order.status === option.value}
+              >
+                <Text style={[
+                  styles.statusButtonText,
+                  order.status === option.value && styles.statusButtonTextActive,
+                ]}>
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+
+        {/* Order Details */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Order Details</Text>
+          <View style={styles.card}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Type</Text>
+              <Text style={styles.detailValue}>
+                {order.orderType === 'delivery' ? 'Pickup & Delivery' : 'In-Store'}
+              </Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Weight</Text>
+              <Text style={styles.detailValue}>{order.weight || 0} lbs</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Bags</Text>
+              <Text style={styles.detailValue}>{order.bags?.length || 0}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Created</Text>
+              <Text style={styles.detailValue}>
+                {new Date(order.dropOffDate).toLocaleString()}
+              </Text>
+            </View>
+            {order.estimatedPickupDate && (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>{order.orderType === 'delivery' ? 'Pickup' : 'Ready by'}</Text>
+                <Text style={styles.detailValue}>
+                  {new Date(order.estimatedPickupDate).toLocaleString()}
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Items */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Items</Text>
+          <View style={styles.card}>
+            {order.items?.map((item, index) => (
+              <View key={index} style={styles.itemRow}>
+                <Text style={styles.itemName}>{item.serviceName}</Text>
+                <Text style={styles.itemPrice}>${item.total.toFixed(2)}</Text>
+              </View>
+            ))}
+            {order.extraItems?.map((item, index) => (
+              <View key={`extra-${index}`} style={styles.itemRow}>
+                <Text style={styles.itemName}>{item.name} x{item.quantity}</Text>
+                <Text style={styles.itemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+              </View>
+            ))}
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>${(order.totalAmount || 0).toFixed(2)}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Notes */}
+        {order.specialInstructions && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Special Instructions</Text>
+            <View style={styles.notesCard}>
+              <Text style={styles.notesText}>{order.specialInstructions}</Text>
+            </View>
+          </View>
+        )}
+
+        {/* Payment */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Payment</Text>
+          <View style={[styles.paymentCard, order.isPaid && styles.paymentCardPaid]}>
+            {order.isPaid ? (
+              <View style={styles.paymentPaid}>
+                <View style={styles.paidBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                  <Text style={styles.paidBadgeText}>Paid ({order.paymentMethod || 'cash'})</Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.unpaidButton}
+                  onPress={handlePaymentToggle}
+                  disabled={updating}
+                >
+                  <Text style={styles.unpaidButtonText}>Mark Unpaid</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={styles.paymentPending}>
+                <View style={styles.paymentMethodPicker}>
+                  {PAYMENT_METHODS.map(method => (
+                    <TouchableOpacity
+                      key={method.value}
+                      style={[
+                        styles.paymentMethodButton,
+                        selectedPaymentMethod === method.value && styles.paymentMethodButtonActive,
+                      ]}
+                      onPress={() => setSelectedPaymentMethod(method.value)}
+                    >
+                      <Text style={[
+                        styles.paymentMethodText,
+                        selectedPaymentMethod === method.value && styles.paymentMethodTextActive,
+                      ]}>
+                        {method.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <TouchableOpacity
+                  style={[styles.markPaidButton, updating && styles.buttonDisabled]}
+                  onPress={handlePaymentToggle}
+                  disabled={updating}
+                >
+                  <Text style={styles.markPaidButtonText}>Mark Paid</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </View>
+
+        <View style={{ height: 40 }} />
+      </ScrollView>
+
+      {/* QR Scanner Modal */}
+      <Modal
+        visible={showScanner}
+        animationType="slide"
+        onRequestClose={() => setShowScanner(false)}
+      >
+        <View style={styles.scannerContainer}>
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>Scan Machine QR Code</Text>
+            <TouchableOpacity onPress={() => setShowScanner(false)}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {permission?.granted ? (
+            <CameraView
+              style={styles.camera}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={({ data }) => handleMachineScan(data)}
+            />
+          ) : (
+            <View style={styles.cameraPlaceholder}>
+              <Text style={styles.cameraPlaceholderText}>Camera permission required</Text>
+              <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+                <Text style={styles.permissionButtonText}>Grant Permission</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={styles.manualEntry}>
+            <Text style={styles.manualEntryLabel}>Or enter code manually:</Text>
+            <View style={styles.manualEntryRow}>
+              <TextInput
+                style={styles.manualInput}
+                value={manualQRCode}
+                onChangeText={setManualQRCode}
+                placeholder="Machine QR code..."
+                placeholderTextColor="#94a3b8"
+              />
+              <TouchableOpacity
+                style={[styles.manualSubmit, !manualQRCode && styles.buttonDisabled]}
+                onPress={() => handleMachineScan(manualQRCode)}
+                disabled={!manualQRCode}
+              >
+                <Text style={styles.manualSubmitText}>Submit</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -304,7 +791,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '600',
   },
   totalAmount: {
@@ -312,9 +799,34 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#fff',
   },
+  headerBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  editButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  editButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '600',
+  },
   section: {
     marginHorizontal: 16,
     marginBottom: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   sectionTitle: {
     fontSize: 14,
@@ -344,6 +856,300 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#2563eb',
   },
+  tagRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  tag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  tagText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  // Print section
+  printCard: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  printButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  printButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  printButtonPurple: {
+    backgroundColor: '#8b5cf6',
+  },
+  printButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  bagButtonsContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#bfdbfe',
+  },
+  bagButtonsLabel: {
+    fontSize: 12,
+    color: '#2563eb',
+    marginBottom: 8,
+  },
+  bagButtons: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  bagButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  bagButtonText: {
+    color: '#2563eb',
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  // Machine section
+  scanButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#06b6d4',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  scanButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  machineCard: {
+    backgroundColor: '#ecfeff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#a5f3fc',
+  },
+  noMachinesText: {
+    color: '#0891b2',
+    fontSize: 14,
+  },
+  machineItem: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#a5f3fc',
+  },
+  machineItemChecked: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#86efac',
+  },
+  machineInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  machineIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  machineIconWasher: {
+    backgroundColor: '#cffafe',
+  },
+  machineIconDryer: {
+    backgroundColor: '#ffedd5',
+  },
+  machineIconChecked: {
+    backgroundColor: '#dcfce7',
+  },
+  machineName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  machineType: {
+    fontSize: 13,
+    color: '#64748b',
+    textTransform: 'capitalize',
+  },
+  checkedText: {
+    color: '#10b981',
+  },
+  removeText: {
+    color: '#ef4444',
+    fontSize: 14,
+    position: 'absolute',
+    right: 12,
+    top: 12,
+  },
+  checkSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  checkHint: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  checkButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  checkButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  checkedInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  checkedByText: {
+    fontSize: 12,
+    color: '#10b981',
+    flex: 1,
+  },
+  uncheckButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#fef3c7',
+    borderRadius: 6,
+  },
+  uncheckButtonText: {
+    color: '#d97706',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  assignedInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  assignedText: {
+    fontSize: 11,
+    color: '#94a3b8',
+  },
+  // Machine history
+  historyCard: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 12,
+  },
+  historyItem: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 10,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  historyItemDone: {
+    backgroundColor: '#f1f5f9',
+    opacity: 0.7,
+  },
+  historyItemChecked: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#86efac',
+  },
+  historyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  historyMachine: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  historyBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  historyBadgeDone: {
+    backgroundColor: '#e2e8f0',
+  },
+  historyBadgeChecked: {
+    backgroundColor: '#dcfce7',
+  },
+  historyBadgePending: {
+    backgroundColor: '#fef3c7',
+  },
+  historyBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#475569',
+  },
+  historyDetail: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  // Status grid
+  statusGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  statusButton: {
+    width: '48%',
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    alignItems: 'center',
+  },
+  statusButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#475569',
+  },
+  statusButtonTextActive: {
+    color: '#fff',
+  },
+  // Details
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -360,20 +1166,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#1e293b',
   },
-  sameDayBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#fef3c7',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    marginTop: 12,
-  },
-  sameDayText: {
-    color: '#92400e',
-    fontWeight: '600',
-  },
+  // Items
   itemRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -406,6 +1199,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#1e293b',
   },
+  // Notes
   notesCard: {
     backgroundColor: '#fef3c7',
     borderRadius: 12,
@@ -415,34 +1209,163 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#92400e',
   },
-  actionSection: {
-    margin: 16,
+  // Payment
+  paymentCard: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
   },
-  printButton: {
+  paymentCardPaid: {
+    backgroundColor: '#dcfce7',
+    borderColor: '#86efac',
+  },
+  paymentPaid: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  paidBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#10b981',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  paidBadgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  unpaidButton: {
+    backgroundColor: '#ef4444',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  unpaidButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  paymentPending: {},
+  paymentMethodPicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
-    backgroundColor: '#2563eb',
-    paddingVertical: 16,
-    borderRadius: 12,
     marginBottom: 12,
   },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: '#10b981',
-    paddingVertical: 16,
-    borderRadius: 12,
+  paymentMethodButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  actionButtonDisabled: {
+  paymentMethodButtonActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  paymentMethodText: {
+    fontSize: 14,
+    color: '#475569',
+  },
+  paymentMethodTextActive: {
+    color: '#fff',
+  },
+  markPaidButton: {
+    backgroundColor: '#10b981',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  markPaidButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Disabled button
+  buttonDisabled: {
     opacity: 0.6,
   },
-  actionButtonText: {
+  // Scanner modal
+  scannerContainer: {
+    flex: 1,
+    backgroundColor: '#1e293b',
+  },
+  scannerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    paddingTop: 60,
+  },
+  scannerTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#fff',
-    fontSize: 18,
+  },
+  camera: {
+    flex: 1,
+    margin: 20,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  cameraPlaceholder: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    margin: 20,
+    backgroundColor: '#334155',
+    borderRadius: 16,
+  },
+  cameraPlaceholderText: {
+    color: '#94a3b8',
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  permissionButton: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  permissionButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  manualEntry: {
+    padding: 20,
+    backgroundColor: '#0f172a',
+  },
+  manualEntryLabel: {
+    color: '#94a3b8',
+    marginBottom: 8,
+  },
+  manualEntryRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  manualInput: {
+    flex: 1,
+    backgroundColor: '#334155',
+    borderRadius: 10,
+    padding: 14,
+    color: '#fff',
+    fontSize: 16,
+  },
+  manualSubmit: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+  },
+  manualSubmitText: {
+    color: '#fff',
     fontWeight: '600',
   },
 });

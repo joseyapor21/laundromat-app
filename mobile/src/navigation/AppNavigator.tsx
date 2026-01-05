@@ -10,7 +10,12 @@ import { useAuth } from '../contexts/AuthContext';
 import LoginScreen from '../screens/LoginScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import OrderDetailScreen from '../screens/OrderDetailScreen';
+import EditOrderScreen from '../screens/EditOrderScreen';
 import CreateOrderScreen from '../screens/CreateOrderScreen';
+import CreateCustomerScreen from '../screens/CreateCustomerScreen';
+import EditCustomerScreen from '../screens/EditCustomerScreen';
+import CashierReportScreen from '../screens/CashierReportScreen';
+import EODReportScreen from '../screens/EODReportScreen';
 import DriverScreen from '../screens/DriverScreen';
 import AdminScreen from '../screens/AdminScreen';
 import ProfileScreen from '../screens/ProfileScreen';
@@ -97,6 +102,51 @@ function MainStack() {
         component={CreateOrderScreen}
         options={{
           title: 'New Order',
+          headerStyle: { backgroundColor: '#fff' },
+          headerTintColor: '#1e293b',
+        }}
+      />
+      <Stack.Screen
+        name="EditOrder"
+        component={EditOrderScreen}
+        options={{
+          title: 'Edit Order',
+          headerStyle: { backgroundColor: '#fff' },
+          headerTintColor: '#1e293b',
+        }}
+      />
+      <Stack.Screen
+        name="CreateCustomer"
+        component={CreateCustomerScreen}
+        options={{
+          title: 'New Customer',
+          headerStyle: { backgroundColor: '#fff' },
+          headerTintColor: '#1e293b',
+        }}
+      />
+      <Stack.Screen
+        name="EditCustomer"
+        component={EditCustomerScreen}
+        options={{
+          title: 'Edit Customer',
+          headerStyle: { backgroundColor: '#fff' },
+          headerTintColor: '#1e293b',
+        }}
+      />
+      <Stack.Screen
+        name="CashierReport"
+        component={CashierReportScreen}
+        options={{
+          title: 'Cashier Report',
+          headerStyle: { backgroundColor: '#fff' },
+          headerTintColor: '#1e293b',
+        }}
+      />
+      <Stack.Screen
+        name="EODReport"
+        component={EODReportScreen}
+        options={{
+          title: 'End of Day Report',
           headerStyle: { backgroundColor: '#fff' },
           headerTintColor: '#1e293b',
         }}

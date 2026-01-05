@@ -56,7 +56,7 @@ export type OrderStatus =
   | 'cancelled';
 
 export type OrderType = 'storePickup' | 'delivery';
-export type PaymentMethod = 'cash' | 'credit_card' | 'zelle' | 'credit' | 'pending';
+export type PaymentMethod = 'cash' | 'credit_card' | 'zelle' | 'credit' | 'pending' | 'venmo' | 'check';
 export type PaymentStatus = 'pending' | 'paid' | 'partial';
 
 export interface OrderItem {
@@ -96,12 +96,17 @@ export interface Order {
   specialInstructions?: string;
   notes?: string;
   isSameDay?: boolean;
+  isPaid?: boolean;
   dropOffDate: Date;
   scheduledPickupTime?: Date;
+  estimatedPickupDate?: Date;
   estimatedReadyDate?: Date;
+  deliverySchedule?: Date;
   completedDate?: Date;
   assignedWasher?: string;
   assignedDryer?: string;
+  machineAssignments?: MachineAssignment[];
+  bags?: Bag[];
   createdBy: string;
   createdByName?: string;
   updatedBy?: string;
@@ -148,6 +153,33 @@ export interface Machine {
   lastUsedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
+}
+
+export interface MachineAssignment {
+  machineId: string;
+  machineName: string;
+  machineType: MachineType;
+  assignedAt: Date;
+  assignedBy: string;
+  removedAt?: Date;
+  removedBy?: string;
+  isChecked?: boolean;
+  checkedAt?: Date;
+  checkedBy?: string;
+  checkedByInitials?: string;
+}
+
+export interface Bag {
+  identifier: string;
+  weight?: number;
+  color?: string;
+  description?: string;
+}
+
+export interface OrderExtraItem {
+  item: ExtraItem;
+  quantity: number;
+  price: number;
 }
 
 export interface ActivityLog {
