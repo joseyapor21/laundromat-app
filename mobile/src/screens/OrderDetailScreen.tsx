@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -51,6 +51,7 @@ export default function OrderDetailScreen() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('cash');
   const [checkingMachine, setCheckingMachine] = useState<string | null>(null);
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
+  const isProcessingScan = useRef(false);
 
   const loadOrder = useCallback(async () => {
     try {
@@ -134,7 +135,10 @@ export default function OrderDetailScreen() {
 
   // Handle QR scan for machine assignment
   async function handleMachineScan(qrCode: string) {
-    if (!order) return;
+    // Prevent duplicate scans - the camera fires multiple times quickly
+    if (!order || isProcessingScan.current) return;
+
+    isProcessingScan.current = true;
     setShowScanner(false);
     setManualQRCode('');
     setUpdating(true);
@@ -149,6 +153,10 @@ export default function OrderDetailScreen() {
       Alert.alert('Error', errorMessage);
     } finally {
       setUpdating(false);
+      // Reset after a short delay to allow the scanner to be opened again
+      setTimeout(() => {
+        isProcessingScan.current = false;
+      }, 1000);
     }
   }
 
@@ -234,6 +242,9 @@ export default function OrderDetailScreen() {
   }
 
   function openScanner() {
+    // Reset the scan lock when opening scanner
+    isProcessingScan.current = false;
+
     if (!permission?.granted) {
       requestPermission().then(result => {
         if (result.granted) {
