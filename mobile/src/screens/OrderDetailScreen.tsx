@@ -274,6 +274,37 @@ export default function OrderDetailScreen() {
 
   const currentStatusOption = STATUS_OPTIONS.find(s => s.value === order?.status);
 
+  // Workflow logic - determine what sections to show based on order state
+  const isDelivery = order?.orderType === 'delivery';
+
+  // Check if bags have weights
+  const hasBagWeights = order?.bags && order.bags.length > 0 &&
+    order.bags.some(bag => bag.weight && bag.weight > 0);
+
+  // Pre-wash stages (before laundry processing starts)
+  const preWashStatuses: OrderStatus[] = ['new_order', 'received', 'scheduled_pickup', 'picked_up'];
+  const isPreWashStage = order ? preWashStatuses.includes(order.status) : false;
+
+  // Active washing/processing stages
+  const processingStatuses: OrderStatus[] = ['in_washer', 'in_dryer', 'laid_on_cart', 'folding'];
+  const isProcessingStage = order ? processingStatuses.includes(order.status) : false;
+
+  // Ready/completed stages
+  const readyStatuses: OrderStatus[] = ['ready_for_pickup', 'ready_for_delivery', 'completed'];
+  const isReadyStage = order ? readyStatuses.includes(order.status) : false;
+
+  // For delivery orders in pre-wash stage without weights, they need to add weights first
+  const needsWeightsFirst = isDelivery && isPreWashStage && !hasBagWeights;
+
+  // Can show machine section only if weights are added OR it's in-store order that's past received
+  const canShowMachineSection = !needsWeightsFirst && !isReadyStage;
+
+  // Can show print labels only if there are bags with weights
+  const canShowPrintLabels = hasBagWeights;
+
+  // Show payment section only for ready/completed stages or when order is paid
+  const showPaymentSection = isReadyStage || order?.isPaid;
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -344,164 +375,191 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
-        {/* Print Actions */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Print Labels</Text>
-          <View style={styles.printCard}>
-            <View style={styles.printButtons}>
+        {/* Action Required - Add Weights First (for delivery orders) */}
+        {needsWeightsFirst && (
+          <View style={styles.section}>
+            <View style={styles.actionRequiredCard}>
+              <View style={styles.actionRequiredHeader}>
+                <Ionicons name="warning" size={24} color="#d97706" />
+                <Text style={styles.actionRequiredTitle}>Add Bag Weights</Text>
+              </View>
+              <Text style={styles.actionRequiredText}>
+                This delivery order needs bag weights before processing. Tap Edit to add weights for each bag.
+              </Text>
               <TouchableOpacity
-                style={[styles.printButton, printing && styles.buttonDisabled]}
-                onPress={handlePrint}
-                disabled={printing}
+                style={styles.actionRequiredButton}
+                onPress={() => navigation.navigate('EditOrder' as never, { orderId: order._id } as never)}
               >
-                <Ionicons name="print" size={20} color="#fff" />
-                <Text style={styles.printButtonText}>Print Receipt</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.printButton, styles.printButtonPurple, (printing || !order.bags?.length) && styles.buttonDisabled]}
-                onPress={handlePrintBagLabels}
-                disabled={printing || !order.bags?.length}
-              >
-                <Ionicons name="pricetag" size={20} color="#fff" />
-                <Text style={styles.printButtonText}>All Bag Labels</Text>
+                <Ionicons name="pencil" size={18} color="#fff" />
+                <Text style={styles.actionRequiredButtonText}>Edit Order & Add Weights</Text>
               </TouchableOpacity>
             </View>
-            {order.bags && order.bags.length > 0 && (
-              <View style={styles.bagButtonsContainer}>
-                <Text style={styles.bagButtonsLabel}>Print individual bags:</Text>
-                <View style={styles.bagButtons}>
-                  {order.bags.map((bag, index) => (
-                    <TouchableOpacity
-                      key={index}
-                      style={[styles.bagButton, printing && styles.buttonDisabled]}
-                      onPress={() => handlePrintSingleBag(index)}
-                      disabled={printing}
-                    >
-                      <Text style={styles.bagButtonText}>{bag.identifier || `Bag ${index + 1}`}</Text>
-                    </TouchableOpacity>
-                  ))}
+          </View>
+        )}
+
+        {/* Print Actions - Only show bag labels button if weights exist */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Print</Text>
+          <View style={styles.printCard}>
+            <TouchableOpacity
+              style={[styles.printButton, printing && styles.buttonDisabled, canShowPrintLabels && { marginBottom: 10 }]}
+              onPress={handlePrint}
+              disabled={printing}
+            >
+              <Ionicons name="print" size={20} color="#fff" />
+              <Text style={styles.printButtonText}>Print Receipt</Text>
+            </TouchableOpacity>
+            {canShowPrintLabels && (
+              <>
+                <TouchableOpacity
+                  style={[styles.printButton, styles.printButtonPurple, printing && styles.buttonDisabled]}
+                  onPress={handlePrintBagLabels}
+                  disabled={printing}
+                >
+                  <Ionicons name="pricetag" size={20} color="#fff" />
+                  <Text style={styles.printButtonText}>Print All Bag Labels</Text>
+                </TouchableOpacity>
+                <View style={styles.bagButtonsContainer}>
+                  <Text style={styles.bagButtonsLabel}>Print individual bags:</Text>
+                  <View style={styles.bagButtons}>
+                    {order.bags?.map((bag, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[styles.bagButton, printing && styles.buttonDisabled]}
+                        onPress={() => handlePrintSingleBag(index)}
+                        disabled={printing}
+                      >
+                        <Text style={styles.bagButtonText}>{bag.identifier || `Bag ${index + 1}`}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
                 </View>
-              </View>
+              </>
+            )}
+            {!canShowPrintLabels && order.bags && order.bags.length > 0 && (
+              <Text style={styles.noBagWeightsText}>Add bag weights to print bag labels</Text>
             )}
           </View>
         </View>
 
-        {/* Machine Assignments */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Washer / Dryer</Text>
-            <TouchableOpacity
-              style={[styles.scanButton, updating && styles.buttonDisabled]}
-              onPress={openScanner}
-              disabled={updating}
-            >
-              <Ionicons name="qr-code" size={16} color="#fff" />
-              <Text style={styles.scanButtonText}>Scan QR</Text>
-            </TouchableOpacity>
-          </View>
-          <View style={styles.machineCard}>
-            {activeMachines.length === 0 ? (
-              <Text style={styles.noMachinesText}>No machines assigned. Tap "Scan QR" to add.</Text>
-            ) : (
-              activeMachines.map((assignment: MachineAssignment, index: number) => (
-                <View
-                  key={index}
-                  style={[
-                    styles.machineItem,
-                    assignment.isChecked && styles.machineItemChecked,
-                  ]}
-                >
-                  <View style={styles.machineInfo}>
-                    <View style={[
-                      styles.machineIcon,
-                      assignment.isChecked
-                        ? styles.machineIconChecked
-                        : assignment.machineType === 'washer'
-                          ? styles.machineIconWasher
-                          : styles.machineIconDryer,
-                    ]}>
-                      {assignment.isChecked ? (
-                        <Ionicons name="checkmark" size={20} color="#10b981" />
+        {/* Machine Assignments - Only show if weights are added */}
+        {canShowMachineSection && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Washer / Dryer</Text>
+              <TouchableOpacity
+                style={[styles.scanButton, updating && styles.buttonDisabled]}
+                onPress={openScanner}
+                disabled={updating}
+              >
+                <Ionicons name="qr-code" size={16} color="#fff" />
+                <Text style={styles.scanButtonText}>Scan QR</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.machineCard}>
+              {activeMachines.length === 0 ? (
+                <Text style={styles.noMachinesText}>No machines assigned. Tap "Scan QR" to add.</Text>
+              ) : (
+                activeMachines.map((assignment: MachineAssignment, index: number) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.machineItem,
+                      assignment.isChecked && styles.machineItemChecked,
+                    ]}
+                  >
+                    <View style={styles.machineInfo}>
+                      <View style={[
+                        styles.machineIcon,
+                        assignment.isChecked
+                          ? styles.machineIconChecked
+                          : assignment.machineType === 'washer'
+                            ? styles.machineIconWasher
+                            : styles.machineIconDryer,
+                      ]}>
+                        {assignment.isChecked ? (
+                          <Ionicons name="checkmark" size={20} color="#10b981" />
+                        ) : (
+                          <Ionicons
+                            name={assignment.machineType === 'washer' ? 'water' : 'flame'}
+                            size={20}
+                            color={assignment.machineType === 'washer' ? '#06b6d4' : '#f97316'}
+                          />
+                        )}
+                      </View>
+                      <View>
+                        <Text style={styles.machineName}>{assignment.machineName}</Text>
+                        <Text style={styles.machineType}>
+                          {assignment.machineType}
+                          {assignment.isChecked && (
+                            <Text style={styles.checkedText}> - Checked by {assignment.checkedByInitials}</Text>
+                          )}
+                        </Text>
+                      </View>
+                    </View>
+                    {!assignment.isChecked && (
+                      <TouchableOpacity
+                        onPress={() => handleReleaseMachine(assignment.machineId, assignment.machineName)}
+                        disabled={updating}
+                      >
+                        <Text style={styles.removeText}>Remove</Text>
+                      </TouchableOpacity>
+                    )}
+
+                    {/* Check/Uncheck section */}
+                    <View style={styles.checkSection}>
+                      {!assignment.isChecked ? (
+                        <>
+                          <Text style={styles.checkHint}>When done, another person must verify:</Text>
+                          <TouchableOpacity
+                            style={[styles.checkButton, checkingMachine === assignment.machineId && styles.buttonDisabled]}
+                            onPress={() => handleCheckMachine(assignment)}
+                            disabled={checkingMachine === assignment.machineId}
+                          >
+                            {checkingMachine === assignment.machineId ? (
+                              <ActivityIndicator size="small" color="#fff" />
+                            ) : (
+                              <Text style={styles.checkButtonText}>Mark as Checked</Text>
+                            )}
+                          </TouchableOpacity>
+                        </>
                       ) : (
-                        <Ionicons
-                          name={assignment.machineType === 'washer' ? 'water' : 'flame'}
-                          size={20}
-                          color={assignment.machineType === 'washer' ? '#06b6d4' : '#f97316'}
-                        />
+                        <View style={styles.checkedInfo}>
+                          <Text style={styles.checkedByText}>
+                            Checked by: {assignment.checkedBy}
+                            {assignment.checkedByInitials && ` (${assignment.checkedByInitials})`}
+                            {formatDate(assignment.checkedAt) && ` - ${formatDate(assignment.checkedAt)}`}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.uncheckButton}
+                            onPress={() => handleUncheckMachine(assignment)}
+                            disabled={uncheckingMachine === assignment.machineId}
+                          >
+                            <Text style={styles.uncheckButtonText}>
+                              {uncheckingMachine === assignment.machineId ? 'Unchecking...' : 'Uncheck'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       )}
                     </View>
-                    <View>
-                      <Text style={styles.machineName}>{assignment.machineName}</Text>
-                      <Text style={styles.machineType}>
-                        {assignment.machineType}
-                        {assignment.isChecked && (
-                          <Text style={styles.checkedText}> - Checked by {assignment.checkedByInitials}</Text>
-                        )}
-                      </Text>
-                    </View>
-                  </View>
-                  {!assignment.isChecked && (
-                    <TouchableOpacity
-                      onPress={() => handleReleaseMachine(assignment.machineId, assignment.machineName)}
-                      disabled={updating}
-                    >
-                      <Text style={styles.removeText}>Remove</Text>
-                    </TouchableOpacity>
-                  )}
 
-                  {/* Check/Uncheck section */}
-                  <View style={styles.checkSection}>
-                    {!assignment.isChecked ? (
-                      <>
-                        <Text style={styles.checkHint}>When done, another person must verify:</Text>
-                        <TouchableOpacity
-                          style={[styles.checkButton, checkingMachine === assignment.machineId && styles.buttonDisabled]}
-                          onPress={() => handleCheckMachine(assignment)}
-                          disabled={checkingMachine === assignment.machineId}
-                        >
-                          {checkingMachine === assignment.machineId ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                          ) : (
-                            <Text style={styles.checkButtonText}>Mark as Checked</Text>
-                          )}
-                        </TouchableOpacity>
-                      </>
-                    ) : (
-                      <View style={styles.checkedInfo}>
-                        <Text style={styles.checkedByText}>
-                          Checked by: {assignment.checkedBy}
-                          {assignment.checkedByInitials && ` (${assignment.checkedByInitials})`}
-                          {formatDate(assignment.checkedAt) && ` - ${formatDate(assignment.checkedAt)}`}
+                    {(assignment.assignedBy || assignment.assignedAt) && (
+                      <View style={styles.assignedInfo}>
+                        <Ionicons name="time-outline" size={12} color="#94a3b8" />
+                        <Text style={styles.assignedText}>
+                          Added by {assignment.assignedBy} - {formatDate(assignment.assignedAt)}
                         </Text>
-                        <TouchableOpacity
-                          style={styles.uncheckButton}
-                          onPress={() => handleUncheckMachine(assignment)}
-                          disabled={uncheckingMachine === assignment.machineId}
-                        >
-                          <Text style={styles.uncheckButtonText}>
-                            {uncheckingMachine === assignment.machineId ? 'Unchecking...' : 'Uncheck'}
-                          </Text>
-                        </TouchableOpacity>
                       </View>
                     )}
                   </View>
-
-                  {(assignment.assignedBy || assignment.assignedAt) && (
-                    <View style={styles.assignedInfo}>
-                      <Ionicons name="time-outline" size={12} color="#94a3b8" />
-                      <Text style={styles.assignedText}>
-                        Added by {assignment.assignedBy} - {formatDate(assignment.assignedAt)}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              ))
-            )}
+                ))
+              )}
+            </View>
           </View>
-        </View>
+        )}
 
-        {/* Machine History */}
-        {allMachineAssignments.length > 0 && (
+        {/* Machine History - Only show if there's history and we can show machine section */}
+        {canShowMachineSection && allMachineAssignments.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Machine History</Text>
             <View style={styles.historyCard}>
@@ -554,7 +612,7 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Status Update */}
+        {/* Status Update - Show relevant statuses based on workflow */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Process Status</Text>
           <View style={styles.statusGrid}>
@@ -683,56 +741,58 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Payment */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payment</Text>
-          <View style={[styles.paymentCard, order.isPaid && styles.paymentCardPaid]}>
-            {order.isPaid ? (
-              <View style={styles.paymentPaid}>
-                <View style={styles.paidBadge}>
-                  <Ionicons name="checkmark-circle" size={16} color="#fff" />
-                  <Text style={styles.paidBadgeText}>Paid ({order.paymentMethod || 'cash'})</Text>
+        {/* Payment - Only show for ready/completed orders or if already paid */}
+        {showPaymentSection && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Payment</Text>
+            <View style={[styles.paymentCard, order.isPaid && styles.paymentCardPaid]}>
+              {order.isPaid ? (
+                <View style={styles.paymentPaid}>
+                  <View style={styles.paidBadge}>
+                    <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                    <Text style={styles.paidBadgeText}>Paid ({order.paymentMethod || 'cash'})</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.unpaidButton}
+                    onPress={handlePaymentToggle}
+                    disabled={updating}
+                  >
+                    <Text style={styles.unpaidButtonText}>Mark Unpaid</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={styles.unpaidButton}
-                  onPress={handlePaymentToggle}
-                  disabled={updating}
-                >
-                  <Text style={styles.unpaidButtonText}>Mark Unpaid</Text>
-                </TouchableOpacity>
-              </View>
-            ) : (
-              <View style={styles.paymentPending}>
-                <View style={styles.paymentMethodPicker}>
-                  {PAYMENT_METHODS.map(method => (
-                    <TouchableOpacity
-                      key={method.value}
-                      style={[
-                        styles.paymentMethodButton,
-                        selectedPaymentMethod === method.value && styles.paymentMethodButtonActive,
-                      ]}
-                      onPress={() => setSelectedPaymentMethod(method.value)}
-                    >
-                      <Text style={[
-                        styles.paymentMethodText,
-                        selectedPaymentMethod === method.value && styles.paymentMethodTextActive,
-                      ]}>
-                        {method.label}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
+              ) : (
+                <View style={styles.paymentPending}>
+                  <View style={styles.paymentMethodPicker}>
+                    {PAYMENT_METHODS.map(method => (
+                      <TouchableOpacity
+                        key={method.value}
+                        style={[
+                          styles.paymentMethodButton,
+                          selectedPaymentMethod === method.value && styles.paymentMethodButtonActive,
+                        ]}
+                        onPress={() => setSelectedPaymentMethod(method.value)}
+                      >
+                        <Text style={[
+                          styles.paymentMethodText,
+                          selectedPaymentMethod === method.value && styles.paymentMethodTextActive,
+                        ]}>
+                          {method.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.markPaidButton, updating && styles.buttonDisabled]}
+                    onPress={handlePaymentToggle}
+                    disabled={updating}
+                  >
+                    <Text style={styles.markPaidButtonText}>Mark Paid</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity
-                  style={[styles.markPaidButton, updating && styles.buttonDisabled]}
-                  onPress={handlePaymentToggle}
-                  disabled={updating}
-                >
-                  <Text style={styles.markPaidButtonText}>Mark Paid</Text>
-                </TouchableOpacity>
-              </View>
-            )}
+              )}
+            </View>
           </View>
-        </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -910,6 +970,45 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  // Action required section
+  actionRequiredCard: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#f59e0b',
+  },
+  actionRequiredHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  actionRequiredTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#92400e',
+  },
+  actionRequiredText: {
+    fontSize: 14,
+    color: '#78350f',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  actionRequiredButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#f59e0b',
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  actionRequiredButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   // Print section
   printCard: {
     backgroundColor: '#eff6ff',
@@ -934,6 +1033,13 @@ const styles = StyleSheet.create({
   },
   printButtonPurple: {
     backgroundColor: '#8b5cf6',
+  },
+  noBagWeightsText: {
+    fontSize: 13,
+    color: '#64748b',
+    fontStyle: 'italic',
+    marginTop: 10,
+    textAlign: 'center',
   },
   printButtonText: {
     color: '#fff',
