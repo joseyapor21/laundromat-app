@@ -143,28 +143,30 @@ export default function AdminScreen() {
 
       {/* Content */}
       {activeTab === 'users' && (
-        <FlatList
-          data={users}
-          keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          renderItem={({ item: user }) => (
-            <View style={styles.card}>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{user.firstName} {user.lastName}</Text>
-                <Text style={styles.cardSubtitle}>{user.email}</Text>
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={users}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            renderItem={({ item: user }) => (
+              <View style={styles.card}>
+                <View style={styles.cardContent}>
+                  <Text style={styles.cardTitle}>{user.firstName} {user.lastName}</Text>
+                  <Text style={styles.cardSubtitle}>{user.email}</Text>
+                </View>
+                <View style={[styles.badge, { backgroundColor: user.role === 'admin' ? '#8b5cf6' : '#3b82f6' }]}>
+                  <Text style={styles.badgeText}>{user.role}</Text>
+                </View>
               </View>
-              <View style={[styles.badge, { backgroundColor: user.role === 'admin' ? '#8b5cf6' : '#3b82f6' }]}>
-                <Text style={styles.badgeText}>{user.role}</Text>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No users found</Text>
               </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No users found</Text>
-            </View>
-          }
-        />
+            }
+          />
+        </View>
       )}
 
       {activeTab === 'customers' && (
@@ -261,43 +263,45 @@ export default function AdminScreen() {
       )}
 
       {activeTab === 'machines' && (
-        <FlatList
-          data={machines}
-          keyExtractor={(item) => item._id}
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-          renderItem={({ item: machine }) => (
-            <View style={styles.card}>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardTitle}>{machine.name}</Text>
-                <Text style={styles.cardSubtitle}>QR: {machine.qrCode}</Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <View style={[
-                  styles.badge,
-                  { backgroundColor: machine.type === 'washer' ? '#06b6d4' : '#f97316' }
-                ]}>
-                  <Text style={styles.badgeText}>{machine.type}</Text>
+        <View style={{ flex: 1 }}>
+          <FlatList
+            data={machines}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            renderItem={({ item: machine }) => (
+              <View style={styles.card}>
+                <View style={styles.cardContent}>
+                  <Text style={styles.cardTitle}>{machine.name}</Text>
+                  <Text style={styles.cardSubtitle}>QR: {machine.qrCode}</Text>
                 </View>
-                <View style={[
-                  styles.badge,
-                  {
-                    backgroundColor: machine.status === 'available' ? '#10b981' :
-                      machine.status === 'in_use' ? '#3b82f6' : '#ef4444',
-                    marginTop: 4,
-                  }
-                ]}>
-                  <Text style={styles.badgeText}>{machine.status.replace('_', ' ')}</Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <View style={[
+                    styles.badge,
+                    { backgroundColor: machine.type === 'washer' ? '#06b6d4' : '#f97316' }
+                  ]}>
+                    <Text style={styles.badgeText}>{machine.type}</Text>
+                  </View>
+                  <View style={[
+                    styles.badge,
+                    {
+                      backgroundColor: machine.status === 'available' ? '#10b981' :
+                        machine.status === 'in_use' ? '#3b82f6' : '#ef4444',
+                      marginTop: 4,
+                    }
+                  ]}>
+                    <Text style={styles.badgeText}>{machine.status.replace('_', ' ')}</Text>
+                  </View>
                 </View>
               </View>
-            </View>
-          )}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>No machines found</Text>
-            </View>
-          }
-        />
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No machines found</Text>
+              </View>
+            }
+          />
+        </View>
       )}
     </View>
   );
