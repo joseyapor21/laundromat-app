@@ -35,6 +35,7 @@ class ApiService {
     options: RequestInit = {}
   ): Promise<T> {
     const url = `${API_BASE_URL}/api${endpoint}`;
+    console.log('API Request:', options.method || 'GET', url);
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -45,17 +46,26 @@ class ApiService {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`;
     }
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
 
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Request failed' }));
-      throw new Error(error.error || `HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
+        console.log('API Error:', response.status, errorData);
+        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      return response.json();
+    } catch (error) {
+      if (error instanceof TypeError && error.message === 'Network request failed') {
+        console.error('Network error - check if server is running and accessible');
+        throw new Error('Cannot connect to server. Check your network connection.');
+      }
+      throw error;
     }
-
-    return response.json();
   }
 
   // Auth

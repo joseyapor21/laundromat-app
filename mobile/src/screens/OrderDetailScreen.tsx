@@ -57,8 +57,10 @@ export default function OrderDetailScreen() {
   async function handlePrint() {
     if (!order) return;
     setPrinting(true);
+    console.log('Printing order:', order._id);
     try {
-      await api.printOrder(order._id);
+      const result = await api.printOrder(order._id);
+      console.log('Print result:', result);
       Alert.alert('Success', 'Print job sent to printer');
     } catch (error) {
       console.error('Print error:', error);
