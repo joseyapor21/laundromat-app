@@ -1,0 +1,1154 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  TextInput,
+  Alert,
+  ActivityIndicator,
+  Switch,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRoute, useNavigation } from '@react-navigation/native';
+import { api } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
+import type { Order, ExtraItem, Settings, Bag, OrderType, OrderExtraItem } from '../types';
+
+export default function EditOrderScreen() {
+  const route = useRoute<any>();
+  const navigation = useNavigation<any>();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+
+  const [order, setOrder] = useState<Order | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  // Form state
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerAddress, setCustomerAddress] = useState('');
+  const [specialInstructions, setSpecialInstructions] = useState('');
+  const [orderType, setOrderType] = useState<OrderType>('storePickup');
+  const [isSameDay, setIsSameDay] = useState(false);
+
+  // Bags
+  const [bags, setBags] = useState<Bag[]>([]);
+
+  // Extra items
+  const [extraItems, setExtraItems] = useState<ExtraItem[]>([]);
+  const [selectedExtraItems, setSelectedExtraItems] = useState<Record<string, number>>({});
+  const [showExtraItems, setShowExtraItems] = useState(false);
+
+  // Pricing
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [priceOverride, setPriceOverride] = useState<number | null>(null);
+  const [priceChangeNote, setPriceChangeNote] = useState('');
+  const [showPriceOverride, setShowPriceOverride] = useState(false);
+
+  // Delivery
+  const [deliveryPrice, setDeliveryPrice] = useState(0);
+
+  const loadOrder = useCallback(async () => {
+    try {
+      const [orderData, settingsData, extraItemsData] = await Promise.all([
+        api.getOrder(route.params.orderId),
+        api.getSettings(),
+        api.getExtraItems(),
+      ]);
+
+      setOrder(orderData);
+      setSettings(settingsData);
+      setExtraItems(extraItemsData.filter((item: ExtraItem) => item.isActive));
+
+      // Populate form with order data
+      setCustomerName(orderData.customerName || '');
+      setCustomerPhone(orderData.customerPhone || '');
+      setCustomerAddress(orderData.customer?.address || '');
+      setSpecialInstructions(orderData.specialInstructions || '');
+      setOrderType(orderData.orderType || 'storePickup');
+      setIsSameDay(orderData.isSameDay || false);
+      setBags(orderData.bags || []);
+
+      // Delivery price from customer
+      if (orderData.customer?.deliveryFee) {
+        const fee = parseFloat(orderData.customer.deliveryFee.replace('$', '')) || 0;
+        setDeliveryPrice(fee);
+      }
+
+      // Populate extra items
+      if (orderData.extraItems) {
+        const extraItemsMap: Record<string, number> = {};
+        orderData.extraItems.forEach((item: any) => {
+          const itemId = item.item?._id || item.itemId;
+          if (itemId) {
+            extraItemsMap[itemId] = item.quantity;
+          }
+        });
+        setSelectedExtraItems(extraItemsMap);
+        setShowExtraItems(Object.values(extraItemsMap).some(qty => qty > 0));
+      }
+
+      // Price override
+      if ((orderData as any).priceOverride) {
+        setPriceOverride((orderData as any).priceOverride);
+        setShowPriceOverride(true);
+        setPriceChangeNote((orderData as any).priceChangeNote || '');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load order');
+      navigation.goBack();
+    } finally {
+      setLoading(false);
+    }
+  }, [route.params.orderId, navigation]);
+
+  useEffect(() => {
+    loadOrder();
+  }, [loadOrder]);
+
+  // Calculate total weight from bags
+  const calculateTotalWeight = useCallback(() => {
+    return bags.reduce((total, bag) => total + (bag.weight || 0), 0);
+  }, [bags]);
+
+  // Round to nearest quarter
+  const roundToQuarter = (value: number): number => {
+    return Math.round(value * 4) / 4;
+  };
+
+  // Calculate same day price per pound
+  const getSameDayPricePerPound = (): number => {
+    if (!settings) return 0;
+    const regularPrice = settings.pricePerPound || 1.25;
+    const extraPercentage = settings.sameDayExtraPercentage || 50;
+    const sameDayPrice = regularPrice * (1 + extraPercentage / 100);
+    return roundToQuarter(sameDayPrice);
+  };
+
+  // Calculate same day extra charge
+  const getSameDayExtraCharge = (): number => {
+    const weight = calculateTotalWeight();
+    if (!settings || !isSameDay || weight <= 0) return 0;
+
+    const regularPrice = settings.pricePerPound || 1.25;
+    const sameDayPricePerPound = getSameDayPricePerPound();
+    const extraPerPound = sameDayPricePerPound - regularPrice;
+    const calculatedExtra = weight * extraPerPound;
+
+    const minimumCharge = settings.sameDayMinimumCharge || 5;
+    return Math.max(calculatedExtra, minimumCharge);
+  };
+
+  // Calculate total price
+  const calculateTotalPrice = (): number => {
+    if (!settings) return order?.totalAmount || 0;
+
+    const weight = calculateTotalWeight();
+    let basePrice = 0;
+
+    if (weight > 0) {
+      if (weight >= settings.minimumWeight) {
+        basePrice = weight * settings.pricePerPound;
+      } else {
+        basePrice = settings.minimumPrice;
+      }
+    }
+
+    const sameDayExtra = getSameDayExtraCharge();
+
+    const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, quantity]) => {
+      const item = extraItems.find(i => i._id === itemId);
+      return total + (item ? item.price * quantity : 0);
+    }, 0);
+
+    let deliveryFee = 0;
+    if (orderType === 'delivery' && deliveryPrice > 0) {
+      deliveryFee = deliveryPrice;
+    }
+
+    return basePrice + sameDayExtra + extraItemsTotal + deliveryFee;
+  };
+
+  const getFinalPrice = () => {
+    return priceOverride !== null ? priceOverride : calculateTotalPrice();
+  };
+
+  // Bag management
+  const addBag = () => {
+    const newBag: Bag = {
+      identifier: `Bag ${bags.length + 1}`,
+      weight: 0,
+      color: '',
+      description: ''
+    };
+    setBags([...bags, newBag]);
+  };
+
+  const removeBag = (index: number) => {
+    setBags(bags.filter((_, i) => i !== index));
+  };
+
+  const updateBag = (index: number, field: keyof Bag, value: string | number) => {
+    const updatedBags = bags.map((bag, i) =>
+      i === index ? { ...bag, [field]: value } : bag
+    );
+    setBags(updatedBags);
+  };
+
+  // Save order
+  const handleSave = async () => {
+    if (showPriceOverride && !priceChangeNote.trim()) {
+      Alert.alert('Error', 'Please provide a reason for the price change');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const orderExtraItems = Object.entries(selectedExtraItems)
+        .filter(([, quantity]) => quantity > 0)
+        .map(([itemId, quantity]) => {
+          const item = extraItems.find(i => i._id === itemId);
+          return {
+            item: item!,
+            quantity,
+            price: item!.price * quantity
+          };
+        });
+
+      const updates: any = {
+        customerName,
+        customerPhone,
+        weight: calculateTotalWeight(),
+        specialInstructions,
+        totalAmount: getFinalPrice(),
+        priceOverride: priceOverride || undefined,
+        priceChangeNote: priceChangeNote || undefined,
+        extraItems: orderExtraItems,
+        bags,
+        orderType,
+        isSameDay,
+        sameDayPricePerPound: isSameDay ? getSameDayPricePerPound() : undefined,
+      };
+
+      // Update customer address if delivery order
+      if (orderType === 'delivery' && order?.customer && customerAddress !== order.customer.address) {
+        try {
+          await api.updateCustomer(order.customer._id, {
+            address: customerAddress,
+            deliveryFee: `$${deliveryPrice.toFixed(2)}`,
+          });
+        } catch (error) {
+          console.error('Failed to update customer address:', error);
+        }
+      }
+
+      await api.updateOrder(order!._id, updates);
+      Alert.alert('Success', 'Order updated successfully', [
+        { text: 'OK', onPress: () => navigation.goBack() }
+      ]);
+    } catch (error) {
+      console.error('Failed to update order:', error);
+      Alert.alert('Error', 'Failed to update order');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete order (admin only)
+  const handleDelete = () => {
+    Alert.alert(
+      'Delete Order',
+      'Are you sure you want to delete this order? This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setSaving(true);
+            try {
+              await api.deleteOrder(order!._id);
+              Alert.alert('Success', 'Order deleted successfully', [
+                { text: 'OK', onPress: () => navigation.navigate('Main') }
+              ]);
+            } catch (error) {
+              console.error('Failed to delete order:', error);
+              Alert.alert('Error', 'Failed to delete order');
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#2563eb" />
+      </View>
+    );
+  }
+
+  if (!order) return null;
+
+  const weight = calculateTotalWeight();
+
+  return (
+    <SafeAreaView style={styles.container} edges={['bottom']}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={{ flex: 1 }}
+      >
+        <ScrollView style={styles.scrollView}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Edit Order #{order.orderId}</Text>
+          </View>
+
+          {/* Customer Information */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Customer Information</Text>
+            <View style={styles.card}>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Customer Name</Text>
+                <TextInput
+                  style={styles.input}
+                  value={customerName}
+                  onChangeText={setCustomerName}
+                  placeholder="Customer name"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Phone Number</Text>
+                <TextInput
+                  style={styles.input}
+                  value={customerPhone}
+                  onChangeText={setCustomerPhone}
+                  placeholder="Phone number"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="phone-pad"
+                />
+              </View>
+              {orderType === 'delivery' && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Address</Text>
+                  <TextInput
+                    style={[styles.input, styles.textArea]}
+                    value={customerAddress}
+                    onChangeText={setCustomerAddress}
+                    placeholder="Delivery address"
+                    placeholderTextColor="#94a3b8"
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Order Type */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Order Type</Text>
+            <View style={styles.orderTypeContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.orderTypeButton,
+                  orderType === 'storePickup' && styles.orderTypeButtonActive
+                ]}
+                onPress={() => setOrderType('storePickup')}
+              >
+                <Ionicons
+                  name="storefront"
+                  size={20}
+                  color={orderType === 'storePickup' ? '#fff' : '#64748b'}
+                />
+                <Text style={[
+                  styles.orderTypeText,
+                  orderType === 'storePickup' && styles.orderTypeTextActive
+                ]}>
+                  In-Store
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.orderTypeButton,
+                  orderType === 'delivery' && styles.orderTypeButtonActive
+                ]}
+                onPress={() => setOrderType('delivery')}
+              >
+                <Ionicons
+                  name="car"
+                  size={20}
+                  color={orderType === 'delivery' ? '#fff' : '#64748b'}
+                />
+                <Text style={[
+                  styles.orderTypeText,
+                  orderType === 'delivery' && styles.orderTypeTextActive
+                ]}>
+                  Delivery
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Same Day Service */}
+          <View style={styles.section}>
+            <View style={[styles.sameDayCard, isSameDay && styles.sameDayCardActive]}>
+              <View style={styles.sameDayRow}>
+                <View style={styles.sameDayInfo}>
+                  <Ionicons
+                    name="flash"
+                    size={24}
+                    color={isSameDay ? '#f59e0b' : '#94a3b8'}
+                  />
+                  <View>
+                    <Text style={styles.sameDayTitle}>Same Day Service</Text>
+                    {settings && (
+                      <Text style={styles.sameDaySubtitle}>
+                        ${settings.pricePerPound?.toFixed(2)}/lb → ${getSameDayPricePerPound().toFixed(2)}/lb
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                <Switch
+                  value={isSameDay}
+                  onValueChange={setIsSameDay}
+                  trackColor={{ false: '#e2e8f0', true: '#fcd34d' }}
+                  thumbColor={isSameDay ? '#f59e0b' : '#fff'}
+                />
+              </View>
+              {isSameDay && settings && weight > 0 && (
+                <View style={styles.sameDayPricing}>
+                  <Text style={styles.sameDayPricingText}>
+                    Extra charge: ${getSameDayExtraCharge().toFixed(2)}
+                    {getSameDayExtraCharge() === (settings.sameDayMinimumCharge || 5) && (
+                      <Text style={styles.minimumNote}> (minimum charge)</Text>
+                    )}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Bags */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>
+                Bags ({bags.length}) - Total: {weight.toFixed(1)} lbs
+              </Text>
+              <TouchableOpacity style={styles.addButton} onPress={addBag}>
+                <Ionicons name="add" size={20} color="#fff" />
+                <Text style={styles.addButtonText}>Add Bag</Text>
+              </TouchableOpacity>
+            </View>
+
+            {bags.length === 0 ? (
+              <View style={styles.emptyCard}>
+                <Text style={styles.emptyText}>No bags added. Tap "Add Bag" to get started.</Text>
+              </View>
+            ) : (
+              bags.map((bag, index) => (
+                <View key={index} style={styles.bagCard}>
+                  <View style={styles.bagHeader}>
+                    <Text style={styles.bagTitle}>Bag {index + 1}</Text>
+                    <TouchableOpacity
+                      style={styles.removeButton}
+                      onPress={() => removeBag(index)}
+                    >
+                      <Text style={styles.removeButtonText}>Remove</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <View style={styles.bagFields}>
+                    <View style={styles.bagField}>
+                      <Text style={styles.bagFieldLabel}>Weight (lbs)</Text>
+                      <TextInput
+                        style={styles.bagInput}
+                        value={bag.weight?.toString() || ''}
+                        onChangeText={(text) => updateBag(index, 'weight', parseFloat(text) || 0)}
+                        keyboardType="decimal-pad"
+                        placeholder="0"
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+                    <View style={styles.bagField}>
+                      <Text style={styles.bagFieldLabel}>Color</Text>
+                      <TextInput
+                        style={styles.bagInput}
+                        value={bag.color || ''}
+                        onChangeText={(text) => updateBag(index, 'color', text)}
+                        placeholder="Color"
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+                    <View style={styles.bagField}>
+                      <Text style={styles.bagFieldLabel}>Description</Text>
+                      <TextInput
+                        style={styles.bagInput}
+                        value={bag.description || ''}
+                        onChangeText={(text) => updateBag(index, 'description', text)}
+                        placeholder="Description"
+                        placeholderTextColor="#94a3b8"
+                      />
+                    </View>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+
+          {/* Extra Items */}
+          {extraItems.length > 0 && (
+            <View style={styles.section}>
+              {!showExtraItems ? (
+                <TouchableOpacity
+                  style={styles.showExtraItemsButton}
+                  onPress={() => setShowExtraItems(true)}
+                >
+                  <Ionicons name="add-circle-outline" size={20} color="#2563eb" />
+                  <Text style={styles.showExtraItemsText}>Add Extra Items</Text>
+                </TouchableOpacity>
+              ) : (
+                <>
+                  <View style={styles.sectionHeader}>
+                    <Text style={styles.sectionTitle}>Extra Items</Text>
+                    <TouchableOpacity
+                      style={styles.hideButton}
+                      onPress={() => {
+                        setShowExtraItems(false);
+                        setSelectedExtraItems({});
+                      }}
+                    >
+                      <Text style={styles.hideButtonText}>Hide</Text>
+                    </TouchableOpacity>
+                  </View>
+                  {extraItems.map(item => (
+                    <View key={item._id} style={styles.extraItemCard}>
+                      <View style={styles.extraItemInfo}>
+                        <Text style={styles.extraItemName}>{item.name}</Text>
+                        <Text style={styles.extraItemPrice}>${item.price.toFixed(2)}</Text>
+                      </View>
+                      <View style={styles.quantityControls}>
+                        <TouchableOpacity
+                          style={styles.quantityButton}
+                          onPress={() => setSelectedExtraItems(prev => ({
+                            ...prev,
+                            [item._id]: Math.max(0, (prev[item._id] || 0) - 1)
+                          }))}
+                        >
+                          <Ionicons name="remove" size={20} color="#ef4444" />
+                        </TouchableOpacity>
+                        <Text style={styles.quantityText}>
+                          {selectedExtraItems[item._id] || 0}
+                        </Text>
+                        <TouchableOpacity
+                          style={styles.quantityButton}
+                          onPress={() => setSelectedExtraItems(prev => ({
+                            ...prev,
+                            [item._id]: (prev[item._id] || 0) + 1
+                          }))}
+                        >
+                          <Ionicons name="add" size={20} color="#10b981" />
+                        </TouchableOpacity>
+                        <Text style={styles.extraItemTotal}>
+                          ${((selectedExtraItems[item._id] || 0) * item.price).toFixed(2)}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </>
+              )}
+            </View>
+          )}
+
+          {/* Special Instructions */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Special Instructions</Text>
+            <TextInput
+              style={[styles.input, styles.textArea, { backgroundColor: '#fff' }]}
+              value={specialInstructions}
+              onChangeText={setSpecialInstructions}
+              placeholder="Any special instructions..."
+              placeholderTextColor="#94a3b8"
+              multiline
+              numberOfLines={3}
+            />
+          </View>
+
+          {/* Pricing */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Pricing</Text>
+            <View style={styles.pricingCard}>
+              {settings && weight > 0 && (
+                <View style={styles.priceBreakdown}>
+                  <View style={styles.priceRow}>
+                    <Text style={styles.priceLabel}>
+                      Base ({weight.toFixed(1)} lbs × ${settings.pricePerPound?.toFixed(2)})
+                    </Text>
+                    <Text style={styles.priceValue}>
+                      ${(weight >= settings.minimumWeight
+                        ? weight * settings.pricePerPound
+                        : settings.minimumPrice
+                      ).toFixed(2)}
+                    </Text>
+                  </View>
+                  {isSameDay && (
+                    <View style={styles.priceRow}>
+                      <Text style={[styles.priceLabel, { color: '#f59e0b' }]}>Same Day Extra</Text>
+                      <Text style={[styles.priceValue, { color: '#f59e0b' }]}>
+                        +${getSameDayExtraCharge().toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+                  {Object.entries(selectedExtraItems).filter(([, qty]) => qty > 0).length > 0 && (
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceLabel}>Extra Items</Text>
+                      <Text style={styles.priceValue}>
+                        +${Object.entries(selectedExtraItems).reduce((total, [itemId, quantity]) => {
+                          const item = extraItems.find(i => i._id === itemId);
+                          return total + (item ? item.price * quantity : 0);
+                        }, 0).toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+                  {orderType === 'delivery' && deliveryPrice > 0 && (
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceLabel}>Delivery Fee</Text>
+                      <Text style={styles.priceValue}>+${deliveryPrice.toFixed(2)}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Calculated Total</Text>
+                <Text style={styles.totalValue}>${calculateTotalPrice().toFixed(2)}</Text>
+              </View>
+
+              {priceOverride !== null && (
+                <View style={[styles.totalRow, { marginTop: 8 }]}>
+                  <Text style={[styles.totalLabel, { color: '#ef4444' }]}>Override Price</Text>
+                  <Text style={[styles.totalValue, { color: '#ef4444' }]}>
+                    ${priceOverride.toFixed(2)}
+                  </Text>
+                </View>
+              )}
+
+              {!showPriceOverride ? (
+                <TouchableOpacity
+                  style={styles.overrideButton}
+                  onPress={() => {
+                    setShowPriceOverride(true);
+                    setPriceOverride(calculateTotalPrice());
+                  }}
+                >
+                  <Text style={styles.overrideButtonText}>Override Price</Text>
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.overrideSection}>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Override Price ($)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={priceOverride?.toString() || ''}
+                      onChangeText={(text) => setPriceOverride(parseFloat(text) || 0)}
+                      keyboardType="decimal-pad"
+                      placeholder="0.00"
+                      placeholderTextColor="#94a3b8"
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Reason for Price Change *</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={priceChangeNote}
+                      onChangeText={setPriceChangeNote}
+                      placeholder="e.g., Customer discount"
+                      placeholderTextColor="#94a3b8"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.removeOverrideButton}
+                    onPress={() => {
+                      setShowPriceOverride(false);
+                      setPriceOverride(null);
+                      setPriceChangeNote('');
+                    }}
+                  >
+                    <Text style={styles.removeOverrideText}>Remove Price Override</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Actions */}
+          <View style={styles.actionsSection}>
+            {isAdmin && (
+              <TouchableOpacity
+                style={[styles.deleteButton, saving && styles.buttonDisabled]}
+                onPress={handleDelete}
+                disabled={saving}
+              >
+                <Ionicons name="trash-outline" size={20} color="#fff" />
+                <Text style={styles.deleteButtonText}>Delete Order</Text>
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.mainActions}>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => navigation.goBack()}
+                disabled={saving}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.saveButton, saving && styles.buttonDisabled]}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                {saving ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark" size={20} color="#fff" />
+                    <Text style={styles.saveButtonText}>Save Changes</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={{ height: 40 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  header: {
+    backgroundColor: '#1e293b',
+    padding: 20,
+    marginBottom: 16,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  section: {
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+  },
+  inputGroup: {
+    marginBottom: 12,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#475569',
+    marginBottom: 6,
+  },
+  input: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    color: '#1e293b',
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  orderTypeContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  orderTypeButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 16,
+  },
+  orderTypeButtonActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  orderTypeText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  orderTypeTextActive: {
+    color: '#fff',
+  },
+  sameDayCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+  },
+  sameDayCardActive: {
+    backgroundColor: '#fffbeb',
+    borderColor: '#fcd34d',
+  },
+  sameDayRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sameDayInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  sameDayTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  sameDaySubtitle: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  sameDayPricing: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#fcd34d',
+  },
+  sameDayPricingText: {
+    fontSize: 14,
+    color: '#92400e',
+  },
+  minimumNote: {
+    fontStyle: 'italic',
+    color: '#d97706',
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderStyle: 'dashed',
+    borderColor: '#e2e8f0',
+  },
+  emptyText: {
+    color: '#94a3b8',
+    fontSize: 14,
+  },
+  bagCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  bagHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  bagTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  removeButton: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: '#fee2e2',
+    borderRadius: 6,
+  },
+  removeButtonText: {
+    color: '#ef4444',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  bagFields: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  bagField: {
+    flex: 1,
+  },
+  bagFieldLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  bagInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 6,
+    padding: 10,
+    fontSize: 14,
+    color: '#1e293b',
+  },
+  showExtraItemsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    padding: 16,
+  },
+  showExtraItemsText: {
+    fontSize: 16,
+    color: '#2563eb',
+    fontWeight: '500',
+  },
+  hideButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    backgroundColor: '#ef4444',
+    borderRadius: 6,
+  },
+  hideButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  extraItemCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  extraItemInfo: {
+    flex: 1,
+  },
+  extraItemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  extraItemPrice: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  quantityControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  quantityButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  quantityText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    minWidth: 24,
+    textAlign: 'center',
+  },
+  extraItemTotal: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    minWidth: 50,
+    textAlign: 'right',
+  },
+  pricingCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+  },
+  priceBreakdown: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    paddingBottom: 12,
+    marginBottom: 12,
+  },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  priceLabel: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  priceValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  totalRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  totalValue: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#10b981',
+  },
+  overrideButton: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  overrideButtonText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  overrideSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  removeOverrideButton: {
+    padding: 8,
+    alignItems: 'center',
+  },
+  removeOverrideText: {
+    color: '#ef4444',
+    fontSize: 14,
+  },
+  actionsSection: {
+    marginHorizontal: 16,
+    marginTop: 8,
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#ef4444',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  deleteButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  mainActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cancelButton: {
+    flex: 1,
+    padding: 14,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  cancelButtonText: {
+    color: '#64748b',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  saveButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563eb',
+    padding: 14,
+    borderRadius: 12,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+});
