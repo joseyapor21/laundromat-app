@@ -61,6 +61,7 @@ interface Bag {
   identifier?: string;
   weight?: number;
   color?: string;
+  description?: string;
 }
 
 function generateBagLabel(order: { orderId?: number; _id?: unknown; customerName?: string; customerPhone?: string; orderType?: string; estimatedPickupDate?: Date; specialInstructions?: string }, bag: Bag, bagNumber: number, totalBags: number): string {
@@ -134,11 +135,31 @@ function generateBagLabel(order: { orderId?: number; _id?: unknown; customerName
     r += leftRightAlign('Color:', bag.color) + '\n';
   }
 
-  // Notes
+  // Bag special instructions
+  if (bag.description) {
+    r += '\n';
+    r += ESC.BOLD_ON;
+    r += 'Bag Instructions:\n';
+    r += ESC.BOLD_OFF;
+    // Word wrap description to fit 48 char width
+    const descWords = bag.description.split(' ');
+    let line = '';
+    for (const word of descWords) {
+      if ((line + ' ' + word).trim().length <= 46) {
+        line = (line + ' ' + word).trim();
+      } else {
+        if (line) r += `  ${line}\n`;
+        line = word;
+      }
+    }
+    if (line) r += `  ${line}\n`;
+  }
+
+  // Order Notes
   if (order.specialInstructions) {
     r += '\n';
     r += ESC.INVERT_ON;
-    r += ` Notes: ${order.specialInstructions.substring(0, 25)} \n`;
+    r += ` Order Notes: ${order.specialInstructions.substring(0, 30)} \n`;
     r += ESC.INVERT_OFF;
   }
 
