@@ -70,7 +70,7 @@ export default function AdminScreen() {
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Add',
-          onPress: async (amount) => {
+          onPress: async (amount: string | undefined) => {
             const value = parseFloat(amount || '0');
             if (value <= 0) {
               Alert.alert('Error', 'Please enter a valid amount');
