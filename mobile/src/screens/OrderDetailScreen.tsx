@@ -377,7 +377,7 @@ export default function OrderDetailScreen() {
                       onPress={() => handlePrintSingleBag(index)}
                       disabled={printing}
                     >
-                      <Text style={styles.bagButtonText}>Bag {bag.identifier || index + 1}</Text>
+                      <Text style={styles.bagButtonText}>{bag.identifier || `Bag ${index + 1}`}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
