@@ -614,6 +614,42 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
+        {/* Bags Details */}
+        {order.bags && order.bags.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Bags ({order.bags.length})</Text>
+            <View style={styles.bagsContainer}>
+              {order.bags.map((bag, index) => (
+                <View key={index} style={styles.bagDetailCard}>
+                  <View style={styles.bagDetailHeader}>
+                    <View style={styles.bagNameRow}>
+                      <Ionicons name="bag-handle" size={18} color="#8b5cf6" />
+                      <Text style={styles.bagDetailName}>
+                        {bag.identifier || `Bag ${index + 1}`}
+                      </Text>
+                    </View>
+                    <Text style={styles.bagDetailWeight}>
+                      {bag.weight ? `${bag.weight} lbs` : 'No weight'}
+                    </Text>
+                  </View>
+                  {bag.color && (
+                    <View style={styles.bagDetailRow}>
+                      <Ionicons name="color-palette-outline" size={14} color="#64748b" />
+                      <Text style={styles.bagDetailText}>Color: {bag.color}</Text>
+                    </View>
+                  )}
+                  {bag.description && (
+                    <View style={styles.bagInstructionsBox}>
+                      <Ionicons name="document-text-outline" size={14} color="#d97706" />
+                      <Text style={styles.bagInstructionsText}>{bag.description}</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {/* Items */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Items</Text>
@@ -1165,6 +1201,62 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: '#1e293b',
+  },
+  // Bags details
+  bagsContainer: {
+    gap: 10,
+  },
+  bagDetailCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: '#8b5cf6',
+  },
+  bagDetailHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  bagNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bagDetailName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  bagDetailWeight: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#8b5cf6',
+  },
+  bagDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  bagDetailText: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  bagInstructionsBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 8,
+    backgroundColor: '#fef3c7',
+    padding: 10,
+    borderRadius: 8,
+  },
+  bagInstructionsText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#92400e',
   },
   // Items
   itemRow: {
