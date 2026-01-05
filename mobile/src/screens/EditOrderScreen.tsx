@@ -307,7 +307,7 @@ export default function EditOrderScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView style={styles.scrollView}>
+        <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Edit Order #{order.orderId}</Text>
