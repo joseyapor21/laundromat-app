@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
 
     // Update user's push token
     await db.collection('users').updateOne(
-      { _id: new ObjectId(currentUser._id) },
+      { _id: new ObjectId(currentUser.userId) },
       {
         $set: {
           pushToken,
@@ -73,7 +73,7 @@ export async function DELETE() {
 
     // Remove user's push token
     await db.collection('users').updateOne(
-      { _id: new ObjectId(currentUser._id) },
+      { _id: new ObjectId(currentUser.userId) },
       {
         $set: {
           pushToken: null,
