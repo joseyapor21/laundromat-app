@@ -479,43 +479,47 @@ export default function OrderDetailScreen() {
                       assignment.isChecked && styles.machineItemChecked,
                     ]}
                   >
-                    <View style={styles.machineInfo}>
-                      <View style={[
-                        styles.machineIcon,
-                        assignment.isChecked
-                          ? styles.machineIconChecked
-                          : assignment.machineType === 'washer'
-                            ? styles.machineIconWasher
-                            : styles.machineIconDryer,
-                      ]}>
-                        {assignment.isChecked ? (
-                          <Ionicons name="checkmark" size={20} color="#10b981" />
-                        ) : (
-                          <Ionicons
-                            name={assignment.machineType === 'washer' ? 'water' : 'flame'}
-                            size={20}
-                            color={assignment.machineType === 'washer' ? '#06b6d4' : '#f97316'}
-                          />
-                        )}
-                      </View>
-                      <View>
-                        <Text style={styles.machineName}>{assignment.machineName}</Text>
-                        <Text style={styles.machineType}>
-                          {assignment.machineType}
-                          {assignment.isChecked && (
-                            <Text style={styles.checkedText}> - Checked by {assignment.checkedByInitials}</Text>
+                    <View style={styles.machineHeader}>
+                      <View style={styles.machineInfo}>
+                        <View style={[
+                          styles.machineIcon,
+                          assignment.isChecked
+                            ? styles.machineIconChecked
+                            : assignment.machineType === 'washer'
+                              ? styles.machineIconWasher
+                              : styles.machineIconDryer,
+                        ]}>
+                          {assignment.isChecked ? (
+                            <Ionicons name="checkmark" size={20} color="#10b981" />
+                          ) : (
+                            <Ionicons
+                              name={assignment.machineType === 'washer' ? 'water' : 'flame'}
+                              size={20}
+                              color={assignment.machineType === 'washer' ? '#06b6d4' : '#f97316'}
+                            />
                           )}
-                        </Text>
+                        </View>
+                        <View>
+                          <Text style={styles.machineName}>{assignment.machineName}</Text>
+                          <Text style={styles.machineType}>
+                            {assignment.machineType}
+                            {assignment.isChecked && (
+                              <Text style={styles.checkedText}> - Checked by {assignment.checkedByInitials}</Text>
+                            )}
+                          </Text>
+                        </View>
                       </View>
+                      {!assignment.isChecked && (
+                        <TouchableOpacity
+                          style={styles.removeButton}
+                          onPress={() => handleReleaseMachine(assignment.machineId, assignment.machineName)}
+                          disabled={updating}
+                        >
+                          <Ionicons name="close-circle" size={20} color="#ef4444" />
+                          <Text style={styles.removeButtonText}>Remove</Text>
+                        </TouchableOpacity>
+                      )}
                     </View>
-                    {!assignment.isChecked && (
-                      <TouchableOpacity
-                        onPress={() => handleReleaseMachine(assignment.machineId, assignment.machineName)}
-                        disabled={updating}
-                      >
-                        <Text style={styles.removeText}>Remove</Text>
-                      </TouchableOpacity>
-                    )}
 
                     {/* Check/Uncheck section */}
                     <View style={styles.checkSection}>
@@ -1158,12 +1162,26 @@ const styles = StyleSheet.create({
   checkedText: {
     color: '#10b981',
   },
-  removeText: {
+  machineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  removeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  removeButtonText: {
     color: '#ef4444',
-    fontSize: 14,
-    position: 'absolute',
-    right: 12,
-    top: 12,
+    fontSize: 13,
+    fontWeight: '500',
   },
   checkSection: {
     marginTop: 12,
