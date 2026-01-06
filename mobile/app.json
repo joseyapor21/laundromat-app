@@ -27,9 +27,7 @@
       },
       "package": "com.laundromat.app",
       "permissions": [
-        "CAMERA",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.CAMERA"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
@@ -50,6 +48,12 @@
         "projectId": "c4b84071-a3e6-4737-ad52-2543f6e2bc6d"
       }
     },
-    "owner": "joseyapor21"
+    "owner": "joseyapor21",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/c4b84071-a3e6-4737-ad52-2543f6e2bc6d"
+    }
   }
 }
