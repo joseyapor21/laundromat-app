@@ -1,7 +1,14 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Customer, ExtraItem, Settings, Bag, OrderType } from '@/types';
+import { Customer, ExtraItem, Settings, Bag, OrderType, PaymentMethod } from '@/types';
+
+const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'check', label: 'Check' },
+  { value: 'venmo', label: 'Venmo' },
+  { value: 'zelle', label: 'Zelle' },
+];
 import toast from 'react-hot-toast';
 import { printerService } from '@/services/printerService';
 
@@ -46,6 +53,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
   const [applyCredit, setApplyCredit] = useState(false);
   const [creditToApply, setCreditToApply] = useState(0);
   const [markAsPaid, setMarkAsPaid] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
 
   // Search customers
   const searchCustomers = useCallback(async () => {
@@ -184,6 +192,55 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
     return basePrice + extraItemsTotal;
   }, [settings, weight, orderType, selectedExtraItems, extraItems, calculateLaundryPrice, newCustomer.deliveryPrice]);
 
+  // Get price breakdown for display
+  const getPriceBreakdown = useCallback(() => {
+    if (!settings) return [];
+
+    const breakdown: { label: string; amount: number }[] = [];
+
+    // Laundry price
+    if (weight > 0) {
+      const minWeight = settings.minimumWeight || 8;
+      const pricePerPound = settings.pricePerPound || 1.25;
+      const laundryPrice = calculateLaundryPrice(weight, settings);
+
+      if (weight < minWeight) {
+        breakdown.push({
+          label: `Laundry: ${weight} lbs (min ${minWeight} lbs)`,
+          amount: laundryPrice,
+        });
+      } else {
+        breakdown.push({
+          label: `Laundry: ${weight} lbs × $${pricePerPound.toFixed(2)}/lb`,
+          amount: laundryPrice,
+        });
+      }
+    }
+
+    // Delivery fee
+    if (orderType === 'delivery' && newCustomer.deliveryPrice > 0) {
+      breakdown.push({
+        label: 'Delivery Fee',
+        amount: newCustomer.deliveryPrice,
+      });
+    }
+
+    // Extra items
+    Object.entries(selectedExtraItems).forEach(([itemId, quantity]) => {
+      if (quantity > 0) {
+        const item = extraItems.find(i => i._id === itemId);
+        if (item) {
+          breakdown.push({
+            label: `${item.name} × ${quantity}`,
+            amount: item.price * quantity,
+          });
+        }
+      }
+    });
+
+    return breakdown;
+  }, [settings, weight, orderType, newCustomer.deliveryPrice, selectedExtraItems, extraItems, calculateLaundryPrice]);
+
   // Calculate total weight from all bags
   const calculateTotalWeight = useCallback(() => {
     return bags.reduce((total, bag) => total + bag.weight, 0);
@@ -275,6 +332,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
         deliverySchedule: orderType === 'delivery' && dropOffDate ? new Date(dropOffDate).toISOString() : undefined,
         scheduledPickupTime: orderType === 'delivery' && scheduledPickupTime ? new Date(scheduledPickupTime).toISOString() : undefined,
         isPaid: markAsPaid,
+        paymentMethod: markAsPaid ? paymentMethod : 'pending',
       };
 
       const orderResponse = await fetch('/api/orders', {
@@ -808,7 +866,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
           )}
 
           {/* Mark as Paid */}
-          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+          <div className={`p-4 rounded-lg border ${markAsPaid ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
             <label className="flex items-center gap-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -817,30 +875,66 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                 className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
               />
               <div>
-                <span className="text-blue-800 font-medium text-lg">Mark as Paid</span>
-                <p className="text-blue-600 text-sm">Check if customer has already paid for this order</p>
+                <span className={`font-medium text-lg ${markAsPaid ? 'text-green-800' : 'text-blue-800'}`}>Mark as Paid</span>
+                <p className={`text-sm ${markAsPaid ? 'text-green-600' : 'text-blue-600'}`}>Check if customer has already paid for this order</p>
               </div>
             </label>
+            {markAsPaid && (
+              <div className="mt-4 pt-4 border-t border-green-200">
+                <label className="text-sm font-medium text-green-800 mb-2 block">Payment Method</label>
+                <div className="flex flex-wrap gap-2">
+                  {PAYMENT_METHODS.map(method => (
+                    <button
+                      key={method.value}
+                      type="button"
+                      onClick={() => setPaymentMethod(method.value)}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                        paymentMethod === method.value
+                          ? 'bg-green-600 text-white'
+                          : 'bg-white border border-green-300 text-green-700 hover:bg-green-50'
+                      }`}
+                    >
+                      {method.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Total Price */}
-          <div className="bg-gray-100 p-4 rounded-lg">
-            {applyCredit && creditToApply > 0 && (
-              <div className="flex justify-between items-center text-gray-600 mb-2">
-                <span>Subtotal:</span>
-                <span>${totalPrice.toFixed(2)}</span>
-              </div>
+          {/* Price Breakdown */}
+          <div className="bg-gray-100 p-4 rounded-lg space-y-2">
+            <h4 className="font-medium text-gray-700 text-sm mb-3">Price Breakdown</h4>
+            {getPriceBreakdown().length > 0 ? (
+              <>
+                {getPriceBreakdown().map((item, index) => (
+                  <div key={index} className="flex justify-between items-center text-gray-600 text-sm">
+                    <span>{item.label}</span>
+                    <span>${item.amount.toFixed(2)}</span>
+                  </div>
+                ))}
+                <div className="border-t border-gray-300 pt-2 mt-2">
+                  {applyCredit && creditToApply > 0 && (
+                    <>
+                      <div className="flex justify-between items-center text-gray-600 text-sm">
+                        <span>Subtotal:</span>
+                        <span>${totalPrice.toFixed(2)}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-green-600 text-sm">
+                        <span>Credit Applied:</span>
+                        <span>-${creditToApply.toFixed(2)}</span>
+                      </div>
+                    </>
+                  )}
+                  <div className="flex justify-between items-center font-semibold text-gray-700 mt-1">
+                    <span>Total Due:</span>
+                    <span className="text-xl">${Math.max(0, totalPrice - creditToApply).toFixed(2)}</span>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <p className="text-gray-500 text-sm italic">Add items to see price breakdown</p>
             )}
-            {applyCredit && creditToApply > 0 && (
-              <div className="flex justify-between items-center text-green-600 mb-2">
-                <span>Credit Applied:</span>
-                <span>-${creditToApply.toFixed(2)}</span>
-              </div>
-            )}
-            <div className="flex justify-between items-center font-semibold text-gray-700">
-              <span>Total Due:</span>
-              <span className="text-xl">${Math.max(0, totalPrice - creditToApply).toFixed(2)}</span>
-            </div>
           </div>
 
           {/* Action Buttons */}
