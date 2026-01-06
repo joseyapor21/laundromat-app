@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Switch,
   Keyboard,
+  Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -46,6 +47,7 @@ export default function CreateOrderScreen() {
   const [isSameDay, setIsSameDay] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [selectedExtras, setSelectedExtras] = useState<Record<string, number>>({});
+  const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
   const [markAsPaid, setMarkAsPaid] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
 
@@ -423,40 +425,40 @@ export default function CreateOrderScreen() {
       </View>
 
       {/* Extra Items */}
-      {extraItems.length > 0 && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Extra Items</Text>
-          {extraItems.map(item => (
-            <View key={item._id} style={styles.extraItem}>
-              <View>
-                <Text style={styles.extraItemName}>{item.name}</Text>
-                <Text style={styles.extraItemPrice}>${item.price.toFixed(2)}</Text>
-              </View>
-              <View style={styles.quantityControls}>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={() => setSelectedExtras(prev => ({
-                    ...prev,
-                    [item._id]: Math.max(0, (prev[item._id] || 0) - 1)
-                  }))}
-                >
-                  <Ionicons name="remove" size={20} color="#64748b" />
-                </TouchableOpacity>
-                <Text style={styles.quantityText}>{selectedExtras[item._id] || 0}</Text>
-                <TouchableOpacity
-                  style={styles.quantityButton}
-                  onPress={() => setSelectedExtras(prev => ({
-                    ...prev,
-                    [item._id]: (prev[item._id] || 0) + 1
-                  }))}
-                >
-                  <Ionicons name="add" size={20} color="#64748b" />
-                </TouchableOpacity>
-              </View>
-            </View>
-          ))}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitleInline}>Extra Items</Text>
+          <TouchableOpacity
+            style={styles.addExtraItemsButton}
+            onPress={() => setShowExtraItemsModal(true)}
+          >
+            <Ionicons name="add-circle" size={16} color="#fff" />
+            <Text style={styles.addExtraItemsButtonText}>Add Extra Items</Text>
+          </TouchableOpacity>
         </View>
-      )}
+        {/* Show selected extra items summary */}
+        {Object.keys(selectedExtras).filter(id => selectedExtras[id] > 0).length > 0 ? (
+          <View style={styles.selectedExtrasCard}>
+            {Object.entries(selectedExtras)
+              .filter(([_, qty]) => qty > 0)
+              .map(([itemId, qty]) => {
+                const item = extraItems.find(e => e._id === itemId);
+                if (!item) return null;
+                return (
+                  <View key={itemId} style={styles.selectedExtraRow}>
+                    <Text style={styles.selectedExtraName}>{item.name} × {qty}</Text>
+                    <Text style={styles.selectedExtraPrice}>${(item.price * qty).toFixed(2)}</Text>
+                  </View>
+                );
+              })}
+          </View>
+        ) : (
+          <View style={styles.noExtrasCard}>
+            <Text style={styles.noExtrasText}>No extra items selected</Text>
+            <Text style={styles.noExtrasHint}>Tap "Add Extra Items" to add items</Text>
+          </View>
+        )}
+      </View>
 
       {/* Special Instructions */}
       <View style={styles.section}>
@@ -551,6 +553,113 @@ export default function CreateOrderScreen() {
           <Text style={styles.submitButtonText}>Create Order</Text>
         )}
       </TouchableOpacity>
+
+      {/* Extra Items Modal */}
+      <Modal
+        visible={showExtraItemsModal}
+        animationType="slide"
+        onRequestClose={() => setShowExtraItemsModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Select Extra Items</Text>
+            <TouchableOpacity onPress={() => setShowExtraItemsModal(false)}>
+              <Ionicons name="close" size={28} color="#1e293b" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.modalContent}>
+            {extraItems.length === 0 ? (
+              <Text style={styles.modalEmptyText}>No extra items available</Text>
+            ) : (
+              extraItems.map((item) => {
+                const quantity = selectedExtras[item._id] || 0;
+                return (
+                  <View key={item._id} style={styles.modalItemCard}>
+                    <View style={styles.modalItemInfo}>
+                      <Text style={styles.modalItemName}>{item.name}</Text>
+                      <Text style={styles.modalItemPrice}>${item.price.toFixed(2)}</Text>
+                      {item.description && (
+                        <Text style={styles.modalItemDescription}>{item.description}</Text>
+                      )}
+                    </View>
+                    <View style={styles.modalQuantityControl}>
+                      <TouchableOpacity
+                        style={[styles.modalQuantityButton, quantity === 0 && styles.modalQuantityButtonDisabled]}
+                        onPress={() => setSelectedExtras(prev => ({
+                          ...prev,
+                          [item._id]: Math.max(0, (prev[item._id] || 0) - 1)
+                        }))}
+                        disabled={quantity === 0}
+                      >
+                        <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
+                      </TouchableOpacity>
+                      <Text style={styles.modalQuantityText}>{quantity}</Text>
+                      <TouchableOpacity
+                        style={styles.modalQuantityButton}
+                        onPress={() => setSelectedExtras(prev => ({
+                          ...prev,
+                          [item._id]: (prev[item._id] || 0) + 1
+                        }))}
+                      >
+                        <Ionicons name="add" size={20} color="#2563eb" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })
+            )}
+          </ScrollView>
+
+          {/* Selected items summary */}
+          {Object.keys(selectedExtras).filter(id => selectedExtras[id] > 0).length > 0 && (
+            <View style={styles.modalSummary}>
+              <Text style={styles.modalSummaryTitle}>Selected Items:</Text>
+              {Object.entries(selectedExtras)
+                .filter(([_, qty]) => qty > 0)
+                .map(([itemId, qty]) => {
+                  const item = extraItems.find(i => i._id === itemId);
+                  if (!item) return null;
+                  return (
+                    <View key={itemId} style={styles.modalSummaryRow}>
+                      <Text style={styles.modalSummaryText}>{item.name} × {qty}</Text>
+                      <Text style={styles.modalSummaryPrice}>${(item.price * qty).toFixed(2)}</Text>
+                    </View>
+                  );
+                })}
+              <View style={styles.modalSummaryTotal}>
+                <Text style={styles.modalSummaryTotalLabel}>Total:</Text>
+                <Text style={styles.modalSummaryTotalValue}>
+                  ${Object.entries(selectedExtras)
+                    .reduce((sum, [itemId, qty]) => {
+                      const item = extraItems.find(i => i._id === itemId);
+                      return sum + (item?.price || 0) * qty;
+                    }, 0)
+                    .toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.modalCancelButton}
+              onPress={() => {
+                setSelectedExtras({});
+                setShowExtraItemsModal(false);
+              }}
+            >
+              <Text style={styles.modalCancelButtonText}>Clear All</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.modalDoneButton}
+              onPress={() => setShowExtraItemsModal(false)}
+            >
+              <Text style={styles.modalDoneButtonText}>Done</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -974,5 +1083,228 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     paddingVertical: 12,
+  },
+  // Extra items button and summary
+  addExtraItemsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  addExtraItemsButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  selectedExtrasCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    borderLeftWidth: 4,
+    borderLeftColor: '#8b5cf6',
+  },
+  selectedExtraRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  selectedExtraName: {
+    fontSize: 15,
+    color: '#1e293b',
+  },
+  selectedExtraPrice: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#8b5cf6',
+  },
+  noExtrasCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderStyle: 'dashed',
+  },
+  noExtrasText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  noExtrasHint: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 4,
+  },
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    paddingTop: 60,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  modalContent: {
+    flex: 1,
+    padding: 16,
+  },
+  modalEmptyText: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#64748b',
+    marginTop: 40,
+  },
+  modalItemCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  modalItemInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  modalItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  modalItemPrice: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  modalItemDescription: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  modalQuantityControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalQuantityButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  modalQuantityButtonDisabled: {
+    backgroundColor: '#f1f5f9',
+    borderColor: '#e2e8f0',
+  },
+  modalQuantityText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    minWidth: 24,
+    textAlign: 'center',
+  },
+  modalSummary: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    padding: 16,
+  },
+  modalSummaryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  modalSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  modalSummaryText: {
+    fontSize: 14,
+    color: '#1e293b',
+  },
+  modalSummaryPrice: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  modalSummaryTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  modalSummaryTotalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  modalSummaryTotalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  modalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  modalCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  modalDoneButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+  },
+  modalDoneButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
