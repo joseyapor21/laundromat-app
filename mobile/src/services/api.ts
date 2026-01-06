@@ -243,11 +243,6 @@ class ApiService {
     });
   }
 
-  // Activity Logs
-  async getActivityLogs(limit: number = 50): Promise<{ logs: ActivityLog[] }> {
-    return this.request<{ logs: ActivityLog[] }>(`/activity-logs?limit=${limit}`);
-  }
-
   // Users (Admin)
   async getUsers(): Promise<User[]> {
     return this.request<User[]>('/users');
@@ -288,6 +283,21 @@ class ApiService {
     });
   }
 
+  // Folding Check (Admin only)
+  async checkFolding(orderId: string, bagIdentifier: string, checkerInitials: string): Promise<{ success: boolean; message: string; order: Order }> {
+    return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/folding-check`, {
+      method: 'POST',
+      body: JSON.stringify({ bagIdentifier, checkerInitials }),
+    });
+  }
+
+  async uncheckFolding(orderId: string, bagIdentifier: string): Promise<{ success: boolean; message: string; order: Order }> {
+    return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/folding-check`, {
+      method: 'DELETE',
+      body: JSON.stringify({ bagIdentifier }),
+    });
+  }
+
   // Push Notifications
   async registerPushToken(token: string, platform: 'ios' | 'android'): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>('/users/push-token', {
@@ -300,6 +310,23 @@ class ApiService {
     return this.request<{ success: boolean }>('/users/push-token', {
       method: 'DELETE',
     });
+  }
+
+  // Activity Logs
+  async getActivityLogs(params?: {
+    limit?: number;
+    offset?: number;
+    action?: string;
+    entityType?: string;
+  }): Promise<{ logs: ActivityLog[]; total: number }> {
+    const searchParams = new URLSearchParams();
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.offset) searchParams.append('offset', params.offset.toString());
+    if (params?.action) searchParams.append('action', params.action);
+    if (params?.entityType) searchParams.append('entityType', params.entityType);
+
+    const query = searchParams.toString();
+    return this.request<{ logs: ActivityLog[]; total: number }>(`/activity-logs${query ? `?${query}` : ''}`);
   }
 }
 

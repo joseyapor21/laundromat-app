@@ -74,6 +74,17 @@ export interface ExtraItemUsage {
   quantity: number;
 }
 
+export interface Bag {
+  identifier: string;
+  weight?: number;
+  color?: string;
+  description?: string;
+  isFoldingChecked?: boolean;
+  foldingCheckedAt?: Date;
+  foldingCheckedBy?: string;
+  foldingCheckedByInitials?: string;
+}
+
 export interface Order {
   _id: string;
   orderId: number;
@@ -167,13 +178,6 @@ export interface MachineAssignment {
   checkedAt?: Date;
   checkedBy?: string;
   checkedByInitials?: string;
-}
-
-export interface Bag {
-  identifier: string;
-  weight?: number;
-  color?: string;
-  description?: string;
 }
 
 export interface OrderExtraItem {

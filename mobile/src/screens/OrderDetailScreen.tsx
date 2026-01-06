@@ -17,7 +17,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useAuth } from '../contexts/AuthContext';
-import type { Order, OrderStatus, MachineAssignment, PaymentMethod } from '../types';
+import type { Order, OrderStatus, MachineAssignment, PaymentMethod, ExtraItem, Bag } from '../types';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
@@ -55,6 +55,13 @@ export default function OrderDetailScreen() {
   const [checkingMachine, setCheckingMachine] = useState<string | null>(null);
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
+  const [extraItems, setExtraItems] = useState<ExtraItem[]>([]);
+  const [selectedExtraItems, setSelectedExtraItems] = useState<{ [key: string]: number }>({});
+  const [loadingExtraItems, setLoadingExtraItems] = useState(false);
+  const [addingExtraItems, setAddingExtraItems] = useState(false);
+  const [checkingFolding, setCheckingFolding] = useState<string | null>(null);
+  const [uncheckingFolding, setUncheckingFolding] = useState<string | null>(null);
   const isProcessingScan = useRef(false);
 
   const loadOrder = useCallback(async () => {
@@ -270,6 +277,114 @@ export default function OrderDetailScreen() {
     }
   }
 
+  // Extra Items Modal Functions
+  async function openExtraItemsModal() {
+    setShowExtraItemsModal(true);
+    setLoadingExtraItems(true);
+    try {
+      const items = await api.getExtraItems();
+      setExtraItems(items.filter(item => item.isActive));
+      // Pre-populate with existing extra items
+      const existing: { [key: string]: number } = {};
+      order?.extraItems?.forEach(item => {
+        existing[item.itemId] = item.quantity;
+      });
+      setSelectedExtraItems(existing);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to load extra items');
+    } finally {
+      setLoadingExtraItems(false);
+    }
+  }
+
+  function updateExtraItemQuantity(itemId: string, delta: number) {
+    setSelectedExtraItems(prev => {
+      const current = prev[itemId] || 0;
+      const newQuantity = Math.max(0, current + delta);
+      if (newQuantity === 0) {
+        const { [itemId]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [itemId]: newQuantity };
+    });
+  }
+
+  async function handleAddExtraItems() {
+    if (!order) return;
+    setAddingExtraItems(true);
+    try {
+      // Build the extra items array for the API
+      const extraItemsArray = Object.entries(selectedExtraItems)
+        .filter(([_, qty]) => qty > 0)
+        .map(([itemId, quantity]) => {
+          const item = extraItems.find(i => i._id === itemId);
+          return {
+            itemId,
+            name: item?.name || '',
+            price: item?.price || 0,
+            quantity,
+          };
+        });
+
+      await api.updateOrder(order._id, { extraItems: extraItemsArray });
+      Alert.alert('Success', 'Extra items updated');
+      setShowExtraItemsModal(false);
+      await loadOrder();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update extra items';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setAddingExtraItems(false);
+    }
+  }
+
+  // Folding Check Functions (Admin only)
+  const isAdmin = user && ['admin', 'super_admin'].includes(user.role);
+
+  async function handleCheckFolding(bag: Bag) {
+    if (!order || !bag.identifier) return;
+
+    setCheckingFolding(bag.identifier);
+    try {
+      // Get user initials
+      let initials = 'XX';
+      if (user) {
+        const firstInitial = user.firstName?.charAt(0) || '';
+        const lastInitial = user.lastName?.charAt(0) || '';
+        if (firstInitial && lastInitial) {
+          initials = `${firstInitial}${lastInitial}`.toUpperCase();
+        } else if (firstInitial) {
+          initials = user.firstName.substring(0, 2).toUpperCase();
+        }
+      }
+
+      const result = await api.checkFolding(order._id, bag.identifier, initials);
+      Alert.alert('Success', result.message);
+      await loadOrder();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to check folding';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setCheckingFolding(null);
+    }
+  }
+
+  async function handleUncheckFolding(bag: Bag) {
+    if (!order || !bag.identifier) return;
+
+    setUncheckingFolding(bag.identifier);
+    try {
+      const result = await api.uncheckFolding(order._id, bag.identifier);
+      Alert.alert('Success', result.message);
+      await loadOrder();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to uncheck folding';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setUncheckingFolding(null);
+    }
+  }
+
   function openScanner() {
     // Reset the scan lock when opening scanner
     isProcessingScan.current = false;
@@ -372,7 +487,7 @@ export default function OrderDetailScreen() {
             <Text style={styles.totalAmount}>${(order.totalAmount || 0).toFixed(2)}</Text>
             <TouchableOpacity
               style={styles.editButton}
-              onPress={() => navigation.navigate('EditOrder', { orderId: order._id })}
+              onPress={() => navigation.navigate('EditOrder' as never, { orderId: order._id } as never)}
             >
               <Ionicons name="pencil" size={18} color="#fff" />
               <Text style={styles.editButtonText}>Edit</Text>
@@ -723,13 +838,25 @@ export default function OrderDetailScreen() {
             <Text style={styles.sectionTitle}>Bags ({order.bags.length})</Text>
             <View style={styles.bagsContainer}>
               {order.bags.map((bag, index) => (
-                <View key={index} style={styles.bagDetailCard}>
+                <View key={index} style={[
+                  styles.bagDetailCard,
+                  bag.isFoldingChecked && styles.bagDetailCardChecked,
+                ]}>
                   <View style={styles.bagDetailHeader}>
                     <View style={styles.bagNameRow}>
-                      <Ionicons name="bag-handle" size={18} color="#8b5cf6" />
+                      <Ionicons
+                        name={bag.isFoldingChecked ? "checkmark-circle" : "bag-handle"}
+                        size={18}
+                        color={bag.isFoldingChecked ? "#10b981" : "#8b5cf6"}
+                      />
                       <Text style={styles.bagDetailName}>
                         {bag.identifier || `Bag ${index + 1}`}
                       </Text>
+                      {bag.isFoldingChecked && (
+                        <View style={styles.foldingCheckedBadge}>
+                          <Text style={styles.foldingCheckedBadgeText}>Folding ✓</Text>
+                        </View>
+                      )}
                     </View>
                     <Text style={styles.bagDetailWeight}>
                       {bag.weight ? `${bag.weight} lbs` : 'No weight'}
@@ -747,6 +874,43 @@ export default function OrderDetailScreen() {
                       <Text style={styles.bagInstructionsText}>{bag.description}</Text>
                     </View>
                   )}
+
+                  {/* Folding Check Section - Admin Only */}
+                  {isAdmin && (
+                    <View style={styles.foldingCheckSection}>
+                      {!bag.isFoldingChecked ? (
+                        <TouchableOpacity
+                          style={[styles.foldingCheckButton, checkingFolding === bag.identifier && styles.buttonDisabled]}
+                          onPress={() => handleCheckFolding(bag)}
+                          disabled={checkingFolding === bag.identifier}
+                        >
+                          {checkingFolding === bag.identifier ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <>
+                              <Ionicons name="checkmark-done" size={16} color="#fff" />
+                              <Text style={styles.foldingCheckButtonText}>Mark Folding Complete</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      ) : (
+                        <View style={styles.foldingCheckedInfo}>
+                          <Text style={styles.foldingCheckedText}>
+                            Checked by {bag.foldingCheckedByInitials || bag.foldingCheckedBy}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.foldingUncheckButton}
+                            onPress={() => handleUncheckFolding(bag)}
+                            disabled={uncheckingFolding === bag.identifier}
+                          >
+                            <Text style={styles.foldingUncheckButtonText}>
+                              {uncheckingFolding === bag.identifier ? 'Unchecking...' : 'Uncheck'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
               ))}
             </View>
@@ -755,7 +919,16 @@ export default function OrderDetailScreen() {
 
         {/* Items */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Items</Text>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Items</Text>
+            <TouchableOpacity
+              style={styles.addExtraItemsButton}
+              onPress={openExtraItemsModal}
+            >
+              <Ionicons name="add-circle" size={16} color="#fff" />
+              <Text style={styles.addExtraItemsButtonText}>Add Extra Items</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.card}>
             {order.items?.map((item, index) => (
               <View key={index} style={styles.itemRow}>
@@ -763,12 +936,17 @@ export default function OrderDetailScreen() {
                 <Text style={styles.itemPrice}>${item.total.toFixed(2)}</Text>
               </View>
             ))}
-            {order.extraItems?.map((item, index) => (
-              <View key={`extra-${index}`} style={styles.itemRow}>
-                <Text style={styles.itemName}>{item.name} x{item.quantity}</Text>
-                <Text style={styles.itemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+            {order.extraItems && order.extraItems.length > 0 && (
+              <View style={styles.extraItemsSection}>
+                <Text style={styles.extraItemsLabel}>Extra Items</Text>
+                {order.extraItems.map((item, index) => (
+                  <View key={`extra-${index}`} style={styles.itemRow}>
+                    <Text style={styles.itemName}>{item.name} x{item.quantity}</Text>
+                    <Text style={styles.itemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+                  </View>
+                ))}
               </View>
-            ))}
+            )}
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>${(order.totalAmount || 0).toFixed(2)}</Text>
@@ -952,6 +1130,114 @@ export default function OrderDetailScreen() {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Extra Items Modal */}
+      <Modal
+        visible={showExtraItemsModal}
+        animationType="slide"
+        onRequestClose={() => setShowExtraItemsModal(false)}
+      >
+        <View style={styles.extraItemsModalContainer}>
+          <View style={styles.extraItemsModalHeader}>
+            <Text style={styles.extraItemsModalTitle}>Add Extra Items</Text>
+            <TouchableOpacity onPress={() => setShowExtraItemsModal(false)}>
+              <Ionicons name="close" size={28} color="#1e293b" />
+            </TouchableOpacity>
+          </View>
+
+          {loadingExtraItems ? (
+            <View style={styles.extraItemsLoading}>
+              <ActivityIndicator size="large" color="#2563eb" />
+              <Text style={styles.extraItemsLoadingText}>Loading items...</Text>
+            </View>
+          ) : (
+            <ScrollView style={styles.extraItemsList}>
+              {extraItems.length === 0 ? (
+                <Text style={styles.extraItemsEmptyText}>No extra items available</Text>
+              ) : (
+                extraItems.map((item) => {
+                  const quantity = selectedExtraItems[item._id] || 0;
+                  return (
+                    <View key={item._id} style={styles.extraItemCard}>
+                      <View style={styles.extraItemInfo}>
+                        <Text style={styles.extraItemName}>{item.name}</Text>
+                        <Text style={styles.extraItemPrice}>${item.price.toFixed(2)}</Text>
+                        {item.description && (
+                          <Text style={styles.extraItemDescription}>{item.description}</Text>
+                        )}
+                      </View>
+                      <View style={styles.extraItemQuantityControl}>
+                        <TouchableOpacity
+                          style={[styles.quantityButton, quantity === 0 && styles.quantityButtonDisabled]}
+                          onPress={() => updateExtraItemQuantity(item._id, -1)}
+                          disabled={quantity === 0}
+                        >
+                          <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
+                        </TouchableOpacity>
+                        <Text style={styles.quantityText}>{quantity}</Text>
+                        <TouchableOpacity
+                          style={styles.quantityButton}
+                          onPress={() => updateExtraItemQuantity(item._id, 1)}
+                        >
+                          <Ionicons name="add" size={20} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          )}
+
+          {/* Selected items summary */}
+          {Object.keys(selectedExtraItems).length > 0 && (
+            <View style={styles.extraItemsSummary}>
+              <Text style={styles.extraItemsSummaryTitle}>Selected Items:</Text>
+              {Object.entries(selectedExtraItems).map(([itemId, qty]) => {
+                const item = extraItems.find(i => i._id === itemId);
+                if (!item || qty === 0) return null;
+                return (
+                  <View key={itemId} style={styles.summaryItem}>
+                    <Text style={styles.summaryItemText}>{item.name} x{qty}</Text>
+                    <Text style={styles.summaryItemPrice}>${(item.price * qty).toFixed(2)}</Text>
+                  </View>
+                );
+              })}
+              <View style={styles.summaryTotal}>
+                <Text style={styles.summaryTotalLabel}>Total:</Text>
+                <Text style={styles.summaryTotalValue}>
+                  ${Object.entries(selectedExtraItems)
+                    .reduce((sum, [itemId, qty]) => {
+                      const item = extraItems.find(i => i._id === itemId);
+                      return sum + (item?.price || 0) * qty;
+                    }, 0)
+                    .toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          <View style={styles.extraItemsModalFooter}>
+            <TouchableOpacity
+              style={styles.extraItemsCancelButton}
+              onPress={() => setShowExtraItemsModal(false)}
+            >
+              <Text style={styles.extraItemsCancelButtonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.extraItemsSaveButton, addingExtraItems && styles.buttonDisabled]}
+              onPress={handleAddExtraItems}
+              disabled={addingExtraItems}
+            >
+              {addingExtraItems ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.extraItemsSaveButtonText}>Save Changes</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </>
   );
@@ -1752,5 +2038,266 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#64748b',
+  },
+  // Extra items button
+  addExtraItemsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  addExtraItemsButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  extraItemsSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingTop: 8,
+    marginTop: 8,
+  },
+  extraItemsLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8b5cf6',
+    marginBottom: 4,
+  },
+  // Extra items modal
+  extraItemsModalContainer: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    paddingTop: 60,
+  },
+  extraItemsModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  extraItemsModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  extraItemsLoading: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  extraItemsLoadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748b',
+  },
+  extraItemsList: {
+    flex: 1,
+    padding: 16,
+  },
+  extraItemsEmptyText: {
+    textAlign: 'center',
+    fontSize: 16,
+    color: '#64748b',
+    marginTop: 40,
+  },
+  extraItemCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  extraItemInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  extraItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  extraItemPrice: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  extraItemDescription: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  extraItemQuantityControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  quantityButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  quantityButtonDisabled: {
+    backgroundColor: '#f1f5f9',
+    borderColor: '#e2e8f0',
+  },
+  quantityText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    minWidth: 24,
+    textAlign: 'center',
+  },
+  extraItemsSummary: {
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    padding: 16,
+  },
+  extraItemsSummaryTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  summaryItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 4,
+  },
+  summaryItemText: {
+    fontSize: 14,
+    color: '#1e293b',
+  },
+  summaryItemPrice: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  summaryTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  summaryTotalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  summaryTotalValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  extraItemsModalFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#fff',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  extraItemsCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  extraItemsCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  extraItemsSaveButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+  },
+  extraItemsSaveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  // Folding check styles
+  bagDetailCardChecked: {
+    borderLeftColor: '#10b981',
+  },
+  foldingCheckedBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    marginLeft: 8,
+  },
+  foldingCheckedBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10b981',
+  },
+  foldingCheckSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  foldingCheckButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#10b981',
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  foldingCheckButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  foldingCheckedInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  foldingCheckedText: {
+    fontSize: 13,
+    color: '#10b981',
+    fontWeight: '500',
+  },
+  foldingUncheckButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: '#fef3c7',
+    borderRadius: 6,
+  },
+  foldingUncheckButtonText: {
+    color: '#d97706',
+    fontSize: 13,
+    fontWeight: '500',
   },
 });
