@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
-import { Order, PrintJob } from '@/lib/db/models';
+import { Order, Settings } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
 import { Socket } from 'net';
 
@@ -255,52 +255,56 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Queue print jobs for the local print agent to process
-    const jobIds: string[] = [];
+    // Get printer settings
+    const settings = await Settings.findOne().lean();
 
-    if (bagIndex !== undefined) {
-      // Queue single bag label
-      if (bagIndex < 0 || bagIndex >= order.bags.length) {
-        return NextResponse.json(
-          { error: 'Invalid bag index' },
-          { status: 400 }
-        );
-      }
+    if (!settings?.printerIP) {
+      return NextResponse.json(
+        { error: 'Printer not configured. Please set up printer IP in admin settings.' },
+        { status: 400 }
+      );
+    }
 
-      const bag = order.bags[bagIndex];
-      const label = generateBagLabel(order, bag, bagIndex + 1, order.bags.length);
-      const job = new PrintJob({
-        content: label,
-        printerId: 'main',
-        priority: 'high',
-        status: 'pending',
-      });
-      await job.save();
-      jobIds.push(job._id.toString());
+    const printerIP = settings.printerIP;
+    const printerPort = settings.printerPort || 9100;
 
-      return NextResponse.json({
-        message: `Bag ${bagIndex + 1} label queued for printing`,
-        jobIds,
-      });
-    } else {
-      // Queue all bag labels
-      for (let i = 0; i < order.bags.length; i++) {
-        const bag = order.bags[i];
-        const label = generateBagLabel(order, bag, i + 1, order.bags.length);
-        const job = new PrintJob({
-          content: label,
-          printerId: 'main',
-          priority: 'high',
-          status: 'pending',
+    try {
+      if (bagIndex !== undefined) {
+        // Print single bag label
+        if (bagIndex < 0 || bagIndex >= order.bags.length) {
+          return NextResponse.json(
+            { error: 'Invalid bag index' },
+            { status: 400 }
+          );
+        }
+
+        const bag = order.bags[bagIndex];
+        const label = generateBagLabel(order, bag, bagIndex + 1, order.bags.length);
+        await sendToPrinter(label, printerIP, printerPort);
+
+        return NextResponse.json({
+          message: `Bag ${bagIndex + 1} label printed successfully`,
+          printer: { ip: printerIP, port: printerPort },
         });
-        await job.save();
-        jobIds.push(job._id.toString());
-      }
+      } else {
+        // Print all bag labels
+        for (let i = 0; i < order.bags.length; i++) {
+          const bag = order.bags[i];
+          const label = generateBagLabel(order, bag, i + 1, order.bags.length);
+          await sendToPrinter(label, printerIP, printerPort);
+        }
 
-      return NextResponse.json({
-        message: `${order.bags.length} bag label(s) queued for printing`,
-        jobIds,
-      });
+        return NextResponse.json({
+          message: `${order.bags.length} bag label(s) printed successfully`,
+          printer: { ip: printerIP, port: printerPort },
+        });
+      }
+    } catch (printError) {
+      console.error('Print error:', printError);
+      return NextResponse.json(
+        { error: `Printer error: ${printError instanceof Error ? printError.message : 'Unknown error'}` },
+        { status: 500 }
+      );
     }
   } catch (error) {
     console.error('Print bag labels error:', error);
