@@ -9,36 +9,32 @@ import {
   ActivityIndicator,
   RefreshControl,
   Share,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
 import type { Order } from '../types';
 
-interface ChecklistItem {
+interface CleaningTask {
   id: string;
   label: string;
   checked: boolean;
 }
 
-const DEFAULT_CHECKLIST: ChecklistItem[] = [
-  { id: '1', label: 'Clean front counters', checked: false },
-  { id: '2', label: 'Wipe down machines', checked: false },
-  { id: '3', label: 'Sweep floors', checked: false },
-  { id: '4', label: 'Mop floors', checked: false },
-  { id: '5', label: 'Empty trash bins', checked: false },
-  { id: '6', label: 'Organize folding tables', checked: false },
-  { id: '7', label: 'Check detergent levels', checked: false },
-  { id: '8', label: 'Lock back door', checked: false },
-  { id: '9', label: 'Turn off lights', checked: false },
-  { id: '10', label: 'Set alarm', checked: false },
+const DEFAULT_CLEANING_TASKS: CleaningTask[] = [
+  { id: 'lints', label: 'Lints cleaned from dryers', checked: false },
+  { id: 'trash', label: 'Trash taken out', checked: false },
+  { id: 'machines_top', label: 'Top of machines cleaned', checked: false },
+  { id: 'floor', label: 'Floor swept', checked: false },
+  { id: 'bathroom', label: 'Bathroom cleaned', checked: false },
 ];
 
 export default function EODReportScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
+  const [cleaningTasks, setCleaningTasks] = useState<CleaningTask[]>(DEFAULT_CLEANING_TASKS);
   const [notes, setNotes] = useState('');
 
   const loadOrders = useCallback(async () => {
@@ -62,46 +58,85 @@ export default function EODReportScreen() {
     loadOrders();
   };
 
-  // Filter orders by status
-  const ordersInCart = orders.filter(o => o.status === 'laid_on_cart');
+  // Filter orders by status - matching web
+  const ordersInCart = orders.filter(o => o.status === 'laid_on_cart' || o.status === 'folding');
   const ordersInDryer = orders.filter(o => o.status === 'in_dryer');
   const ordersInWasher = orders.filter(o => o.status === 'in_washer');
-  const ordersFolding = orders.filter(o => o.status === 'folding');
-  const ordersReady = orders.filter(o => o.status === 'ready_for_pickup' || o.status === 'ready_for_delivery');
+  const ordersToWash = orders.filter(o => o.status === 'new_order' || o.status === 'received' || o.status === 'picked_up');
 
-  // Toggle checklist item
-  const toggleChecklistItem = (id: string) => {
-    setChecklist(prev =>
-      prev.map(item =>
-        item.id === id ? { ...item, checked: !item.checked } : item
+  // Toggle cleaning task
+  const toggleTask = (taskId: string) => {
+    setCleaningTasks(prev =>
+      prev.map(task =>
+        task.id === taskId ? { ...task, checked: !task.checked } : task
       )
     );
   };
 
-  // Calculate checklist completion
-  const completedCount = checklist.filter(item => item.checked).length;
-  const totalCount = checklist.length;
-  const completionPercentage = Math.round((completedCount / totalCount) * 100);
+  // Format pickup time
+  const formatPickupTime = (order: Order) => {
+    if (!order.estimatedPickupDate) return '';
+    const date = new Date(order.estimatedPickupDate);
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
+    const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    return `${dayName} ${time}`;
+  };
+
+  // Format today's date
+  const formatDate = () => {
+    return new Date().toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
 
   // Share report
   const handleShare = async () => {
-    const report = `
-END OF DAY REPORT
-${new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+    let report = `EOD Report\n${formatDate()}\n\n`;
 
-ORDER STATUS SUMMARY:
-- In Cart: ${ordersInCart.length} orders
-- In Dryer: ${ordersInDryer.length} orders
-- In Washer: ${ordersInWasher.length} orders
-- Folding: ${ordersFolding.length} orders
-- Ready for Pickup: ${ordersReady.length} orders
+    if (ordersInCart.length > 0) {
+      report += 'IN CARTS:\n';
+      ordersInCart.forEach(order => {
+        report += `- ${order.customerName} ${order.weight || 0} lbs ${formatPickupTime(order)}\n`;
+      });
+      report += '\n';
+    }
 
-CLEANING CHECKLIST (${completedCount}/${totalCount}):
-${checklist.map(item => `${item.checked ? '[x]' : '[ ]'} ${item.label}`).join('\n')}
+    if (ordersInDryer.length > 0) {
+      report += 'IN DRYERS:\n';
+      ordersInDryer.forEach(order => {
+        report += `- ${order.customerName} ${order.weight || 0} lbs ${formatPickupTime(order)}\n`;
+      });
+      report += '\n';
+    }
 
-NOTES FOR NEXT SHIFT:
-${notes || 'None'}
-    `.trim();
+    if (ordersInWasher.length > 0) {
+      report += 'IN WASHERS:\n';
+      ordersInWasher.forEach(order => {
+        report += `- ${order.customerName} ${order.weight || 0} lbs ${formatPickupTime(order)}\n`;
+      });
+      report += '\n';
+    }
+
+    if (ordersToWash.length > 0) {
+      report += 'Things To Wash:\n';
+      report += 'To be washed tomorrow. Loads are already in front of the machines.\n';
+      ordersToWash.forEach(order => {
+        report += `- ${order.customerName} ${order.weight || 0} lbs\n`;
+      });
+      report += '\n';
+    }
+
+    report += 'Cleaning Duties:\n';
+    cleaningTasks.forEach(task => {
+      report += `- ${task.label} ${task.checked ? '✓' : '○'}\n`;
+    });
+
+    if (notes) {
+      report += `\nNotes:\n${notes}\n`;
+    }
 
     try {
       await Share.share({
@@ -121,6 +156,18 @@ ${notes || 'None'}
     );
   }
 
+  const renderOrderCard = (order: Order, bgColor: string, textColor: string) => (
+    <View key={order._id} style={[styles.orderCard, { backgroundColor: '#fff', borderLeftColor: bgColor, borderLeftWidth: 4 }]}>
+      <View style={styles.orderCardContent}>
+        <Text style={styles.orderCustomerName}>{order.customerName}</Text>
+        <Text style={styles.orderWeight}>{order.weight || 0} lbs</Text>
+      </View>
+      {formatPickupTime(order) ? (
+        <Text style={[styles.orderPickupTime, { color: textColor }]}>{formatPickupTime(order)}</Text>
+      ) : null}
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <ScrollView
@@ -129,91 +176,117 @@ ${notes || 'None'}
       >
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>End of Day Report</Text>
-          <Text style={styles.headerDate}>
-            {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </Text>
+          <Text style={styles.headerTitle}>EOD Report</Text>
+          <Text style={styles.headerDate}>{formatDate()}</Text>
         </View>
 
-        {/* Order Status Summary */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Order Status Summary</Text>
-          <View style={styles.statusGrid}>
-            <View style={[styles.statusCard, { backgroundColor: '#fef3c7' }]}>
-              <Text style={styles.statusCount}>{ordersInCart.length}</Text>
-              <Text style={styles.statusLabel}>In Cart</Text>
+        {/* In Carts Section */}
+        <View style={[styles.section, { backgroundColor: '#fef3c7' }]}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.countBadge, { backgroundColor: '#fbbf24' }]}>
+              <Text style={styles.countBadgeText}>{ordersInCart.length}</Text>
             </View>
-            <View style={[styles.statusCard, { backgroundColor: '#ffedd5' }]}>
-              <Text style={styles.statusCount}>{ordersInDryer.length}</Text>
-              <Text style={styles.statusLabel}>In Dryer</Text>
-            </View>
-            <View style={[styles.statusCard, { backgroundColor: '#cffafe' }]}>
-              <Text style={styles.statusCount}>{ordersInWasher.length}</Text>
-              <Text style={styles.statusLabel}>In Washer</Text>
-            </View>
-            <View style={[styles.statusCard, { backgroundColor: '#fce7f3' }]}>
-              <Text style={styles.statusCount}>{ordersFolding.length}</Text>
-              <Text style={styles.statusLabel}>Folding</Text>
-            </View>
+            <Text style={[styles.sectionTitle, { color: '#92400e' }]}>IN CARTS</Text>
           </View>
-          <View style={styles.readyCard}>
-            <Ionicons name="checkmark-circle" size={24} color="#10b981" />
-            <Text style={styles.readyLabel}>Ready for Pickup/Delivery</Text>
-            <Text style={styles.readyCount}>{ordersReady.length}</Text>
-          </View>
+          {ordersInCart.length === 0 ? (
+            <Text style={[styles.emptyText, { color: '#b45309' }]}>No orders in carts</Text>
+          ) : (
+            ordersInCart.map(order => renderOrderCard(order, '#fbbf24', '#92400e'))
+          )}
         </View>
 
-        {/* Orders requiring attention */}
+        {/* In Dryers Section */}
+        <View style={[styles.section, { backgroundColor: '#ffedd5' }]}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.countBadge, { backgroundColor: '#f97316' }]}>
+              <Text style={styles.countBadgeText}>{ordersInDryer.length}</Text>
+            </View>
+            <Text style={[styles.sectionTitle, { color: '#9a3412' }]}>IN DRYERS</Text>
+          </View>
+          {ordersInDryer.length === 0 ? (
+            <Text style={[styles.emptyText, { color: '#c2410c' }]}>No orders in dryers</Text>
+          ) : (
+            ordersInDryer.map(order => renderOrderCard(order, '#f97316', '#9a3412'))
+          )}
+        </View>
+
+        {/* In Washers Section */}
         {ordersInWasher.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Things to Wash (Next Shift)</Text>
-            {ordersInWasher.map(order => (
-              <View key={order._id} style={styles.orderItem}>
-                <Text style={styles.orderNumber}>#{order.orderId}</Text>
-                <Text style={styles.orderCustomer}>{order.customerName}</Text>
-                <Text style={styles.orderWeight}>{order.weight || 0} lbs</Text>
+          <View style={[styles.section, { backgroundColor: '#cffafe' }]}>
+            <View style={styles.sectionHeader}>
+              <View style={[styles.countBadge, { backgroundColor: '#06b6d4' }]}>
+                <Text style={styles.countBadgeText}>{ordersInWasher.length}</Text>
               </View>
-            ))}
+              <Text style={[styles.sectionTitle, { color: '#155e75' }]}>IN WASHERS</Text>
+            </View>
+            {ordersInWasher.map(order => renderOrderCard(order, '#06b6d4', '#155e75'))}
           </View>
         )}
 
-        {/* Cleaning Checklist */}
-        <View style={styles.section}>
+        {/* Things to Wash Section */}
+        <View style={[styles.section, { backgroundColor: '#dbeafe' }]}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Cleaning Checklist</Text>
-            <View style={styles.progressBadge}>
-              <Text style={styles.progressText}>{completionPercentage}%</Text>
+            <View style={[styles.countBadge, { backgroundColor: '#3b82f6' }]}>
+              <Text style={styles.countBadgeText}>{ordersToWash.length}</Text>
             </View>
+            <Text style={[styles.sectionTitle, { color: '#1e40af' }]}>Things To Wash</Text>
           </View>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${completionPercentage}%` }]} />
-          </View>
-          <View style={styles.checklistCard}>
-            {checklist.map(item => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.checklistItem}
-                onPress={() => toggleChecklistItem(item.id)}
-              >
-                <View style={[styles.checkbox, item.checked && styles.checkboxChecked]}>
-                  {item.checked && <Ionicons name="checkmark" size={16} color="#fff" />}
+          <Text style={[styles.sectionSubtitle, { color: '#1d4ed8' }]}>
+            To be washed tomorrow. Loads are already in front of the machines.
+          </Text>
+          {ordersToWash.length === 0 ? (
+            <Text style={[styles.emptyText, { color: '#2563eb' }]}>No pending orders</Text>
+          ) : (
+            ordersToWash.map(order => (
+              <View key={order._id} style={[styles.orderCard, { backgroundColor: '#fff', borderLeftColor: '#3b82f6', borderLeftWidth: 4 }]}>
+                <View style={styles.orderCardContent}>
+                  <Text style={styles.orderCustomerName}>{order.customerName}</Text>
+                  <Text style={styles.orderWeight}>{order.weight || 0} lbs</Text>
                 </View>
-                <Text style={[styles.checklistLabel, item.checked && styles.checklistLabelChecked]}>
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                <View style={[styles.statusBadge, {
+                  backgroundColor: order.status === 'new_order' ? '#dbeafe' :
+                    order.status === 'received' ? '#e0e7ff' : '#f3e8ff'
+                }]}>
+                  <Text style={[styles.statusBadgeText, {
+                    color: order.status === 'new_order' ? '#1e40af' :
+                      order.status === 'received' ? '#3730a3' : '#6b21a8'
+                  }]}>
+                    {order.status.replace(/_/g, ' ')}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
         </View>
 
-        {/* Notes for Next Shift */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Notes for Next Shift</Text>
+        {/* Cleaning Duties Section */}
+        <View style={[styles.section, { backgroundColor: '#dcfce7' }]}>
+          <Text style={[styles.sectionTitle, { color: '#166534', marginBottom: 12 }]}>Cleaning Duties</Text>
+          {cleaningTasks.map(task => (
+            <TouchableOpacity
+              key={task.id}
+              style={styles.checklistItem}
+              onPress={() => toggleTask(task.id)}
+            >
+              <View style={[styles.checkbox, task.checked && styles.checkboxChecked]}>
+                {task.checked && <Ionicons name="checkmark" size={16} color="#fff" />}
+              </View>
+              <Text style={[styles.checklistLabel, task.checked && styles.checklistLabelChecked]}>
+                {task.label}
+              </Text>
+              {task.checked && <Text style={styles.checkMark}>✓</Text>}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Notes Section */}
+        <View style={styles.notesSection}>
+          <Text style={styles.notesSectionTitle}>Notes</Text>
           <TextInput
             style={styles.notesInput}
             value={notes}
             onChangeText={setNotes}
-            placeholder="Any important information for the next shift..."
+            placeholder="Add any additional notes for tomorrow..."
             placeholderTextColor="#94a3b8"
             multiline
             numberOfLines={4}
@@ -248,78 +321,95 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    backgroundColor: '#1e293b',
+    backgroundColor: '#fff',
     padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
   headerTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#fff',
+    color: '#1e293b',
   },
   headerDate: {
     fontSize: 14,
-    color: '#94a3b8',
+    color: '#64748b',
     marginTop: 4,
   },
   section: {
     marginHorizontal: 16,
     marginTop: 16,
+    borderRadius: 12,
+    padding: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#64748b',
-    textTransform: 'uppercase',
     marginBottom: 12,
   },
-  statusGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+  countBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
   },
-  statusCard: {
-    width: '48%',
-    borderRadius: 12,
-    padding: 16,
+  countBadgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  emptyText: {
+    fontSize: 14,
+  },
+  orderCard: {
+    borderRadius: 10,
+    padding: 14,
+    marginBottom: 8,
+  },
+  orderCardContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
   },
-  statusCount: {
-    fontSize: 32,
-    fontWeight: 'bold',
+  orderCustomerName: {
+    fontSize: 15,
+    fontWeight: '600',
     color: '#1e293b',
+    flex: 1,
   },
-  statusLabel: {
+  orderWeight: {
     fontSize: 14,
     color: '#64748b',
-    marginTop: 4,
+    marginLeft: 12,
   },
-  readyCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#dcfce7',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 8,
-    gap: 12,
-  },
-  readyLabel: {
-    flex: 1,
-    fontSize: 16,
+  orderPickupTime: {
+    fontSize: 13,
     fontWeight: '500',
-    color: '#166534',
+    marginTop: 6,
   },
-  readyCount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#166534',
+  statusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginTop: 6,
   },
-  orderItem: {
+  statusBadgeText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textTransform: 'capitalize',
+  },
+  checklistItem: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
@@ -327,63 +417,12 @@ const styles = StyleSheet.create({
     padding: 14,
     marginBottom: 8,
   },
-  orderNumber: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1e293b',
-    width: 70,
-  },
-  orderCustomer: {
-    flex: 1,
-    fontSize: 14,
-    color: '#64748b',
-  },
-  orderWeight: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#1e293b',
-  },
-  progressBadge: {
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  progressText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#e2e8f0',
-    borderRadius: 4,
-    marginBottom: 12,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#10b981',
-    borderRadius: 4,
-  },
-  checklistCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  checklistItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
   checkbox: {
     width: 24,
     height: 24,
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#e2e8f0',
+    borderColor: '#d1d5db',
     marginRight: 12,
     alignItems: 'center',
     justifyContent: 'center',
@@ -393,20 +432,41 @@ const styles = StyleSheet.create({
     borderColor: '#10b981',
   },
   checklistLabel: {
+    flex: 1,
     fontSize: 15,
     color: '#1e293b',
   },
   checklistLabelChecked: {
-    color: '#94a3b8',
+    color: '#10b981',
     textDecorationLine: 'line-through',
   },
-  notesInput: {
+  checkMark: {
+    fontSize: 18,
+    color: '#10b981',
+    marginLeft: 8,
+  },
+  notesSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
+  },
+  notesSectionTitle: {
     fontSize: 16,
+    fontWeight: '600',
     color: '#1e293b',
-    minHeight: 120,
+    marginBottom: 12,
+  },
+  notesInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 15,
+    color: '#1e293b',
+    minHeight: 100,
   },
   shareButton: {
     flexDirection: 'row',

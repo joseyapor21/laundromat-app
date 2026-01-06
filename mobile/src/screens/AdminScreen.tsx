@@ -17,9 +17,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
-import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole } from '../types';
+import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog } from '../types';
 
-type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines';
+type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'activity';
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
@@ -35,6 +35,8 @@ export default function AdminScreen() {
   const [extraItems, setExtraItems] = useState<ExtraItem[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
   const [machines, setMachines] = useState<Machine[]>([]);
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
+  const [activityTotal, setActivityTotal] = useState(0);
 
   // Search
   const [customerSearch, setCustomerSearch] = useState('');
@@ -66,18 +68,21 @@ export default function AdminScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, customersData, extraItemsData, settingsData, machinesData] = await Promise.all([
+      const [usersData, customersData, extraItemsData, settingsData, machinesData, activityData] = await Promise.all([
         api.getUsers().catch(() => []),
         api.getCustomers(),
         api.getExtraItems().catch(() => []),
         api.getSettings(),
         api.getMachines().catch(() => []),
+        api.getActivityLogs({ limit: 50 }).catch(() => ({ logs: [], total: 0 })),
       ]);
       setUsers(usersData);
       setCustomers(customersData);
       setExtraItems(extraItemsData);
       setSettings(settingsData);
       setMachines(machinesData);
+      setActivityLogs(activityData.logs);
+      setActivityTotal(activityData.total);
     } catch (error) {
       console.error('Failed to load admin data:', error);
     } finally {
@@ -309,12 +314,59 @@ export default function AdminScreen() {
     c.phoneNumber.includes(customerSearch)
   );
 
+  // Activity helpers
+  const getActionColor = (action: string): string => {
+    switch (action) {
+      case 'create_order': return '#10b981';
+      case 'status_change': return '#3b82f6';
+      case 'login': return '#8b5cf6';
+      case 'logout': return '#6b7280';
+      case 'release_machine': return '#f97316';
+      case 'assign_machine': return '#06b6d4';
+      case 'payment': return '#10b981';
+      default: return '#64748b';
+    }
+  };
+
+  const getActionIcon = (action: string): string => {
+    switch (action) {
+      case 'create_order': return 'add-circle';
+      case 'status_change': return 'swap-horizontal';
+      case 'login': return 'log-in';
+      case 'logout': return 'log-out';
+      case 'release_machine': return 'exit';
+      case 'assign_machine': return 'enter';
+      case 'payment': return 'card';
+      default: return 'ellipse';
+    }
+  };
+
+  const formatAction = (action: string): string => {
+    return action.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const formatTimestamp = (timestamp: Date | string): string => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   const tabs = [
     { key: 'users', label: 'Users', icon: 'people' },
     { key: 'customers', label: 'Customers', icon: 'person' },
     { key: 'extras', label: 'Extras', icon: 'pricetags' },
     { key: 'settings', label: 'Settings', icon: 'settings' },
     { key: 'machines', label: 'Machines', icon: 'hardware-chip' },
+    { key: 'activity', label: 'Activity', icon: 'time' },
   ];
 
   if (loading) {
@@ -579,6 +631,41 @@ export default function AdminScreen() {
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>No machines found</Text>
+              </View>
+            }
+          />
+        </View>
+      )}
+
+      {/* Activity Tab */}
+      {activeTab === 'activity' && (
+        <View style={{ flex: 1 }}>
+          <View style={styles.actionHeader}>
+            <Text style={styles.countText}>{activityTotal} activities</Text>
+          </View>
+          <FlatList
+            data={activityLogs}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            renderItem={({ item: log }) => (
+              <View style={styles.activityCard}>
+                <View style={styles.activityHeader}>
+                  <View style={[styles.activityIcon, { backgroundColor: getActionColor(log.action) }]}>
+                    <Ionicons name={getActionIcon(log.action)} size={16} color="#fff" />
+                  </View>
+                  <View style={styles.activityInfo}>
+                    <Text style={styles.activityAction}>{formatAction(log.action)}</Text>
+                    <Text style={styles.activityUser}>{log.userName}</Text>
+                  </View>
+                  <Text style={styles.activityTime}>{formatTimestamp(log.timestamp)}</Text>
+                </View>
+                <Text style={styles.activityDetails}>{log.details}</Text>
+              </View>
+            )}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>No activity logs</Text>
               </View>
             }
           />
@@ -1294,5 +1381,48 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Activity styles
+  activityCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  activityInfo: {
+    flex: 1,
+  },
+  activityAction: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  activityUser: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  activityTime: {
+    fontSize: 12,
+    color: '#94a3b8',
+  },
+  activityDetails: {
+    fontSize: 13,
+    color: '#475569',
+    lineHeight: 18,
+    paddingLeft: 44,
   },
 });

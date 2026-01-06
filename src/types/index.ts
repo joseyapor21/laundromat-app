@@ -82,6 +82,11 @@ export interface Bag {
   weight: number;
   color: string;
   description: string;
+  // Folding check fields - final verification after folding
+  isFoldingChecked?: boolean;
+  foldingCheckedAt?: Date;
+  foldingCheckedBy?: string;
+  foldingCheckedByInitials?: string;
 }
 
 export interface OrderItem {

@@ -22,6 +22,11 @@ export interface OrderDoc {
     weight: number;
     color?: string;
     description?: string;
+    // Folding check fields
+    isFoldingChecked?: boolean;
+    foldingCheckedAt?: Date;
+    foldingCheckedBy?: string;
+    foldingCheckedByInitials?: string;
   }>;
   weight: number;
   dropOffDate: Date;
@@ -95,6 +100,23 @@ const bagSchema = new mongoose.Schema({
   description: {
     type: String,
     default: '',
+  },
+  // Folding check fields
+  isFoldingChecked: {
+    type: Boolean,
+    default: false,
+  },
+  foldingCheckedAt: {
+    type: Date,
+    default: null,
+  },
+  foldingCheckedBy: {
+    type: String,
+    default: null,
+  },
+  foldingCheckedByInitials: {
+    type: String,
+    default: null,
   },
 }, { _id: false });
 
