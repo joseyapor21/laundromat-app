@@ -70,6 +70,7 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
   );
   const [checkingMachine, setCheckingMachine] = useState<string | null>(null);
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
+  const [showPrintOptions, setShowPrintOptions] = useState(false);
 
   // Refresh order data
   const refreshOrder = useCallback(async () => {
@@ -93,15 +94,24 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
     refreshOrder();
   }, [refreshOrder]);
 
-  // Print order receipts only (customer receipt + store copy) - NO bag labels
-  const handlePrintOrder = async () => {
+  // Print order receipts - with options
+  const handlePrintOrder = async (type: 'customer' | 'store' | 'both') => {
     setPrinting(true);
+    setShowPrintOptions(false);
     try {
-      await printerService.printOrderReceipts(currentOrder);
-      toast.success('Order receipts printed (Customer + Store copy)');
+      if (type === 'customer') {
+        await printerService.printCustomerReceipt(currentOrder);
+        toast.success('Customer receipt printed');
+      } else if (type === 'store') {
+        await printerService.printStoreCopy(currentOrder);
+        toast.success('Store copy printed');
+      } else {
+        await printerService.printOrderReceipts(currentOrder);
+        toast.success('Both receipts printed');
+      }
     } catch (error) {
       console.error('Print error:', error);
-      toast.error('Failed to print order receipts');
+      toast.error('Failed to print receipt');
     } finally {
       setPrinting(false);
     }
@@ -395,18 +405,49 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
 
             {/* 2. Print Actions */}
             <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-              <h3 className="text-sm font-semibold text-blue-800 mb-3">Print Labels</h3>
+              <h3 className="text-sm font-semibold text-blue-800 mb-3">Print</h3>
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  onClick={handlePrintOrder}
-                  disabled={printing}
-                  className="flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                  </svg>
-                  {printing ? 'Printing...' : 'Print Order'}
-                </button>
+                {/* Print Order Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowPrintOptions(!showPrintOptions)}
+                    disabled={printing}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white rounded-lg font-medium transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                    </svg>
+                    {printing ? 'Printing...' : 'Print Receipt'}
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {showPrintOptions && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-lg border border-gray-200 z-10 overflow-hidden">
+                      <button
+                        onClick={() => handlePrintOrder('customer')}
+                        className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 text-gray-700 flex items-center gap-2"
+                      >
+                        <span className="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center text-xs">C</span>
+                        Customer Receipt
+                      </button>
+                      <button
+                        onClick={() => handlePrintOrder('store')}
+                        className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 text-gray-700 flex items-center gap-2 border-t border-gray-100"
+                      >
+                        <span className="w-6 h-6 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center text-xs">S</span>
+                        Store Copy
+                      </button>
+                      <button
+                        onClick={() => handlePrintOrder('both')}
+                        className="w-full px-4 py-2.5 text-left text-sm hover:bg-blue-50 text-gray-700 flex items-center gap-2 border-t border-gray-100 font-medium"
+                      >
+                        <span className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs">2</span>
+                        Both Receipts
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button
                   onClick={() => handlePrintLabel()}
                   disabled={printing || !currentOrder.bags?.length}

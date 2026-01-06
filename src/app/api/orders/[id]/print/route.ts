@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
-import { Order, Settings } from '@/lib/db/models';
+import { Order, Settings, Customer } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
 import { Socket } from 'net';
 
@@ -73,7 +73,7 @@ function generateQRCode(data: string, size: number = 10): string {
   return qr;
 }
 
-function generateReceipt(order: any): string {
+function generateReceipt(order: any, isStoreCopy: boolean = false): string {
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', {
     month: '2-digit',
@@ -93,6 +93,16 @@ function generateReceipt(order: any): string {
   r += ESC.INIT;
   r += ESC.CENTER;
 
+  // Store copy header
+  if (isStoreCopy) {
+    r += ESC.DOUBLE_SIZE_ON;
+    r += ESC.INVERT_ON;
+    r += ' STORE COPY \n';
+    r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
+    r += '\n';
+  }
+
   // Header
   r += ESC.DOUBLE_SIZE_ON;
   r += ESC.INVERT_ON;
@@ -110,7 +120,10 @@ function generateReceipt(order: any): string {
   r += ESC.NORMAL_SIZE;
 
   r += '\n';
+  // Date/Time (BIGGER)
+  r += ESC.DOUBLE_HEIGHT_ON;
   r += `${dateStr} ${timeStr}\n`;
+  r += ESC.NORMAL_SIZE;
 
   // Store info
   r += ESC.BOLD_ON;
@@ -127,6 +140,10 @@ function generateReceipt(order: any): string {
   r += ESC.DOUBLE_HEIGHT_ON;
   r += `${order.customerName || 'Customer'}\n`;
   r += ESC.NORMAL_SIZE;
+  // Customer address (if available)
+  if (order.customer?.address) {
+    r += `${order.customer.address}\n`;
+  }
   r += `${order.customerPhone || ''}\n`;
 
   if (order.specialInstructions) {
@@ -145,8 +162,21 @@ function generateReceipt(order: any): string {
   r += ESC.BOLD_OFF;
   r += ESC.LEFT;
 
-  r += leftRightAlign('Item', 'WEIGHT') + '\n';
-  r += leftRightAlign('Laundry', `${order.weight || 0} LBS`) + '\n';
+  // Show bags if available
+  if (order.bags && order.bags.length > 0) {
+    order.bags.forEach((bag: any, index: number) => {
+      const bagName = bag.identifier || `Bag ${index + 1}`;
+      const bagWeight = bag.weight || 0;
+      r += leftRightAlign('Item', 'WEIGHT') + '\n';
+      r += leftRightAlign(bagName, `${bagWeight} LBS`) + '\n';
+      if (isStoreCopy && bag.color) {
+        r += `  Color: ${bag.color}\n`;
+      }
+    });
+  } else {
+    r += leftRightAlign('Item', 'WEIGHT') + '\n';
+    r += leftRightAlign('Laundry', `${order.weight || 0} LBS`) + '\n';
+  }
 
   r += '------------------------------------------------\n';
 
@@ -162,13 +192,23 @@ function generateReceipt(order: any): string {
   r += ESC.NORMAL_SIZE;
   r += ESC.LEFT;
   r += leftRightAlign(
-    order.paymentStatus === 'paid' ? `Paid` : 'Cash on Pickup',
+    order.isPaid ? `Paid (${order.paymentMethod || 'Cash'})` : 'Cash on Pickup',
     `$${(order.totalAmount || 0).toFixed(2)}`
   ) + '\n';
 
   // QR Code
   r += generateQRCode(orderNum, 12);
   r += '\n';
+
+  // Footer for store copy
+  if (isStoreCopy) {
+    r += ESC.CENTER;
+    r += ESC.INVERT_ON;
+    r += ' STORE COPY - KEEP FOR RECORDS \n';
+    r += ESC.INVERT_OFF;
+    r += '\n';
+  }
+
   r += ESC.FEED_AND_CUT;
 
   return r;
@@ -215,8 +255,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     await connectDB();
     const { id } = await params;
 
+    // Get print type from request body (customer, store, or both)
+    let printType: 'customer' | 'store' | 'both' = 'both';
+    try {
+      const body = await request.json();
+      if (body.type === 'customer' || body.type === 'store' || body.type === 'both') {
+        printType = body.type;
+      }
+    } catch {
+      // No body or invalid JSON, default to 'both'
+    }
+
     // Find the order
-    let order = await Order.findById(id).lean();
+    let order: any = await Order.findById(id).lean();
 
     if (!order) {
       const numericId = parseInt(id);
@@ -232,6 +283,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Fetch customer data separately (customerId is stored as a string, not ObjectId)
+    if (order.customerId) {
+      const customer = await Customer.findById(order.customerId).lean();
+      if (customer) {
+        order.customer = customer;
+      }
+    }
+
     // Get printer settings
     const settings = await Settings.findOne().lean();
 
@@ -245,13 +304,26 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const printerIP = settings.printerIP;
     const printerPort = settings.printerPort || 9100;
 
-    // Generate and print receipt
-    const receipt = generateReceipt(order);
-
     try {
-      await sendToPrinter(receipt, printerIP, printerPort);
+      // Print based on type
+      if (printType === 'customer' || printType === 'both') {
+        const customerReceipt = generateReceipt(order, false);
+        await sendToPrinter(customerReceipt, printerIP, printerPort);
+      }
+
+      if (printType === 'store' || printType === 'both') {
+        const storeReceipt = generateReceipt(order, true);
+        await sendToPrinter(storeReceipt, printerIP, printerPort);
+      }
+
+      const message = printType === 'both'
+        ? 'Both receipts printed'
+        : printType === 'customer'
+          ? 'Customer receipt printed'
+          : 'Store copy printed';
+
       return NextResponse.json({
-        message: 'Print job sent successfully',
+        message,
         printer: { ip: printerIP, port: printerPort },
       });
     } catch (printError) {
