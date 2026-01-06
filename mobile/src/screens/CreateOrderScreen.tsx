@@ -192,13 +192,6 @@ export default function CreateOrderScreen() {
     }
 
     const totalWeight = getTotalWeight();
-    const hasExtras = Object.values(selectedExtras).some(qty => qty > 0);
-
-    // Require either weight or extras
-    if (totalWeight === 0 && !hasExtras) {
-      Alert.alert('Error', 'Please add bag weights or extra items');
-      return;
-    }
 
     setSubmitting(true);
     try {
