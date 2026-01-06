@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
 import { Order, Customer, ActivityLog, getNextOrderSequence } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
+import { notifyNewOrder } from '@/lib/services/pushNotifications';
 
 export async function GET(request: NextRequest) {
   try {
@@ -123,6 +124,15 @@ export async function POST(request: NextRequest) {
     } catch (logError) {
       console.error('Failed to log activity:', logError);
     }
+
+    // Send push notification to all staff about new order
+    notifyNewOrder(
+      newOrder._id.toString(),
+      orderId,
+      orderData.customerName,
+      orderData.orderType || 'storePickup',
+      currentUser.userId
+    ).catch(err => console.error('Push notification error:', err));
 
     return NextResponse.json(newOrder, { status: 201 });
   } catch (error) {

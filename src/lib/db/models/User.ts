@@ -13,6 +13,8 @@ export interface UserDoc {
   mustChangePassword: boolean;
   createdAt: Date;
   createdBy: string;
+  pushToken?: string;
+  pushTokenPlatform?: 'ios' | 'android';
   comparePassword(password: string): Promise<boolean>;
 }
 
@@ -54,6 +56,15 @@ const userSchema = new mongoose.Schema<UserDoc>({
   createdBy: {
     type: String,
     required: true,
+  },
+  pushToken: {
+    type: String,
+    default: null,
+  },
+  pushTokenPlatform: {
+    type: String,
+    enum: ['ios', 'android'],
+    default: null,
   },
 }, {
   collection: 'users',

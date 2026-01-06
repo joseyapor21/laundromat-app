@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
 import { Order, ActivityLog } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
+import { notifyMachineChecked } from '@/lib/services/pushNotifications';
 
 // POST /api/machines/check - Mark a machine assignment as checked
 export async function POST(request: NextRequest) {
@@ -108,6 +109,15 @@ export async function POST(request: NextRequest) {
     } catch (logError) {
       console.error('Failed to log activity:', logError);
     }
+
+    // Send push notification about machine check
+    notifyMachineChecked(
+      order._id.toString(),
+      order.orderId,
+      assignment.machineName,
+      checkerInitials.trim().toUpperCase(),
+      currentUser.userId
+    ).catch(err => console.error('Push notification error:', err));
 
     return NextResponse.json({
       success: true,

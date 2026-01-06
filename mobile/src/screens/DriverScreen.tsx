@@ -9,10 +9,15 @@ import {
   Alert,
   Linking,
   ActivityIndicator,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../services/api';
+import { useBluetoothPrinter } from '../services/bluetoothPrinter';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import type { Order } from '../types';
 
 type Tab = 'pickups' | 'deliveries';
@@ -24,6 +29,21 @@ export default function DriverScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('pickups');
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [printing, setPrinting] = useState(false);
+  const [labelQuantity, setLabelQuantity] = useState('1');
+  const [labelModalVisible, setLabelModalVisible] = useState(false);
+
+  // Bluetooth printer hook
+  const {
+    isConnected: bluetoothConnected,
+    isConnecting: bluetoothConnecting,
+    error: bluetoothError,
+    deviceName,
+    connect: connectBluetooth,
+    disconnect: disconnectBluetooth,
+    printLabel: bluetoothPrintLabel,
+  } = useBluetoothPrinter();
 
   const loadOrders = useCallback(async () => {
     try {
@@ -55,6 +75,16 @@ export default function DriverScreen() {
     loadOrders();
   }, [loadOrders]);
 
+  // Reload orders when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadOrders();
+    }, [loadOrders])
+  );
+
+  // Auto-refresh orders every 10 seconds
+  useAutoRefresh(loadOrders);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadOrders();
@@ -77,6 +107,48 @@ export default function DriverScreen() {
 
   function callCustomer(phone: string) {
     Linking.openURL(`tel:${phone}`);
+  }
+
+  function openLabelModal(order: Order) {
+    setSelectedOrder(order);
+    setLabelQuantity('1');
+    setLabelModalVisible(true);
+  }
+
+  async function handleBluetoothPrint() {
+    if (!selectedOrder) return;
+
+    const quantity = parseInt(labelQuantity);
+    if (isNaN(quantity) || quantity < 1 || quantity > 10) {
+      Alert.alert('Error', 'Please enter a valid quantity (1-10)');
+      return;
+    }
+
+    setPrinting(true);
+    try {
+      const orderData = {
+        orderId: selectedOrder.orderId?.toString() || selectedOrder._id.slice(-6),
+        customerName: selectedOrder.customerName,
+        customerPhone: selectedOrder.customerPhone,
+        address: selectedOrder.customer?.address || '',
+        weight: selectedOrder.weight,
+        notes: selectedOrder.specialInstructions,
+        _id: selectedOrder._id,
+      };
+
+      await bluetoothPrintLabel(orderData, quantity);
+      Alert.alert('Success', `${quantity} label(s) printed for ${selectedOrder.customerName}`);
+      setLabelModalVisible(false);
+
+      // Auto-update status to picked_up if new order
+      if (selectedOrder.status === 'new_order' || selectedOrder.status === 'scheduled_pickup') {
+        await updateStatus(selectedOrder._id, 'picked_up');
+      }
+    } catch (error) {
+      Alert.alert('Print Error', error instanceof Error ? error.message : 'Failed to print');
+    } finally {
+      setPrinting(false);
+    }
   }
 
   const getStatusConfig = (status: string) => {
@@ -151,6 +223,22 @@ export default function DriverScreen() {
             <Text style={styles.actionButtonText}>Call</Text>
           </TouchableOpacity>
 
+          {/* Print Label Button - Pickup only */}
+          {isPickup && (
+            <TouchableOpacity
+              style={[
+                styles.actionButton,
+                styles.printLabelButton,
+                !bluetoothConnected && styles.buttonDisabled
+              ]}
+              onPress={() => openLabelModal(order)}
+              disabled={!bluetoothConnected}
+            >
+              <Ionicons name="pricetag" size={20} color="#fff" />
+              <Text style={styles.actionButtonText}>Label</Text>
+            </TouchableOpacity>
+          )}
+
           {isPickup ? (
             order.status === 'new_order' || order.status === 'scheduled_pickup' ? (
               <TouchableOpacity
@@ -199,6 +287,32 @@ export default function DriverScreen() {
       <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
         <Text style={styles.headerTitle}>Driver Dashboard</Text>
         <Text style={styles.headerSubtitle}>Manage pickups & deliveries</Text>
+
+        {/* Bluetooth Status */}
+        <View style={[styles.bluetoothStatus, bluetoothConnected && styles.bluetoothConnected]}>
+          <View style={styles.bluetoothLeft}>
+            <View style={[styles.bluetoothDot, bluetoothConnected && styles.bluetoothDotConnected]} />
+            <Text style={[styles.bluetoothText, bluetoothConnected && styles.bluetoothTextConnected]}>
+              {bluetoothConnected ? `Printer: ${deviceName || 'Connected'}` : 'Printer Disconnected'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[styles.bluetoothButton, bluetoothConnected && styles.bluetoothButtonDisconnect]}
+            onPress={bluetoothConnected ? disconnectBluetooth : connectBluetooth}
+            disabled={bluetoothConnecting}
+          >
+            {bluetoothConnecting ? (
+              <ActivityIndicator size="small" color={bluetoothConnected ? '#64748b' : '#fff'} />
+            ) : (
+              <Text style={[styles.bluetoothButtonText, bluetoothConnected && styles.bluetoothButtonTextDisconnect]}>
+                {bluetoothConnected ? 'Disconnect' : 'Connect'}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </View>
+        {bluetoothError && (
+          <Text style={styles.bluetoothError}>{bluetoothError}</Text>
+        )}
       </View>
 
       {/* Tabs */}
@@ -276,6 +390,63 @@ export default function DriverScreen() {
           </View>
         }
       />
+
+      {/* Label Quantity Modal */}
+      <Modal
+        visible={labelModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setLabelModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.labelModalContent}>
+            <View style={styles.labelModalHeader}>
+              <Ionicons name="pricetags" size={32} color="#8b5cf6" />
+              <Text style={styles.labelModalTitle}>Print Labels</Text>
+            </View>
+
+            {selectedOrder && (
+              <Text style={styles.labelModalSubtitle}>
+                Order #{selectedOrder.orderId} - {selectedOrder.customerName}
+              </Text>
+            )}
+
+            <Text style={styles.labelQuantityLabel}>How many labels do you need?</Text>
+            <TextInput
+              style={styles.labelQuantityInput}
+              value={labelQuantity}
+              onChangeText={setLabelQuantity}
+              keyboardType="number-pad"
+              maxLength={2}
+              placeholder="1"
+              placeholderTextColor="#94a3b8"
+            />
+
+            <View style={styles.labelModalButtons}>
+              <TouchableOpacity
+                style={styles.labelCancelButton}
+                onPress={() => setLabelModalVisible(false)}
+              >
+                <Text style={styles.labelCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.labelPrintButton, printing && styles.buttonDisabled]}
+                onPress={handleBluetoothPrint}
+                disabled={printing}
+              >
+                {printing ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="print" size={20} color="#fff" />
+                    <Text style={styles.labelPrintButtonText}>Print Labels</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -497,5 +668,157 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#94a3b8',
     marginTop: 16,
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  // Bluetooth status styles
+  bluetoothStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  bluetoothConnected: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#10b981',
+  },
+  bluetoothLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  bluetoothDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#94a3b8',
+  },
+  bluetoothDotConnected: {
+    backgroundColor: '#10b981',
+  },
+  bluetoothText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  bluetoothTextConnected: {
+    color: '#059669',
+  },
+  bluetoothButton: {
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 90,
+    alignItems: 'center',
+  },
+  bluetoothButtonDisconnect: {
+    backgroundColor: '#e2e8f0',
+  },
+  bluetoothButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  bluetoothButtonTextDisconnect: {
+    color: '#64748b',
+  },
+  bluetoothError: {
+    fontSize: 12,
+    color: '#ef4444',
+    marginTop: 8,
+  },
+  // Print label button
+  printLabelButton: {
+    backgroundColor: '#8b5cf6',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  // Label modal styles
+  labelModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  labelModalHeader: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  labelModalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginTop: 8,
+  },
+  labelModalSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  labelQuantityLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+    marginBottom: 12,
+  },
+  labelQuantityInput: {
+    width: '100%',
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
+    color: '#1e293b',
+    marginBottom: 20,
+  },
+  labelModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  labelCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  labelCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  labelPrintButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#8b5cf6',
+  },
+  labelPrintButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
