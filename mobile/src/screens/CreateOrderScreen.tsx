@@ -571,6 +571,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     padding: 16,
     paddingBottom: 100,
+    width: '100%',
   },
   loadingContainer: {
     flex: 1,
@@ -580,6 +581,7 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 20,
+    width: '100%',
   },
   sectionTitle: {
     fontSize: 14,
@@ -771,15 +773,17 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 8,
+    width: '100%',
   },
   addBagButton: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: '#8b5cf6',
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
+    marginRight: 0,
   },
   addBagText: {
     color: '#fff',
