@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
-import { Order, Settings, Customer, PrintJob } from '@/lib/db/models';
+import { Order, Settings, Customer } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
 import { Socket } from 'net';
 
@@ -291,43 +291,48 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Queue print jobs for the local print agent to process
-    const jobIds: string[] = [];
+    // Get printer settings
+    const settings = await Settings.findOne().lean();
 
-    if (printType === 'customer' || printType === 'both') {
-      const customerReceipt = generateReceipt(order, false);
-      const job = new PrintJob({
-        content: customerReceipt,
-        printerId: 'main',
-        priority: 'high',
-        status: 'pending',
-      });
-      await job.save();
-      jobIds.push(job._id.toString());
+    if (!settings?.printerIP) {
+      return NextResponse.json(
+        { error: 'Printer not configured. Please set up printer IP in admin settings.' },
+        { status: 400 }
+      );
     }
 
-    if (printType === 'store' || printType === 'both') {
-      const storeReceipt = generateReceipt(order, true);
-      const job = new PrintJob({
-        content: storeReceipt,
-        printerId: 'main',
-        priority: 'high',
-        status: 'pending',
+    const printerIP = settings.printerIP;
+    const printerPort = settings.printerPort || 9100;
+
+    try {
+      // Print based on type
+      if (printType === 'customer' || printType === 'both') {
+        const customerReceipt = generateReceipt(order, false);
+        await sendToPrinter(customerReceipt, printerIP, printerPort);
+      }
+
+      if (printType === 'store' || printType === 'both') {
+        const storeReceipt = generateReceipt(order, true);
+        await sendToPrinter(storeReceipt, printerIP, printerPort);
+      }
+
+      const message = printType === 'both'
+        ? 'Both receipts printed'
+        : printType === 'customer'
+          ? 'Customer receipt printed'
+          : 'Store copy printed';
+
+      return NextResponse.json({
+        message,
+        printer: { ip: printerIP, port: printerPort },
       });
-      await job.save();
-      jobIds.push(job._id.toString());
+    } catch (printError) {
+      console.error('Print error:', printError);
+      return NextResponse.json(
+        { error: `Printer error: ${printError instanceof Error ? printError.message : 'Unknown error'}` },
+        { status: 500 }
+      );
     }
-
-    const message = printType === 'both'
-      ? 'Both receipts queued for printing'
-      : printType === 'customer'
-        ? 'Customer receipt queued for printing'
-        : 'Store copy queued for printing';
-
-    return NextResponse.json({
-      message,
-      jobIds,
-    });
   } catch (error) {
     console.error('Print order error:', error);
     return NextResponse.json(
