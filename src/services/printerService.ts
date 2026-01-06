@@ -140,6 +140,30 @@ class PrinterService {
     }
   }
 
+  // Print customer receipt only
+  async printCustomerReceipt(order: Order): Promise<boolean> {
+    try {
+      const customerReceipt = this.generateCustomerReceiptText(order);
+      await this.printDocument(customerReceipt, 'Customer Receipt');
+      return true;
+    } catch (error) {
+      console.error('Customer receipt printing error:', error);
+      throw new Error(`Failed to print customer receipt: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Print store copy only
+  async printStoreCopy(order: Order): Promise<boolean> {
+    try {
+      const storeCopy = this.generateStoreCopyText(order);
+      await this.printDocument(storeCopy, 'Store Copy');
+      return true;
+    } catch (error) {
+      console.error('Store copy printing error:', error);
+      throw new Error(`Failed to print store copy: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
   // Print all bag labels only
   async printBagLabels(order: Order): Promise<boolean> {
     try {
@@ -303,8 +327,10 @@ class PrinterService {
 
     r += '\n';  // Space after order number
 
-    // Date/Time
+    // Date/Time (BIGGER)
+    r += ESC.DOUBLE_HEIGHT_ON;
     r += `${dateStr} ${timeStr}\n`;
+    r += ESC.NORMAL_SIZE;
 
     // === STORE INFO ===
     r += ESC.BOLD_ON;
@@ -321,12 +347,11 @@ class PrinterService {
     r += ESC.DOUBLE_HEIGHT_ON;
     r += `${order.customerName || 'Customer'}\n`;
     r += ESC.NORMAL_SIZE;
-    // Customer address if available (for delivery)
-    if (isDelivery && order.customerPhone) {
-      r += `${order.customerPhone}\n`;
-    } else {
-      r += `${order.customerPhone || ''}\n`;
+    // Customer address (for delivery orders)
+    if (order.customer?.address) {
+      r += `${order.customer.address}\n`;
     }
+    r += `${order.customerPhone || ''}\n`;
 
     // Notes (inverted if present)
     if (order.specialInstructions) {
@@ -483,8 +508,10 @@ class PrinterService {
 
     r += '\n';  // Space after order number
 
-    // Date/Time
+    // Date/Time (BIGGER)
+    r += ESC.DOUBLE_HEIGHT_ON;
     r += `${dateStr} ${timeStr}\n`;
+    r += ESC.NORMAL_SIZE;
 
     // === STORE INFO ===
     r += ESC.BOLD_ON;
@@ -501,6 +528,10 @@ class PrinterService {
     r += ESC.DOUBLE_HEIGHT_ON;
     r += `${order.customerName || 'Customer'}\n`;
     r += ESC.NORMAL_SIZE;
+    // Customer address (for delivery orders)
+    if (order.customer?.address) {
+      r += `${order.customer.address}\n`;
+    }
     r += `${order.customerPhone || ''}\n`;
 
     // Notes (inverted if present)

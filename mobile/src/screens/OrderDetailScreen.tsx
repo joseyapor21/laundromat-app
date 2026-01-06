@@ -51,6 +51,7 @@ export default function OrderDetailScreen() {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('cash');
   const [checkingMachine, setCheckingMachine] = useState<string | null>(null);
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
+  const [showPrintOptions, setShowPrintOptions] = useState(false);
   const isProcessingScan = useRef(false);
 
   const loadOrder = useCallback(async () => {
@@ -88,12 +89,22 @@ export default function OrderDetailScreen() {
     }
   }
 
-  async function handlePrint() {
+  function showPrintMenu() {
+    setShowPrintOptions(true);
+  }
+
+  async function handlePrint(type: 'customer' | 'store' | 'both') {
     if (!order) return;
+    setShowPrintOptions(false);
     setPrinting(true);
     try {
-      await api.printOrder(order._id);
-      Alert.alert('Success', 'Receipt sent to printer');
+      await api.printOrder(order._id, type);
+      const message = type === 'both'
+        ? 'Both receipts sent to printer'
+        : type === 'customer'
+          ? 'Customer receipt sent to printer'
+          : 'Store copy sent to printer';
+      Alert.alert('Success', message);
     } catch (error) {
       console.error('Print error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to print';
@@ -414,11 +425,12 @@ export default function OrderDetailScreen() {
           <View style={styles.printCard}>
             <TouchableOpacity
               style={[styles.printButton, printing && styles.buttonDisabled, canShowPrintLabels && { marginBottom: 10 }]}
-              onPress={handlePrint}
+              onPress={showPrintMenu}
               disabled={printing}
             >
               <Ionicons name="print" size={20} color="#fff" />
-              <Text style={styles.printButtonText}>Print Receipt</Text>
+              <Text style={styles.printButtonText}>{printing ? 'Printing...' : 'Print Receipt'}</Text>
+              <Ionicons name="chevron-down" size={16} color="#fff" />
             </TouchableOpacity>
             {canShowPrintLabels && (
               <>
@@ -862,6 +874,66 @@ export default function OrderDetailScreen() {
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Print Options Modal */}
+      <Modal
+        visible={showPrintOptions}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPrintOptions(false)}
+      >
+        <TouchableOpacity
+          style={styles.printModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowPrintOptions(false)}
+        >
+          <View style={styles.printModalContent}>
+            <Text style={styles.printModalTitle}>Print Receipt</Text>
+            <TouchableOpacity
+              style={styles.printOptionButton}
+              onPress={() => handlePrint('customer')}
+            >
+              <View style={[styles.printOptionIcon, { backgroundColor: '#dcfce7' }]}>
+                <Ionicons name="person" size={20} color="#16a34a" />
+              </View>
+              <View style={styles.printOptionTextContainer}>
+                <Text style={styles.printOptionLabel}>Customer Receipt</Text>
+                <Text style={styles.printOptionDescription}>For the customer to keep</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.printOptionButton}
+              onPress={() => handlePrint('store')}
+            >
+              <View style={[styles.printOptionIcon, { backgroundColor: '#ffedd5' }]}>
+                <Ionicons name="storefront" size={20} color="#ea580c" />
+              </View>
+              <View style={styles.printOptionTextContainer}>
+                <Text style={styles.printOptionLabel}>Store Copy</Text>
+                <Text style={styles.printOptionDescription}>For store records</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.printOptionButton, styles.printOptionButtonHighlight]}
+              onPress={() => handlePrint('both')}
+            >
+              <View style={[styles.printOptionIcon, { backgroundColor: '#dbeafe' }]}>
+                <Ionicons name="documents" size={20} color="#2563eb" />
+              </View>
+              <View style={styles.printOptionTextContainer}>
+                <Text style={styles.printOptionLabel}>Both Receipts</Text>
+                <Text style={styles.printOptionDescription}>Customer + Store copy</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.printCancelButton}
+              onPress={() => setShowPrintOptions(false)}
+            >
+              <Text style={styles.printCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </>
   );
@@ -1594,5 +1666,73 @@ const styles = StyleSheet.create({
   manualSubmitText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  // Print options modal
+  printModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  printModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 340,
+  },
+  printModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  printOptionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  printOptionButtonHighlight: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
+  },
+  printOptionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 14,
+  },
+  printOptionTextContainer: {
+    flex: 1,
+  },
+  printOptionLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 2,
+  },
+  printOptionDescription: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  printCancelButton: {
+    padding: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 6,
+  },
+  printCancelText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#64748b',
   },
 });

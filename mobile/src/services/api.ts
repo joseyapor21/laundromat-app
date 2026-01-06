@@ -256,9 +256,10 @@ class ApiService {
   }
 
   // Printing
-  async printOrder(orderId: string): Promise<{ message: string }> {
+  async printOrder(orderId: string, type: 'customer' | 'store' | 'both' = 'both'): Promise<{ message: string }> {
     return this.request<{ message: string }>(`/orders/${orderId}/print`, {
       method: 'POST',
+      body: JSON.stringify({ type }),
     });
   }
 
