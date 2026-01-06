@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
-import type { Customer, Settings, ExtraItem, OrderStatus, PaymentMethod, PaymentStatus } from '../types';
+import type { Customer, Settings, ExtraItem, PaymentMethod } from '../types';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
@@ -202,46 +202,30 @@ export default function CreateOrderScreen() {
 
     setSubmitting(true);
     try {
+      // Calculate estimated pickup date (tomorrow by default)
+      const estimatedPickup = new Date();
+      estimatedPickup.setDate(estimatedPickup.getDate() + 1);
+
       const orderData = {
         customerId: selectedCustomer._id,
         customerName: selectedCustomer.name,
         customerPhone: selectedCustomer.phoneNumber,
         orderType,
         weight: totalWeight,
-        bags: bags.map(bag => ({
+        bags: bags.filter(bag => bag.weight > 0 || bag.color || bag.description).map(bag => ({
           identifier: bag.identifier,
           weight: bag.weight,
-          color: bag.color,
-          description: bag.description,
+          color: bag.color || '',
+          description: bag.description || '',
         })),
         isSameDay,
         specialInstructions,
-        items: totalWeight > 0 ? [{
-          serviceName: isSameDay ? 'Same Day Wash & Fold' : 'Wash & Fold',
-          quantity: 1,
-          pricePerUnit: settings?.pricePerPound || 1.25,
-          weight: totalWeight,
-          total: calculateTotal(),
-        }] : [],
-        extraItems: Object.entries(selectedExtras)
-          .filter(([, qty]) => qty > 0)
-          .map(([itemId, qty]) => {
-            const item = extraItems.find(e => e._id === itemId)!;
-            return {
-              itemId,
-              name: item.name,
-              price: item.price,
-              quantity: qty,
-            };
-          }),
+        items: [],
         totalAmount: calculateTotal(),
-        deliveryFee: orderType === 'delivery'
-          ? parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0
-          : 0,
+        dropOffDate: new Date().toISOString(),
+        estimatedPickupDate: estimatedPickup.toISOString(),
         isPaid: markAsPaid,
-        paymentMethod: markAsPaid ? paymentMethod : 'pending' as PaymentMethod,
-        paymentStatus: markAsPaid ? 'paid' as PaymentStatus : 'pending' as PaymentStatus,
-        status: (orderType === 'delivery' ? 'scheduled_pickup' : 'received') as OrderStatus,
+        paymentMethod: markAsPaid ? paymentMethod : null,
       };
 
       await api.createOrder(orderData);
