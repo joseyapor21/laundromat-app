@@ -112,6 +112,61 @@ export default function CreateOrderScreen() {
     return laundrySubtotal + extrasTotal + deliveryFee;
   }
 
+  function getPriceBreakdown() {
+    if (!settings) return [];
+
+    const breakdown: { label: string; amount: number }[] = [];
+    const totalWeight = getTotalWeight();
+
+    // Laundry service
+    if (totalWeight > 0) {
+      const effectiveWeight = Math.max(totalWeight, settings.minimumWeight);
+      let pricePerPound = settings.pricePerPound;
+      const baseLabel = `${effectiveWeight} lbs × $${pricePerPound.toFixed(2)}/lb`;
+
+      if (isSameDay) {
+        pricePerPound = pricePerPound * (1 + (settings.sameDayExtraPercentage || 50) / 100);
+        breakdown.push({
+          label: `Same Day: ${effectiveWeight} lbs × $${pricePerPound.toFixed(2)}/lb`,
+          amount: Math.max(effectiveWeight * pricePerPound, settings.minimumPrice),
+        });
+      } else {
+        breakdown.push({
+          label: baseLabel,
+          amount: Math.max(effectiveWeight * pricePerPound, settings.minimumPrice),
+        });
+      }
+
+      if (totalWeight < settings.minimumWeight) {
+        breakdown[0].label += ` (min ${settings.minimumWeight} lbs)`;
+      }
+    }
+
+    // Extra items
+    Object.entries(selectedExtras).forEach(([itemId, qty]) => {
+      const item = extraItems.find(e => e._id === itemId);
+      if (item && qty > 0) {
+        breakdown.push({
+          label: `${item.name} × ${qty}`,
+          amount: item.price * qty,
+        });
+      }
+    });
+
+    // Delivery fee
+    if (orderType === 'delivery' && selectedCustomer) {
+      const fee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
+      if (fee > 0) {
+        breakdown.push({
+          label: 'Delivery Fee',
+          amount: fee,
+        });
+      }
+    }
+
+    return breakdown;
+  }
+
   function addBag() {
     setBags([...bags, { identifier: `Bag ${bags.length + 1}`, weight: 0, color: '', description: '' }]);
   }
@@ -299,7 +354,7 @@ export default function CreateOrderScreen() {
       {/* Bags */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Bags</Text>
+          <Text style={styles.sectionTitleInline}>Bags</Text>
           <TouchableOpacity style={styles.addBagButton} onPress={addBag}>
             <Ionicons name="add" size={18} color="#fff" />
             <Text style={styles.addBagText}>Add Bag</Text>
@@ -468,10 +523,28 @@ export default function CreateOrderScreen() {
         )}
       </View>
 
-      {/* Total */}
-      <View style={styles.totalSection}>
-        <Text style={styles.totalLabel}>Estimated Total</Text>
-        <Text style={styles.totalAmount}>${calculateTotal().toFixed(2)}</Text>
+      {/* Price Breakdown */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Price Breakdown</Text>
+        <View style={styles.breakdownCard}>
+          {getPriceBreakdown().length > 0 ? (
+            <>
+              {getPriceBreakdown().map((item, index) => (
+                <View key={index} style={styles.breakdownRow}>
+                  <Text style={styles.breakdownLabel}>{item.label}</Text>
+                  <Text style={styles.breakdownAmount}>${item.amount.toFixed(2)}</Text>
+                </View>
+              ))}
+              <View style={styles.breakdownDivider} />
+              <View style={styles.breakdownTotal}>
+                <Text style={styles.breakdownTotalLabel}>Total</Text>
+                <Text style={styles.breakdownTotalAmount}>${calculateTotal().toFixed(2)}</Text>
+              </View>
+            </>
+          ) : (
+            <Text style={styles.breakdownEmpty}>Add items to see price breakdown</Text>
+          )}
+        </View>
       </View>
 
       {/* Submit Button */}
@@ -513,6 +586,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#64748b',
     marginBottom: 8,
+    textTransform: 'uppercase',
+  },
+  sectionTitleInline: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
     textTransform: 'uppercase',
   },
   searchInput: {
@@ -826,5 +905,56 @@ const styles = StyleSheet.create({
   },
   paymentMethodTextActive: {
     color: '#fff',
+  },
+  // Price breakdown styles
+  breakdownCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  breakdownLabel: {
+    fontSize: 14,
+    color: '#475569',
+    flex: 1,
+    paddingRight: 8,
+  },
+  breakdownAmount: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  breakdownDivider: {
+    height: 1,
+    backgroundColor: '#e2e8f0',
+    marginVertical: 8,
+  },
+  breakdownTotal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  breakdownTotalLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  breakdownTotalAmount: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#10b981',
+  },
+  breakdownEmpty: {
+    fontSize: 14,
+    color: '#94a3b8',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    paddingVertical: 12,
   },
 });
