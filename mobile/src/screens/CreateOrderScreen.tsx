@@ -214,7 +214,11 @@ export default function CreateOrderScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      keyboardShouldPersistTaps="handled"
+    >
       {/* Customer Selection */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Customer</Text>
@@ -482,8 +486,6 @@ export default function CreateOrderScreen() {
           <Text style={styles.submitButtonText}>Create Order</Text>
         )}
       </TouchableOpacity>
-
-      <View style={{ height: 40 }} />
     </ScrollView>
   );
 }
@@ -492,7 +494,10 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f1f5f9',
+  },
+  contentContainer: {
     padding: 16,
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,
