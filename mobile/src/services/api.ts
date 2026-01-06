@@ -287,6 +287,20 @@ class ApiService {
       body: JSON.stringify({ bagIndex }),
     });
   }
+
+  // Push Notifications
+  async registerPushToken(token: string, platform: 'ios' | 'android'): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('/users/push-token', {
+      method: 'POST',
+      body: JSON.stringify({ pushToken: token, platform }),
+    });
+  }
+
+  async unregisterPushToken(): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('/users/push-token', {
+      method: 'DELETE',
+    });
+  }
 }
 
 export const api = new ApiService();

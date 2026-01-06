@@ -15,6 +15,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { useAuth } from '../contexts/AuthContext';
 import type { Order, OrderStatus, MachineAssignment, PaymentMethod } from '../types';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
@@ -41,6 +43,7 @@ const STATUS_OPTIONS: { value: OrderStatus; label: string; color: string }[] = [
 export default function OrderDetailScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation();
+  const { user } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -72,6 +75,9 @@ export default function OrderDetailScreen() {
   useEffect(() => {
     loadOrder();
   }, [loadOrder]);
+
+  // Auto-refresh order every 10 seconds
+  useAutoRefresh(loadOrder);
 
   async function updateStatus(newStatus: OrderStatus) {
     if (!order) return;
@@ -205,8 +211,20 @@ export default function OrderDetailScreen() {
 
     setCheckingMachine(assignment.machineId);
     try {
-      // Use first two letters of user name as initials (or 'MB' as default for mobile)
-      const result = await api.checkMachine(order._id, assignment.machineId, 'MB');
+      // Get user initials - need at least 2 characters
+      let initials = 'XX';
+      if (user) {
+        const firstInitial = user.firstName?.charAt(0) || '';
+        const lastInitial = user.lastName?.charAt(0) || '';
+        if (firstInitial && lastInitial) {
+          // Both names available - use first letter of each
+          initials = `${firstInitial}${lastInitial}`.toUpperCase();
+        } else if (firstInitial) {
+          // Only first name - use first two letters of first name
+          initials = user.firstName.substring(0, 2).toUpperCase();
+        }
+      }
+      const result = await api.checkMachine(order._id, assignment.machineId, initials);
       Alert.alert('Success', result.message);
       await loadOrder();
     } catch (error) {

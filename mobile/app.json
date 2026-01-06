@@ -18,6 +18,9 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan QR codes on washers and dryers.",
         "ITSAppUsesNonExemptEncryption": false
+      },
+      "entitlements": {
+        "aps-environment": "production"
       }
     },
     "android": {
@@ -41,7 +44,16 @@
         {
           "cameraPermission": "Allow Laundromat to access your camera to scan machine QR codes."
         }
-      ]
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#2563eb",
+          "sounds": []
+        }
+      ],
+      "react-native-ble-plx"
     ],
     "extra": {
       "eas": {

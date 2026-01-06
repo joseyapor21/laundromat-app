@@ -42,7 +42,7 @@ export default function CreateOrderScreen() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [orderType, setOrderType] = useState<'storePickup' | 'delivery'>('storePickup');
-  const [bags, setBags] = useState<Bag[]>([{ identifier: 'Bag 1', weight: 0, color: '', description: '' }]);
+  const [bags, setBags] = useState<Bag[]>([]);
   const [isSameDay, setIsSameDay] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [selectedExtras, setSelectedExtras] = useState<Record<string, number>>({});
@@ -83,15 +83,21 @@ export default function CreateOrderScreen() {
     // Calculate laundry subtotal only if there's weight
     let laundrySubtotal = 0;
     if (totalWeight > 0) {
-      const effectiveWeight = Math.max(totalWeight, settings.minimumWeight);
       let pricePerPound = settings.pricePerPound;
 
       if (isSameDay) {
         pricePerPound = pricePerPound * (1 + (settings.sameDayExtraPercentage || 50) / 100);
       }
 
-      laundrySubtotal = effectiveWeight * pricePerPound;
-      laundrySubtotal = Math.max(laundrySubtotal, settings.minimumPrice);
+      // Pricing: minimum price for first X pounds, then price per pound for extra
+      if (totalWeight <= settings.minimumWeight) {
+        // Under or at minimum weight - charge minimum price
+        laundrySubtotal = settings.minimumPrice;
+      } else {
+        // Over minimum weight - charge minimum + extra pounds at price per pound
+        const extraPounds = totalWeight - settings.minimumWeight;
+        laundrySubtotal = settings.minimumPrice + (extraPounds * pricePerPound);
+      }
     }
 
     // Add extras
@@ -120,25 +126,32 @@ export default function CreateOrderScreen() {
 
     // Laundry service
     if (totalWeight > 0) {
-      const effectiveWeight = Math.max(totalWeight, settings.minimumWeight);
       let pricePerPound = settings.pricePerPound;
-      const baseLabel = `${effectiveWeight} lbs × $${pricePerPound.toFixed(2)}/lb`;
 
       if (isSameDay) {
         pricePerPound = pricePerPound * (1 + (settings.sameDayExtraPercentage || 50) / 100);
-        breakdown.push({
-          label: `Same Day: ${effectiveWeight} lbs × $${pricePerPound.toFixed(2)}/lb`,
-          amount: Math.max(effectiveWeight * pricePerPound, settings.minimumPrice),
-        });
-      } else {
-        breakdown.push({
-          label: baseLabel,
-          amount: Math.max(effectiveWeight * pricePerPound, settings.minimumPrice),
-        });
       }
 
-      if (totalWeight < settings.minimumWeight) {
-        breakdown[0].label += ` (min ${settings.minimumWeight} lbs)`;
+      if (totalWeight <= settings.minimumWeight) {
+        // Under or at minimum weight - show minimum price
+        const sameDayLabel = isSameDay ? 'Same Day ' : '';
+        breakdown.push({
+          label: `${sameDayLabel}Base (up to ${settings.minimumWeight} lbs)`,
+          amount: settings.minimumPrice,
+        });
+      } else {
+        // Over minimum weight - show minimum + extra pounds
+        const extraPounds = totalWeight - settings.minimumWeight;
+        const sameDayLabel = isSameDay ? 'Same Day ' : '';
+
+        breakdown.push({
+          label: `${sameDayLabel}Base (first ${settings.minimumWeight} lbs)`,
+          amount: settings.minimumPrice,
+        });
+        breakdown.push({
+          label: `${sameDayLabel}Extra ${extraPounds} lbs × $${pricePerPound.toFixed(2)}/lb`,
+          amount: extraPounds * pricePerPound,
+        });
       }
     }
 
@@ -172,11 +185,9 @@ export default function CreateOrderScreen() {
   }
 
   function removeBag(index: number) {
-    if (bags.length > 1) {
-      const newBags = bags.filter((_, i) => i !== index);
-      // Re-number bags
-      setBags(newBags.map((bag, i) => ({ ...bag, identifier: `Bag ${i + 1}` })));
-    }
+    const newBags = bags.filter((_, i) => i !== index);
+    // Re-number bags
+    setBags(newBags.map((bag, i) => ({ ...bag, identifier: `Bag ${i + 1}` })));
   }
 
   function updateBag(index: number, field: keyof Bag, value: string | number) {
@@ -337,15 +348,19 @@ export default function CreateOrderScreen() {
             <Text style={styles.addBagText}>Add Bag</Text>
           </TouchableOpacity>
         </View>
+        {bags.length === 0 && (
+          <View style={styles.emptyBagsCard}>
+            <Text style={styles.emptyBagsText}>No bags added yet</Text>
+            <Text style={styles.emptyBagsHint}>Tap "Add Bag" to add bags with weight</Text>
+          </View>
+        )}
         {bags.map((bag, index) => (
           <View key={index} style={styles.bagCard}>
             <View style={styles.bagHeader}>
               <Text style={styles.bagTitle}>{bag.identifier}</Text>
-              {bags.length > 1 && (
-                <TouchableOpacity onPress={() => removeBag(index)}>
-                  <Ionicons name="trash-outline" size={20} color="#ef4444" />
-                </TouchableOpacity>
-              )}
+              <TouchableOpacity onPress={() => removeBag(index)}>
+                <Ionicons name="trash-outline" size={20} color="#ef4444" />
+              </TouchableOpacity>
             </View>
             <View style={styles.bagRow}>
               <View style={styles.bagField}>
@@ -767,6 +782,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  // Empty bags placeholder
+  emptyBagsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderStyle: 'dashed',
+  },
+  emptyBagsText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  emptyBagsHint: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 4,
+  },
   // Bag card styles
   bagCard: {
     backgroundColor: '#fff',
@@ -835,6 +871,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
   },
   switchTextContainer: {
     flex: 1,

@@ -13,10 +13,11 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import type { Order } from '../types';
 
 type FilterType = 'all' | 'in-store' | 'delivery' | 'new_order' | 'processing' | 'ready' | 'completed';
@@ -59,6 +60,16 @@ export default function DashboardScreen() {
   useEffect(() => {
     loadOrders();
   }, [loadOrders]);
+
+  // Reload orders when screen comes into focus (e.g., after creating an order)
+  useFocusEffect(
+    useCallback(() => {
+      loadOrders();
+    }, [loadOrders])
+  );
+
+  // Auto-refresh orders every 10 seconds
+  useAutoRefresh(loadOrders);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);

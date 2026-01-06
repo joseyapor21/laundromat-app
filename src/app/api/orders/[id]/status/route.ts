@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
 import { Order, ActivityLog } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
+import { notifyOrderStatusChange } from '@/lib/services/pushNotifications';
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -92,6 +93,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     } catch (logError) {
       console.error('Failed to log activity:', logError);
     }
+
+    // Send push notification to all staff (except the user who made the change)
+    notifyOrderStatusChange(
+      order._id.toString(),
+      order.orderId,
+      order.customerName,
+      finalStatus,
+      currentUser.userId
+    ).catch(err => console.error('Push notification error:', err));
 
     return NextResponse.json(order);
   } catch (error) {
