@@ -9,11 +9,26 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
 import type { Customer, Settings, ExtraItem, OrderStatus, PaymentMethod, PaymentStatus } from '../types';
+
+const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: 'cash', label: 'Cash' },
+  { value: 'check', label: 'Check' },
+  { value: 'venmo', label: 'Venmo' },
+  { value: 'zelle', label: 'Zelle' },
+];
+
+interface Bag {
+  identifier: string;
+  weight: number;
+  color: string;
+  description: string;
+}
 
 export default function CreateOrderScreen() {
   const navigation = useNavigation();
@@ -27,10 +42,12 @@ export default function CreateOrderScreen() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [orderType, setOrderType] = useState<'storePickup' | 'delivery'>('storePickup');
-  const [weight, setWeight] = useState('');
+  const [bags, setBags] = useState<Bag[]>([{ identifier: 'Bag 1', weight: 0, color: '', description: '' }]);
   const [isSameDay, setIsSameDay] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [selectedExtras, setSelectedExtras] = useState<Record<string, number>>({});
+  const [markAsPaid, setMarkAsPaid] = useState(false);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
 
   useEffect(() => {
     loadData();
@@ -53,18 +70,29 @@ export default function CreateOrderScreen() {
     }
   }
 
+  // Calculate total weight from all bags
+  function getTotalWeight() {
+    return bags.reduce((sum, bag) => sum + (bag.weight || 0), 0);
+  }
+
   function calculateTotal() {
     if (!settings) return 0;
-    const w = parseFloat(weight) || 0;
-    const effectiveWeight = Math.max(w, settings.minimumWeight);
 
-    let pricePerPound = settings.pricePerPound;
-    if (isSameDay) {
-      pricePerPound = pricePerPound * (1 + (settings.sameDayExtraPercentage || 50) / 100);
+    const totalWeight = getTotalWeight();
+
+    // Calculate laundry subtotal only if there's weight
+    let laundrySubtotal = 0;
+    if (totalWeight > 0) {
+      const effectiveWeight = Math.max(totalWeight, settings.minimumWeight);
+      let pricePerPound = settings.pricePerPound;
+
+      if (isSameDay) {
+        pricePerPound = pricePerPound * (1 + (settings.sameDayExtraPercentage || 50) / 100);
+      }
+
+      laundrySubtotal = effectiveWeight * pricePerPound;
+      laundrySubtotal = Math.max(laundrySubtotal, settings.minimumPrice);
     }
-
-    let subtotal = effectiveWeight * pricePerPound;
-    subtotal = Math.max(subtotal, settings.minimumPrice);
 
     // Add extras
     let extrasTotal = 0;
@@ -81,19 +109,39 @@ export default function CreateOrderScreen() {
       deliveryFee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
     }
 
-    // Same day fee
-    let sameDayFee = 0;
-    if (isSameDay && settings.sameDayMinimumCharge) {
-      const calculatedFee = subtotal - (effectiveWeight * settings.pricePerPound);
-      sameDayFee = Math.max(calculatedFee, settings.sameDayMinimumCharge);
-    }
+    return laundrySubtotal + extrasTotal + deliveryFee;
+  }
 
-    return subtotal + extrasTotal + deliveryFee;
+  function addBag() {
+    setBags([...bags, { identifier: `Bag ${bags.length + 1}`, weight: 0, color: '', description: '' }]);
+  }
+
+  function removeBag(index: number) {
+    if (bags.length > 1) {
+      const newBags = bags.filter((_, i) => i !== index);
+      // Re-number bags
+      setBags(newBags.map((bag, i) => ({ ...bag, identifier: `Bag ${i + 1}` })));
+    }
+  }
+
+  function updateBag(index: number, field: keyof Bag, value: string | number) {
+    const newBags = [...bags];
+    newBags[index] = { ...newBags[index], [field]: value };
+    setBags(newBags);
   }
 
   async function handleSubmit() {
     if (!selectedCustomer) {
       Alert.alert('Error', 'Please select a customer');
+      return;
+    }
+
+    const totalWeight = getTotalWeight();
+    const hasExtras = Object.values(selectedExtras).some(qty => qty > 0);
+
+    // Require either weight or extras
+    if (totalWeight === 0 && !hasExtras) {
+      Alert.alert('Error', 'Please add bag weights or extra items');
       return;
     }
 
@@ -104,16 +152,22 @@ export default function CreateOrderScreen() {
         customerName: selectedCustomer.name,
         customerPhone: selectedCustomer.phoneNumber,
         orderType,
-        weight: parseFloat(weight) || 0,
+        weight: totalWeight,
+        bags: bags.map(bag => ({
+          identifier: bag.identifier,
+          weight: bag.weight,
+          color: bag.color,
+          description: bag.description,
+        })),
         isSameDay,
         specialInstructions,
-        items: [{
+        items: totalWeight > 0 ? [{
           serviceName: isSameDay ? 'Same Day Wash & Fold' : 'Wash & Fold',
           quantity: 1,
           pricePerUnit: settings?.pricePerPound || 1.25,
-          weight: parseFloat(weight) || 0,
+          weight: totalWeight,
           total: calculateTotal(),
-        }],
+        }] : [],
         extraItems: Object.entries(selectedExtras)
           .filter(([, qty]) => qty > 0)
           .map(([itemId, qty]) => {
@@ -129,8 +183,9 @@ export default function CreateOrderScreen() {
         deliveryFee: orderType === 'delivery'
           ? parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0
           : 0,
-        paymentMethod: 'pending' as PaymentMethod,
-        paymentStatus: 'pending' as PaymentStatus,
+        isPaid: markAsPaid,
+        paymentMethod: markAsPaid ? paymentMethod : 'pending' as PaymentMethod,
+        paymentStatus: markAsPaid ? 'paid' as PaymentStatus : 'pending' as PaymentStatus,
         status: (orderType === 'delivery' ? 'scheduled_pickup' : 'received') as OrderStatus,
       };
 
@@ -159,7 +214,7 @@ export default function CreateOrderScreen() {
   }
 
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
       {/* Customer Selection */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Customer</Text>
@@ -189,6 +244,7 @@ export default function CreateOrderScreen() {
                     key={customer._id}
                     style={styles.customerItem}
                     onPress={() => {
+                      Keyboard.dismiss();
                       setSelectedCustomer(customer);
                       setCustomerSearch('');
                     }}
@@ -236,31 +292,81 @@ export default function CreateOrderScreen() {
         </View>
       </View>
 
-      {/* Weight */}
+      {/* Bags */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Weight (lbs)</Text>
-        <TextInput
-          style={styles.input}
-          value={weight}
-          onChangeText={setWeight}
-          keyboardType="decimal-pad"
-          placeholder="Enter weight..."
-          placeholderTextColor="#94a3b8"
-        />
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Bags</Text>
+          <TouchableOpacity style={styles.addBagButton} onPress={addBag}>
+            <Ionicons name="add" size={18} color="#fff" />
+            <Text style={styles.addBagText}>Add Bag</Text>
+          </TouchableOpacity>
+        </View>
+        {bags.map((bag, index) => (
+          <View key={index} style={styles.bagCard}>
+            <View style={styles.bagHeader}>
+              <Text style={styles.bagTitle}>{bag.identifier}</Text>
+              {bags.length > 1 && (
+                <TouchableOpacity onPress={() => removeBag(index)}>
+                  <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.bagRow}>
+              <View style={styles.bagField}>
+                <Text style={styles.bagFieldLabel}>Weight (lbs)</Text>
+                <TextInput
+                  style={styles.bagInput}
+                  value={bag.weight > 0 ? bag.weight.toString() : ''}
+                  onChangeText={(v) => updateBag(index, 'weight', parseFloat(v) || 0)}
+                  keyboardType="decimal-pad"
+                  placeholder="0"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+              <View style={styles.bagField}>
+                <Text style={styles.bagFieldLabel}>Color</Text>
+                <TextInput
+                  style={styles.bagInput}
+                  value={bag.color}
+                  onChangeText={(v) => updateBag(index, 'color', v)}
+                  placeholder="Optional"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+            </View>
+            <View style={styles.bagFieldFull}>
+              <Text style={styles.bagFieldLabel}>Notes</Text>
+              <TextInput
+                style={styles.bagInput}
+                value={bag.description}
+                onChangeText={(v) => updateBag(index, 'description', v)}
+                placeholder="Special instructions for this bag..."
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+          </View>
+        ))}
+        <View style={styles.totalWeightRow}>
+          <Text style={styles.totalWeightLabel}>Total Weight:</Text>
+          <Text style={styles.totalWeightValue}>{getTotalWeight()} lbs</Text>
+        </View>
       </View>
 
       {/* Same Day */}
       <View style={styles.section}>
-        <View style={styles.switchRow}>
-          <View>
-            <Text style={styles.switchLabel}>Same Day Service</Text>
-            <Text style={styles.switchHint}>+{settings?.sameDayExtraPercentage || 50}% extra</Text>
+        <View style={[styles.switchRow, isSameDay && styles.switchRowActive]}>
+          <View style={styles.switchContent}>
+            <Ionicons name="flash" size={24} color={isSameDay ? '#f59e0b' : '#64748b'} />
+            <View style={styles.switchTextContainer}>
+              <Text style={styles.switchLabel}>Same Day Service</Text>
+              <Text style={styles.switchHint}>+{settings?.sameDayExtraPercentage || 50}% extra charge</Text>
+            </View>
           </View>
           <Switch
             value={isSameDay}
             onValueChange={setIsSameDay}
-            trackColor={{ false: '#e2e8f0', true: '#bfdbfe' }}
-            thumbColor={isSameDay ? '#2563eb' : '#f4f4f5'}
+            trackColor={{ false: '#e2e8f0', true: '#fcd34d' }}
+            thumbColor={isSameDay ? '#f59e0b' : '#f4f4f5'}
           />
         </View>
       </View>
@@ -313,6 +419,49 @@ export default function CreateOrderScreen() {
           multiline={true}
           numberOfLines={3}
         />
+      </View>
+
+      {/* Payment */}
+      <View style={styles.section}>
+        <View style={[styles.switchRow, markAsPaid && styles.switchRowPaid]}>
+          <View style={styles.switchContent}>
+            <Ionicons name="card" size={24} color={markAsPaid ? '#10b981' : '#64748b'} />
+            <View style={styles.switchTextContainer}>
+              <Text style={styles.switchLabel}>Mark as Paid</Text>
+              <Text style={styles.switchHint}>Payment received at creation</Text>
+            </View>
+          </View>
+          <Switch
+            value={markAsPaid}
+            onValueChange={setMarkAsPaid}
+            trackColor={{ false: '#e2e8f0', true: '#86efac' }}
+            thumbColor={markAsPaid ? '#10b981' : '#f4f4f5'}
+          />
+        </View>
+        {markAsPaid && (
+          <View style={styles.paymentMethodContainer}>
+            <Text style={styles.paymentMethodLabel}>Payment Method</Text>
+            <View style={styles.paymentMethods}>
+              {PAYMENT_METHODS.map(method => (
+                <TouchableOpacity
+                  key={method.value}
+                  style={[
+                    styles.paymentMethodButton,
+                    paymentMethod === method.value && styles.paymentMethodButtonActive,
+                  ]}
+                  onPress={() => setPaymentMethod(method.value)}
+                >
+                  <Text style={[
+                    styles.paymentMethodText,
+                    paymentMethod === method.value && styles.paymentMethodTextActive,
+                  ]}>
+                    {method.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Total */}
@@ -531,5 +680,146 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  // Section header with button
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  addBagButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  addBagText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  // Bag card styles
+  bagCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#8b5cf6',
+  },
+  bagHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  bagTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  bagRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 10,
+  },
+  bagField: {
+    flex: 1,
+  },
+  bagFieldFull: {
+    width: '100%',
+  },
+  bagFieldLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  bagInput: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 15,
+    color: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  totalWeightRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 4,
+  },
+  totalWeightLabel: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  totalWeightValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  // Switch row improvements
+  switchContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  switchTextContainer: {
+    flex: 1,
+  },
+  switchRowActive: {
+    backgroundColor: '#fef3c7',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+  },
+  switchRowPaid: {
+    backgroundColor: '#dcfce7',
+    borderWidth: 1,
+    borderColor: '#86efac',
+  },
+  // Payment method styles
+  paymentMethodContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 10,
+  },
+  paymentMethodLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+    marginBottom: 10,
+  },
+  paymentMethods: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  paymentMethodButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  paymentMethodButtonActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  paymentMethodText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#475569',
+  },
+  paymentMethodTextActive: {
+    color: '#fff',
   },
 });
