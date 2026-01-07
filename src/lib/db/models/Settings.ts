@@ -40,6 +40,27 @@ const settingsSchema = new mongoose.Schema<SettingsDocument>({
     required: false,
     default: 9100,
   },
+  // Gmail integration for payment notifications
+  gmailAccessToken: {
+    type: String,
+    required: false,
+  },
+  gmailRefreshToken: {
+    type: String,
+    required: false,
+  },
+  gmailTokenExpiry: {
+    type: Date,
+    required: false,
+  },
+  gmailConnectedAt: {
+    type: Date,
+    required: false,
+  },
+  gmailConnectedBy: {
+    type: String,
+    required: false,
+  },
   updatedAt: {
     type: Date,
     default: Date.now,

@@ -48,6 +48,10 @@ export default function AdminPage() {
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [activityFilter, setActivityFilter] = useState('all');
 
+  // Gmail Payment Integration state
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; expired: boolean; message: string } | null>(null);
+  const [checkingEmails, setCheckingEmails] = useState(false);
+
   // Load data on mount
   useEffect(() => {
     loadAllData();
@@ -81,6 +85,84 @@ export default function AdminPage() {
       setLoading(false);
     }
   };
+
+  // Load Gmail status
+  const loadGmailStatus = useCallback(async () => {
+    try {
+      const response = await fetch('/api/payments/check-emails');
+      if (response.ok) {
+        const data = await response.json();
+        setGmailStatus(data);
+      }
+    } catch (error) {
+      console.error('Failed to load Gmail status:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadGmailStatus();
+  }, [loadGmailStatus]);
+
+  // Connect Gmail
+  const handleConnectGmail = async () => {
+    try {
+      const response = await fetch('/api/auth/google');
+      if (!response.ok) {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to initiate Gmail connection');
+        return;
+      }
+      const data = await response.json();
+      // Redirect to Google OAuth
+      window.location.href = data.authUrl;
+    } catch (error) {
+      toast.error('Failed to connect Gmail');
+    }
+  };
+
+  // Check payment emails manually
+  const handleCheckPaymentEmails = async () => {
+    setCheckingEmails(true);
+    try {
+      const response = await fetch('/api/payments/check-emails', {
+        method: 'POST',
+      });
+      const data = await response.json();
+
+      if (data.success) {
+        if (data.matched > 0) {
+          toast.success(`Found ${data.processed} payments, ${data.matched} matched to orders!`);
+        } else if (data.processed > 0) {
+          toast.success(`Found ${data.processed} payment emails, none matched to orders`);
+        } else {
+          toast.success('No new payment emails found');
+        }
+      } else {
+        toast.error(data.message || 'Failed to check emails');
+      }
+    } catch (error) {
+      toast.error('Failed to check payment emails');
+    } finally {
+      setCheckingEmails(false);
+    }
+  };
+
+  // Check for Gmail connection success/error from URL params
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const gmailSuccess = urlParams.get('gmail_success');
+    const gmailError = urlParams.get('gmail_error');
+
+    if (gmailSuccess === 'true') {
+      toast.success('Gmail connected successfully!');
+      loadGmailStatus();
+      // Remove params from URL
+      window.history.replaceState({}, '', '/admin');
+    } else if (gmailError) {
+      toast.error(`Gmail connection failed: ${gmailError}`);
+      window.history.replaceState({}, '', '/admin');
+    }
+  }, [loadGmailStatus]);
 
   // User Management
   const handleInviteUser = async (e: React.FormEvent) => {
@@ -699,6 +781,107 @@ export default function AdminPage() {
                 Save Settings
               </button>
             </form>
+
+            {/* Gmail Payment Integration Section */}
+            <div className="mt-8 pt-6 border-t-2 border-gray-200">
+              <h3 className="text-md font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/>
+                </svg>
+                Gmail Payment Integration
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Connect your Gmail to automatically detect Zelle and Venmo payment notifications and match them to orders.
+              </p>
+
+              {/* Connection Status */}
+              <div className={`p-4 rounded-lg mb-4 ${
+                gmailStatus?.connected && !gmailStatus?.expired
+                  ? 'bg-green-50 border border-green-200'
+                  : gmailStatus?.expired
+                    ? 'bg-amber-50 border border-amber-200'
+                    : 'bg-gray-50 border border-gray-200'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      gmailStatus?.connected && !gmailStatus?.expired
+                        ? 'bg-green-500'
+                        : gmailStatus?.expired
+                          ? 'bg-amber-500'
+                          : 'bg-gray-400'
+                    }`} />
+                    <div>
+                      <div className="font-medium text-gray-900">
+                        {gmailStatus?.connected && !gmailStatus?.expired
+                          ? 'Gmail Connected'
+                          : gmailStatus?.expired
+                            ? 'Gmail Token Expired'
+                            : 'Gmail Not Connected'}
+                      </div>
+                      <div className="text-sm text-gray-600">
+                        {gmailStatus?.message || 'Connect Gmail to enable automatic payment detection'}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleConnectGmail}
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                      gmailStatus?.connected && !gmailStatus?.expired
+                        ? 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        : 'bg-red-600 text-white hover:bg-red-700'
+                    }`}
+                  >
+                    {gmailStatus?.connected ? 'Reconnect' : 'Connect Gmail'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Manual Check Button */}
+              {gmailStatus?.connected && !gmailStatus?.expired && (
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={handleCheckPaymentEmails}
+                    disabled={checkingEmails}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {checkingEmails ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                        Checking...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Check for Payments Now
+                      </>
+                    )}
+                  </button>
+                  <span className="text-sm text-gray-500">
+                    Payments are automatically checked every 5 minutes
+                  </span>
+                </div>
+              )}
+
+              {/* Setup Instructions */}
+              {!gmailStatus?.connected && (
+                <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h4 className="font-medium text-blue-800 mb-2">Setup Instructions</h4>
+                  <ol className="text-sm text-blue-700 space-y-1 list-decimal list-inside">
+                    <li>Create a Google Cloud project and enable Gmail API</li>
+                    <li>Create OAuth 2.0 credentials (Web application type)</li>
+                    <li>Add redirect URI: <code className="bg-blue-100 px-1 rounded">https://cloud.homation.us/api/auth/google/callback</code></li>
+                    <li>Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables</li>
+                    <li>Click &quot;Connect Gmail&quot; and authorize access</li>
+                  </ol>
+                </div>
+              )}
+            </div>
           </div>
         )}
 

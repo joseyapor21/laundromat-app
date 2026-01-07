@@ -186,6 +186,12 @@ export interface Settings {
   sameDayExtraCentsPerPound: number;   // Extra cents per pound for same day (e.g., 0.50 = $0.50/lb extra)
   printerIP: string;
   printerPort: number;
+  // Gmail integration for payment notifications
+  gmailAccessToken?: string;
+  gmailRefreshToken?: string;
+  gmailTokenExpiry?: Date;
+  gmailConnectedAt?: Date;
+  gmailConnectedBy?: string;
   updatedAt: Date;
   updatedBy: string;
 }
