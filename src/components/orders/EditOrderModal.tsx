@@ -121,7 +121,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
   const getSameDayPricePerPound = (): number => {
     if (!settings) return 0;
     const regularPrice = settings.pricePerPound || 1.25;
-    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.50;
+    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
     return regularPrice + extraCentsPerPound;
   };
 
@@ -129,7 +129,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
   const getSameDayExtraCharge = (): number => {
     if (!settings || !isSameDay || weight <= 0) return 0;
 
-    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.50;
+    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
     const calculatedExtra = weight * extraCentsPerPound;
 
     // Use minimum charge if calculated is less
@@ -137,20 +137,31 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     return Math.max(calculatedExtra, minimumCharge);
   };
 
+  // Calculate laundry base price (tiered pricing)
+  const calculateLaundryPrice = (): number => {
+    if (!settings || weight <= 0) return 0;
+
+    const minWeight = settings.minimumWeight || 8;
+    const pricePerPound = settings.pricePerPound || 1.25;
+    const minPrice = settings.minimumPrice || 8;
+
+    // If at or below minimum weight, charge minimum price
+    if (weight <= minWeight) {
+      return minPrice;
+    }
+
+    // Over minimum weight - charge minimum + extra pounds at price per pound
+    const extraPounds = weight - minWeight;
+    return minPrice + (extraPounds * pricePerPound);
+  };
+
   const calculateTotalPrice = () => {
     if (!settings) return order.totalAmount || 0;
 
-    let basePrice = 0;
-    if (weight > 0) {
-      // Calculate price based on weight
-      if (weight >= settings.minimumWeight) {
-        basePrice = weight * settings.pricePerPound;
-      } else {
-        basePrice = settings.minimumPrice;
-      }
-    }
+    // Calculate laundry price using tiered pricing
+    let basePrice = calculateLaundryPrice();
 
-    // Add same day extra charge (not shown separately, but added to total)
+    // Add same day extra charge
     const sameDayExtra = getSameDayExtraCharge();
 
     const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, quantity]) => {
@@ -665,10 +676,23 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                 {/* Price breakdown */}
                 {settings && weight > 0 && (
                   <div className="space-y-1 mb-3 text-sm text-gray-600 border-b border-gray-300 pb-3">
-                    <div className="flex justify-between">
-                      <span>Base ({weight} lbs × ${settings.pricePerPound?.toFixed(2)}):</span>
-                      <span>${(weight >= settings.minimumWeight ? weight * settings.pricePerPound : settings.minimumPrice).toFixed(2)}</span>
-                    </div>
+                    {weight <= settings.minimumWeight ? (
+                      <div className="flex justify-between">
+                        <span>Base (up to {settings.minimumWeight} lbs):</span>
+                        <span>${settings.minimumPrice?.toFixed(2)}</span>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between">
+                          <span>Base (first {settings.minimumWeight} lbs):</span>
+                          <span>${settings.minimumPrice?.toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Extra {(weight - settings.minimumWeight).toFixed(1)} lbs × ${settings.pricePerPound?.toFixed(2)}:</span>
+                          <span>${((weight - settings.minimumWeight) * settings.pricePerPound).toFixed(2)}</span>
+                        </div>
+                      </>
+                    )}
                     {isSameDay && (
                       <div className="flex justify-between text-amber-700">
                         <span>Same Day Extra:</span>

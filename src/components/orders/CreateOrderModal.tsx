@@ -153,6 +153,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
   };
 
   // Calculate order price (laundry only, no delivery fee)
+  // Pricing: minimum price for first X pounds, then price per pound for extra
   const calculateLaundryPrice = useCallback((weight: number, settings: Settings): number => {
     if (!settings || weight <= 0) return 0;
 
@@ -160,15 +161,14 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
     const pricePerPound = settings.pricePerPound || 1.25;
     const minPrice = settings.minimumPrice || 8;
 
-    // Calculate price per pound
-    const calculatedPrice = weight * pricePerPound;
-
-    // If below minimum weight OR calculated price is less than minimum, use minimum price
-    if (weight < minWeight || calculatedPrice < minPrice) {
+    // If at or below minimum weight, charge minimum price
+    if (weight <= minWeight) {
       return minPrice;
     }
 
-    return calculatedPrice;
+    // Over minimum weight - charge minimum + extra pounds at price per pound
+    const extraPounds = weight - minWeight;
+    return minPrice + (extraPounds * pricePerPound);
   }, []);
 
   // Calculate same day price per pound (regular + extra)
@@ -223,21 +223,28 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
 
     const breakdown: { label: string; amount: number }[] = [];
 
-    // Laundry price
+    // Laundry price - tiered pricing
     if (weight > 0) {
       const minWeight = settings.minimumWeight || 8;
       const pricePerPound = settings.pricePerPound || 1.25;
-      const laundryPrice = calculateLaundryPrice(weight, settings);
+      const minPrice = settings.minimumPrice || 8;
 
-      if (weight < minWeight) {
+      if (weight <= minWeight) {
+        // Under or at minimum weight - show base price
         breakdown.push({
-          label: `Laundry: ${weight} lbs (min ${minWeight} lbs)`,
-          amount: laundryPrice,
+          label: `Base (up to ${minWeight} lbs)`,
+          amount: minPrice,
         });
       } else {
+        // Over minimum weight - show base + extra
+        const extraPounds = weight - minWeight;
         breakdown.push({
-          label: `Laundry: ${weight} lbs × $${pricePerPound.toFixed(2)}/lb`,
-          amount: laundryPrice,
+          label: `Base (first ${minWeight} lbs)`,
+          amount: minPrice,
+        });
+        breakdown.push({
+          label: `Extra ${extraPounds} lbs × $${pricePerPound.toFixed(2)}/lb`,
+          amount: extraPounds * pricePerPound,
         });
       }
     }
