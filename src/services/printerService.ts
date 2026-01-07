@@ -299,9 +299,8 @@ class PrinterService {
     const isDelivery = order.orderType === 'delivery';
     const orderTypeLabel = isDelivery ? 'Pickup & Delivery' : 'In-Store\nPick Up';
 
-    // Check if same day (pickup date is today)
-    const isSameDay = order.estimatedPickupDate &&
-      new Date(order.estimatedPickupDate).toDateString() === now.toDateString();
+    // Use the isSameDay flag from the order (only show when explicitly marked as same day)
+    const isSameDay = order.isSameDay;
 
     let r = '';
 
@@ -474,8 +473,8 @@ class PrinterService {
     const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
     const isDelivery = order.orderType === 'delivery';
 
-    const isSameDay = order.estimatedPickupDate &&
-      new Date(order.estimatedPickupDate).toDateString() === now.toDateString();
+    // Use the isSameDay flag from the order (only show when explicitly marked as same day)
+    const isSameDay = order.isSameDay;
 
     let r = '';
 

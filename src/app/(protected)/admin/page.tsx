@@ -634,6 +634,17 @@ export default function AdminPage() {
               <h3 className="text-md font-semibold text-gray-800 mt-6 mb-3 border-t pt-4">Same Day Service Settings</h3>
               <div className="grid md:grid-cols-2 gap-4">
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Same Day Extra Per Pound ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={settings.sameDayExtraCentsPerPound || 0.50}
+                    onChange={e => setSettings(s => s ? { ...s, sameDayExtraCentsPerPound: parseFloat(e.target.value) || 0 } : s)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Extra charge per pound for same day (e.g., 0.50 = $0.50/lb extra)</p>
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Same Day Minimum Charge ($)</label>
                   <input
                     type="number"
@@ -644,24 +655,14 @@ export default function AdminPage() {
                   />
                   <p className="text-xs text-gray-500 mt-1">Minimum extra charge for same day service</p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Same Day Extra Percentage (%)</label>
-                  <input
-                    type="number"
-                    step="1"
-                    value={settings.sameDayExtraPercentage || 50}
-                    onChange={e => setSettings(s => s ? { ...s, sameDayExtraPercentage: parseFloat(e.target.value) || 0 } : s)}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Extra % added to price per pound (e.g., 50 = 50% extra)</p>
-                </div>
               </div>
               <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-800">
-                  <strong>Same Day Pricing:</strong> When same day is selected, the price per pound becomes
-                  ${settings.pricePerPound?.toFixed(2) || '1.25'} + {settings.sameDayExtraPercentage || 50}% =
-                  <strong> ${((settings.pricePerPound || 1.25) * (1 + (settings.sameDayExtraPercentage || 50) / 100)).toFixed(2)}/lb</strong>
-                  (rounded to nearest $0.25). If the extra charge is less than ${settings.sameDayMinimumCharge?.toFixed(2) || '5.00'}, the minimum charge applies.
+                  <strong>Same Day Pricing:</strong> When same day is selected, an extra
+                  <strong> ${(settings.sameDayExtraCentsPerPound || 0.50).toFixed(2)}/lb</strong> is added.
+                  Total per pound: ${settings.pricePerPound?.toFixed(2) || '1.25'} + ${(settings.sameDayExtraCentsPerPound || 0.50).toFixed(2)} =
+                  <strong> ${((settings.pricePerPound || 1.25) + (settings.sameDayExtraCentsPerPound || 0.50)).toFixed(2)}/lb</strong>.
+                  Minimum extra charge: ${settings.sameDayMinimumCharge?.toFixed(2) || '5.00'}.
                 </p>
               </div>
 
