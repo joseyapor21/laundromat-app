@@ -59,6 +59,30 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       finalStatus = 'ready_for_delivery';
     }
 
+    // Get initials from name (first letter of first and last name)
+    const getInitials = (name: string) => {
+      const parts = name.split(' ');
+      if (parts.length >= 2) {
+        return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+      }
+      return name.substring(0, 2).toUpperCase();
+    };
+
+    // Track folding transitions
+    if (finalStatus === 'folding' && previousStatus !== 'folding') {
+      // Starting to fold - log who started
+      order.foldingStartedBy = currentUser.name;
+      order.foldingStartedByInitials = getInitials(currentUser.name);
+      order.foldingStartedAt = new Date();
+    }
+
+    if (finalStatus === 'folded' && previousStatus !== 'folded') {
+      // Finished folding - log who finished
+      order.foldedBy = currentUser.name;
+      order.foldedByInitials = getInitials(currentUser.name);
+      order.foldedAt = new Date();
+    }
+
     // Update status
     order.status = finalStatus;
 

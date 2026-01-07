@@ -163,11 +163,15 @@ export interface Order {
   // Same day service
   isSameDay?: boolean;
   sameDayPricePerPound?: number;  // The combined price per pound (regular + same day extra)
-  // Folding tracking
+  // Folding tracking - who started folding
+  foldingStartedBy?: string;
+  foldingStartedByInitials?: string;
+  foldingStartedAt?: Date;
+  // Folding tracking - who finished folding
   foldedBy?: string;
   foldedByInitials?: string;
   foldedAt?: Date;
-  // Folding check tracking (verification after folding)
+  // Folding check tracking (verification after folding before ready)
   foldingCheckedBy?: string;
   foldingCheckedByInitials?: string;
   foldingCheckedAt?: Date;

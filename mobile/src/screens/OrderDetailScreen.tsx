@@ -704,6 +704,62 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
+        {/* Folding Progress - Show when order has folding tracking info */}
+        {(order.foldingStartedBy || order.foldedBy) && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Folding Progress</Text>
+            <View style={styles.foldingProgressCard}>
+              {/* Started Folding */}
+              {order.foldingStartedBy && (
+                <View style={styles.foldingStep}>
+                  <View style={[styles.foldingStepIcon, styles.foldingStepIconActive]}>
+                    <Ionicons name="shirt" size={18} color="#ec4899" />
+                  </View>
+                  <View style={styles.foldingStepContent}>
+                    <Text style={styles.foldingStepTitle}>Started Folding</Text>
+                    <Text style={styles.foldingStepBy}>
+                      {order.foldingStartedByInitials || order.foldingStartedBy}
+                      {order.foldingStartedAt && ` - ${formatDate(order.foldingStartedAt)}`}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Finished Folding */}
+              {order.foldedBy && (
+                <View style={styles.foldingStep}>
+                  <View style={[styles.foldingStepIcon, styles.foldingStepIconComplete]}>
+                    <Ionicons name="checkmark-done" size={18} color="#10b981" />
+                  </View>
+                  <View style={styles.foldingStepContent}>
+                    <Text style={styles.foldingStepTitle}>Finished Folding</Text>
+                    <Text style={styles.foldingStepBy}>
+                      {order.foldedByInitials || order.foldedBy}
+                      {order.foldedAt && ` - ${formatDate(order.foldedAt)}`}
+                    </Text>
+                  </View>
+                </View>
+              )}
+
+              {/* Folding Check (verification) */}
+              {order.foldingCheckedBy && (
+                <View style={styles.foldingStep}>
+                  <View style={[styles.foldingStepIcon, styles.foldingStepIconVerified]}>
+                    <Ionicons name="shield-checkmark" size={18} color="#2563eb" />
+                  </View>
+                  <View style={styles.foldingStepContent}>
+                    <Text style={styles.foldingStepTitle}>Verified & Ready</Text>
+                    <Text style={styles.foldingStepBy}>
+                      {order.foldingCheckedByInitials || order.foldingCheckedBy}
+                      {order.foldingCheckedAt && ` - ${formatDate(order.foldingCheckedAt)}`}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* Order Details */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Order Details</Text>
@@ -1898,5 +1954,48 @@ const styles = StyleSheet.create({
     color: '#d97706',
     fontSize: 13,
     fontWeight: '500',
+  },
+  // Folding progress section
+  foldingProgressCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#fce7f3',
+  },
+  foldingStep: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  foldingStepIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  foldingStepIconActive: {
+    backgroundColor: '#fce7f3',
+  },
+  foldingStepIconComplete: {
+    backgroundColor: '#dcfce7',
+  },
+  foldingStepIconVerified: {
+    backgroundColor: '#dbeafe',
+  },
+  foldingStepContent: {
+    flex: 1,
+  },
+  foldingStepTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 2,
+  },
+  foldingStepBy: {
+    fontSize: 13,
+    color: '#64748b',
   },
 });
