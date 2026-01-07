@@ -50,6 +50,7 @@ export type OrderStatus =
   | 'in_dryer'
   | 'laid_on_cart'
   | 'folding'
+  | 'folded'
   | 'ready_for_pickup'
   | 'ready_for_delivery'
   | 'completed'
@@ -162,6 +163,14 @@ export interface Order {
   // Same day service
   isSameDay?: boolean;
   sameDayPricePerPound?: number;  // The combined price per pound (regular + same day extra)
+  // Folding tracking
+  foldedBy?: string;
+  foldedByInitials?: string;
+  foldedAt?: Date;
+  // Folding check tracking (verification after folding)
+  foldingCheckedBy?: string;
+  foldingCheckedByInitials?: string;
+  foldingCheckedAt?: Date;
   // Customer reference (populated)
   customer?: Customer;
 }

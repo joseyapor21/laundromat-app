@@ -27,17 +27,18 @@ interface OrderDetailModalProps {
   currentUser?: CurrentUser | null;
 }
 
-const STATUS_OPTIONS: { value: OrderStatus; label: string; color: string }[] = [
+const STATUS_OPTIONS: { value: OrderStatus; label: string; color: string; orderTypes?: ('storePickup' | 'delivery')[] }[] = [
   { value: 'new_order', label: 'New Order', color: 'bg-blue-500' },
   { value: 'received', label: 'Received', color: 'bg-indigo-500' },
-  { value: 'scheduled_pickup', label: 'Scheduled Pickup', color: 'bg-purple-500' },
-  { value: 'picked_up', label: 'Picked Up', color: 'bg-violet-500' },
+  { value: 'scheduled_pickup', label: 'Scheduled Pickup', color: 'bg-purple-500', orderTypes: ['delivery'] },
+  { value: 'picked_up', label: 'Picked Up', color: 'bg-violet-500', orderTypes: ['delivery'] },
   { value: 'in_washer', label: 'In Washer', color: 'bg-cyan-500' },
   { value: 'in_dryer', label: 'In Dryer', color: 'bg-orange-500' },
   { value: 'laid_on_cart', label: 'On Cart', color: 'bg-yellow-500' },
   { value: 'folding', label: 'Folding', color: 'bg-pink-500' },
-  { value: 'ready_for_pickup', label: 'Ready for Pickup', color: 'bg-green-500' },
-  { value: 'ready_for_delivery', label: 'Ready for Delivery', color: 'bg-emerald-500' },
+  { value: 'folded', label: 'Folded', color: 'bg-rose-500' },
+  { value: 'ready_for_pickup', label: 'Ready for Pickup', color: 'bg-green-500', orderTypes: ['storePickup'] },
+  { value: 'ready_for_delivery', label: 'Ready for Delivery', color: 'bg-emerald-500', orderTypes: ['delivery'] },
   { value: 'completed', label: 'Completed', color: 'bg-gray-500' },
 ];
 
@@ -190,6 +191,82 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
     } catch (error) {
       console.error('Scan error:', error);
       toast.error(error instanceof Error ? error.message : 'Failed to scan');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Mark order as folded
+  const handleMarkAsFolded = async () => {
+    if (!currentUser) {
+      toast.error('You must be logged in');
+      return;
+    }
+
+    // Get initials from user's name
+    const initials = currentUser.name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 3);
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/orders/${order._id}/fold`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          foldedBy: currentUser.name,
+          foldedByInitials: initials,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to mark as folded');
+
+      toast.success(`Marked as folded by ${currentUser.name}`);
+      await refreshOrder();
+      onUpdate();
+    } catch (error) {
+      toast.error('Failed to mark as folded');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verify folding (check after folding)
+  const handleCheckFolding = async () => {
+    if (!currentUser) {
+      toast.error('You must be logged in');
+      return;
+    }
+
+    // Get initials from user's name
+    const initials = currentUser.name
+      .split(' ')
+      .map(word => word[0])
+      .join('')
+      .toUpperCase()
+      .substring(0, 3);
+
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/orders/${order._id}/fold-check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkedBy: currentUser.name,
+          checkedByInitials: initials,
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to verify folding');
+
+      toast.success(`Folding verified by ${currentUser.name}`);
+      await refreshOrder();
+      onUpdate();
+    } catch (error) {
+      toast.error('Failed to verify folding');
     } finally {
       setLoading(false);
     }
@@ -680,7 +757,14 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
             <div className="bg-gray-50 rounded-lg p-3">
               <h3 className="text-sm font-semibold text-gray-700 mb-3">Process Status</h3>
               <div className="grid grid-cols-2 gap-2">
-                {STATUS_OPTIONS.map(option => (
+                {STATUS_OPTIONS
+                  .filter(option => {
+                    // If no orderTypes specified, show for all order types
+                    if (!option.orderTypes) return true;
+                    // Otherwise, only show if current order type is in the allowed list
+                    return option.orderTypes.includes(currentOrder.orderType);
+                  })
+                  .map(option => (
                   <button
                     key={option.value}
                     onClick={() => handleStatusChange(option.value)}
@@ -695,6 +779,67 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
                   </button>
                 ))}
               </div>
+
+              {/* Folding Status Section */}
+              {(currentOrder.status === 'folding' || currentOrder.status === 'folded') && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  {currentOrder.status === 'folding' && !currentOrder.foldedBy && (
+                    <div className="bg-pink-50 rounded-lg p-3 border border-pink-200">
+                      <p className="text-sm text-pink-700 mb-2">
+                        When folding is complete, mark as folded:
+                      </p>
+                      <button
+                        onClick={() => handleMarkAsFolded()}
+                        disabled={loading}
+                        className="w-full py-2.5 bg-rose-600 text-white rounded-lg font-medium hover:bg-rose-700 disabled:opacity-50"
+                      >
+                        Mark as Folded (by {currentUser?.name || 'Unknown'})
+                      </button>
+                    </div>
+                  )}
+
+                  {currentOrder.foldedBy && (
+                    <div className={`rounded-lg p-3 border ${currentOrder.foldingCheckedBy ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">Folded by:</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {currentOrder.foldedBy} {currentOrder.foldedByInitials && `(${currentOrder.foldedByInitials})`}
+                        </span>
+                      </div>
+                      {currentOrder.foldedAt && (
+                        <p className="text-xs text-gray-500 mb-3">{formatDate(currentOrder.foldedAt)}</p>
+                      )}
+
+                      {!currentOrder.foldingCheckedBy ? (
+                        <>
+                          <p className="text-xs text-yellow-700 mb-2">
+                            Requires verification by another person:
+                          </p>
+                          <button
+                            onClick={() => handleCheckFolding()}
+                            disabled={loading}
+                            className="w-full py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 disabled:opacity-50"
+                          >
+                            Verify Folding (as {currentUser?.name || 'Unknown'})
+                          </button>
+                        </>
+                      ) : (
+                        <div className="bg-green-100 rounded-lg p-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm font-medium text-green-700">Verified by:</span>
+                            <span className="text-sm font-semibold text-green-900">
+                              {currentOrder.foldingCheckedBy} {currentOrder.foldingCheckedByInitials && `(${currentOrder.foldingCheckedByInitials})`}
+                            </span>
+                          </div>
+                          {currentOrder.foldingCheckedAt && (
+                            <p className="text-xs text-green-600 mt-1">{formatDate(currentOrder.foldingCheckedAt)}</p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* 6. Order Details */}

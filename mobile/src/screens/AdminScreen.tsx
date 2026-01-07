@@ -275,13 +275,13 @@ export default function AdminScreen() {
   const openSettingsModal = () => {
     if (settings) {
       setSettingsForm({
-        minimumWeight: settings.minimumWeight.toString(),
-        minimumPrice: settings.minimumPrice.toString(),
-        pricePerPound: settings.pricePerPound.toString(),
-        sameDayMinimumCharge: settings.sameDayMinimumCharge.toString(),
-        sameDayExtraCentsPerPound: settings.sameDayExtraCentsPerPound.toString(),
+        minimumWeight: (settings.minimumWeight || 0).toString(),
+        minimumPrice: (settings.minimumPrice || 0).toString(),
+        pricePerPound: (settings.pricePerPound || 1.25).toString(),
+        sameDayMinimumCharge: (settings.sameDayMinimumCharge || 5).toString(),
+        sameDayExtraCentsPerPound: (settings.sameDayExtraCentsPerPound || 0.33).toString(),
         printerIP: settings.printerIP || '',
-        printerPort: settings.printerPort.toString(),
+        printerPort: (settings.printerPort || 9100).toString(),
       });
     }
     setShowSettingsModal(true);

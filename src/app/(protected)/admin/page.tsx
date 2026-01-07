@@ -638,7 +638,7 @@ export default function AdminPage() {
                   <input
                     type="number"
                     step="0.01"
-                    value={settings.sameDayExtraCentsPerPound || 0.50}
+                    value={settings.sameDayExtraCentsPerPound || 0.33}
                     onChange={e => setSettings(s => s ? { ...s, sameDayExtraCentsPerPound: parseFloat(e.target.value) || 0 } : s)}
                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
                   />
@@ -659,10 +659,13 @@ export default function AdminPage() {
               <div className="mt-3 p-3 bg-amber-50 border border-amber-200 rounded-lg">
                 <p className="text-sm text-amber-800">
                   <strong>Same Day Pricing:</strong> When same day is selected, an extra
-                  <strong> ${(settings.sameDayExtraCentsPerPound || 0.50).toFixed(2)}/lb</strong> is added.
-                  Total per pound: ${settings.pricePerPound?.toFixed(2) || '1.25'} + ${(settings.sameDayExtraCentsPerPound || 0.50).toFixed(2)} =
-                  <strong> ${((settings.pricePerPound || 1.25) + (settings.sameDayExtraCentsPerPound || 0.50)).toFixed(2)}/lb</strong>.
-                  Minimum extra charge: ${settings.sameDayMinimumCharge?.toFixed(2) || '5.00'}.
+                  <strong> ${(settings.sameDayExtraCentsPerPound || 0.33).toFixed(2)}/lb</strong> is added.
+                  Total per pound: ${settings.pricePerPound?.toFixed(2) || '1.25'} + ${(settings.sameDayExtraCentsPerPound || 0.33).toFixed(2)} =
+                  <strong> ${((settings.pricePerPound || 1.25) + (settings.sameDayExtraCentsPerPound || 0.33)).toFixed(2)}/lb</strong>.
+                </p>
+                <p className="text-sm text-amber-800 mt-2">
+                  <strong>Minimum Charge:</strong> If the calculated extra (weight × ${(settings.sameDayExtraCentsPerPound || 0.33).toFixed(2)}/lb) is less than
+                  <strong> ${(settings.sameDayMinimumCharge || 5).toFixed(2)}</strong>, the minimum charge of ${(settings.sameDayMinimumCharge || 5).toFixed(2)} is applied instead.
                 </p>
               </div>
 

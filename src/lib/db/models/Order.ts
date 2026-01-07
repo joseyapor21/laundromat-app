@@ -43,6 +43,14 @@ export interface OrderDoc {
   // Same day service
   isSameDay?: boolean;
   sameDayPricePerPound?: number;
+  // Folding tracking
+  foldedBy?: string;
+  foldedByInitials?: string;
+  foldedAt?: Date;
+  // Folding check tracking
+  foldingCheckedBy?: string;
+  foldingCheckedByInitials?: string;
+  foldingCheckedAt?: Date;
   statusHistory: Array<{
     status?: string;
     changedBy?: string;
@@ -187,6 +195,7 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
       'in_dryer',
       'laid_on_cart',
       'folding',
+      'folded',
       'ready_for_pickup',
       'ready_for_delivery',
       'completed',
@@ -228,6 +237,32 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   },
   sameDayPricePerPound: {
     type: Number,
+    default: null,
+  },
+  // Folding tracking - who folded the order
+  foldedBy: {
+    type: String,
+    default: null,
+  },
+  foldedByInitials: {
+    type: String,
+    default: null,
+  },
+  foldedAt: {
+    type: Date,
+    default: null,
+  },
+  // Folding check tracking - verification after folding
+  foldingCheckedBy: {
+    type: String,
+    default: null,
+  },
+  foldingCheckedByInitials: {
+    type: String,
+    default: null,
+  },
+  foldingCheckedAt: {
+    type: Date,
     default: null,
   },
   statusHistory: [{
