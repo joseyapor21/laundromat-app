@@ -109,10 +109,15 @@ export interface Order {
   notes?: string;
   isSameDay?: boolean;
   isPaid?: boolean;
-  // Folding tracking
+  // Folding tracking - who started folding
+  foldingStartedBy?: string;
+  foldingStartedByInitials?: string;
+  foldingStartedAt?: Date;
+  // Folding tracking - who finished folding
   foldedBy?: string;
   foldedByInitials?: string;
   foldedAt?: Date;
+  // Folding check (verification after folding before ready)
   foldingCheckedBy?: string;
   foldingCheckedByInitials?: string;
   foldingCheckedAt?: Date;
