@@ -17,6 +17,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   in_dryer: 'In Dryer',
   laid_on_cart: 'On Cart',
   folding: 'Folding',
+  folded: 'Folded',
   ready_for_pickup: 'Ready for Pickup',
   ready_for_delivery: 'Ready for Delivery',
   completed: 'Completed',
@@ -31,6 +32,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   in_dryer: 'bg-amber-100 text-amber-800',
   laid_on_cart: 'bg-amber-100 text-amber-800',
   folding: 'bg-amber-100 text-amber-800',
+  folded: 'bg-rose-100 text-rose-800',
   ready_for_pickup: 'bg-green-100 text-green-800',
   ready_for_delivery: 'bg-green-100 text-green-800',
   completed: 'bg-slate-100 text-slate-800',
@@ -45,6 +47,7 @@ const STATUS_FLOW: OrderStatus[] = [
   'in_dryer',
   'laid_on_cart',
   'folding',
+  'folded',
   'ready_for_pickup',
   'completed',
 ];
