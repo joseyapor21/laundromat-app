@@ -144,7 +144,7 @@ export default function EditOrderScreen() {
     return Math.max(calculatedExtra, minimumCharge);
   };
 
-  // Calculate total price
+  // Calculate total price using tiered pricing
   const calculateTotalPrice = (): number => {
     if (!settings) return order?.totalAmount || 0;
 
@@ -152,10 +152,14 @@ export default function EditOrderScreen() {
     let basePrice = 0;
 
     if (weight > 0) {
-      if (weight >= settings.minimumWeight) {
-        basePrice = weight * settings.pricePerPound;
-      } else {
+      // Pricing: minimum price for first X pounds, then price per pound for extra
+      if (weight <= settings.minimumWeight) {
+        // Under or at minimum weight - charge minimum price
         basePrice = settings.minimumPrice;
+      } else {
+        // Over minimum weight - charge minimum + extra pounds at price per pound
+        const extraPounds = weight - settings.minimumWeight;
+        basePrice = settings.minimumPrice + (extraPounds * settings.pricePerPound);
       }
     }
 
@@ -560,17 +564,35 @@ export default function EditOrderScreen() {
             <View style={styles.pricingCard}>
               {settings && weight > 0 && (
                 <View style={styles.priceBreakdown}>
-                  <View style={styles.priceRow}>
-                    <Text style={styles.priceLabel}>
-                      Base ({weight.toFixed(1)} lbs × ${settings.pricePerPound?.toFixed(2)})
-                    </Text>
-                    <Text style={styles.priceValue}>
-                      ${(weight >= settings.minimumWeight
-                        ? weight * settings.pricePerPound
-                        : settings.minimumPrice
-                      ).toFixed(2)}
-                    </Text>
-                  </View>
+                  {weight <= settings.minimumWeight ? (
+                    <View style={styles.priceRow}>
+                      <Text style={styles.priceLabel}>
+                        Base (up to {settings.minimumWeight} lbs)
+                      </Text>
+                      <Text style={styles.priceValue}>
+                        ${settings.minimumPrice.toFixed(2)}
+                      </Text>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.priceRow}>
+                        <Text style={styles.priceLabel}>
+                          Base (first {settings.minimumWeight} lbs)
+                        </Text>
+                        <Text style={styles.priceValue}>
+                          ${settings.minimumPrice.toFixed(2)}
+                        </Text>
+                      </View>
+                      <View style={styles.priceRow}>
+                        <Text style={styles.priceLabel}>
+                          Extra {(weight - settings.minimumWeight).toFixed(1)} lbs × ${settings.pricePerPound.toFixed(2)}
+                        </Text>
+                        <Text style={styles.priceValue}>
+                          ${((weight - settings.minimumWeight) * settings.pricePerPound).toFixed(2)}
+                        </Text>
+                      </View>
+                    </>
+                  )}
                   {isSameDay && (
                     <View style={styles.priceRow}>
                       <Text style={[styles.priceLabel, { color: '#f59e0b' }]}>Same Day Extra</Text>
