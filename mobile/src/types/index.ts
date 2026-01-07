@@ -49,6 +49,7 @@ export type OrderStatus =
   | 'in_dryer'
   | 'laid_on_cart'
   | 'folding'
+  | 'folded'
   | 'ready_for_pickup'
   | 'ready_for_delivery'
   | 'out_for_delivery'
@@ -108,6 +109,13 @@ export interface Order {
   notes?: string;
   isSameDay?: boolean;
   isPaid?: boolean;
+  // Folding tracking
+  foldedBy?: string;
+  foldedByInitials?: string;
+  foldedAt?: Date;
+  foldingCheckedBy?: string;
+  foldingCheckedByInitials?: string;
+  foldingCheckedAt?: Date;
   dropOffDate: Date;
   scheduledPickupTime?: Date;
   estimatedPickupDate?: Date;
@@ -132,9 +140,9 @@ export interface Settings {
   minimumWeight: number;
   minimumPrice: number;
   pricePerPound: number;
-  sameDayMinimumCharge: number;
-  sameDayExtraCentsPerPound: number;
-  printerIP: string;
+  sameDayMinimumCharge?: number;
+  sameDayExtraCentsPerPound?: number;
+  printerIP?: string;
   printerPort: number;
   updatedAt: Date;
   updatedBy: string;

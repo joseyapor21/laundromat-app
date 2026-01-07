@@ -19,7 +19,7 @@ type FilterType = 'all' | 'in-store' | 'delivery' | 'new_order' | 'processing' |
 
 const STATUS_GROUPS: Record<string, OrderStatus[]> = {
   new_order: ['new_order', 'received', 'scheduled_pickup'],
-  processing: ['in_washer', 'in_dryer', 'laid_on_cart', 'folding'],
+  processing: ['in_washer', 'in_dryer', 'laid_on_cart', 'folding', 'folded'],
   ready: ['ready_for_pickup', 'ready_for_delivery', 'picked_up'],
 };
 
