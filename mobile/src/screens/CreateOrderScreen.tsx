@@ -227,6 +227,19 @@ export default function CreateOrderScreen() {
       const estimatedPickup = new Date();
       estimatedPickup.setDate(estimatedPickup.getDate() + 1);
 
+      // Convert selected extras to ExtraItemUsage format
+      const extraItemsData = Object.entries(selectedExtras)
+        .filter(([_, data]) => data.quantity > 0)
+        .map(([itemId, data]) => {
+          const item = extraItems.find(e => e._id === itemId);
+          return {
+            itemId,
+            name: item?.name || '',
+            price: data.price,
+            quantity: data.quantity,
+          };
+        });
+
       const orderData = {
         customerId: selectedCustomer._id,
         customerName: selectedCustomer.name,
@@ -242,11 +255,12 @@ export default function CreateOrderScreen() {
         isSameDay,
         specialInstructions,
         items: [],
+        extraItems: extraItemsData,
         totalAmount: calculateTotal(),
         dropOffDate: new Date().toISOString(),
         estimatedPickupDate: estimatedPickup.toISOString(),
         isPaid: markAsPaid,
-        paymentMethod: markAsPaid ? paymentMethod : null,
+        paymentMethod: markAsPaid ? paymentMethod : 'pending',
       };
 
       await api.createOrder(orderData);
