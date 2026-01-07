@@ -26,17 +26,20 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'zelle', label: 'Zelle' },
 ];
 
-const STATUS_OPTIONS: { value: OrderStatus; label: string; color: string }[] = [
+type OrderTypeFilter = 'storePickup' | 'delivery';
+
+const STATUS_OPTIONS: { value: OrderStatus; label: string; color: string; orderTypes?: OrderTypeFilter[] }[] = [
   { value: 'new_order', label: 'New Order', color: '#3b82f6' },
   { value: 'received', label: 'Received', color: '#6366f1' },
-  { value: 'scheduled_pickup', label: 'Scheduled Pickup', color: '#8b5cf6' },
-  { value: 'picked_up', label: 'Picked Up', color: '#a78bfa' },
+  { value: 'scheduled_pickup', label: 'Scheduled Pickup', color: '#8b5cf6', orderTypes: ['delivery'] },
+  { value: 'picked_up', label: 'Picked Up', color: '#a78bfa', orderTypes: ['delivery'] },
   { value: 'in_washer', label: 'In Washer', color: '#06b6d4' },
   { value: 'in_dryer', label: 'In Dryer', color: '#f97316' },
   { value: 'laid_on_cart', label: 'On Cart', color: '#eab308' },
   { value: 'folding', label: 'Folding', color: '#ec4899' },
-  { value: 'ready_for_pickup', label: 'Ready for Pickup', color: '#10b981' },
-  { value: 'ready_for_delivery', label: 'Ready for Delivery', color: '#059669' },
+  { value: 'folded', label: 'Folded', color: '#f43f5e' },
+  { value: 'ready_for_pickup', label: 'Ready for Pickup', color: '#10b981', orderTypes: ['storePickup'] },
+  { value: 'ready_for_delivery', label: 'Ready for Delivery', color: '#059669', orderTypes: ['delivery'] },
   { value: 'completed', label: 'Completed', color: '#6b7280' },
 ];
 
@@ -375,7 +378,7 @@ export default function OrderDetailScreen() {
   const isPreWashStage = order ? preWashStatuses.includes(order.status) : false;
 
   // Active washing/processing stages
-  const processingStatuses: OrderStatus[] = ['in_washer', 'in_dryer', 'laid_on_cart', 'folding'];
+  const processingStatuses: OrderStatus[] = ['in_washer', 'in_dryer', 'laid_on_cart', 'folding', 'folded'];
   const isProcessingStage = order ? processingStatuses.includes(order.status) : false;
 
   // Ready/completed stages
@@ -710,7 +713,15 @@ export default function OrderDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Process Status</Text>
           <View style={styles.statusGrid}>
-            {STATUS_OPTIONS.map(option => (
+            {STATUS_OPTIONS
+              .filter(option => {
+                // If no orderTypes specified, show for all order types
+                if (!option.orderTypes) return true;
+                // Filter based on order type
+                const orderTypeKey = order.orderType === 'delivery' ? 'delivery' : 'storePickup';
+                return option.orderTypes.includes(orderTypeKey);
+              })
+              .map(option => (
               <TouchableOpacity
                 key={option.value}
                 style={[
