@@ -10,7 +10,6 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'zelle', label: 'Zelle' },
 ];
 import toast from 'react-hot-toast';
-import { printerService } from '@/services/printerService';
 
 interface CreateOrderModalProps {
   onClose: () => void;
@@ -421,24 +420,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
         }
       }
 
-      // Automatically print all labels after order creation (only for in-store orders)
-      if (orderType === 'storePickup') {
-        console.log('🖨️ Starting auto-print process for in-store order:', createdOrder);
-        try {
-          console.log('🖨️ Calling printerService.printOrderLabels...');
-          const printResult = await printerService.printOrderLabels(createdOrder);
-          console.log('🖨️ Print result:', printResult);
-          const totalItems = 2 + (createdOrder.bags ? createdOrder.bags.length : 0);
-          toast.success(`Order created and all labels printed! (${totalItems} items: 1 customer receipt + 1 store copy + ${createdOrder.bags ? createdOrder.bags.length : 0} bag labels)`);
-        } catch (printError) {
-          console.error('🚨 Print error:', printError);
-          toast.success('Order created successfully!');
-          toast.error('Failed to print labels automatically. You can print them manually from the order card.');
-        }
-      } else {
-        console.log('📦 Delivery order created - skipping automatic printing');
-        toast.success('Delivery order created successfully!');
-      }
+      toast.success('Order created successfully!');
 
       onSuccess();
     } catch (error) {

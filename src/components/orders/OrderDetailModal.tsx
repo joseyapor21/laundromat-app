@@ -5,7 +5,6 @@ import { Order, OrderStatus, MachineAssignment, PaymentMethod } from '@/types';
 import QRScanner from '@/components/scanner/QRScanner';
 import EditOrderModal from '@/components/orders/EditOrderModal';
 import toast from 'react-hot-toast';
-import { printerService } from '@/services/printerService';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
@@ -97,46 +96,13 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
 
   // Print order receipts - with options
   const handlePrintOrder = async (type: 'customer' | 'store' | 'both') => {
-    setPrinting(true);
     setShowPrintOptions(false);
-    try {
-      if (type === 'customer') {
-        await printerService.printCustomerReceipt(currentOrder);
-        toast.success('Customer receipt printed');
-      } else if (type === 'store') {
-        await printerService.printStoreCopy(currentOrder);
-        toast.success('Store copy printed');
-      } else {
-        await printerService.printOrderReceipts(currentOrder);
-        toast.success('Both receipts printed');
-      }
-    } catch (error) {
-      console.error('Print error:', error);
-      toast.error('Failed to print receipt');
-    } finally {
-      setPrinting(false);
-    }
+    toast('Printing is not available', { icon: '🖨️' });
   };
 
   // Print bag labels
   const handlePrintLabel = async (bagIndex?: number) => {
-    setPrinting(true);
-    try {
-      if (bagIndex !== undefined) {
-        // Print specific bag label
-        await printerService.printSingleBagLabel(currentOrder, bagIndex);
-        toast.success(`Bag ${bagIndex + 1} label printed!`);
-      } else {
-        // Print all bag labels
-        await printerService.printBagLabels(currentOrder);
-        toast.success(`${currentOrder.bags?.length || 0} bag labels printed!`);
-      }
-    } catch (error) {
-      console.error('Print error:', error);
-      toast.error('Failed to print labels');
-    } finally {
-      setPrinting(false);
-    }
+    toast('Printing is not available', { icon: '🖨️' });
   };
 
   // Update order status

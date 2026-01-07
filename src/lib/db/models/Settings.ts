@@ -30,16 +30,6 @@ const settingsSchema = new mongoose.Schema<SettingsDocument>({
     required: false,
     default: 0.50,  // $0.50 extra per pound for same day
   },
-  printerIP: {
-    type: String,
-    required: false,
-    default: '192.168.1.100',
-  },
-  printerPort: {
-    type: Number,
-    required: false,
-    default: 9100,
-  },
   // Gmail integration for payment notifications
   gmailAccessToken: {
     type: String,

@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { Order, Customer } from '@/types';
-import { useBluetoothPrinter } from '@/services/client/bluetoothPrinterService';
 
 // Store location - UPDATE THESE COORDINATES to your actual laundry store location
 // You can get coordinates from Google Maps by right-clicking on your store location
@@ -29,23 +28,10 @@ export default function DriverPage() {
   const [customers, setCustomers] = useState<Record<string, Customer>>({});
   const [loading, setLoading] = useState(true);
   const [calculatingRoutes, setCalculatingRoutes] = useState(false);
-  const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
-  const [selectedOrderForPrint, setSelectedOrderForPrint] = useState<Order | null>(null);
-  const [printQuantity, setPrintQuantity] = useState('1');
   const [activeTab, setActiveTab] = useState<'pickups' | 'deliveries'>('pickups');
   const [sortByRoute, setSortByRoute] = useState(true);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [geocodingProgress, setGeocodingProgress] = useState<string>('');
-
-  // Bluetooth printer hook
-  const {
-    isConnected: bluetoothConnected,
-    isConnecting: bluetoothConnecting,
-    error: bluetoothError,
-    connect: connectBluetooth,
-    disconnect: disconnectBluetooth,
-    printLabel: bluetoothPrintLabel
-  } = useBluetoothPrinter();
 
   // Get current location
   useEffect(() => {
@@ -317,59 +303,6 @@ export default function DriverPage() {
     }
   };
 
-  const handlePrintLabel = async (order: Order, quantity: number = 1) => {
-    const orderKey = order._id;
-    setPrintingOrderId(orderKey);
-
-    try {
-      // Use customer from order (populated by API) or fall back to customers lookup
-      const customer = order.customer || customers[order.customerId];
-
-      const orderData = {
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        orderId: order.orderId?.toString() || order._id.slice(-6),
-        address: customer?.address || '',
-        serviceType: order.items?.[0]?.serviceName || 'Standard Wash',
-        orderType: order.orderType === 'delivery' ? 'Pickup & Delivery' : 'Store Pickup',
-        weight: order.weight || 0,
-        notes: order.specialInstructions || '',
-        _id: orderKey
-      };
-
-      if (!bluetoothConnected) {
-        toast.error('Bluetooth printer not connected. Please connect first.');
-        return;
-      }
-
-      await bluetoothPrintLabel(orderData, quantity);
-      toast.success(`Label printed for ${orderData.customerName}`);
-
-      if (order.status === 'new_order' || order.status === 'scheduled_pickup') {
-        await handleStatusUpdate(orderKey, 'picked_up');
-      }
-    } catch (error) {
-      console.error('Print failed:', error);
-      toast.error('Failed to print label');
-    } finally {
-      setPrintingOrderId(null);
-    }
-  };
-
-  const handlePrintWithQuantity = async () => {
-    if (!selectedOrderForPrint) return;
-
-    const quantity = parseInt(printQuantity);
-    if (isNaN(quantity) || quantity < 1 || quantity > 10) {
-      toast.error('Please enter a valid quantity (1-10)');
-      return;
-    }
-
-    setSelectedOrderForPrint(null);
-    setPrintQuantity('1');
-    await handlePrintLabel(selectedOrderForPrint, quantity);
-  };
-
   const formatDate = (date: string | Date) => {
     return new Date(date).toLocaleDateString('en-US', {
       month: 'short',
@@ -517,24 +450,6 @@ export default function DriverPage() {
               </a>
             )}
 
-            {/* Print Label Button - Pickup only */}
-            {isPickup && (
-              <button
-                onClick={() => setSelectedOrderForPrint(order)}
-                disabled={!bluetoothConnected || printingOrderId === order._id}
-                className={`flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-medium transition-colors ${
-                  bluetoothConnected
-                    ? 'bg-purple-600 hover:bg-purple-700 text-white'
-                    : 'bg-slate-300 text-slate-500 cursor-not-allowed'
-                }`}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                </svg>
-                {printingOrderId === order._id ? 'Printing...' : 'Print Label'}
-              </button>
-            )}
-
             {/* Status Action Button */}
             {isPickup ? (
               order.status === 'new_order' || order.status === 'scheduled_pickup' ? (
@@ -594,32 +509,6 @@ export default function DriverPage() {
               </svg>
             </button>
           </div>
-
-          {/* Bluetooth Status */}
-          <div className={`flex items-center justify-between p-3 rounded-xl mb-4 ${
-            bluetoothConnected ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-100 border border-slate-200'
-          }`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-3 h-3 rounded-full ${bluetoothConnected ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
-              <span className={`text-sm font-medium ${bluetoothConnected ? 'text-emerald-700' : 'text-slate-600'}`}>
-                {bluetoothConnected ? 'Printer Connected' : 'Printer Disconnected'}
-              </span>
-            </div>
-            <button
-              onClick={bluetoothConnected ? disconnectBluetooth : connectBluetooth}
-              disabled={bluetoothConnecting}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                bluetoothConnected
-                  ? 'bg-slate-200 hover:bg-slate-300 text-slate-700'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
-            >
-              {bluetoothConnecting ? 'Connecting...' : bluetoothConnected ? 'Disconnect' : 'Connect'}
-            </button>
-          </div>
-          {bluetoothError && (
-            <div className="text-red-600 text-xs mb-4 px-1">{bluetoothError}</div>
-          )}
 
           {/* Tab Navigation */}
           <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
@@ -749,48 +638,6 @@ export default function DriverPage() {
         )}
       </main>
 
-      {/* Print Quantity Modal */}
-      {selectedOrderForPrint && (
-        <div className="fixed inset-0 bg-black/60 flex justify-center items-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-            <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4">
-              <h3 className="text-lg font-semibold text-white">Print Labels</h3>
-              <p className="text-purple-200 text-sm">Order #{selectedOrderForPrint.orderId}</p>
-            </div>
-            <div className="p-6">
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                How many labels do you need?
-              </label>
-              <input
-                type="number"
-                min="1"
-                max="10"
-                value={printQuantity}
-                onChange={(e) => setPrintQuantity(e.target.value)}
-                className="w-full p-4 border-2 border-slate-200 rounded-xl text-lg text-center focus:outline-none focus:border-purple-500 transition-colors"
-                autoFocus
-              />
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => {
-                    setSelectedOrderForPrint(null);
-                    setPrintQuantity('1');
-                  }}
-                  className="flex-1 px-4 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handlePrintWithQuantity}
-                  className="flex-1 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition-colors"
-                >
-                  Print Labels
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

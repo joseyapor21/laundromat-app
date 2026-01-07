@@ -248,41 +248,6 @@ class ApiService {
     return this.request<User[]>('/users');
   }
 
-  // Printing
-  async printOrder(orderId: string, type: 'customer' | 'store' | 'both' = 'both'): Promise<{ message: string }> {
-    return this.request<{ message: string }>(`/orders/${orderId}/print`, {
-      method: 'POST',
-      body: JSON.stringify({ type }),
-    });
-  }
-
-  async printDirect(content: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>('/print', {
-      method: 'POST',
-      body: JSON.stringify({ content }),
-    });
-  }
-
-  async queuePrintJob(content: string, priority: string = 'normal'): Promise<{ jobId: string }> {
-    return this.request<{ jobId: string }>('/print-jobs/queue', {
-      method: 'POST',
-      body: JSON.stringify({ content, printerId: 'main', priority }),
-    });
-  }
-
-  async printBagLabels(orderId: string): Promise<{ message: string }> {
-    return this.request<{ message: string }>(`/orders/${orderId}/print-labels`, {
-      method: 'POST',
-    });
-  }
-
-  async printSingleBagLabel(orderId: string, bagIndex: number): Promise<{ message: string }> {
-    return this.request<{ message: string }>(`/orders/${orderId}/print-labels`, {
-      method: 'POST',
-      body: JSON.stringify({ bagIndex }),
-    });
-  }
-
   // Folding Check (Admin only)
   async checkFolding(orderId: string, bagIdentifier: string, checkerInitials: string): Promise<{ success: boolean; message: string; order: Order }> {
     return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/folding-check`, {
