@@ -101,7 +101,7 @@ export default function CreateOrderScreen() {
 
       // Same day extra: cents per pound with minimum
       if (isSameDay) {
-        const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.50;
+        const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
         const calculatedExtra = totalWeight * extraCentsPerPound;
         const minimumCharge = settings.sameDayMinimumCharge || 5;
         sameDayExtra = Math.max(calculatedExtra, minimumCharge);
@@ -157,7 +157,7 @@ export default function CreateOrderScreen() {
 
       // Same day extra charge
       if (isSameDay) {
-        const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.50;
+        const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
         const calculatedExtra = totalWeight * extraCentsPerPound;
         const minimumCharge = settings.sameDayMinimumCharge || 5;
         const sameDayCharge = Math.max(calculatedExtra, minimumCharge);
@@ -441,7 +441,7 @@ export default function CreateOrderScreen() {
             <Ionicons name="flash" size={24} color={isSameDay ? '#f59e0b' : '#64748b'} />
             <View style={styles.switchTextContainer}>
               <Text style={styles.switchLabel}>Same Day Service</Text>
-              <Text style={styles.switchHint}>+${settings?.sameDayExtraCentsPerPound?.toFixed(2) || '0.50'}/lb (min ${settings?.sameDayMinimumCharge?.toFixed(2) || '5.00'})</Text>
+              <Text style={styles.switchHint}>+${settings?.sameDayExtraCentsPerPound?.toFixed(2) || '0.33'}/lb (min ${settings?.sameDayMinimumCharge?.toFixed(2) || '5.00'})</Text>
             </View>
           </View>
           <Switch

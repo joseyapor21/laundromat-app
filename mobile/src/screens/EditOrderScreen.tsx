@@ -129,7 +129,7 @@ export default function EditOrderScreen() {
   const getSameDayPricePerPound = (): number => {
     if (!settings) return 0;
     const regularPrice = settings.pricePerPound || 1.25;
-    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.50;
+    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
     return regularPrice + extraCentsPerPound;
   };
 
@@ -138,7 +138,7 @@ export default function EditOrderScreen() {
     const weight = calculateTotalWeight();
     if (!settings || !isSameDay || weight <= 0) return 0;
 
-    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.50;
+    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
     const calculatedExtra = weight * extraCentsPerPound;
     const minimumCharge = settings.sameDayMinimumCharge || 5;
     return Math.max(calculatedExtra, minimumCharge);
@@ -429,7 +429,7 @@ export default function EditOrderScreen() {
                   <Text style={styles.sameDayPricingText}>
                     Extra charge: ${getSameDayExtraCharge().toFixed(2)}
                     {getSameDayExtraCharge() === (settings.sameDayMinimumCharge || 5) &&
-                     (weight * (settings.sameDayExtraCentsPerPound || 0.50)) < (settings.sameDayMinimumCharge || 5) && (
+                     (weight * (settings.sameDayExtraCentsPerPound || 0.33)) < (settings.sameDayMinimumCharge || 5) && (
                       <Text style={styles.minimumNote}> (minimum charge)</Text>
                     )}
                   </Text>
