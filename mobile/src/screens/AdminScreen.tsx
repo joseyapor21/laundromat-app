@@ -62,8 +62,6 @@ export default function AdminScreen() {
     pricePerPound: '',
     sameDayMinimumCharge: '',
     sameDayExtraCentsPerPound: '',
-    printerIP: '',
-    printerPort: '',
   });
 
   const loadData = useCallback(async () => {
@@ -280,8 +278,6 @@ export default function AdminScreen() {
         pricePerPound: (settings.pricePerPound || 1.25).toString(),
         sameDayMinimumCharge: (settings.sameDayMinimumCharge || 5).toString(),
         sameDayExtraCentsPerPound: (settings.sameDayExtraCentsPerPound || 0.33).toString(),
-        printerIP: settings.printerIP || '',
-        printerPort: (settings.printerPort || 9100).toString(),
       });
     }
     setShowSettingsModal(true);
@@ -296,8 +292,6 @@ export default function AdminScreen() {
         pricePerPound: parseFloat(settingsForm.pricePerPound) || 0,
         sameDayMinimumCharge: parseFloat(settingsForm.sameDayMinimumCharge) || 0,
         sameDayExtraCentsPerPound: parseFloat(settingsForm.sameDayExtraCentsPerPound) || 0,
-        printerIP: settingsForm.printerIP,
-        printerPort: parseInt(settingsForm.printerPort) || 9100,
       });
       Alert.alert('Success', 'Settings updated');
       setShowSettingsModal(false);
@@ -573,17 +567,6 @@ export default function AdminScreen() {
             </View>
           </View>
 
-          <View style={styles.settingsCard}>
-            <Text style={styles.settingsTitle}>Printer</Text>
-            <View style={styles.settingsRow}>
-              <Text style={styles.settingsLabel}>IP Address</Text>
-              <Text style={styles.settingsValue}>{settings.printerIP || 'Not set'}</Text>
-            </View>
-            <View style={styles.settingsRow}>
-              <Text style={styles.settingsLabel}>Port</Text>
-              <Text style={styles.settingsValue}>{settings.printerPort}</Text>
-            </View>
-          </View>
         </ScrollView>
       )}
 
@@ -1003,30 +986,6 @@ export default function AdminScreen() {
                 </View>
               </View>
 
-              <Text style={styles.sectionLabel}>Printer</Text>
-              <View style={styles.inputRow}>
-                <View style={[styles.inputGroup, { flex: 2 }]}>
-                  <Text style={styles.inputLabel}>IP Address</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={settingsForm.printerIP}
-                    onChangeText={(text) => setSettingsForm({ ...settingsForm, printerIP: text })}
-                    placeholder="192.168.1.100"
-                    placeholderTextColor="#94a3b8"
-                  />
-                </View>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Port</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={settingsForm.printerPort}
-                    onChangeText={(text) => setSettingsForm({ ...settingsForm, printerPort: text })}
-                    keyboardType="number-pad"
-                    placeholder="9100"
-                    placeholderTextColor="#94a3b8"
-                  />
-                </View>
-              </View>
             </ScrollView>
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowSettingsModal(false)}>

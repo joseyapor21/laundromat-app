@@ -751,28 +751,6 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <h3 className="text-md font-semibold text-gray-800 mt-6 mb-3 border-t pt-4">Printer Settings</h3>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Printer IP</label>
-                  <input
-                    type="text"
-                    value={settings.printerIP || ''}
-                    onChange={e => setSettings(s => s ? { ...s, printerIP: e.target.value } : s)}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Printer Port</label>
-                  <input
-                    type="number"
-                    value={settings.printerPort || 9100}
-                    onChange={e => setSettings(s => s ? { ...s, printerPort: parseInt(e.target.value) || 9100 } : s)}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-              </div>
-
               <button
                 type="submit"
                 disabled={loading}

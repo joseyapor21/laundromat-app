@@ -184,8 +184,6 @@ export interface Settings {
   // Same day service settings
   sameDayMinimumCharge: number;        // Minimum charge for same day service (e.g., $5)
   sameDayExtraCentsPerPound: number;   // Extra cents per pound for same day (e.g., 0.50 = $0.50/lb extra)
-  printerIP: string;
-  printerPort: number;
   // Gmail integration for payment notifications
   gmailAccessToken?: string;
   gmailRefreshToken?: string;

@@ -105,54 +105,16 @@ export default function OrderDetailScreen() {
   }
 
   async function handlePrint(type: 'customer' | 'store' | 'both') {
-    if (!order) return;
     setShowPrintOptions(false);
-    setPrinting(true);
-    try {
-      await api.printOrder(order._id, type);
-      const message = type === 'both'
-        ? 'Both receipts sent to printer'
-        : type === 'customer'
-          ? 'Customer receipt sent to printer'
-          : 'Store copy sent to printer';
-      Alert.alert('Success', message);
-    } catch (error) {
-      console.error('Print error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to print';
-      Alert.alert('Print Error', errorMessage);
-    } finally {
-      setPrinting(false);
-    }
+    Alert.alert('Info', 'Printing is not available');
   }
 
   async function handlePrintBagLabels() {
-    if (!order) return;
-    setPrinting(true);
-    try {
-      await api.printBagLabels(order._id);
-      Alert.alert('Success', `${order.bags?.length || 0} bag labels sent to printer`);
-    } catch (error) {
-      console.error('Print error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to print bag labels';
-      Alert.alert('Print Error', errorMessage);
-    } finally {
-      setPrinting(false);
-    }
+    Alert.alert('Info', 'Printing is not available');
   }
 
   async function handlePrintSingleBag(bagIndex: number) {
-    if (!order) return;
-    setPrinting(true);
-    try {
-      await api.printSingleBagLabel(order._id, bagIndex);
-      Alert.alert('Success', `Bag ${bagIndex + 1} label sent to printer`);
-    } catch (error) {
-      console.error('Print error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Failed to print bag label';
-      Alert.alert('Print Error', errorMessage);
-    } finally {
-      setPrinting(false);
-    }
+    Alert.alert('Info', 'Printing is not available');
   }
 
   // Handle QR scan for machine assignment

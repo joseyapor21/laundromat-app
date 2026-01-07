@@ -26,9 +26,6 @@ export async function GET() {
         minimumPrice: 8,
         pricePerPound: 1.25,
         deliveryFee: 3,
-        printerIP: '192.168.1.100',
-        printerPort: 9100,
-        esp32AgentUrl: '',
         updatedBy: 'system',
       });
       await defaultSettings.save();

@@ -142,8 +142,6 @@ export interface Settings {
   pricePerPound: number;
   sameDayMinimumCharge?: number;
   sameDayExtraCentsPerPound?: number;
-  printerIP?: string;
-  printerPort: number;
   updatedAt: Date;
   updatedBy: string;
 }
