@@ -46,7 +46,7 @@ export default function CreateOrderScreen() {
   const [bags, setBags] = useState<Bag[]>([]);
   const [isSameDay, setIsSameDay] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
-  const [selectedExtras, setSelectedExtras] = useState<Record<string, number>>({});
+  const [selectedExtras, setSelectedExtras] = useState<Record<string, { quantity: number; price: number }>>({});
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
   const [markAsPaid, setMarkAsPaid] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
@@ -84,12 +84,10 @@ export default function CreateOrderScreen() {
 
     // Calculate laundry subtotal only if there's weight
     let laundrySubtotal = 0;
-    if (totalWeight > 0) {
-      let pricePerPound = settings.pricePerPound;
+    let sameDayExtra = 0;
 
-      if (isSameDay) {
-        pricePerPound = pricePerPound * (1 + (settings.sameDayExtraPercentage || 50) / 100);
-      }
+    if (totalWeight > 0) {
+      const pricePerPound = settings.pricePerPound;
 
       // Pricing: minimum price for first X pounds, then price per pound for extra
       if (totalWeight <= settings.minimumWeight) {
@@ -100,14 +98,21 @@ export default function CreateOrderScreen() {
         const extraPounds = totalWeight - settings.minimumWeight;
         laundrySubtotal = settings.minimumPrice + (extraPounds * pricePerPound);
       }
+
+      // Same day extra: cents per pound with minimum
+      if (isSameDay) {
+        const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.50;
+        const calculatedExtra = totalWeight * extraCentsPerPound;
+        const minimumCharge = settings.sameDayMinimumCharge || 5;
+        sameDayExtra = Math.max(calculatedExtra, minimumCharge);
+      }
     }
 
     // Add extras
     let extrasTotal = 0;
-    Object.entries(selectedExtras).forEach(([itemId, qty]) => {
-      const item = extraItems.find(e => e._id === itemId);
-      if (item && qty > 0) {
-        extrasTotal += item.price * qty;
+    Object.entries(selectedExtras).forEach(([itemId, data]) => {
+      if (data.quantity > 0) {
+        extrasTotal += data.price * data.quantity;
       }
     });
 
@@ -117,7 +122,7 @@ export default function CreateOrderScreen() {
       deliveryFee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
     }
 
-    return laundrySubtotal + extrasTotal + deliveryFee;
+    return laundrySubtotal + sameDayExtra + extrasTotal + deliveryFee;
   }
 
   function getPriceBreakdown() {
@@ -128,42 +133,52 @@ export default function CreateOrderScreen() {
 
     // Laundry service
     if (totalWeight > 0) {
-      let pricePerPound = settings.pricePerPound;
-
-      if (isSameDay) {
-        pricePerPound = pricePerPound * (1 + (settings.sameDayExtraPercentage || 50) / 100);
-      }
+      const pricePerPound = settings.pricePerPound;
 
       if (totalWeight <= settings.minimumWeight) {
         // Under or at minimum weight - show minimum price
-        const sameDayLabel = isSameDay ? 'Same Day ' : '';
         breakdown.push({
-          label: `${sameDayLabel}Base (up to ${settings.minimumWeight} lbs)`,
+          label: `Base (up to ${settings.minimumWeight} lbs)`,
           amount: settings.minimumPrice,
         });
       } else {
         // Over minimum weight - show minimum + extra pounds
         const extraPounds = totalWeight - settings.minimumWeight;
-        const sameDayLabel = isSameDay ? 'Same Day ' : '';
 
         breakdown.push({
-          label: `${sameDayLabel}Base (first ${settings.minimumWeight} lbs)`,
+          label: `Base (first ${settings.minimumWeight} lbs)`,
           amount: settings.minimumPrice,
         });
         breakdown.push({
-          label: `${sameDayLabel}Extra ${extraPounds} lbs × $${pricePerPound.toFixed(2)}/lb`,
+          label: `Extra ${extraPounds} lbs × $${pricePerPound.toFixed(2)}/lb`,
           amount: extraPounds * pricePerPound,
+        });
+      }
+
+      // Same day extra charge
+      if (isSameDay) {
+        const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.50;
+        const calculatedExtra = totalWeight * extraCentsPerPound;
+        const minimumCharge = settings.sameDayMinimumCharge || 5;
+        const sameDayCharge = Math.max(calculatedExtra, minimumCharge);
+        const isMinimum = sameDayCharge === minimumCharge && calculatedExtra < minimumCharge;
+
+        breakdown.push({
+          label: isMinimum
+            ? `Same Day (minimum charge)`
+            : `Same Day (${totalWeight} lbs × $${extraCentsPerPound.toFixed(2)}/lb)`,
+          amount: sameDayCharge,
         });
       }
     }
 
     // Extra items
-    Object.entries(selectedExtras).forEach(([itemId, qty]) => {
+    Object.entries(selectedExtras).forEach(([itemId, data]) => {
       const item = extraItems.find(e => e._id === itemId);
-      if (item && qty > 0) {
+      if (item && data.quantity > 0) {
         breakdown.push({
-          label: `${item.name} × ${qty}`,
-          amount: item.price * qty,
+          label: `${item.name} × ${data.quantity}`,
+          amount: data.price * data.quantity,
         });
       }
     });
@@ -412,7 +427,7 @@ export default function CreateOrderScreen() {
             <Ionicons name="flash" size={24} color={isSameDay ? '#f59e0b' : '#64748b'} />
             <View style={styles.switchTextContainer}>
               <Text style={styles.switchLabel}>Same Day Service</Text>
-              <Text style={styles.switchHint}>+{settings?.sameDayExtraPercentage || 50}% extra charge</Text>
+              <Text style={styles.switchHint}>+${settings?.sameDayExtraCentsPerPound?.toFixed(2) || '0.50'}/lb (min ${settings?.sameDayMinimumCharge?.toFixed(2) || '5.00'})</Text>
             </View>
           </View>
           <Switch
@@ -437,17 +452,17 @@ export default function CreateOrderScreen() {
           </TouchableOpacity>
         </View>
         {/* Show selected extra items summary */}
-        {Object.keys(selectedExtras).filter(id => selectedExtras[id] > 0).length > 0 ? (
+        {Object.keys(selectedExtras).filter(id => selectedExtras[id]?.quantity > 0).length > 0 ? (
           <View style={styles.selectedExtrasCard}>
             {Object.entries(selectedExtras)
-              .filter(([_, qty]) => qty > 0)
-              .map(([itemId, qty]) => {
+              .filter(([_, data]) => data.quantity > 0)
+              .map(([itemId, data]) => {
                 const item = extraItems.find(e => e._id === itemId);
                 if (!item) return null;
                 return (
                   <View key={itemId} style={styles.selectedExtraRow}>
-                    <Text style={styles.selectedExtraName}>{item.name} × {qty}</Text>
-                    <Text style={styles.selectedExtraPrice}>${(item.price * qty).toFixed(2)}</Text>
+                    <Text style={styles.selectedExtraName}>{item.name} × {data.quantity}</Text>
+                    <Text style={styles.selectedExtraPrice}>${(data.price * data.quantity).toFixed(2)}</Text>
                   </View>
                 );
               })}
@@ -573,38 +588,70 @@ export default function CreateOrderScreen() {
               <Text style={styles.modalEmptyText}>No extra items available</Text>
             ) : (
               extraItems.map((item) => {
-                const quantity = selectedExtras[item._id] || 0;
+                const data = selectedExtras[item._id] || { quantity: 0, price: item.price };
+                const quantity = data.quantity;
+                const customPrice = data.price;
                 return (
-                  <View key={item._id} style={styles.modalItemCard}>
-                    <View style={styles.modalItemInfo}>
-                      <Text style={styles.modalItemName}>{item.name}</Text>
-                      <Text style={styles.modalItemPrice}>${item.price.toFixed(2)}</Text>
-                      {item.description && (
-                        <Text style={styles.modalItemDescription}>{item.description}</Text>
-                      )}
+                  <View key={item._id} style={[styles.modalItemCard, quantity > 0 && styles.modalItemCardSelected]}>
+                    <View style={styles.modalItemHeader}>
+                      <View style={styles.modalItemInfo}>
+                        <Text style={styles.modalItemName}>{item.name}</Text>
+                        <Text style={styles.modalItemBasePrice}>Base: ${item.price.toFixed(2)}</Text>
+                        {item.description && (
+                          <Text style={styles.modalItemDescription}>{item.description}</Text>
+                        )}
+                      </View>
+                      <View style={styles.modalQuantityControl}>
+                        <TouchableOpacity
+                          style={[styles.modalQuantityButton, quantity === 0 && styles.modalQuantityButtonDisabled]}
+                          onPress={() => setSelectedExtras(prev => {
+                            const current = prev[item._id] || { quantity: 0, price: item.price };
+                            const newQty = Math.max(0, current.quantity - 1);
+                            if (newQty === 0) {
+                              const { [item._id]: _, ...rest } = prev;
+                              return rest;
+                            }
+                            return { ...prev, [item._id]: { ...current, quantity: newQty } };
+                          })}
+                          disabled={quantity === 0}
+                        >
+                          <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
+                        </TouchableOpacity>
+                        <Text style={styles.modalQuantityText}>{quantity}</Text>
+                        <TouchableOpacity
+                          style={styles.modalQuantityButton}
+                          onPress={() => setSelectedExtras(prev => {
+                            const current = prev[item._id] || { quantity: 0, price: item.price };
+                            return { ...prev, [item._id]: { ...current, quantity: current.quantity + 1 } };
+                          })}
+                        >
+                          <Ionicons name="add" size={20} color="#2563eb" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                    <View style={styles.modalQuantityControl}>
-                      <TouchableOpacity
-                        style={[styles.modalQuantityButton, quantity === 0 && styles.modalQuantityButtonDisabled]}
-                        onPress={() => setSelectedExtras(prev => ({
-                          ...prev,
-                          [item._id]: Math.max(0, (prev[item._id] || 0) - 1)
-                        }))}
-                        disabled={quantity === 0}
-                      >
-                        <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
-                      </TouchableOpacity>
-                      <Text style={styles.modalQuantityText}>{quantity}</Text>
-                      <TouchableOpacity
-                        style={styles.modalQuantityButton}
-                        onPress={() => setSelectedExtras(prev => ({
-                          ...prev,
-                          [item._id]: (prev[item._id] || 0) + 1
-                        }))}
-                      >
-                        <Ionicons name="add" size={20} color="#2563eb" />
-                      </TouchableOpacity>
-                    </View>
+                    {quantity > 0 && (
+                      <View style={styles.modalPriceEditRow}>
+                        <Text style={styles.modalPriceLabel}>Price per item:</Text>
+                        <View style={styles.modalPriceInputContainer}>
+                          <Text style={styles.modalPriceDollar}>$</Text>
+                          <TextInput
+                            style={styles.modalPriceInput}
+                            value={customPrice.toString()}
+                            onChangeText={(text) => {
+                              const newPrice = parseFloat(text) || 0;
+                              setSelectedExtras(prev => ({
+                                ...prev,
+                                [item._id]: { ...prev[item._id], price: newPrice }
+                              }));
+                            }}
+                            keyboardType="decimal-pad"
+                            placeholder={item.price.toString()}
+                            placeholderTextColor="#94a3b8"
+                          />
+                        </View>
+                        <Text style={styles.modalItemTotal}>= ${(customPrice * quantity).toFixed(2)}</Text>
+                      </View>
+                    )}
                   </View>
                 );
               })
@@ -612,18 +659,18 @@ export default function CreateOrderScreen() {
           </ScrollView>
 
           {/* Selected items summary */}
-          {Object.keys(selectedExtras).filter(id => selectedExtras[id] > 0).length > 0 && (
+          {Object.keys(selectedExtras).filter(id => selectedExtras[id]?.quantity > 0).length > 0 && (
             <View style={styles.modalSummary}>
               <Text style={styles.modalSummaryTitle}>Selected Items:</Text>
               {Object.entries(selectedExtras)
-                .filter(([_, qty]) => qty > 0)
-                .map(([itemId, qty]) => {
+                .filter(([_, data]) => data.quantity > 0)
+                .map(([itemId, data]) => {
                   const item = extraItems.find(i => i._id === itemId);
                   if (!item) return null;
                   return (
                     <View key={itemId} style={styles.modalSummaryRow}>
-                      <Text style={styles.modalSummaryText}>{item.name} × {qty}</Text>
-                      <Text style={styles.modalSummaryPrice}>${(item.price * qty).toFixed(2)}</Text>
+                      <Text style={styles.modalSummaryText}>{item.name} × {data.quantity}</Text>
+                      <Text style={styles.modalSummaryPrice}>${(data.price * data.quantity).toFixed(2)}</Text>
                     </View>
                   );
                 })}
@@ -631,9 +678,8 @@ export default function CreateOrderScreen() {
                 <Text style={styles.modalSummaryTotalLabel}>Total:</Text>
                 <Text style={styles.modalSummaryTotalValue}>
                   ${Object.entries(selectedExtras)
-                    .reduce((sum, [itemId, qty]) => {
-                      const item = extraItems.find(i => i._id === itemId);
-                      return sum + (item?.price || 0) * qty;
+                    .reduce((sum, [_, data]) => {
+                      return sum + data.price * data.quantity;
                     }, 0)
                     .toFixed(2)}
                 </Text>
@@ -1172,9 +1218,6 @@ const styles = StyleSheet.create({
     marginTop: 40,
   },
   modalItemCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 16,
@@ -1184,6 +1227,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
+  },
+  modalItemCardSelected: {
+    borderWidth: 2,
+    borderColor: '#8b5cf6',
+    backgroundColor: '#faf5ff',
+  },
+  modalItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   modalItemInfo: {
     flex: 1,
@@ -1195,15 +1248,54 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     marginBottom: 4,
   },
-  modalItemPrice: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#10b981',
+  modalItemBasePrice: {
+    fontSize: 14,
+    color: '#64748b',
   },
   modalItemDescription: {
     fontSize: 13,
     color: '#64748b',
     marginTop: 4,
+  },
+  modalPriceEditRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e9d5ff',
+  },
+  modalPriceLabel: {
+    fontSize: 14,
+    color: '#64748b',
+    marginRight: 8,
+  },
+  modalPriceInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+  },
+  modalPriceDollar: {
+    fontSize: 16,
+    color: '#64748b',
+  },
+  modalPriceInput: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    minWidth: 60,
+  },
+  modalItemTotal: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#8b5cf6',
+    marginLeft: 12,
   },
   modalQuantityControl: {
     flexDirection: 'row',

@@ -61,7 +61,7 @@ export default function AdminScreen() {
     minimumPrice: '',
     pricePerPound: '',
     sameDayMinimumCharge: '',
-    sameDayExtraPercentage: '',
+    sameDayExtraCentsPerPound: '',
     printerIP: '',
     printerPort: '',
   });
@@ -279,7 +279,7 @@ export default function AdminScreen() {
         minimumPrice: settings.minimumPrice.toString(),
         pricePerPound: settings.pricePerPound.toString(),
         sameDayMinimumCharge: settings.sameDayMinimumCharge.toString(),
-        sameDayExtraPercentage: settings.sameDayExtraPercentage.toString(),
+        sameDayExtraCentsPerPound: settings.sameDayExtraCentsPerPound.toString(),
         printerIP: settings.printerIP || '',
         printerPort: settings.printerPort.toString(),
       });
@@ -295,7 +295,7 @@ export default function AdminScreen() {
         minimumPrice: parseFloat(settingsForm.minimumPrice) || 0,
         pricePerPound: parseFloat(settingsForm.pricePerPound) || 0,
         sameDayMinimumCharge: parseFloat(settingsForm.sameDayMinimumCharge) || 0,
-        sameDayExtraPercentage: parseFloat(settingsForm.sameDayExtraPercentage) || 0,
+        sameDayExtraCentsPerPound: parseFloat(settingsForm.sameDayExtraCentsPerPound) || 0,
         printerIP: settingsForm.printerIP,
         printerPort: parseInt(settingsForm.printerPort) || 9100,
       });
@@ -564,12 +564,12 @@ export default function AdminScreen() {
           <View style={styles.settingsCard}>
             <Text style={styles.settingsTitle}>Same Day Service</Text>
             <View style={styles.settingsRow}>
-              <Text style={styles.settingsLabel}>Minimum Charge</Text>
-              <Text style={styles.settingsValue}>${settings.sameDayMinimumCharge}</Text>
+              <Text style={styles.settingsLabel}>Extra Per Pound</Text>
+              <Text style={styles.settingsValue}>${settings.sameDayExtraCentsPerPound}/lb</Text>
             </View>
             <View style={styles.settingsRow}>
-              <Text style={styles.settingsLabel}>Extra Percentage</Text>
-              <Text style={styles.settingsValue}>{settings.sameDayExtraPercentage}%</Text>
+              <Text style={styles.settingsLabel}>Minimum Charge</Text>
+              <Text style={styles.settingsValue}>${settings.sameDayMinimumCharge}</Text>
             </View>
           </View>
 
@@ -980,24 +980,24 @@ export default function AdminScreen() {
               <Text style={styles.sectionLabel}>Same Day Service</Text>
               <View style={styles.inputRow}>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Extra $/lb</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={settingsForm.sameDayExtraCentsPerPound}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, sameDayExtraCentsPerPound: text })}
+                    keyboardType="decimal-pad"
+                    placeholder="0.50"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
                   <Text style={styles.inputLabel}>Min Charge ($)</Text>
                   <TextInput
                     style={styles.input}
                     value={settingsForm.sameDayMinimumCharge}
                     onChangeText={(text) => setSettingsForm({ ...settingsForm, sameDayMinimumCharge: text })}
                     keyboardType="decimal-pad"
-                    placeholder="0"
-                    placeholderTextColor="#94a3b8"
-                  />
-                </View>
-                <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Extra %</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={settingsForm.sameDayExtraPercentage}
-                    onChangeText={(text) => setSettingsForm({ ...settingsForm, sameDayExtraPercentage: text })}
-                    keyboardType="decimal-pad"
-                    placeholder="0"
+                    placeholder="5"
                     placeholderTextColor="#94a3b8"
                   />
                 </View>

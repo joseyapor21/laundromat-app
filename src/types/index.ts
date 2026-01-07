@@ -173,8 +173,8 @@ export interface Settings {
   minimumPrice: number;
   pricePerPound: number;
   // Same day service settings
-  sameDayMinimumCharge: number;      // Minimum charge for same day service (e.g., $5)
-  sameDayExtraPercentage: number;    // Extra percentage per pound (e.g., 50 = 50%)
+  sameDayMinimumCharge: number;        // Minimum charge for same day service (e.g., $5)
+  sameDayExtraCentsPerPound: number;   // Extra cents per pound for same day (e.g., 0.50 = $0.50/lb extra)
   printerIP: string;
   printerPort: number;
   updatedAt: Date;

@@ -117,23 +117,20 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     return Math.round(value * 4) / 4;
   };
 
-  // Calculate same day price per pound
+  // Calculate same day price per pound (regular + extra)
   const getSameDayPricePerPound = (): number => {
     if (!settings) return 0;
     const regularPrice = settings.pricePerPound || 1.25;
-    const extraPercentage = settings.sameDayExtraPercentage || 50;
-    const sameDayPrice = regularPrice * (1 + extraPercentage / 100);
-    return roundToQuarter(sameDayPrice);
+    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.50;
+    return regularPrice + extraCentsPerPound;
   };
 
   // Calculate same day extra charge
   const getSameDayExtraCharge = (): number => {
     if (!settings || !isSameDay || weight <= 0) return 0;
 
-    const regularPrice = settings.pricePerPound || 1.25;
-    const sameDayPricePerPound = getSameDayPricePerPound();
-    const extraPerPound = sameDayPricePerPound - regularPrice;
-    const calculatedExtra = weight * extraPerPound;
+    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.50;
+    const calculatedExtra = weight * extraCentsPerPound;
 
     // Use minimum charge if calculated is less
     const minimumCharge = settings.sameDayMinimumCharge || 5;

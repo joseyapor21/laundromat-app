@@ -25,10 +25,10 @@ const settingsSchema = new mongoose.Schema<SettingsDocument>({
     required: false,
     default: 5,  // Minimum $5 charge for same day
   },
-  sameDayExtraPercentage: {
+  sameDayExtraCentsPerPound: {
     type: Number,
     required: false,
-    default: 50,  // 50% extra per pound for same day
+    default: 0.50,  // $0.50 extra per pound for same day
   },
   printerIP: {
     type: String,
