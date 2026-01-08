@@ -770,10 +770,20 @@ export default function CreateOrderScreen() {
                 .map(([itemId, data]) => {
                   const item = extraItems.find(i => i._id === itemId);
                   if (!item) return null;
+                  const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
+                  const totalWeight = getTotalWeight();
+                  const displayQty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
                   return (
                     <View key={itemId} style={styles.modalSummaryRow}>
-                      <Text style={styles.modalSummaryText}>{item.name} × {data.quantity}</Text>
-                      <Text style={styles.modalSummaryPrice}>${(data.price * data.quantity).toFixed(2)}</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.modalSummaryText}>{item.name} × {displayQty}</Text>
+                        {isWeightBased && (
+                          <Text style={styles.modalSummaryCalc}>
+                            ({totalWeight} lbs ÷ {item.perWeightUnit} lbs)
+                          </Text>
+                        )}
+                      </View>
+                      <Text style={styles.modalSummaryPrice}>${(data.price * displayQty).toFixed(2)}</Text>
                     </View>
                   );
                 })}
@@ -781,8 +791,12 @@ export default function CreateOrderScreen() {
                 <Text style={styles.modalSummaryTotalLabel}>Total:</Text>
                 <Text style={styles.modalSummaryTotalValue}>
                   ${Object.entries(selectedExtras)
-                    .reduce((sum, [_, data]) => {
-                      return sum + data.price * data.quantity;
+                    .reduce((sum, [itemId, data]) => {
+                      const item = extraItems.find(i => i._id === itemId);
+                      const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
+                      const totalWeight = getTotalWeight();
+                      const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
+                      return sum + data.price * qty;
                     }, 0)
                     .toFixed(2)}
                 </Text>
@@ -1468,6 +1482,11 @@ const styles = StyleSheet.create({
   modalSummaryText: {
     fontSize: 14,
     color: '#1e293b',
+  },
+  modalSummaryCalc: {
+    fontSize: 12,
+    color: '#8b5cf6',
+    marginTop: 2,
   },
   modalSummaryPrice: {
     fontSize: 14,
