@@ -36,7 +36,7 @@ export default function AdminPage() {
 
   // Extra Items state
   const [extraItems, setExtraItems] = useState<ExtraItem[]>([]);
-  const [newExtraItem, setNewExtraItem] = useState({ name: '', description: '', price: 0 });
+  const [newExtraItem, setNewExtraItem] = useState({ name: '', description: '', price: 0, perWeightUnit: null as number | null });
   const [editingExtraItem, setEditingExtraItem] = useState<ExtraItem | null>(null);
 
   // Machines state
@@ -355,7 +355,7 @@ export default function AdminPage() {
       if (!response.ok) throw new Error('Failed to create extra item');
 
       toast.success('Extra item created successfully');
-      setNewExtraItem({ name: '', description: '', price: 0 });
+      setNewExtraItem({ name: '', description: '', price: 0, perWeightUnit: null });
       const extraItemsRes = await fetch('/api/extra-items');
       if (extraItemsRes.ok) setExtraItems(await extraItemsRes.json());
     } catch (error) {
@@ -869,7 +869,7 @@ export default function AdminPage() {
             {/* Create Extra Item */}
             <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Create Extra Item</h2>
-              <form onSubmit={handleCreateExtraItem} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <form onSubmit={handleCreateExtraItem} className="grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
                   <input
@@ -900,6 +900,17 @@ export default function AdminPage() {
                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Per Weight (lbs)</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 15"
+                    value={newExtraItem.perWeightUnit || ''}
+                    onChange={e => setNewExtraItem(i => ({ ...i, perWeightUnit: e.target.value ? parseFloat(e.target.value) : null }))}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Leave empty for per-item pricing</p>
+                </div>
                 <div className="flex items-end">
                   <button
                     type="submit"
@@ -921,9 +932,17 @@ export default function AdminPage() {
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                       <div className="min-w-0">
                         <div className="font-medium text-gray-900 truncate">{item.name}</div>
-                        <div className="text-sm text-gray-600">{item.description} - ${item.price.toFixed(2)}</div>
+                        <div className="text-sm text-gray-600">
+                          {item.description} - ${item.price.toFixed(2)}
+                          {item.perWeightUnit && <span className="ml-2 text-purple-600 font-medium">(per {item.perWeightUnit} lbs)</span>}
+                        </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
+                        {item.perWeightUnit && (
+                          <span className="px-2 py-1 text-xs rounded bg-purple-100 text-purple-800">
+                            Weight-based
+                          </span>
+                        )}
                         <span className={`px-2 py-1 text-xs rounded ${item.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                           {item.isActive ? 'Active' : 'Inactive'}
                         </span>
@@ -1394,6 +1413,21 @@ export default function AdminPage() {
                   onChange={e => setEditingExtraItem(i => i ? { ...i, price: parseFloat(e.target.value) || 0 } : i)}
                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Per Weight (lbs)</label>
+                <input
+                  type="number"
+                  placeholder="Leave empty for per-item pricing"
+                  value={editingExtraItem.perWeightUnit || ''}
+                  onChange={e => setEditingExtraItem(i => i ? { ...i, perWeightUnit: e.target.value ? parseFloat(e.target.value) : undefined } : i)}
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  {editingExtraItem.perWeightUnit
+                    ? `Price of $${editingExtraItem.price.toFixed(2)} applies per ${editingExtraItem.perWeightUnit} lbs`
+                    : 'Leave empty for per-item pricing (e.g., comforters)'}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <input
