@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/connection';
 import ExtraItem from '@/lib/db/models/ExtraItem';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 
 const specialItems = [
   // Comforters
@@ -48,9 +46,10 @@ const specialItems = [
 export async function POST(request: NextRequest) {
   try {
     // Check authentication - only admins can seed
-    const session = await getServerSession(authOptions);
-    if (!session?.user || session.user.role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // Middleware adds user role to headers
+    const userRole = request.headers.get('x-user-role');
+    if (userRole !== 'admin') {
+      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
     }
 
     await dbConnect();
