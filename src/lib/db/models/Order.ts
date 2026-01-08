@@ -17,6 +17,12 @@ export interface OrderDoc {
     bagIdentifier?: string;
     notes?: string;
   }>;
+  extraItems?: Array<{
+    itemId: string;
+    name: string;
+    price: number;
+    quantity: number;
+  }>;
   bags: Array<{
     identifier: string;
     weight: number;
@@ -141,6 +147,13 @@ const itemSchema = new mongoose.Schema({
   notes: String,
 }, { _id: false });
 
+const extraItemUsageSchema = new mongoose.Schema({
+  itemId: String,
+  name: String,
+  price: Number,
+  quantity: Number,
+}, { _id: false });
+
 const orderSchema = new mongoose.Schema<OrderDoc>({
   id: {
     type: String,
@@ -169,6 +182,7 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
     required: true,
   },
   items: [itemSchema],
+  extraItems: [extraItemUsageSchema],
   bags: [bagSchema],
   weight: {
     type: Number,
@@ -227,7 +241,7 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   },
   paymentMethod: {
     type: String,
-    enum: ['cash', 'check', 'venmo', 'zelle'] as PaymentMethod[],
+    enum: ['cash', 'check', 'venmo', 'zelle', 'pending', 'credit', 'credit_card'],
     default: null,
   },
   isPaid: {
