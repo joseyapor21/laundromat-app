@@ -25,6 +25,12 @@ const extraItemSchema = new mongoose.Schema<ExtraItemDocument>({
     type: String,
     default: 'general',
   },
+  // Weight-based pricing: if set, price applies per X pounds (e.g., 15 = per 15 lbs)
+  // Quantity is auto-calculated as ceil(totalWeight / perWeightUnit)
+  perWeightUnit: {
+    type: Number,
+    default: null,
+  },
 }, {
   collection: 'extraItems',
   timestamps: true,
