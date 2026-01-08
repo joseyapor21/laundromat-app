@@ -77,6 +77,34 @@ export default function CreateOrderScreen() {
     return bags.reduce((sum, bag) => sum + (bag.weight || 0), 0);
   }
 
+  // Calculate quantity for weight-based items (e.g., "per 15 lbs")
+  function calculateWeightBasedQuantity(perWeightUnit: number, totalWeight: number): number {
+    if (perWeightUnit <= 0 || totalWeight <= 0) return 0;
+    return Math.ceil(totalWeight / perWeightUnit);
+  }
+
+  // Update weight-based extra items when weight changes
+  useEffect(() => {
+    const totalWeight = getTotalWeight();
+    setSelectedExtras(prev => {
+      const updated = { ...prev };
+      let hasChanges = false;
+
+      Object.keys(updated).forEach(itemId => {
+        const item = extraItems.find(e => e._id === itemId);
+        if (item?.perWeightUnit && item.perWeightUnit > 0) {
+          const newQty = calculateWeightBasedQuantity(item.perWeightUnit, totalWeight);
+          if (updated[itemId].quantity !== newQty) {
+            updated[itemId] = { ...updated[itemId], quantity: newQty };
+            hasChanges = true;
+          }
+        }
+      });
+
+      return hasChanges ? updated : prev;
+    });
+  }, [bags, extraItems]);
+
   function calculateTotal() {
     if (!settings) return 0;
 
@@ -108,11 +136,14 @@ export default function CreateOrderScreen() {
       }
     }
 
-    // Add extras
+    // Add extras (handle weight-based items)
     let extrasTotal = 0;
     Object.entries(selectedExtras).forEach(([itemId, data]) => {
       if (data.quantity > 0) {
-        extrasTotal += data.price * data.quantity;
+        const item = extraItems.find(e => e._id === itemId);
+        const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
+        const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
+        extrasTotal += data.price * qty;
       }
     });
 
@@ -172,13 +203,17 @@ export default function CreateOrderScreen() {
       }
     }
 
-    // Extra items
+    // Extra items (handle weight-based items)
     Object.entries(selectedExtras).forEach(([itemId, data]) => {
       const item = extraItems.find(e => e._id === itemId);
       if (item && data.quantity > 0) {
+        const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
+        const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
         breakdown.push({
-          label: `${item.name} × ${data.quantity}`,
-          amount: data.price * data.quantity,
+          label: isWeightBased
+            ? `${item.name} (${totalWeight}lbs ÷ ${item.perWeightUnit}) × ${qty}`
+            : `${item.name} × ${qty}`,
+          amount: data.price * qty,
         });
       }
     });
@@ -227,16 +262,18 @@ export default function CreateOrderScreen() {
       const estimatedPickup = new Date();
       estimatedPickup.setDate(estimatedPickup.getDate() + 1);
 
-      // Convert selected extras to ExtraItemUsage format
+      // Convert selected extras to ExtraItemUsage format (handle weight-based items)
       const extraItemsData = Object.entries(selectedExtras)
         .filter(([_, data]) => data.quantity > 0)
         .map(([itemId, data]) => {
           const item = extraItems.find(e => e._id === itemId);
+          const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
+          const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
           return {
             itemId,
             name: item?.name || '',
             price: data.price,
-            quantity: data.quantity,
+            quantity: qty,
           };
         });
 
@@ -473,10 +510,22 @@ export default function CreateOrderScreen() {
               .map(([itemId, data]) => {
                 const item = extraItems.find(e => e._id === itemId);
                 if (!item) return null;
+                const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
+                const totalWeight = getTotalWeight();
+                const displayQty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
                 return (
                   <View key={itemId} style={styles.selectedExtraRow}>
-                    <Text style={styles.selectedExtraName}>{item.name} × {data.quantity}</Text>
-                    <Text style={styles.selectedExtraPrice}>${(data.price * data.quantity).toFixed(2)}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.selectedExtraName}>
+                        {item.name} × {displayQty}
+                      </Text>
+                      {isWeightBased && (
+                        <Text style={styles.selectedExtraHint}>
+                          ({totalWeight} lbs @ ${data.price}/{item.perWeightUnit} lbs)
+                        </Text>
+                      )}
+                    </View>
+                    <Text style={styles.selectedExtraPrice}>${(data.price * displayQty).toFixed(2)}</Text>
                   </View>
                 );
               })}
@@ -602,50 +651,90 @@ export default function CreateOrderScreen() {
               <Text style={styles.modalEmptyText}>No extra items available</Text>
             ) : (
               extraItems.map((item) => {
+                const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
+                const totalWeight = getTotalWeight();
+                const autoQuantity = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : 0;
                 const data = selectedExtras[item._id] || { quantity: 0, price: item.price };
-                const quantity = data.quantity;
+                const quantity = isWeightBased ? (data.quantity > 0 ? autoQuantity : 0) : data.quantity;
                 const customPrice = data.price;
+                const isEnabled = data.quantity > 0 || (selectedExtras[item._id] !== undefined);
+
                 return (
                   <View key={item._id} style={[styles.modalItemCard, quantity > 0 && styles.modalItemCardSelected]}>
                     <View style={styles.modalItemHeader}>
                       <View style={styles.modalItemInfo}>
                         <Text style={styles.modalItemName}>{item.name}</Text>
-                        <Text style={styles.modalItemBasePrice}>Base: ${item.price.toFixed(2)}</Text>
+                        <Text style={styles.modalItemBasePrice}>
+                          ${item.price.toFixed(2)}{isWeightBased ? ` per ${item.perWeightUnit} lbs` : ''}
+                        </Text>
                         {item.description && (
                           <Text style={styles.modalItemDescription}>{item.description}</Text>
                         )}
+                        {isWeightBased && totalWeight > 0 && isEnabled && (
+                          <Text style={styles.modalWeightCalc}>
+                            {totalWeight} lbs ÷ {item.perWeightUnit} = {autoQuantity} unit{autoQuantity !== 1 ? 's' : ''}
+                          </Text>
+                        )}
+                        {isWeightBased && totalWeight === 0 && (
+                          <Text style={styles.modalWeightHint}>Add bag weight to calculate</Text>
+                        )}
                       </View>
-                      <View style={styles.modalQuantityControl}>
-                        <TouchableOpacity
-                          style={[styles.modalQuantityButton, quantity === 0 && styles.modalQuantityButtonDisabled]}
-                          onPress={() => setSelectedExtras(prev => {
-                            const current = prev[item._id] || { quantity: 0, price: item.price };
-                            const newQty = Math.max(0, current.quantity - 1);
-                            if (newQty === 0) {
-                              const { [item._id]: _, ...rest } = prev;
-                              return rest;
+                      {isWeightBased ? (
+                        // Weight-based items use a toggle switch
+                        <Switch
+                          value={isEnabled}
+                          onValueChange={(enabled) => {
+                            if (enabled) {
+                              setSelectedExtras(prev => ({
+                                ...prev,
+                                [item._id]: { quantity: autoQuantity, price: item.price }
+                              }));
+                            } else {
+                              setSelectedExtras(prev => {
+                                const { [item._id]: _, ...rest } = prev;
+                                return rest;
+                              });
                             }
-                            return { ...prev, [item._id]: { ...current, quantity: newQty } };
-                          })}
-                          disabled={quantity === 0}
-                        >
-                          <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
-                        </TouchableOpacity>
-                        <Text style={styles.modalQuantityText}>{quantity}</Text>
-                        <TouchableOpacity
-                          style={styles.modalQuantityButton}
-                          onPress={() => setSelectedExtras(prev => {
-                            const current = prev[item._id] || { quantity: 0, price: item.price };
-                            return { ...prev, [item._id]: { ...current, quantity: current.quantity + 1 } };
-                          })}
-                        >
-                          <Ionicons name="add" size={20} color="#2563eb" />
-                        </TouchableOpacity>
-                      </View>
+                          }}
+                          trackColor={{ false: '#e2e8f0', true: '#c4b5fd' }}
+                          thumbColor={isEnabled ? '#8b5cf6' : '#f4f4f5'}
+                        />
+                      ) : (
+                        // Regular items use +/- quantity controls
+                        <View style={styles.modalQuantityControl}>
+                          <TouchableOpacity
+                            style={[styles.modalQuantityButton, quantity === 0 && styles.modalQuantityButtonDisabled]}
+                            onPress={() => setSelectedExtras(prev => {
+                              const current = prev[item._id] || { quantity: 0, price: item.price };
+                              const newQty = Math.max(0, current.quantity - 1);
+                              if (newQty === 0) {
+                                const { [item._id]: _, ...rest } = prev;
+                                return rest;
+                              }
+                              return { ...prev, [item._id]: { ...current, quantity: newQty } };
+                            })}
+                            disabled={quantity === 0}
+                          >
+                            <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
+                          </TouchableOpacity>
+                          <Text style={styles.modalQuantityText}>{quantity}</Text>
+                          <TouchableOpacity
+                            style={styles.modalQuantityButton}
+                            onPress={() => setSelectedExtras(prev => {
+                              const current = prev[item._id] || { quantity: 0, price: item.price };
+                              return { ...prev, [item._id]: { ...current, quantity: current.quantity + 1 } };
+                            })}
+                          >
+                            <Ionicons name="add" size={20} color="#2563eb" />
+                          </TouchableOpacity>
+                        </View>
+                      )}
                     </View>
                     {quantity > 0 && (
                       <View style={styles.modalPriceEditRow}>
-                        <Text style={styles.modalPriceLabel}>Price per item:</Text>
+                        <Text style={styles.modalPriceLabel}>
+                          {isWeightBased ? `Price per ${item.perWeightUnit} lbs:` : 'Price per item:'}
+                        </Text>
                         <View style={styles.modalPriceInputContainer}>
                           <Text style={styles.modalPriceDollar}>$</Text>
                           <TextInput
@@ -1181,6 +1270,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#8b5cf6',
   },
+  selectedExtraHint: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
   noExtrasCard: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -1269,6 +1363,23 @@ const styles = StyleSheet.create({
   modalItemDescription: {
     fontSize: 13,
     color: '#64748b',
+    marginTop: 4,
+  },
+  modalWeightCalc: {
+    fontSize: 13,
+    color: '#8b5cf6',
+    fontWeight: '600',
+    marginTop: 6,
+    backgroundColor: '#f5f3ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    alignSelf: 'flex-start',
+  },
+  modalWeightHint: {
+    fontSize: 12,
+    color: '#94a3b8',
+    fontStyle: 'italic',
     marginTop: 4,
   },
   modalPriceEditRow: {

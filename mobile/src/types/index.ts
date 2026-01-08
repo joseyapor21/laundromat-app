@@ -158,6 +158,9 @@ export interface ExtraItem {
   price: number;
   isActive: boolean;
   category: string;
+  // Weight-based pricing: if set, price applies per X pounds (e.g., 15 = per 15 lbs)
+  // Quantity is auto-calculated as ceil(totalWeight / perWeightUnit)
+  perWeightUnit?: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
