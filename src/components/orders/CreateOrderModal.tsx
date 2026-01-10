@@ -39,7 +39,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
   const [weight, setWeight] = useState<number>(0);
   const [bags, setBags] = useState<Bag[]>([]);
   const [extraItems, setExtraItems] = useState<ExtraItem[]>([]);
-  const [selectedExtraItems, setSelectedExtraItems] = useState<Record<string, number>>({});
+  const [selectedExtraItems, setSelectedExtraItems] = useState<Record<string, { quantity: number; price: number }>>({}); // Stores quantity and custom price
   const [showExtraItems, setShowExtraItems] = useState(false);
   const [scheduledPickupTime, setScheduledPickupTime] = useState('');
   const [dropOffDate, setDropOffDate] = useState('');
@@ -207,10 +207,15 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
       basePrice += customerDeliveryFee;
     }
 
-    // Add extra items
-    const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, quantity]) => {
-      const item = extraItems.find(i => i._id === itemId);
-      return total + (item ? item.price * quantity : 0);
+    // Add extra items (handle weight-based items)
+    const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
+      if (data.quantity > 0) {
+        const item = extraItems.find(i => i._id === itemId);
+        const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
+        const qty = isWeightBased ? Math.ceil(weight / item.perWeightUnit!) : data.quantity;
+        return total + (data.price * qty);
+      }
+      return total;
     }, 0);
 
     return basePrice + extraItemsTotal;
@@ -273,16 +278,18 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
       });
     }
 
-    // Extra items
-    Object.entries(selectedExtraItems).forEach(([itemId, quantity]) => {
-      if (quantity > 0) {
-        const item = extraItems.find(i => i._id === itemId);
-        if (item) {
-          breakdown.push({
-            label: `${item.name} × ${quantity}`,
-            amount: item.price * quantity,
-          });
-        }
+    // Extra items (handle weight-based items)
+    Object.entries(selectedExtraItems).forEach(([itemId, data]) => {
+      const item = extraItems.find(i => i._id === itemId);
+      if (item && data.quantity > 0) {
+        const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
+        const qty = isWeightBased ? Math.ceil(weight / item.perWeightUnit!) : data.quantity;
+        breakdown.push({
+          label: isWeightBased
+            ? `${item.name} (${weight}lbs ÷ ${item.perWeightUnit}) × ${qty}`
+            : `${item.name} × ${qty}`,
+          amount: data.price * qty,
+        });
       }
     });
 
@@ -294,11 +301,39 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
     return bags.reduce((total, bag) => total + bag.weight, 0);
   }, [bags]);
 
+  // Calculate quantity for weight-based items (e.g., "per 15 lbs")
+  const calculateWeightBasedQuantity = useCallback((perWeightUnit: number, totalWeight: number): number => {
+    if (perWeightUnit <= 0 || totalWeight <= 0) return 0;
+    return Math.ceil(totalWeight / perWeightUnit);
+  }, []);
+
   // Update the main weight when bags change
   useEffect(() => {
     const totalWeight = calculateTotalWeight();
     setWeight(totalWeight);
   }, [bags, calculateTotalWeight]);
+
+  // Update weight-based extra items when weight changes
+  useEffect(() => {
+    const totalWeight = calculateTotalWeight();
+    setSelectedExtraItems(prev => {
+      const updated = { ...prev };
+      let hasChanges = false;
+
+      Object.keys(updated).forEach(itemId => {
+        const item = extraItems.find(e => e._id === itemId);
+        if (item?.perWeightUnit && item.perWeightUnit > 0) {
+          const newQty = calculateWeightBasedQuantity(item.perWeightUnit, totalWeight);
+          if (updated[itemId].quantity !== newQty) {
+            updated[itemId] = { ...updated[itemId], quantity: newQty };
+            hasChanges = true;
+          }
+        }
+      });
+
+      return hasChanges ? updated : prev;
+    });
+  }, [bags, extraItems, calculateTotalWeight, calculateWeightBasedQuantity]);
 
   // Update total price when dependencies change
   useEffect(() => {
@@ -361,6 +396,21 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
         customer = await customerResponse.json();
       }
 
+      // Convert selected extras to ExtraItemUsage format (handle weight-based items)
+      const extraItemsData = Object.entries(selectedExtraItems)
+        .filter(([_, data]) => data.quantity > 0)
+        .map(([itemId, data]) => {
+          const item = extraItems.find(e => e._id === itemId);
+          const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
+          const qty = isWeightBased ? Math.ceil(weight / item.perWeightUnit!) : data.quantity;
+          return {
+            itemId,
+            name: item?.name || '',
+            price: data.price,
+            quantity: qty,
+          };
+        });
+
       // Build order data
       const orderData = {
         customerId: customer!.id?.toString() || customer!._id,
@@ -372,6 +422,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
         weight: weight,
         bags: bags,
         items: [],
+        extraItems: extraItemsData,
         dropOffDate: new Date().toISOString(),
         estimatedPickupDate: orderType === 'delivery'
           ? (scheduledPickupTime ? new Date(scheduledPickupTime).toISOString() : new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString())
@@ -785,97 +836,167 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                 </button>
               </div>
               <div className="space-y-3">
-                {extraItems.map(item => (
-                  <div
-                    key={item._id}
-                    className="flex justify-between items-center p-3 border border-gray-200 rounded-lg bg-gray-50"
-                  >
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-700">{item.name}</div>
-                      <div className="text-sm text-gray-500">
-                        {item.description} - ${item.price.toFixed(2)}
+                {extraItems.map(item => {
+                  const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
+                  const autoQuantity = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, weight) : 0;
+                  const data = selectedExtraItems[item._id] || { quantity: 0, price: item.price };
+                  const quantity = isWeightBased ? (data.quantity > 0 ? autoQuantity : 0) : data.quantity;
+                  const isEnabled = data.quantity > 0 || selectedExtraItems[item._id] !== undefined;
+
+                  return (
+                    <div
+                      key={item._id}
+                      className={`p-3 border rounded-lg ${quantity > 0 ? 'border-purple-300 bg-purple-50' : 'border-gray-200 bg-gray-50'}`}
+                    >
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-700">{item.name}</div>
+                          <div className="text-sm text-gray-500">
+                            {item.description && `${item.description} - `}
+                            ${item.price.toFixed(2)}{isWeightBased ? ` per ${item.perWeightUnit} lbs` : ' each'}
+                          </div>
+                          {isWeightBased && weight > 0 && isEnabled && (
+                            <div className="text-sm text-purple-600 font-medium mt-1">
+                              {weight} lbs ÷ {item.perWeightUnit} = {autoQuantity} unit{autoQuantity !== 1 ? 's' : ''}
+                            </div>
+                          )}
+                          {isWeightBased && weight === 0 && (
+                            <div className="text-xs text-gray-400 italic mt-1">Add bag weight to calculate</div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {isWeightBased ? (
+                            // Weight-based items use a toggle switch
+                            <label className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isEnabled}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedExtraItems(prev => ({
+                                      ...prev,
+                                      [item._id]: { quantity: autoQuantity, price: item.price }
+                                    }));
+                                  } else {
+                                    setSelectedExtraItems(prev => {
+                                      const { [item._id]: _, ...rest } = prev;
+                                      return rest;
+                                    });
+                                  }
+                                }}
+                                className="sr-only peer"
+                              />
+                              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                            </label>
+                          ) : (
+                            // Regular items use +/- quantity controls
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedExtraItems(prev => {
+                                  const current = prev[item._id] || { quantity: 0, price: item.price };
+                                  const newQty = Math.max(0, current.quantity - 1);
+                                  if (newQty === 0) {
+                                    const { [item._id]: _, ...rest } = prev;
+                                    return rest;
+                                  }
+                                  return { ...prev, [item._id]: { ...current, quantity: newQty } };
+                                })}
+                                className="w-8 h-8 bg-red-600 text-white rounded hover:bg-red-700 font-bold"
+                              >
+                                -
+                              </button>
+                              <span className="w-6 text-center font-semibold">
+                                {quantity}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedExtraItems(prev => {
+                                  const current = prev[item._id] || { quantity: 0, price: item.price };
+                                  return { ...prev, [item._id]: { ...current, quantity: current.quantity + 1 } };
+                                })}
+                                className="w-8 h-8 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-bold"
+                              >
+                                +
+                              </button>
+                            </>
+                          )}
+                          <span className="ml-2 min-w-16 text-right font-semibold text-gray-700">
+                            ${(data.price * quantity).toFixed(2)}
+                          </span>
+                        </div>
                       </div>
+                      {/* Price editing row - shown when item is selected */}
+                      {quantity > 0 && (
+                        <div className="mt-3 pt-3 border-t border-purple-200 flex items-center gap-2">
+                          <span className="text-sm text-gray-600">
+                            {isWeightBased ? `Price per ${item.perWeightUnit} lbs:` : 'Price per item:'}
+                          </span>
+                          <div className="flex items-center border border-gray-300 rounded px-2 bg-white">
+                            <span className="text-gray-500">$</span>
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={data.price}
+                              onChange={(e) => {
+                                const newPrice = parseFloat(e.target.value) || 0;
+                                setSelectedExtraItems(prev => ({
+                                  ...prev,
+                                  [item._id]: { ...prev[item._id], price: newPrice }
+                                }));
+                              }}
+                              className="w-16 py-1 text-center focus:outline-none"
+                            />
+                          </div>
+                          <span className="text-sm font-semibold text-purple-700">
+                            = ${(data.price * quantity).toFixed(2)}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setSelectedExtraItems(prev => ({
-                          ...prev,
-                          [item._id]: Math.max(0, (prev[item._id] || 0) - 1)
-                        }))}
-                        className="w-8 h-8 bg-red-600 text-white rounded hover:bg-red-700 font-bold"
-                      >
-                        -
-                      </button>
-                      <span className="w-6 text-center font-semibold">
-                        {selectedExtraItems[item._id] || 0}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedExtraItems(prev => ({
-                          ...prev,
-                          [item._id]: (prev[item._id] || 0) + 1
-                        }))}
-                        className="w-8 h-8 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-bold"
-                      >
-                        +
-                      </button>
-                      <span className="ml-2 min-w-16 text-right font-semibold text-gray-700">
-                        ${((selectedExtraItems[item._id] || 0) * item.price).toFixed(2)}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}
 
           {/* Selected Extra Items Summary */}
-          {Object.keys(selectedExtraItems).some(itemId => selectedExtraItems[itemId] > 0) && (
+          {Object.keys(selectedExtraItems).some(itemId => selectedExtraItems[itemId]?.quantity > 0) && (
             <div className="space-y-3">
               <h3 className="text-base font-semibold text-gray-700 border-b-2 border-gray-200 pb-2">
                 Selected Extra Items
               </h3>
               <div className="space-y-2">
                 {Object.entries(selectedExtraItems)
-                  .filter(([, quantity]) => quantity > 0)
-                  .map(([itemId, quantity]) => {
+                  .filter(([, data]) => data.quantity > 0)
+                  .map(([itemId, data]) => {
                     const item = extraItems.find(i => i._id === itemId);
                     if (!item) return null;
+
+                    const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
+                    const displayQty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, weight) : data.quantity;
 
                     return (
                       <div
                         key={itemId}
-                        className="flex justify-between items-center p-3 border border-gray-300 rounded-lg bg-white"
+                        className="flex justify-between items-center p-3 border border-purple-300 rounded-lg bg-purple-50"
                       >
                         <div>
                           <span className="font-medium">{item.name}</span>
-                          <span className="text-gray-500 ml-2">${item.price.toFixed(2)} each</span>
+                          <span className="text-gray-500 ml-2">
+                            ${data.price.toFixed(2)} {isWeightBased ? `per ${item.perWeightUnit} lbs` : 'each'}
+                          </span>
+                          {isWeightBased && (
+                            <span className="text-purple-600 ml-2 text-sm">
+                              ({weight}lbs ÷ {item.perWeightUnit})
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => setSelectedExtraItems(prev => ({
-                              ...prev,
-                              [itemId]: Math.max(0, (prev[itemId] || 0) - 1)
-                            }))}
-                            className="w-8 h-8 bg-red-600 text-white rounded hover:bg-red-700 font-bold"
-                          >
-                            -
-                          </button>
-                          <span className="w-6 text-center font-semibold">{quantity}</span>
-                          <button
-                            type="button"
-                            onClick={() => setSelectedExtraItems(prev => ({
-                              ...prev,
-                              [itemId]: (prev[itemId] || 0) + 1
-                            }))}
-                            className="w-8 h-8 bg-emerald-600 text-white rounded hover:bg-emerald-700 font-bold"
-                          >
-                            +
-                          </button>
-                          <span className="ml-2 min-w-16 text-right font-semibold text-gray-700">
-                            ${(item.price * quantity).toFixed(2)}
+                          <span className="font-semibold">× {displayQty}</span>
+                          <span className="ml-2 min-w-16 text-right font-semibold text-purple-700">
+                            ${(data.price * displayQty).toFixed(2)}
                           </span>
                         </div>
                       </div>
