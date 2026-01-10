@@ -212,13 +212,15 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
       basePrice += customerDeliveryFee;
     }
 
-    // Add extra items (handle weight-based items, round to nearest quarter)
+    // Add extra items (handle weight-based items - calculate exact proportional amount, round to nearest quarter)
     const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
       if (data.quantity > 0) {
         const item = extraItems.find(i => i._id === itemId);
         const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
-        const qty = isWeightBased ? Math.ceil(weight / item.perWeightUnit!) : data.quantity;
-        const itemTotal = isWeightBased ? roundToQuarter(data.price * qty) : data.price * qty;
+        // For weight-based: calculate exact proportional cost (weight / perWeightUnit * price), then round
+        const itemTotal = isWeightBased
+          ? roundToQuarter((weight / item.perWeightUnit!) * data.price)
+          : data.price * data.quantity;
         return total + itemTotal;
       }
       return total;
@@ -284,17 +286,19 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
       });
     }
 
-    // Extra items (handle weight-based items, round to nearest quarter)
+    // Extra items (handle weight-based items - calculate exact proportional amount, round to nearest quarter)
     Object.entries(selectedExtraItems).forEach(([itemId, data]) => {
       const item = extraItems.find(i => i._id === itemId);
       if (item && data.quantity > 0) {
         const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
-        const qty = isWeightBased ? Math.ceil(weight / item.perWeightUnit!) : data.quantity;
-        const itemTotal = isWeightBased ? roundToQuarter(data.price * qty) : data.price * qty;
+        // For weight-based: calculate exact proportional cost
+        const itemTotal = isWeightBased
+          ? roundToQuarter((weight / item.perWeightUnit!) * data.price)
+          : data.price * data.quantity;
         breakdown.push({
           label: isWeightBased
-            ? `${item.name} (${weight}lbs ÷ ${item.perWeightUnit}) × ${qty}`
-            : `${item.name} × ${qty}`,
+            ? `${item.name} (${weight}lbs @ $${data.price}/${item.perWeightUnit}lbs)`
+            : `${item.name} × ${data.quantity}`,
           amount: itemTotal,
         });
       }
@@ -403,18 +407,21 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
         customer = await customerResponse.json();
       }
 
-      // Convert selected extras to ExtraItemUsage format (handle weight-based items)
+      // Convert selected extras to ExtraItemUsage format (handle weight-based items with proportional pricing)
       const extraItemsData = Object.entries(selectedExtraItems)
         .filter(([_, data]) => data.quantity > 0)
         .map(([itemId, data]) => {
           const item = extraItems.find(e => e._id === itemId);
           const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
-          const qty = isWeightBased ? Math.ceil(weight / item.perWeightUnit!) : data.quantity;
+          // For weight-based: calculate exact proportional cost, then round to nearest quarter
+          const totalPrice = isWeightBased
+            ? roundToQuarter((weight / item!.perWeightUnit!) * data.price)
+            : data.price * data.quantity;
           return {
             itemId,
             name: item?.name || '',
-            price: data.price,
-            quantity: qty,
+            price: totalPrice, // Store the total calculated price
+            quantity: 1, // Quantity is 1 since price is the total
           };
         });
 
@@ -845,15 +852,17 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
               <div className="space-y-3">
                 {extraItems.map(item => {
                   const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
-                  const autoQuantity = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, weight) : 0;
                   const data = selectedExtraItems[item._id] || { quantity: 0, price: item.price };
-                  const quantity = isWeightBased ? (data.quantity > 0 ? autoQuantity : 0) : data.quantity;
                   const isEnabled = data.quantity > 0 || selectedExtraItems[item._id] !== undefined;
+                  // For weight-based: calculate exact proportional cost, then round to nearest quarter
+                  const itemTotal = isWeightBased && isEnabled && weight > 0
+                    ? roundToQuarter((weight / item.perWeightUnit!) * data.price)
+                    : data.price * data.quantity;
 
                   return (
                     <div
                       key={item._id}
-                      className={`p-3 border rounded-lg ${quantity > 0 ? 'border-purple-300 bg-purple-50' : 'border-gray-200 bg-gray-50'}`}
+                      className={`p-3 border rounded-lg ${isEnabled && (isWeightBased ? weight > 0 : data.quantity > 0) ? 'border-purple-300 bg-purple-50' : 'border-gray-200 bg-gray-50'}`}
                     >
                       <div className="flex justify-between items-center">
                         <div className="flex-1">
@@ -864,7 +873,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                           </div>
                           {isWeightBased && weight > 0 && isEnabled && (
                             <div className="text-sm text-purple-600 font-medium mt-1">
-                              {weight} lbs ÷ {item.perWeightUnit} = {autoQuantity} unit{autoQuantity !== 1 ? 's' : ''}
+                              {weight} lbs @ ${data.price}/{item.perWeightUnit} lbs = ${itemTotal.toFixed(2)}
                             </div>
                           )}
                           {isWeightBased && weight === 0 && (
@@ -882,7 +891,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                                   if (e.target.checked) {
                                     setSelectedExtraItems(prev => ({
                                       ...prev,
-                                      [item._id]: { quantity: autoQuantity, price: item.price }
+                                      [item._id]: { quantity: 1, price: item.price }
                                     }));
                                   } else {
                                     setSelectedExtraItems(prev => {
@@ -914,7 +923,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                                 -
                               </button>
                               <span className="w-6 text-center font-semibold">
-                                {quantity}
+                                {data.quantity}
                               </span>
                               <button
                                 type="button"
@@ -929,12 +938,12 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                             </>
                           )}
                           <span className="ml-2 min-w-16 text-right font-semibold text-gray-700">
-                            ${(data.price * quantity).toFixed(2)}
+                            ${itemTotal.toFixed(2)}
                           </span>
                         </div>
                       </div>
                       {/* Price editing row - shown when item is selected */}
-                      {quantity > 0 && (
+                      {isEnabled && (isWeightBased ? weight > 0 : data.quantity > 0) && (
                         <div className="mt-3 pt-3 border-t border-purple-200 flex items-center gap-2">
                           <span className="text-sm text-gray-600">
                             {isWeightBased ? `Price per ${item.perWeightUnit} lbs:` : 'Price per item:'}
@@ -957,7 +966,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                             />
                           </div>
                           <span className="text-sm font-semibold text-purple-700">
-                            = ${(data.price * quantity).toFixed(2)}
+                            = ${itemTotal.toFixed(2)}
                           </span>
                         </div>
                       )}
@@ -982,7 +991,10 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                     if (!item) return null;
 
                     const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
-                    const displayQty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, weight) : data.quantity;
+                    // For weight-based: calculate exact proportional cost, then round to nearest quarter
+                    const itemTotal = isWeightBased
+                      ? roundToQuarter((weight / item.perWeightUnit!) * data.price)
+                      : data.price * data.quantity;
 
                     return (
                       <div
@@ -996,14 +1008,14 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                           </span>
                           {isWeightBased && (
                             <span className="text-purple-600 ml-2 text-sm">
-                              ({weight}lbs ÷ {item.perWeightUnit})
+                              ({weight} lbs @ ${data.price}/{item.perWeightUnit} lbs)
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold">× {displayQty}</span>
+                          {!isWeightBased && <span className="font-semibold">× {data.quantity}</span>}
                           <span className="ml-2 min-w-16 text-right font-semibold text-purple-700">
-                            ${(data.price * displayQty).toFixed(2)}
+                            ${itemTotal.toFixed(2)}
                           </span>
                         </div>
                       </div>
