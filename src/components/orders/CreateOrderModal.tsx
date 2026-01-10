@@ -151,6 +151,11 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
     setCreditToApply(0);
   };
 
+  // Helper function to round to nearest quarter (0.25)
+  const roundToQuarter = (value: number): number => {
+    return Math.round(value * 4) / 4;
+  };
+
   // Calculate order price (laundry only, no delivery fee)
   // Pricing: minimum price for first X pounds, then price per pound for extra
   const calculateLaundryPrice = useCallback((weight: number, settings: Settings): number => {
@@ -165,9 +170,9 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
       return minPrice;
     }
 
-    // Over minimum weight - charge minimum + extra pounds at price per pound
+    // Over minimum weight - charge minimum + extra pounds at price per pound (rounded to nearest quarter)
     const extraPounds = weight - minWeight;
-    return minPrice + (extraPounds * pricePerPound);
+    return roundToQuarter(minPrice + (extraPounds * pricePerPound));
   }, []);
 
   // Calculate same day price per pound (regular + extra)
@@ -178,16 +183,16 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
     return regularPrice + extraCentsPerPound;
   }, [settings]);
 
-  // Calculate same day extra charge
+  // Calculate same day extra charge (rounded to nearest quarter)
   const getSameDayExtraCharge = useCallback((): number => {
     if (!settings || !isSameDay || weight <= 0) return 0;
 
     const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
     const calculatedExtra = weight * extraCentsPerPound;
 
-    // Use minimum charge if calculated is less
+    // Use minimum charge if calculated is less, then round to nearest quarter
     const minimumCharge = settings.sameDayMinimumCharge || 5;
-    return Math.max(calculatedExtra, minimumCharge);
+    return roundToQuarter(Math.max(calculatedExtra, minimumCharge));
   }, [settings, isSameDay, weight]);
 
   const calculateTotalPrice = useCallback(() => {
@@ -207,13 +212,14 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
       basePrice += customerDeliveryFee;
     }
 
-    // Add extra items (handle weight-based items)
+    // Add extra items (handle weight-based items, round to nearest quarter)
     const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
       if (data.quantity > 0) {
         const item = extraItems.find(i => i._id === itemId);
         const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
         const qty = isWeightBased ? Math.ceil(weight / item.perWeightUnit!) : data.quantity;
-        return total + (data.price * qty);
+        const itemTotal = isWeightBased ? roundToQuarter(data.price * qty) : data.price * qty;
+        return total + itemTotal;
       }
       return total;
     }, 0);
@@ -240,7 +246,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
           amount: minPrice,
         });
       } else {
-        // Over minimum weight - show base + extra
+        // Over minimum weight - show base + extra (rounded to nearest quarter)
         const extraPounds = weight - minWeight;
         breakdown.push({
           label: `Base (first ${minWeight} lbs)`,
@@ -248,7 +254,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
         });
         breakdown.push({
           label: `Extra ${extraPounds} lbs × $${pricePerPound.toFixed(2)}/lb`,
-          amount: extraPounds * pricePerPound,
+          amount: roundToQuarter(extraPounds * pricePerPound),
         });
       }
     }
@@ -278,17 +284,18 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
       });
     }
 
-    // Extra items (handle weight-based items)
+    // Extra items (handle weight-based items, round to nearest quarter)
     Object.entries(selectedExtraItems).forEach(([itemId, data]) => {
       const item = extraItems.find(i => i._id === itemId);
       if (item && data.quantity > 0) {
         const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
         const qty = isWeightBased ? Math.ceil(weight / item.perWeightUnit!) : data.quantity;
+        const itemTotal = isWeightBased ? roundToQuarter(data.price * qty) : data.price * qty;
         breakdown.push({
           label: isWeightBased
             ? `${item.name} (${weight}lbs ÷ ${item.perWeightUnit}) × ${qty}`
             : `${item.name} × ${qty}`,
-          amount: data.price * qty,
+          amount: itemTotal,
         });
       }
     });

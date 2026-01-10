@@ -128,19 +128,19 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     return regularPrice + extraCentsPerPound;
   };
 
-  // Calculate same day extra charge
+  // Calculate same day extra charge (rounded to nearest quarter)
   const getSameDayExtraCharge = (): number => {
     if (!settings || !isSameDay || weight <= 0) return 0;
 
     const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
     const calculatedExtra = weight * extraCentsPerPound;
 
-    // Use minimum charge if calculated is less
+    // Use minimum charge if calculated is less, then round to nearest quarter
     const minimumCharge = settings.sameDayMinimumCharge || 5;
-    return Math.max(calculatedExtra, minimumCharge);
+    return roundToQuarter(Math.max(calculatedExtra, minimumCharge));
   };
 
-  // Calculate laundry base price (tiered pricing)
+  // Calculate laundry base price (tiered pricing, rounded to nearest quarter)
   const calculateLaundryPrice = (): number => {
     if (!settings || weight <= 0) return 0;
 
@@ -153,9 +153,9 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
       return minPrice;
     }
 
-    // Over minimum weight - charge minimum + extra pounds at price per pound
+    // Over minimum weight - charge minimum + extra pounds at price per pound (rounded to nearest quarter)
     const extraPounds = weight - minWeight;
-    return minPrice + (extraPounds * pricePerPound);
+    return roundToQuarter(minPrice + (extraPounds * pricePerPound));
   };
 
   const calculateTotalPrice = () => {
@@ -167,13 +167,14 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     // Add same day extra charge
     const sameDayExtra = getSameDayExtraCharge();
 
-    // Add extra items (handle weight-based items)
+    // Add extra items (handle weight-based items, round to nearest quarter)
     const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
       if (data.quantity > 0) {
         const item = extraItems.find(i => i._id === itemId);
         const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
         const qty = isWeightBased ? Math.ceil(weight / item.perWeightUnit!) : data.quantity;
-        return total + (data.price * qty);
+        const itemTotal = isWeightBased ? roundToQuarter(data.price * qty) : data.price * qty;
+        return total + itemTotal;
       }
       return total;
     }, 0);
@@ -808,7 +809,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                         </div>
                         <div className="flex justify-between">
                           <span>Extra {(weight - settings.minimumWeight).toFixed(1)} lbs × ${settings.pricePerPound?.toFixed(2)}:</span>
-                          <span>${((weight - settings.minimumWeight) * settings.pricePerPound).toFixed(2)}</span>
+                          <span>${roundToQuarter((weight - settings.minimumWeight) * settings.pricePerPound).toFixed(2)}</span>
                         </div>
                       </>
                     )}
@@ -827,6 +828,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                             if (!item) return null;
                             const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                             const qty = isWeightBased ? Math.ceil(weight / item.perWeightUnit!) : data.quantity;
+                            const itemTotal = isWeightBased ? roundToQuarter(data.price * qty) : data.price * qty;
                             return (
                               <div key={itemId} className="flex justify-between">
                                 <span>
@@ -834,7 +836,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                                     ? `${item.name} (${weight}lbs ÷ ${item.perWeightUnit}) × ${qty}:`
                                     : `${item.name} × ${qty}:`}
                                 </span>
-                                <span>+${(data.price * qty).toFixed(2)}</span>
+                                <span>+${itemTotal.toFixed(2)}</span>
                               </div>
                             );
                           })}
