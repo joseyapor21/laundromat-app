@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import type { Order } from '../types';
 
 type Tab = 'pickups' | 'deliveries';
@@ -90,6 +91,72 @@ export default function DriverScreen() {
 
   function callCustomer(phone: string) {
     Linking.openURL(`tel:${phone}`);
+  }
+
+  // Open Google Maps with optimized route for all addresses
+  function openOptimizedRoute() {
+    const orders = activeTab === 'pickups' ? pickupOrders : deliveryOrders;
+    const addresses = orders
+      .filter(order => order.customer?.address)
+      .map(order => order.customer!.address);
+
+    if (addresses.length === 0) {
+      Alert.alert('No Addresses', 'No orders have addresses to navigate to.');
+      return;
+    }
+
+    if (addresses.length === 1) {
+      // Single address - just navigate directly
+      openNavigation(addresses[0]);
+      return;
+    }
+
+    // Multiple addresses - use Google Maps with waypoints
+    // Format: origin -> waypoints -> destination
+    const origin = encodeURIComponent(addresses[0]);
+    const destination = encodeURIComponent(addresses[addresses.length - 1]);
+    const waypoints = addresses.slice(1, -1).map(encodeURIComponent).join('|');
+
+    let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+    if (waypoints) {
+      url += `&waypoints=${waypoints}`;
+    }
+
+    Linking.openURL(url);
+  }
+
+  // Print pickup/delivery sheet
+  async function printSheet() {
+    const orders = activeTab === 'pickups' ? pickupOrders : deliveryOrders;
+
+    if (orders.length === 0) {
+      Alert.alert('No Orders', `No ${activeTab} to print.`);
+      return;
+    }
+
+    if (!bluetoothPrinter.isConnected()) {
+      Alert.alert(
+        'Printer Not Connected',
+        'Please connect a Bluetooth printer in Settings > Bluetooth Printer',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    const printData = orders.map(order => ({
+      orderId: String(order.orderId),
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      address: order.customer?.address,
+    }));
+
+    const success = await bluetoothPrinter.printPickupSheet(printData);
+
+    if (success) {
+      Alert.alert('Success', `${activeTab === 'pickups' ? 'Pickup' : 'Delivery'} sheet printed successfully`);
+    } else {
+      Alert.alert('Print Failed', 'Could not print. Please check printer connection.');
+    }
   }
 
   const getStatusConfig = (status: string) => {
@@ -270,6 +337,26 @@ export default function DriverScreen() {
           <Text style={styles.statLabel}>Total</Text>
         </View>
       </View>
+
+      {/* Action Buttons */}
+      {activeOrders.length > 0 && (
+        <View style={styles.actionBar}>
+          <TouchableOpacity
+            style={[styles.actionBarButton, styles.routeButton]}
+            onPress={openOptimizedRoute}
+          >
+            <Ionicons name="map" size={20} color="#fff" />
+            <Text style={styles.actionBarButtonText}>Optimize Route</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBarButton, styles.printButton]}
+            onPress={printSheet}
+          >
+            <Ionicons name="print" size={20} color="#fff" />
+            <Text style={styles.actionBarButtonText}>Print Sheet</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Orders List */}
       <FlatList
@@ -511,5 +598,31 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#94a3b8',
     marginTop: 16,
+  },
+  actionBar: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 12,
+  },
+  actionBarButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  actionBarButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  routeButton: {
+    backgroundColor: '#2563eb',
+  },
+  printButton: {
+    backgroundColor: '#8b5cf6',
   },
 });

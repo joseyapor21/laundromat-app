@@ -18,9 +18,6 @@
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan QR codes on washers and dryers.",
         "ITSAppUsesNonExemptEncryption": false
-      },
-      "entitlements": {
-        "aps-environment": "production"
       }
     },
     "android": {

@@ -19,6 +19,7 @@ import EODReportScreen from '../screens/EODReportScreen';
 import DriverScreen from '../screens/DriverScreen';
 import AdminScreen from '../screens/AdminScreen';
 import ProfileScreen from '../screens/ProfileScreen';
+import BluetoothPrinterScreen from '../screens/BluetoothPrinterScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -150,6 +151,11 @@ function MainStack() {
           headerStyle: { backgroundColor: '#fff' },
           headerTintColor: '#1e293b',
         }}
+      />
+      <Stack.Screen
+        name="BluetoothPrinter"
+        component={BluetoothPrinterScreen}
+        options={{ headerShown: false }}
       />
     </Stack.Navigator>
   );
