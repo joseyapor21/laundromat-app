@@ -17,6 +17,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useAuth } from '../contexts/AuthContext';
+import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag } from '../types';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
@@ -106,15 +107,120 @@ export default function OrderDetailScreen() {
 
   async function handlePrint(type: 'customer' | 'store' | 'both') {
     setShowPrintOptions(false);
-    Alert.alert('Info', 'Printing is not available');
+
+    if (!bluetoothPrinter.isConnected()) {
+      Alert.alert(
+        'Printer Not Connected',
+        'Please connect a Bluetooth printer in Profile > Settings > Bluetooth Printer',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    if (!order) return;
+
+    setPrinting(true);
+    try {
+      // Print receipt/tag for the order
+      const success = await bluetoothPrinter.printOrderTag({
+        orderId: String(order.orderId),
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        weight: order.weight,
+        isSameDay: order.isSameDay,
+      });
+
+      if (success) {
+        Alert.alert('Success', 'Receipt printed successfully');
+      } else {
+        Alert.alert('Print Failed', 'Could not print. Please check printer connection.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to print');
+    } finally {
+      setPrinting(false);
+    }
   }
 
   async function handlePrintBagLabels() {
-    Alert.alert('Info', 'Printing is not available');
+    if (!bluetoothPrinter.isConnected()) {
+      Alert.alert(
+        'Printer Not Connected',
+        'Please connect a Bluetooth printer in Profile > Settings > Bluetooth Printer',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    if (!order || !order.bags || order.bags.length === 0) {
+      Alert.alert('No Bags', 'No bags to print labels for');
+      return;
+    }
+
+    setPrinting(true);
+    try {
+      for (let i = 0; i < order.bags.length; i++) {
+        const bag = order.bags[i];
+        await bluetoothPrinter.printOrderTag({
+          orderId: String(order.orderId),
+          customerName: order.customerName,
+          customerPhone: order.customerPhone,
+          weight: bag.weight,
+          bagNumber: i + 1,
+          totalBags: order.bags.length,
+          isSameDay: order.isSameDay,
+        });
+        // Small delay between prints
+        if (i < order.bags.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+      Alert.alert('Success', `Printed ${order.bags.length} bag label(s)`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to print bag labels');
+    } finally {
+      setPrinting(false);
+    }
   }
 
   async function handlePrintSingleBag(bagIndex: number) {
-    Alert.alert('Info', 'Printing is not available');
+    if (!bluetoothPrinter.isConnected()) {
+      Alert.alert(
+        'Printer Not Connected',
+        'Please connect a Bluetooth printer in Profile > Settings > Bluetooth Printer',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    if (!order || !order.bags || !order.bags[bagIndex]) {
+      Alert.alert('Error', 'Bag not found');
+      return;
+    }
+
+    setPrinting(true);
+    try {
+      const bag = order.bags[bagIndex];
+      const success = await bluetoothPrinter.printOrderTag({
+        orderId: String(order.orderId),
+        customerName: order.customerName,
+        customerPhone: order.customerPhone,
+        weight: bag.weight,
+        bagNumber: bagIndex + 1,
+        totalBags: order.bags.length,
+        isSameDay: order.isSameDay,
+      });
+
+      if (success) {
+        Alert.alert('Success', `Bag ${bagIndex + 1} label printed`);
+      } else {
+        Alert.alert('Print Failed', 'Could not print. Please check printer connection.');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to print bag label');
+    } finally {
+      setPrinting(false);
+    }
   }
 
   // Handle QR scan for machine assignment

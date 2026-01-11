@@ -240,6 +240,27 @@ export default function ProfileScreen() {
         </View>
       )}
 
+      {/* Settings */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Settings</Text>
+
+        <TouchableOpacity
+          style={styles.card}
+          onPress={() => navigation.navigate('BluetoothPrinter')}
+        >
+          <View style={styles.cardRow}>
+            <View style={[styles.cardIcon, { backgroundColor: '#e0e7ff' }]}>
+              <Ionicons name="bluetooth" size={24} color="#6366f1" />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardValue}>Bluetooth Printer</Text>
+              <Text style={styles.cardLabel}>Connect thermal printer for tags</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+          </View>
+        </TouchableOpacity>
+      </View>
+
       {/* App Info */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>App Information</Text>
