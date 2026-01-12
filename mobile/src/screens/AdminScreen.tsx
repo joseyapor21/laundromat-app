@@ -62,6 +62,9 @@ export default function AdminScreen() {
     pricePerPound: '',
     sameDayMinimumCharge: '',
     sameDayExtraCentsPerPound: '',
+    storeAddress: '',
+    storeLatitude: '',
+    storeLongitude: '',
   });
 
   const loadData = useCallback(async () => {
@@ -278,6 +281,9 @@ export default function AdminScreen() {
         pricePerPound: (settings.pricePerPound || 1.25).toString(),
         sameDayMinimumCharge: (settings.sameDayMinimumCharge || 5).toString(),
         sameDayExtraCentsPerPound: (settings.sameDayExtraCentsPerPound || 0.33).toString(),
+        storeAddress: settings.storeAddress || '',
+        storeLatitude: (settings.storeLatitude || 40.7128).toString(),
+        storeLongitude: (settings.storeLongitude || -74.0060).toString(),
       });
     }
     setShowSettingsModal(true);
@@ -292,6 +298,9 @@ export default function AdminScreen() {
         pricePerPound: parseFloat(settingsForm.pricePerPound) || 0,
         sameDayMinimumCharge: parseFloat(settingsForm.sameDayMinimumCharge) || 0,
         sameDayExtraCentsPerPound: parseFloat(settingsForm.sameDayExtraCentsPerPound) || 0,
+        storeAddress: settingsForm.storeAddress,
+        storeLatitude: parseFloat(settingsForm.storeLatitude) || 40.7128,
+        storeLongitude: parseFloat(settingsForm.storeLongitude) || -74.0060,
       });
       Alert.alert('Success', 'Settings updated');
       setShowSettingsModal(false);
@@ -564,6 +573,22 @@ export default function AdminScreen() {
             <View style={styles.settingsRow}>
               <Text style={styles.settingsLabel}>Minimum Charge</Text>
               <Text style={styles.settingsValue}>${settings.sameDayMinimumCharge}</Text>
+            </View>
+          </View>
+
+          <View style={styles.settingsCard}>
+            <Text style={styles.settingsTitle}>Store Location</Text>
+            <View style={styles.settingsRow}>
+              <Text style={styles.settingsLabel}>Address</Text>
+              <Text style={styles.settingsValue}>{settings.storeAddress || 'Not set'}</Text>
+            </View>
+            <View style={styles.settingsRow}>
+              <Text style={styles.settingsLabel}>Latitude</Text>
+              <Text style={styles.settingsValue}>{settings.storeLatitude || '40.7128'}</Text>
+            </View>
+            <View style={styles.settingsRow}>
+              <Text style={styles.settingsLabel}>Longitude</Text>
+              <Text style={styles.settingsValue}>{settings.storeLongitude || '-74.0060'}</Text>
             </View>
           </View>
 
@@ -986,6 +1011,45 @@ export default function AdminScreen() {
                 </View>
               </View>
 
+              <Text style={styles.sectionLabel}>Store Location</Text>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Store Address</Text>
+                <TextInput
+                  style={styles.input}
+                  value={settingsForm.storeAddress}
+                  onChangeText={(text) => setSettingsForm({ ...settingsForm, storeAddress: text })}
+                  placeholder="123 Main St, City, State"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+              <View style={styles.inputRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Latitude</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={settingsForm.storeLatitude}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, storeLatitude: text })}
+                    keyboardType="decimal-pad"
+                    placeholder="40.7128"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Longitude</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={settingsForm.storeLongitude}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, storeLongitude: text })}
+                    keyboardType="decimal-pad"
+                    placeholder="-74.0060"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+              </View>
+              <Text style={styles.hintText}>
+                Get coordinates from Google Maps by right-clicking on your store location.
+              </Text>
+
             </ScrollView>
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowSettingsModal(false)}>
@@ -1276,6 +1340,12 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
+  },
+  hintText: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 4,
+    marginBottom: 16,
   },
   input: {
     backgroundColor: '#f8fafc',

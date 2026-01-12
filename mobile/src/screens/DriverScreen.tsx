@@ -9,10 +9,12 @@ import {
   Alert,
   Linking,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
+import { Device } from 'react-native-ble-plx';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
@@ -28,6 +30,14 @@ export default function DriverScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('pickups');
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+
+  // Printer state
+  const [printerExpanded, setPrinterExpanded] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [connectedDeviceName, setConnectedDeviceName] = useState<string | null>(null);
+  const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -57,7 +67,107 @@ export default function DriverScreen() {
 
   useEffect(() => {
     loadOrders();
+    checkPrinterConnection();
   }, [loadOrders]);
+
+  // Check printer connection on mount
+  async function checkPrinterConnection() {
+    const name = bluetoothPrinter.getConnectedDeviceName();
+    setConnectedDeviceName(name);
+
+    if (!name) {
+      const reconnected = await bluetoothPrinter.reconnectSavedPrinter();
+      if (reconnected) {
+        setConnectedDeviceName(bluetoothPrinter.getConnectedDeviceName());
+      }
+    }
+  }
+
+  async function startScan() {
+    setScanning(true);
+    setDevices([]);
+
+    await bluetoothPrinter.startScan((foundDevices) => {
+      setDevices(foundDevices);
+    });
+
+    setTimeout(() => {
+      setScanning(false);
+    }, 10000);
+  }
+
+  function stopScan() {
+    bluetoothPrinter.stopScan();
+    setScanning(false);
+  }
+
+  async function connectToDevice(device: Device) {
+    setConnecting(true);
+    stopScan();
+
+    const success = await bluetoothPrinter.connect(device);
+
+    if (success) {
+      setConnectedDeviceName(device.name || 'Unknown');
+      Alert.alert('Connected', `Successfully connected to ${device.name}`);
+    } else {
+      Alert.alert('Connection Failed', 'Could not connect to the printer. Please try again.');
+    }
+
+    setConnecting(false);
+  }
+
+  async function disconnectPrinter() {
+    await bluetoothPrinter.disconnect();
+    setConnectedDeviceName(null);
+    Alert.alert('Disconnected', 'Printer has been disconnected');
+  }
+
+  async function testPrint() {
+    const success = await bluetoothPrinter.printText(
+      'TEST PRINT\n' +
+      '--------------------------------\n' +
+      'Laundromat App\n' +
+      'Printer connected successfully!\n' +
+      '--------------------------------\n'
+    );
+
+    if (success) {
+      Alert.alert('Success', 'Test print sent successfully');
+    } else {
+      Alert.alert('Error', 'Failed to print. Please check the printer connection.');
+    }
+  }
+
+  // Print tag for a specific order
+  async function printOrderTag(order: Order) {
+    if (!bluetoothPrinter.isConnected()) {
+      Alert.alert(
+        'Printer Not Connected',
+        'Please connect a Bluetooth printer first',
+        [{ text: 'OK', onPress: () => setPrinterExpanded(true) }]
+      );
+      return;
+    }
+
+    setPrintingOrderId(order._id);
+
+    const success = await bluetoothPrinter.printOrderTag({
+      orderId: String(order.orderId),
+      customerName: order.customerName,
+      customerPhone: order.customerPhone,
+      weight: order.weight,
+      isSameDay: order.isSameDay,
+    });
+
+    setPrintingOrderId(null);
+
+    if (success) {
+      Alert.alert('Success', `Tag printed for ${order.customerName}`);
+    } else {
+      Alert.alert('Print Failed', 'Could not print. Please check printer connection.');
+    }
+  }
 
   // Reload orders when screen comes into focus
   useFocusEffect(
@@ -259,6 +369,22 @@ export default function DriverScreen() {
             </TouchableOpacity>
           )}
         </View>
+
+        {/* Print Tag Button */}
+        <TouchableOpacity
+          style={[styles.printTagButton, printingOrderId === order._id && styles.printingButton]}
+          onPress={() => printOrderTag(order)}
+          disabled={printingOrderId === order._id}
+        >
+          {printingOrderId === order._id ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <Ionicons name="pricetag" size={18} color="#fff" />
+          )}
+          <Text style={styles.printTagButtonText}>
+            {printingOrderId === order._id ? 'Printing...' : 'Print Tag'}
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   };
@@ -336,6 +462,112 @@ export default function DriverScreen() {
           <Text style={styles.statValue}>{pickupOrders.length + deliveryOrders.length}</Text>
           <Text style={styles.statLabel}>Total</Text>
         </View>
+      </View>
+
+      {/* Printer Section */}
+      <View style={styles.printerSection}>
+        <TouchableOpacity
+          style={styles.printerHeader}
+          onPress={() => setPrinterExpanded(!printerExpanded)}
+        >
+          <View style={styles.printerHeaderLeft}>
+            <Ionicons
+              name={connectedDeviceName ? 'print' : 'print-outline'}
+              size={24}
+              color={connectedDeviceName ? '#10b981' : '#64748b'}
+            />
+            <View>
+              <Text style={styles.printerTitle}>Bluetooth Printer</Text>
+              <Text style={[styles.printerStatus, connectedDeviceName && styles.printerConnected]}>
+                {connectedDeviceName || 'Not connected'}
+              </Text>
+            </View>
+          </View>
+          <Ionicons
+            name={printerExpanded ? 'chevron-up' : 'chevron-down'}
+            size={24}
+            color="#64748b"
+          />
+        </TouchableOpacity>
+
+        {printerExpanded && (
+          <View style={styles.printerContent}>
+            {connectedDeviceName ? (
+              <View style={styles.connectedPrinter}>
+                <View style={styles.connectedPrinterInfo}>
+                  <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                  <Text style={styles.connectedPrinterName}>{connectedDeviceName}</Text>
+                </View>
+                <View style={styles.connectedPrinterActions}>
+                  <TouchableOpacity
+                    style={[styles.printerActionBtn, styles.testPrintBtn]}
+                    onPress={testPrint}
+                  >
+                    <Ionicons name="document-text-outline" size={16} color="#fff" />
+                    <Text style={styles.printerActionBtnText}>Test</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.printerActionBtn, styles.disconnectBtn]}
+                    onPress={disconnectPrinter}
+                  >
+                    <Ionicons name="close-circle-outline" size={16} color="#fff" />
+                    <Text style={styles.printerActionBtnText}>Disconnect</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <>
+                <TouchableOpacity
+                  style={[styles.scanBtn, scanning && styles.scanBtnActive]}
+                  onPress={scanning ? stopScan : startScan}
+                  disabled={connecting}
+                >
+                  {scanning ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="bluetooth" size={20} color="#fff" />
+                  )}
+                  <Text style={styles.scanBtnText}>
+                    {scanning ? 'Scanning...' : 'Scan for Printers'}
+                  </Text>
+                </TouchableOpacity>
+
+                {connecting && (
+                  <View style={styles.connectingRow}>
+                    <ActivityIndicator size="small" color="#2563eb" />
+                    <Text style={styles.connectingText}>Connecting...</Text>
+                  </View>
+                )}
+
+                {devices.length > 0 && (
+                  <View style={styles.devicesList}>
+                    {devices.map((device) => (
+                      <TouchableOpacity
+                        key={device.id}
+                        style={styles.deviceItem}
+                        onPress={() => connectToDevice(device)}
+                        disabled={connecting}
+                      >
+                        <Ionicons name="print-outline" size={20} color="#1e293b" />
+                        <View style={styles.deviceInfo}>
+                          <Text style={styles.deviceName}>{device.name || 'Unknown'}</Text>
+                          <Text style={styles.deviceId}>{device.id}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                {!scanning && devices.length === 0 && (
+                  <Text style={styles.printerHint}>
+                    Make sure your printer is turned on and in pairing mode
+                  </Text>
+                )}
+              </>
+            )}
+          </View>
+        )}
       </View>
 
       {/* Action Buttons */}
@@ -624,5 +856,159 @@ const styles = StyleSheet.create({
   },
   printButton: {
     backgroundColor: '#8b5cf6',
+  },
+  // Print Tag Button
+  printTagButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 10,
+    marginHorizontal: 12,
+    marginBottom: 12,
+    borderRadius: 10,
+  },
+  printingButton: {
+    backgroundColor: '#a78bfa',
+  },
+  printTagButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  // Printer Section
+  printerSection: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  printerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 16,
+  },
+  printerHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  printerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  printerStatus: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  printerConnected: {
+    color: '#10b981',
+  },
+  printerContent: {
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    padding: 16,
+  },
+  connectedPrinter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  connectedPrinterInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  connectedPrinterName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  connectedPrinterActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  printerActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  printerActionBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  testPrintBtn: {
+    backgroundColor: '#2563eb',
+  },
+  disconnectBtn: {
+    backgroundColor: '#ef4444',
+  },
+  scanBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563eb',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  scanBtnActive: {
+    backgroundColor: '#f59e0b',
+  },
+  scanBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  connectingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  connectingText: {
+    fontSize: 14,
+    color: '#2563eb',
+  },
+  devicesList: {
+    marginTop: 12,
+    gap: 8,
+  },
+  deviceItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+  },
+  deviceInfo: {
+    flex: 1,
+  },
+  deviceName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  deviceId: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  printerHint: {
+    fontSize: 13,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 12,
   },
 });

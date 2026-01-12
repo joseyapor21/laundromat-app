@@ -147,6 +147,10 @@ export interface Settings {
   pricePerPound: number;
   sameDayMinimumCharge?: number;
   sameDayExtraCentsPerPound?: number;
+  // Store location for route optimization
+  storeAddress?: string;
+  storeLatitude?: number;
+  storeLongitude?: number;
   updatedAt: Date;
   updatedBy: string;
 }

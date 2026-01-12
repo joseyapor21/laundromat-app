@@ -1,15 +1,110 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
-import type { Order, Customer } from '@/types';
+import type { Order, Customer, Settings } from '@/types';
 
-// Store location - UPDATE THESE COORDINATES to your actual laundry store location
-// You can get coordinates from Google Maps by right-clicking on your store location
-const STORE_LOCATION = {
-  lat: 40.7128, // TODO: Replace with your store's latitude
-  lng: -74.0060, // TODO: Replace with your store's longitude
+// Print tag for a specific order using browser print
+const printOrderTag = (order: Order, customer?: Customer) => {
+  const printWindow = window.open('', '_blank', 'width=400,height=600');
+  if (!printWindow) {
+    toast.error('Please allow popups to print tags');
+    return;
+  }
+
+  const date = new Date().toLocaleDateString();
+  const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Order Tag #${order.orderId}</title>
+      <style>
+        @page {
+          size: 80mm auto;
+          margin: 0;
+        }
+        body {
+          font-family: 'Courier New', monospace;
+          width: 80mm;
+          padding: 5mm;
+          margin: 0;
+        }
+        .header {
+          text-align: center;
+          font-size: 18px;
+          font-weight: bold;
+          border-bottom: 2px dashed #000;
+          padding-bottom: 10px;
+          margin-bottom: 10px;
+        }
+        .date {
+          text-align: center;
+          font-size: 12px;
+          margin-bottom: 15px;
+        }
+        .order-id {
+          text-align: center;
+          font-size: 24px;
+          font-weight: bold;
+          margin: 15px 0;
+        }
+        .customer-info {
+          margin: 10px 0;
+          font-size: 14px;
+        }
+        .label {
+          font-weight: bold;
+        }
+        .same-day {
+          text-align: center;
+          font-size: 16px;
+          font-weight: bold;
+          border: 2px solid #000;
+          padding: 5px;
+          margin: 15px 0;
+        }
+        .footer {
+          border-top: 2px dashed #000;
+          margin-top: 15px;
+          padding-top: 10px;
+          text-align: center;
+        }
+        @media print {
+          body { -webkit-print-color-adjust: exact; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header">LAUNDROMAT</div>
+      <div class="date">${date} ${time}</div>
+      <div class="order-id">#${order.orderId}</div>
+      <div class="customer-info">
+        <div><span class="label">Customer:</span> ${order.customerName}</div>
+        <div><span class="label">Phone:</span> ${order.customerPhone}</div>
+        ${order.weight ? `<div><span class="label">Weight:</span> ${order.weight} lbs</div>` : ''}
+        ${customer?.address ? `<div><span class="label">Address:</span> ${customer.address}</div>` : ''}
+      </div>
+      ${order.isSameDay ? '<div class="same-day">** SAME DAY **</div>' : ''}
+      <div class="footer">Thank you!</div>
+      <script>
+        window.onload = function() {
+          window.print();
+          setTimeout(function() { window.close(); }, 500);
+        }
+      </script>
+    </body>
+    </html>
+  `);
+  printWindow.document.close();
+};
+
+// Default store location (will be overridden by settings)
+const DEFAULT_STORE_LOCATION = {
+  lat: 40.7128,
+  lng: -74.0060,
   address: 'Store Location'
 };
 
@@ -32,25 +127,47 @@ export default function DriverPage() {
   const [sortByRoute, setSortByRoute] = useState(true);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [geocodingProgress, setGeocodingProgress] = useState<string>('');
+  const [storeLocation, setStoreLocation] = useState(DEFAULT_STORE_LOCATION);
+
+  // Load settings to get store location
+  const loadSettings = useCallback(async () => {
+    try {
+      const response = await fetch('/api/settings', { credentials: 'include' });
+      if (response.ok) {
+        const settings: Settings = await response.json();
+        if (settings.storeLatitude && settings.storeLongitude) {
+          setStoreLocation({
+            lat: settings.storeLatitude,
+            lng: settings.storeLongitude,
+            address: settings.storeAddress || 'Store Location'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  }, []);
 
   // Get current location
   useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setCurrentLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        (error) => {
-          console.log('Geolocation error:', error);
-          // Use store location as fallback
-          setCurrentLocation(STORE_LOCATION);
-        }
-      );
-    }
-  }, []);
+    loadSettings().then(() => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            setCurrentLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude
+            });
+          },
+          (error) => {
+            console.log('Geolocation error:', error);
+            // Use store location as fallback
+            setCurrentLocation(storeLocation);
+          }
+        );
+      }
+    });
+  }, [loadSettings, storeLocation]);
 
   useEffect(() => {
     loadDriverOrders();
@@ -244,8 +361,8 @@ export default function DriverPage() {
 
       // Optimize routes starting from the STORE location (not current GPS)
       // This ensures the route goes: Store -> closest stop -> next closest -> etc.
-      const optimizedPickups = optimizeRoute(pickupsWithCoords, STORE_LOCATION.lat, STORE_LOCATION.lng);
-      const optimizedDeliveries = optimizeRoute(deliveriesWithCoords, STORE_LOCATION.lat, STORE_LOCATION.lng);
+      const optimizedPickups = optimizeRoute(pickupsWithCoords, storeLocation.lat, storeLocation.lng);
+      const optimizedDeliveries = optimizeRoute(deliveriesWithCoords, storeLocation.lat, storeLocation.lng);
 
       setPickupOrders(optimizedPickups);
       setDeliveryOrders(optimizedDeliveries);
@@ -257,7 +374,7 @@ export default function DriverPage() {
     } finally {
       setCalculatingRoutes(false);
     }
-  }, [currentLocation, pickupOrders, deliveryOrders, customers, geocodeAddress, calculateDistance, optimizeRoute]);
+  }, [currentLocation, pickupOrders, deliveryOrders, customers, geocodeAddress, calculateDistance, optimizeRoute, storeLocation]);
 
   // Open multi-stop route in maps
   const openRouteInMaps = useCallback((orders: OrderWithDistance[]) => {
@@ -271,7 +388,7 @@ export default function DriverPage() {
     }
 
     // Build Google Maps multi-stop URL - start from STORE location
-    const origin = `${STORE_LOCATION.lat},${STORE_LOCATION.lng}`;
+    const origin = `${storeLocation.lat},${storeLocation.lng}`;
 
     const waypoints = ordersWithAddresses.slice(0, -1).map(addr => encodeURIComponent(addr!)).join('|');
     const destination = encodeURIComponent(ordersWithAddresses[ordersWithAddresses.length - 1]!);
@@ -283,7 +400,7 @@ export default function DriverPage() {
     mapsUrl += '&travelmode=driving';
 
     window.open(mapsUrl, '_blank');
-  }, [currentLocation, customers]);
+  }, [customers, storeLocation]);
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
     try {
@@ -485,6 +602,17 @@ export default function DriverPage() {
               </button>
             )}
           </div>
+
+          {/* Print Tag Button */}
+          <button
+            onClick={() => printOrderTag(order, customer)}
+            className="flex items-center justify-center gap-2 w-full mt-2 px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-medium transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+            </svg>
+            Print Tag
+          </button>
         </div>
       </div>
     );

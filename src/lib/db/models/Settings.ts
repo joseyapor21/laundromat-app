@@ -30,6 +30,22 @@ const settingsSchema = new mongoose.Schema<SettingsDocument>({
     required: false,
     default: 0.50,  // $0.50 extra per pound for same day
   },
+  // Store location for route optimization
+  storeAddress: {
+    type: String,
+    required: false,
+    default: '',
+  },
+  storeLatitude: {
+    type: Number,
+    required: false,
+    default: 40.7128,  // Default NYC
+  },
+  storeLongitude: {
+    type: Number,
+    required: false,
+    default: -74.0060,  // Default NYC
+  },
   // Gmail integration for payment notifications
   gmailAccessToken: {
     type: String,
