@@ -61,7 +61,7 @@ export default function EditOrderScreen() {
   const [dropOffDate, setDropOffDate] = useState<Date | null>(null);
   const [deliverySchedule, setDeliverySchedule] = useState<Date | null>(null);
   const [showDatePicker, setShowDatePicker] = useState<'pickup' | 'dropoff' | 'delivery' | null>(null);
-  const [showTimePicker, setShowTimePicker] = useState<'pickup' | 'delivery' | null>(null);
+  const [showTimePicker, setShowTimePicker] = useState<'pickup' | 'dropoff' | 'delivery' | null>(null);
 
   const loadOrder = useCallback(async () => {
     try {
@@ -79,7 +79,15 @@ export default function EditOrderScreen() {
       setCustomerName(orderData.customerName || '');
       setCustomerPhone(orderData.customerPhone || '');
       setCustomerAddress(orderData.customer?.address || '');
-      setSpecialInstructions(orderData.specialInstructions || '');
+
+      // Include customer notes in special instructions if not already present
+      let instructions = orderData.specialInstructions || '';
+      const customerNotes = orderData.customer?.notes || '';
+      if (customerNotes && !instructions.includes(customerNotes)) {
+        instructions = customerNotes + (instructions ? '\n' + instructions : '');
+      }
+      setSpecialInstructions(instructions);
+
       setOrderType(orderData.orderType || 'storePickup');
       setIsSameDay(orderData.isSameDay || false);
       setBags(orderData.bags || []);
@@ -372,7 +380,7 @@ export default function EditOrderScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={{ flex: 1 }}
       >
-        <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled">
+        <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Edit Order #{order.orderId}</Text>
@@ -509,100 +517,79 @@ export default function EditOrderScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Schedule</Text>
             <View style={styles.card}>
-              {/* Pickup/Ready Date */}
+              {/* Drop-off Date - automatically set when order is picked up */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>
-                  {orderType === 'delivery' ? 'Estimated Ready Date' : 'Pickup Date/Time'}
-                </Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowDatePicker('pickup')}
-                >
-                  <Ionicons name="calendar-outline" size={20} color="#64748b" />
-                  <Text style={styles.dateButtonText}>
-                    {estimatedPickupDate
-                      ? estimatedPickupDate.toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
-                      : 'Select date'}
-                  </Text>
-                </TouchableOpacity>
-                {estimatedPickupDate && (
+                <Text style={styles.inputLabel}>Drop-off Date/Time</Text>
+                <View style={styles.dateTimeRow}>
                   <TouchableOpacity
-                    style={[styles.dateButton, { marginTop: 8 }]}
-                    onPress={() => setShowTimePicker('pickup')}
+                    style={[styles.dateButton, styles.dateButtonFlex]}
+                    onPress={() => setShowDatePicker('dropoff')}
+                  >
+                    <Ionicons name="calendar-outline" size={20} color="#64748b" />
+                    <Text style={styles.dateButtonText}>
+                      {dropOffDate
+                        ? dropOffDate.toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                          })
+                        : 'Select date'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.dateButton, styles.timeButtonFlex]}
+                    onPress={() => setShowTimePicker('dropoff')}
                   >
                     <Ionicons name="time-outline" size={20} color="#64748b" />
                     <Text style={styles.dateButtonText}>
-                      {estimatedPickupDate.toLocaleTimeString('en-US', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: true,
-                      })}
+                      {dropOffDate
+                        ? dropOffDate.toLocaleTimeString('en-US', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            hour12: true,
+                          })
+                        : '12:00 PM'}
                     </Text>
                   </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Drop-off Date */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Drop-off Date</Text>
-                <TouchableOpacity
-                  style={styles.dateButton}
-                  onPress={() => setShowDatePicker('dropoff')}
-                >
-                  <Ionicons name="calendar-outline" size={20} color="#64748b" />
-                  <Text style={styles.dateButtonText}>
-                    {dropOffDate
-                      ? dropOffDate.toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                          year: 'numeric',
-                        })
-                      : 'Select date'}
-                  </Text>
-                </TouchableOpacity>
+                </View>
               </View>
 
               {/* Delivery Schedule - only for delivery orders */}
               {orderType === 'delivery' && (
                 <View style={styles.inputGroup}>
-                  <Text style={styles.inputLabel}>Delivery Schedule</Text>
-                  <TouchableOpacity
-                    style={styles.dateButton}
-                    onPress={() => setShowDatePicker('delivery')}
-                  >
-                    <Ionicons name="calendar-outline" size={20} color="#64748b" />
-                    <Text style={styles.dateButtonText}>
-                      {deliverySchedule
-                        ? deliverySchedule.toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })
-                        : 'Select date'}
-                    </Text>
-                  </TouchableOpacity>
-                  {deliverySchedule && (
+                  <Text style={styles.inputLabel}>Delivery Date/Time</Text>
+                  <View style={styles.dateTimeRow}>
                     <TouchableOpacity
-                      style={[styles.dateButton, { marginTop: 8 }]}
+                      style={[styles.dateButton, styles.dateButtonFlex]}
+                      onPress={() => setShowDatePicker('delivery')}
+                    >
+                      <Ionicons name="calendar-outline" size={20} color="#64748b" />
+                      <Text style={styles.dateButtonText}>
+                        {deliverySchedule
+                          ? deliverySchedule.toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                            })
+                          : 'Select date'}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.dateButton, styles.timeButtonFlex]}
                       onPress={() => setShowTimePicker('delivery')}
                     >
                       <Ionicons name="time-outline" size={20} color="#64748b" />
                       <Text style={styles.dateButtonText}>
-                        {deliverySchedule.toLocaleTimeString('en-US', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                          hour12: true,
-                        })}
+                        {deliverySchedule
+                          ? deliverySchedule.toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            })
+                          : '5:00 PM'}
                       </Text>
                     </TouchableOpacity>
-                  )}
+                  </View>
                 </View>
               )}
             </View>
@@ -677,6 +664,8 @@ export default function EditOrderScreen() {
                   value={
                     showTimePicker === 'pickup'
                       ? estimatedPickupDate || new Date()
+                      : showTimePicker === 'dropoff'
+                      ? dropOffDate || new Date()
                       : deliverySchedule || new Date()
                   }
                   mode="time"
@@ -687,6 +676,10 @@ export default function EditOrderScreen() {
                         const newDate = estimatedPickupDate ? new Date(estimatedPickupDate) : new Date();
                         newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
                         setEstimatedPickupDate(newDate);
+                      } else if (showTimePicker === 'dropoff') {
+                        const newDate = dropOffDate ? new Date(dropOffDate) : new Date();
+                        newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                        setDropOffDate(newDate);
                       } else {
                         const newDate = deliverySchedule ? new Date(deliverySchedule) : new Date();
                         newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
@@ -733,7 +726,7 @@ export default function EditOrderScreen() {
                       <Text style={styles.bagFieldLabel}>Weight (lbs)</Text>
                       <TextInput
                         style={styles.bagInput}
-                        value={bag.weight?.toString() || ''}
+                        value={bag.weight && bag.weight > 0 ? bag.weight.toString() : ''}
                         onChangeText={(text) => updateBag(index, 'weight', parseFloat(text) || 0)}
                         keyboardType="decimal-pad"
                         placeholder="0"
@@ -1735,6 +1728,16 @@ const styles = StyleSheet.create({
   dateButtonText: {
     fontSize: 16,
     color: '#1e293b',
+  },
+  dateTimeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dateButtonFlex: {
+    flex: 2,
+  },
+  timeButtonFlex: {
+    flex: 1,
   },
   datePickerModalOverlay: {
     flex: 1,

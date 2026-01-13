@@ -190,6 +190,17 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
     }
   };
 
+  // Helper to get initials from name (ensures at least 2 characters)
+  const getInitials = (name: string): string => {
+    const words = name.split(' ').filter(w => w.length > 0);
+    let initials = words.map(word => word[0]).join('').toUpperCase();
+    // If only 1 character, take first 2 characters of name
+    if (initials.length < 2) {
+      initials = name.replace(/\s+/g, '').substring(0, 2).toUpperCase();
+    }
+    return initials.substring(0, 3);
+  };
+
   // Mark order as folded
   const handleMarkAsFolded = async () => {
     if (!currentUser) {
@@ -197,13 +208,7 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
       return;
     }
 
-    // Get initials from user's name
-    const initials = currentUser.name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 3);
+    const initials = getInitials(currentUser.name);
 
     setLoading(true);
     try {
@@ -235,13 +240,14 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
       return;
     }
 
-    // Get initials from user's name
-    const initials = currentUser.name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 3);
+    // Prevent same person from folding and checking
+    if (currentOrder.foldedBy &&
+        currentOrder.foldedBy.toLowerCase() === currentUser.name.toLowerCase()) {
+      toast.error('The same person who marked the order as folded cannot verify it. A different person must check.');
+      return;
+    }
+
+    const initials = getInitials(currentUser.name);
 
     setLoading(true);
     try {
@@ -254,13 +260,14 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to verify folding');
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to verify folding');
 
       toast.success(`Folding verified by ${currentUser.name}`);
       await refreshOrder();
       onUpdate();
     } catch (error) {
-      toast.error('Failed to verify folding');
+      toast.error(error instanceof Error ? error.message : 'Failed to verify folding');
     } finally {
       setLoading(false);
     }
@@ -334,13 +341,7 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
       return;
     }
 
-    // Get initials from user's name (first letter of each word)
-    const initials = currentUser.name
-      .split(' ')
-      .map(word => word[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 3);
+    const initials = getInitials(currentUser.name);
 
     setCheckingMachine(machineId);
     try {
@@ -890,10 +891,20 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
                 )}
               </div>
 
-              {currentOrder.specialInstructions && (
+              {(currentOrder.specialInstructions || currentOrder.customer?.notes) && (
                 <div className="mt-3 pt-3 border-t border-gray-200">
                   <span className="text-gray-500 text-xs">Notes:</span>
-                  <p className="text-gray-900 text-sm mt-1 bg-yellow-50 p-2 rounded border border-yellow-200">{currentOrder.specialInstructions}</p>
+                  <div className="mt-1 bg-yellow-50 p-2 rounded border border-yellow-200 space-y-2">
+                    {currentOrder.customer?.notes && (
+                      <p className="text-purple-700 text-sm font-medium flex items-center gap-1">
+                        <span className="text-purple-500">👤</span>
+                        {currentOrder.customer.notes}
+                      </p>
+                    )}
+                    {currentOrder.specialInstructions && currentOrder.specialInstructions !== currentOrder.customer?.notes && (
+                      <p className="text-gray-900 text-sm">{currentOrder.specialInstructions}</p>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

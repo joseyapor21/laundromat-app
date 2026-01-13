@@ -330,6 +330,7 @@ export default function DashboardScreen() {
         renderItem={renderOrderCard}
         keyExtractor={(item) => item._id}
         contentContainerStyle={styles.ordersList}
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }

@@ -378,6 +378,10 @@ class PrinterService {
         r += '\n';
         r += this.leftRightAlign(`${bagName}`, `${bagWeight} LBS`);
         r += '\n';
+        // Add bag notes/description if present
+        if (bag.description) {
+          r += `  -> ${bag.description}\n`;
+        }
       });
     } else {
       r += this.leftRightAlign('Item', 'WEIGHT') + '\n';
@@ -561,6 +565,10 @@ class PrinterService {
         if (bag.color) {
           r += `  Color: ${bag.color}\n`;
         }
+        // Add bag notes/description if present
+        if (bag.description) {
+          r += `  -> ${bag.description}\n`;
+        }
       });
     } else {
       r += this.leftRightAlign('Item', 'WEIGHT') + '\n';
@@ -718,7 +726,15 @@ class PrinterService {
       r += this.leftRightAlign('Color:', bag.color) + '\n';
     }
 
-    // Notes
+    // Bag-specific notes
+    if (bag.description) {
+      r += '\n';
+      r += ESC.BOLD_ON;
+      r += `Bag Notes: ${bag.description}\n`;
+      r += ESC.BOLD_OFF;
+    }
+
+    // Order notes
     if (order.specialInstructions) {
       r += '\n';
       r += ESC.INVERT_ON;

@@ -60,6 +60,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Prevent same person from folding and checking
+    if (order.foldedBy && checkedBy &&
+        order.foldedBy.toLowerCase() === checkedBy.toLowerCase()) {
+      return NextResponse.json(
+        { error: 'The same person who marked the order as folded cannot verify it. A different person must check.' },
+        { status: 400 }
+      );
+    }
+
     // Update folding check info
     order.foldingCheckedBy = checkedBy;
     order.foldingCheckedByInitials = checkedByInitials || '';

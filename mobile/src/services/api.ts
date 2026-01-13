@@ -248,18 +248,11 @@ class ApiService {
     return this.request<User[]>('/users');
   }
 
-  // Folding Check (Admin only)
-  async checkFolding(orderId: string, bagIdentifier: string, checkerInitials: string): Promise<{ success: boolean; message: string; order: Order }> {
-    return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/folding-check`, {
+  // Order-level folding verification (verifies folding complete and moves to ready status)
+  async verifyFoldingComplete(orderId: string, checkedBy: string, checkedByInitials: string): Promise<{ success: boolean; message: string; order: Order }> {
+    return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/fold-check`, {
       method: 'POST',
-      body: JSON.stringify({ bagIdentifier, checkerInitials }),
-    });
-  }
-
-  async uncheckFolding(orderId: string, bagIdentifier: string): Promise<{ success: boolean; message: string; order: Order }> {
-    return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/folding-check`, {
-      method: 'DELETE',
-      body: JSON.stringify({ bagIdentifier }),
+      body: JSON.stringify({ checkedBy, checkedByInitials }),
     });
   }
 

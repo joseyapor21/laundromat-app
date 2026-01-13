@@ -391,6 +391,7 @@ export default function CreateOrderScreen() {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="on-drag"
     >
       {/* Customer Selection */}
       <View style={styles.section}>
@@ -401,7 +402,10 @@ export default function CreateOrderScreen() {
               <Text style={styles.customerName}>{selectedCustomer.name}</Text>
               <Text style={styles.customerPhone}>{selectedCustomer.phoneNumber}</Text>
             </View>
-            <TouchableOpacity onPress={() => setSelectedCustomer(null)}>
+            <TouchableOpacity onPress={() => {
+              setSelectedCustomer(null);
+              setSpecialInstructions('');
+            }}>
               <Ionicons name="close-circle" size={24} color="#ef4444" />
             </TouchableOpacity>
           </View>
@@ -424,6 +428,10 @@ export default function CreateOrderScreen() {
                       Keyboard.dismiss();
                       setSelectedCustomer(customer);
                       setCustomerSearch('');
+                      // Auto-populate special instructions with customer notes
+                      if (customer.notes) {
+                        setSpecialInstructions(customer.notes);
+                      }
                     }}
                   >
                     <Text style={styles.customerItemName}>{customer.name}</Text>

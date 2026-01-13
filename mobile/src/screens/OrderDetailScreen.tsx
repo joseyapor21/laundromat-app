@@ -12,7 +12,7 @@ import {
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRoute, useNavigation } from '@react-navigation/native';
+import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
@@ -59,8 +59,7 @@ export default function OrderDetailScreen() {
   const [checkingMachine, setCheckingMachine] = useState<string | null>(null);
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
-  const [checkingFolding, setCheckingFolding] = useState<string | null>(null);
-  const [uncheckingFolding, setUncheckingFolding] = useState<string | null>(null);
+  const [verifyingFolding, setVerifyingFolding] = useState(false);
   const isProcessingScan = useRef(false);
 
   const loadOrder = useCallback(async () => {
@@ -81,6 +80,13 @@ export default function OrderDetailScreen() {
   useEffect(() => {
     loadOrder();
   }, [loadOrder]);
+
+  // Refresh when screen comes into focus (e.g., after editing)
+  useFocusEffect(
+    useCallback(() => {
+      loadOrder();
+    }, [loadOrder])
+  );
 
   // Auto-refresh order every 10 seconds
   useAutoRefresh(loadOrder);
@@ -300,50 +306,38 @@ export default function OrderDetailScreen() {
     }
   }
 
-  // Folding Check Functions (Admin only)
-  const isAdmin = user && ['admin', 'super_admin'].includes(user.role);
+  // Folding Verification (order-level) - Verifies folding and moves to ready status
+  async function handleVerifyFolding() {
+    if (!order || !user) return;
 
-  async function handleCheckFolding(bag: Bag) {
-    if (!order || !bag.identifier) return;
+    // Get user name and initials
+    const checkedBy = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown';
 
-    setCheckingFolding(bag.identifier);
-    try {
-      // Get user initials
-      let initials = 'XX';
-      if (user) {
-        const firstInitial = user.firstName?.charAt(0) || '';
-        const lastInitial = user.lastName?.charAt(0) || '';
-        if (firstInitial && lastInitial) {
-          initials = `${firstInitial}${lastInitial}`.toUpperCase();
-        } else if (firstInitial) {
-          initials = user.firstName.substring(0, 2).toUpperCase();
-        }
-      }
-
-      const result = await api.checkFolding(order._id, bag.identifier, initials);
-      Alert.alert('Success', result.message);
-      await loadOrder();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to check folding';
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setCheckingFolding(null);
+    // Prevent same person from folding and checking
+    if (order.foldedBy && order.foldedBy.toLowerCase() === checkedBy.toLowerCase()) {
+      Alert.alert('Not Allowed', 'The same person who marked the order as folded cannot verify it. A different person must check.');
+      return;
     }
-  }
 
-  async function handleUncheckFolding(bag: Bag) {
-    if (!order || !bag.identifier) return;
+    let initials = 'XX';
+    const firstInitial = user.firstName?.charAt(0) || '';
+    const lastInitial = user.lastName?.charAt(0) || '';
+    if (firstInitial && lastInitial) {
+      initials = `${firstInitial}${lastInitial}`.toUpperCase();
+    } else if (firstInitial) {
+      initials = user.firstName.substring(0, 2).toUpperCase();
+    }
 
-    setUncheckingFolding(bag.identifier);
+    setVerifyingFolding(true);
     try {
-      const result = await api.uncheckFolding(order._id, bag.identifier);
+      const result = await api.verifyFoldingComplete(order._id, checkedBy, initials);
       Alert.alert('Success', result.message);
       await loadOrder();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to uncheck folding';
+      const errorMessage = error instanceof Error ? error.message : 'Failed to verify folding';
       Alert.alert('Error', errorMessage);
     } finally {
-      setUncheckingFolding(null);
+      setVerifyingFolding(false);
     }
   }
 
@@ -378,6 +372,28 @@ export default function OrderDetailScreen() {
       });
     } catch {
       return '';
+    }
+  }
+
+  // Format date like "Tue - Oct 08, 11:45 AM"
+  function formatDateNice(date: Date | string | undefined | null): string {
+    if (!date) return 'Not set';
+    try {
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return 'Not set';
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const dayName = days[d.getDay()];
+      const monthName = months[d.getMonth()];
+      const dayNum = d.getDate().toString().padStart(2, '0');
+      let hours = d.getHours();
+      const minutes = d.getMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${dayName} - ${monthName} ${dayNum}, ${hours}:${minutes} ${ampm}`;
+    } catch {
+      return 'Not set';
     }
   }
 
@@ -434,7 +450,7 @@ export default function OrderDetailScreen() {
 
   return (
     <>
-      <ScrollView style={styles.container}>
+      <ScrollView style={styles.container} keyboardDismissMode="on-drag">
         {/* Header Card */}
         <View style={styles.headerCard}>
           <View style={styles.headerRow}>
@@ -767,6 +783,39 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
+        {/* Mark Folding Complete - Show only when status is 'folded' and not yet verified */}
+        {order.status === 'folded' && !order.foldingCheckedBy && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Verify Folding</Text>
+            <View style={styles.verifyFoldingCard}>
+              <View style={styles.verifyFoldingHeader}>
+                <Ionicons name="shirt" size={24} color="#ec4899" />
+                <Text style={styles.verifyFoldingTitle}>Folding Complete?</Text>
+              </View>
+              <Text style={styles.verifyFoldingText}>
+                Verify that all {order.bags?.length || 0} bag(s) have been folded correctly.
+                This will move the order to {order.orderType === 'delivery' ? 'Ready for Delivery' : 'Ready for Pickup'}.
+              </Text>
+              <TouchableOpacity
+                style={[styles.verifyFoldingButton, verifyingFolding && styles.buttonDisabled]}
+                onPress={handleVerifyFolding}
+                disabled={verifyingFolding || !user}
+              >
+                {verifyingFolding ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-done" size={20} color="#fff" />
+                    <Text style={styles.verifyFoldingButtonText}>
+                      Mark Folding Complete
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Folding Progress - Show when order has folding tracking info */}
         {(order.foldingStartedBy || order.foldedBy) && (
           <View style={styles.section}>
@@ -844,14 +893,14 @@ export default function OrderDetailScreen() {
             <View style={styles.detailRow}>
               <Text style={styles.detailLabel}>Created</Text>
               <Text style={styles.detailValue}>
-                {new Date(order.dropOffDate).toLocaleString()}
+                {formatDateNice(order.dropOffDate)}
               </Text>
             </View>
             {order.estimatedPickupDate && (
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>{order.orderType === 'delivery' ? 'Pickup' : 'Ready by'}</Text>
                 <Text style={styles.detailValue}>
-                  {new Date(order.estimatedPickupDate).toLocaleString()}
+                  {formatDateNice(order.estimatedPickupDate)}
                 </Text>
               </View>
             )}
@@ -864,25 +913,13 @@ export default function OrderDetailScreen() {
             <Text style={styles.sectionTitle}>Bags ({order.bags.length})</Text>
             <View style={styles.bagsContainer}>
               {order.bags.map((bag, index) => (
-                <View key={index} style={[
-                  styles.bagDetailCard,
-                  bag.isFoldingChecked && styles.bagDetailCardChecked,
-                ]}>
+                <View key={index} style={styles.bagDetailCard}>
                   <View style={styles.bagDetailHeader}>
                     <View style={styles.bagNameRow}>
-                      <Ionicons
-                        name={bag.isFoldingChecked ? "checkmark-circle" : "bag-handle"}
-                        size={18}
-                        color={bag.isFoldingChecked ? "#10b981" : "#8b5cf6"}
-                      />
+                      <Ionicons name="bag-handle" size={18} color="#8b5cf6" />
                       <Text style={styles.bagDetailName}>
                         {bag.identifier || `Bag ${index + 1}`}
                       </Text>
-                      {bag.isFoldingChecked && (
-                        <View style={styles.foldingCheckedBadge}>
-                          <Text style={styles.foldingCheckedBadgeText}>Folding ✓</Text>
-                        </View>
-                      )}
                     </View>
                     <Text style={styles.bagDetailWeight}>
                       {bag.weight ? `${bag.weight} lbs` : 'No weight'}
@@ -898,43 +935,6 @@ export default function OrderDetailScreen() {
                     <View style={styles.bagInstructionsBox}>
                       <Ionicons name="document-text-outline" size={14} color="#d97706" />
                       <Text style={styles.bagInstructionsText}>{bag.description}</Text>
-                    </View>
-                  )}
-
-                  {/* Folding Check Section - Admin Only */}
-                  {isAdmin && (
-                    <View style={styles.foldingCheckSection}>
-                      {!bag.isFoldingChecked ? (
-                        <TouchableOpacity
-                          style={[styles.foldingCheckButton, checkingFolding === bag.identifier && styles.buttonDisabled]}
-                          onPress={() => handleCheckFolding(bag)}
-                          disabled={checkingFolding === bag.identifier}
-                        >
-                          {checkingFolding === bag.identifier ? (
-                            <ActivityIndicator size="small" color="#fff" />
-                          ) : (
-                            <>
-                              <Ionicons name="checkmark-done" size={16} color="#fff" />
-                              <Text style={styles.foldingCheckButtonText}>Mark Folding Complete</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
-                      ) : (
-                        <View style={styles.foldingCheckedInfo}>
-                          <Text style={styles.foldingCheckedText}>
-                            Checked by {bag.foldingCheckedByInitials || bag.foldingCheckedBy}
-                          </Text>
-                          <TouchableOpacity
-                            style={styles.foldingUncheckButton}
-                            onPress={() => handleUncheckFolding(bag)}
-                            disabled={uncheckingFolding === bag.identifier}
-                          >
-                            <Text style={styles.foldingUncheckButtonText}>
-                              {uncheckingFolding === bag.identifier ? 'Unchecking...' : 'Uncheck'}
-                            </Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
                     </View>
                   )}
                 </View>
@@ -971,12 +971,23 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
-        {/* Notes */}
-        {order.specialInstructions && (
+        {/* Notes - Customer notes and special instructions */}
+        {(order.specialInstructions || order.customer?.notes) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Special Instructions</Text>
             <View style={styles.notesCard}>
-              <Text style={styles.notesText}>{order.specialInstructions}</Text>
+              {order.customer?.notes && (
+                <View style={styles.customerNotesRow}>
+                  <Ionicons name="person-circle-outline" size={16} color="#8b5cf6" />
+                  <Text style={[styles.notesText, styles.customerNotesText]}>{order.customer.notes}</Text>
+                </View>
+              )}
+              {order.specialInstructions && order.customer?.notes && order.specialInstructions !== order.customer.notes && (
+                <View style={styles.divider} />
+              )}
+              {order.specialInstructions && order.specialInstructions !== order.customer?.notes && (
+                <Text style={styles.notesText}>{order.specialInstructions}</Text>
+              )}
             </View>
           </View>
         )}
@@ -1722,6 +1733,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#92400e',
   },
+  customerNotesRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  customerNotesText: {
+    flex: 1,
+    color: '#7c3aed',
+    fontWeight: '500',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#fcd34d',
+    marginVertical: 10,
+  },
   // Payment
   paymentCard: {
     backgroundColor: '#fef3c7',
@@ -1961,63 +1987,6 @@ const styles = StyleSheet.create({
     color: '#8b5cf6',
     marginBottom: 4,
   },
-  // Folding check styles
-  bagDetailCardChecked: {
-    borderLeftColor: '#10b981',
-  },
-  foldingCheckedBadge: {
-    backgroundColor: '#dcfce7',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    marginLeft: 8,
-  },
-  foldingCheckedBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#10b981',
-  },
-  foldingCheckSection: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
-  },
-  foldingCheckButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    backgroundColor: '#10b981',
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  foldingCheckButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  foldingCheckedInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  foldingCheckedText: {
-    fontSize: 13,
-    color: '#10b981',
-    fontWeight: '500',
-  },
-  foldingUncheckButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: '#fef3c7',
-    borderRadius: 6,
-  },
-  foldingUncheckButtonText: {
-    color: '#d97706',
-    fontSize: 13,
-    fontWeight: '500',
-  },
   // Folding progress section
   foldingProgressCard: {
     backgroundColor: '#fff',
@@ -2060,5 +2029,44 @@ const styles = StyleSheet.create({
   foldingStepBy: {
     fontSize: 13,
     color: '#64748b',
+  },
+  // Verify folding section (order-level)
+  verifyFoldingCard: {
+    backgroundColor: '#fce7f3',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#ec4899',
+  },
+  verifyFoldingHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  verifyFoldingTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#831843',
+  },
+  verifyFoldingText: {
+    fontSize: 14,
+    color: '#9d174d',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  verifyFoldingButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#10b981',
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  verifyFoldingButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

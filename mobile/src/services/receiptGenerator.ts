@@ -191,6 +191,10 @@ export function generateCustomerReceiptText(order: Order): string {
       r += '\n';
       r += leftRightAlign(`${bagName}`, `${bagWeight} LBS`);
       r += '\n';
+      // Add bag notes/description if present
+      if (bag.description) {
+        r += `  -> ${bag.description}\n`;
+      }
     });
   } else {
     r += leftRightAlign('Item', 'WEIGHT') + '\n';
@@ -364,6 +368,10 @@ export function generateStoreCopyText(order: Order): string {
       if (bag.color) {
         r += `  Color: ${bag.color}\n`;
       }
+      // Add bag notes/description if present
+      if (bag.description) {
+        r += `  -> ${bag.description}\n`;
+      }
     });
   } else {
     r += leftRightAlign('Item', 'WEIGHT') + '\n';
@@ -515,7 +523,15 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
     r += leftRightAlign('Color:', bag.color) + '\n';
   }
 
-  // Notes
+  // Bag-specific notes
+  if (bag.description) {
+    r += '\n';
+    r += ESC.BOLD_ON;
+    r += `Bag Notes: ${bag.description}\n`;
+    r += ESC.BOLD_OFF;
+  }
+
+  // Order notes
   if (order.specialInstructions) {
     r += '\n';
     r += ESC.INVERT_ON;
