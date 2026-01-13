@@ -130,11 +130,11 @@ class PrinterService {
     const status = order.status.replace(/_/g, ' ').toUpperCase();
     receipt += centerText(`Status: ${status}`) + '\n';
 
-    if (order.notes) {
+    if (order.specialInstructions) {
       receipt += '------------------------------------------------\n';
       receipt += centerText('NOTES') + '\n';
       receipt += '------------------------------------------------\n';
-      receipt += `${order.notes}\n`;
+      receipt += `${order.specialInstructions}\n`;
     }
 
     receipt += '================================================\n';
