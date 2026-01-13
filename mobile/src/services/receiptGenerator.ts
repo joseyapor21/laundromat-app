@@ -62,6 +62,36 @@ function leftRightAlign(left: string, right: string): string {
   return left + ' '.repeat(padding) + right;
 }
 
+// Format time to ASCII-safe string (avoid Unicode AM/PM)
+function formatTimeASCII(date: Date): string {
+  let hours = date.getHours();
+  const minutes = date.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // 0 should be 12
+  const minutesStr = minutes < 10 ? '0' + minutes : minutes.toString();
+  return `${hours}:${minutesStr} ${ampm}`;
+}
+
+// Format date to ASCII-safe string
+function formatDateASCII(date: Date): string {
+  const month = (date.getMonth() + 1).toString().padStart(2, '0');
+  const day = date.getDate().toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${month}-${day}-${year}`;
+}
+
+// Format date with weekday (ASCII-safe)
+function formatDateWithWeekday(date: Date): string {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const weekday = days[date.getDay()];
+  const month = months[date.getMonth()];
+  const day = date.getDate().toString().padStart(2, '0');
+  const year = date.getFullYear();
+  return `${weekday}, ${month} ${day}, ${year}`;
+}
+
 // Generate QR code ESC/POS commands
 function generateQRCode(data: string, size: number = 10): string {
   let qr = '';
@@ -79,16 +109,8 @@ function generateQRCode(data: string, size: number = 10): string {
 // Generate customer receipt
 export function generateCustomerReceiptText(order: Order): string {
   const now = new Date();
-  const dateStr = now.toLocaleDateString('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric',
-  }).replace(/\//g, '-');
-  const timeStr = now.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
+  const dateStr = formatDateASCII(now);
+  const timeStr = formatTimeASCII(now);
 
   const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
   const isDelivery = order.orderType === 'delivery';
@@ -221,17 +243,8 @@ export function generateCustomerReceiptText(order: Order): string {
   // Pickup date/time (inverted)
   if (order.estimatedPickupDate) {
     const pickupDate = new Date(order.estimatedPickupDate);
-    const pickupDateStr = pickupDate.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: '2-digit',
-      year: 'numeric',
-    });
-    const pickupTimeStr = pickupDate.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
+    const pickupDateStr = formatDateWithWeekday(pickupDate);
+    const pickupTimeStr = formatTimeASCII(pickupDate);
     r += ESC.INVERT_ON;
     r += ` ${pickupDateStr} \n`;
     r += ` ${pickupTimeStr} \n`;
@@ -261,16 +274,8 @@ export function generateCustomerReceiptText(order: Order): string {
 // Generate store copy
 export function generateStoreCopyText(order: Order): string {
   const now = new Date();
-  const dateStr = now.toLocaleDateString('en-US', {
-    month: '2-digit',
-    day: '2-digit',
-    year: 'numeric',
-  }).replace(/\//g, '-');
-  const timeStr = now.toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
+  const dateStr = formatDateASCII(now);
+  const timeStr = formatTimeASCII(now);
 
   const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
   const isDelivery = order.orderType === 'delivery';
@@ -411,17 +416,8 @@ export function generateStoreCopyText(order: Order): string {
   // Pickup date/time (inverted)
   if (order.estimatedPickupDate) {
     const pickupDate = new Date(order.estimatedPickupDate);
-    const pickupDateStr = pickupDate.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: '2-digit',
-      year: 'numeric',
-    });
-    const pickupTimeStr = pickupDate.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
+    const pickupDateStr = formatDateWithWeekday(pickupDate);
+    const pickupTimeStr = formatTimeASCII(pickupDate);
     r += ESC.INVERT_ON;
     r += ` ${pickupDateStr} \n`;
     r += ` ${pickupTimeStr} \n`;
@@ -499,16 +495,8 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
   // Pickup date/time (large)
   if (order.estimatedPickupDate) {
     const pickupDate = new Date(order.estimatedPickupDate);
-    const pickupDateStr = pickupDate.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: '2-digit',
-    });
-    const pickupTimeStr = pickupDate.toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
+    const pickupDateStr = formatDateWithWeekday(pickupDate);
+    const pickupTimeStr = formatTimeASCII(pickupDate);
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` ${pickupDateStr} \n`;
