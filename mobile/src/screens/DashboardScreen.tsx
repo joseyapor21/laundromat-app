@@ -145,24 +145,35 @@ export default function DashboardScreen() {
     }
   };
 
-  const filteredOrders = orders.filter(order => {
-    switch (filter) {
-      case 'in-store':
-        return order.orderType === 'storePickup' && order.status !== 'completed';
-      case 'delivery':
-        return order.orderType === 'delivery' && order.status !== 'completed';
-      case 'new_order':
-        return STATUS_GROUPS.new_order.includes(order.status);
-      case 'processing':
-        return STATUS_GROUPS.processing.includes(order.status);
-      case 'ready':
-        return STATUS_GROUPS.ready.includes(order.status);
-      case 'completed':
-        return order.status === 'completed';
-      default: // 'all'
-        return order.status !== 'completed';
-    }
-  });
+  const filteredOrders = orders
+    .filter(order => {
+      switch (filter) {
+        case 'in-store':
+          return order.orderType === 'storePickup' && order.status !== 'completed';
+        case 'delivery':
+          return order.orderType === 'delivery' && order.status !== 'completed';
+        case 'new_order':
+          return STATUS_GROUPS.new_order.includes(order.status);
+        case 'processing':
+          return STATUS_GROUPS.processing.includes(order.status);
+        case 'ready':
+          return STATUS_GROUPS.ready.includes(order.status);
+        case 'completed':
+          return order.status === 'completed';
+        default: // 'all'
+          return order.status !== 'completed';
+      }
+    })
+    // Sort by closest pickup/delivery time first
+    .sort((a, b) => {
+      const dateA = new Date(a.estimatedPickupDate || a.deliverySchedule || 0).getTime();
+      const dateB = new Date(b.estimatedPickupDate || b.deliverySchedule || 0).getTime();
+      // Orders without dates go to the bottom
+      if (!dateA && !dateB) return 0;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      return dateA - dateB;
+    });
 
   const getStatusColor = (status: string) => {
     // Match web status colors
