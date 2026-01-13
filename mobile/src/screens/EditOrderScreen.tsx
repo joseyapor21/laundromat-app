@@ -13,6 +13,7 @@ import {
   Platform,
   Modal,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
@@ -55,6 +56,13 @@ export default function EditOrderScreen() {
   // Delivery
   const [deliveryPrice, setDeliveryPrice] = useState(0);
 
+  // Date/Time
+  const [estimatedPickupDate, setEstimatedPickupDate] = useState<Date | null>(null);
+  const [dropOffDate, setDropOffDate] = useState<Date | null>(null);
+  const [deliverySchedule, setDeliverySchedule] = useState<Date | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState<'pickup' | 'dropoff' | 'delivery' | null>(null);
+  const [showTimePicker, setShowTimePicker] = useState<'pickup' | 'delivery' | null>(null);
+
   const loadOrder = useCallback(async () => {
     try {
       const [orderData, settingsData, extraItemsData] = await Promise.all([
@@ -80,6 +88,17 @@ export default function EditOrderScreen() {
       if (orderData.customer?.deliveryFee) {
         const fee = parseFloat(orderData.customer.deliveryFee.replace('$', '')) || 0;
         setDeliveryPrice(fee);
+      }
+
+      // Date/Time fields
+      if (orderData.estimatedPickupDate) {
+        setEstimatedPickupDate(new Date(orderData.estimatedPickupDate));
+      }
+      if (orderData.dropOffDate) {
+        setDropOffDate(new Date(orderData.dropOffDate));
+      }
+      if (orderData.deliverySchedule) {
+        setDeliverySchedule(new Date(orderData.deliverySchedule));
       }
 
       // Populate extra items
@@ -276,6 +295,10 @@ export default function EditOrderScreen() {
         orderType,
         isSameDay,
         sameDayPricePerPound: isSameDay ? getSameDayPricePerPound() : undefined,
+        // Date/Time fields
+        estimatedPickupDate: estimatedPickupDate || undefined,
+        dropOffDate: dropOffDate || undefined,
+        deliverySchedule: orderType === 'delivery' ? deliverySchedule || undefined : undefined,
       };
 
       // Update customer address if delivery order
@@ -481,6 +504,177 @@ export default function EditOrderScreen() {
               )}
             </View>
           </View>
+
+          {/* Schedule Section */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Schedule</Text>
+            <View style={styles.card}>
+              {/* Pickup/Ready Date */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>
+                  {orderType === 'delivery' ? 'Estimated Ready Date' : 'Pickup Date/Time'}
+                </Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowDatePicker('pickup')}
+                >
+                  <Ionicons name="calendar-outline" size={20} color="#64748b" />
+                  <Text style={styles.dateButtonText}>
+                    {estimatedPickupDate
+                      ? estimatedPickupDate.toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
+                      : 'Select date'}
+                  </Text>
+                </TouchableOpacity>
+                {estimatedPickupDate && (
+                  <TouchableOpacity
+                    style={[styles.dateButton, { marginTop: 8 }]}
+                    onPress={() => setShowTimePicker('pickup')}
+                  >
+                    <Ionicons name="time-outline" size={20} color="#64748b" />
+                    <Text style={styles.dateButtonText}>
+                      {estimatedPickupDate.toLocaleTimeString('en-US', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: true,
+                      })}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {/* Drop-off Date */}
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Drop-off Date</Text>
+                <TouchableOpacity
+                  style={styles.dateButton}
+                  onPress={() => setShowDatePicker('dropoff')}
+                >
+                  <Ionicons name="calendar-outline" size={20} color="#64748b" />
+                  <Text style={styles.dateButtonText}>
+                    {dropOffDate
+                      ? dropOffDate.toLocaleDateString('en-US', {
+                          weekday: 'short',
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })
+                      : 'Select date'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Delivery Schedule - only for delivery orders */}
+              {orderType === 'delivery' && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Delivery Schedule</Text>
+                  <TouchableOpacity
+                    style={styles.dateButton}
+                    onPress={() => setShowDatePicker('delivery')}
+                  >
+                    <Ionicons name="calendar-outline" size={20} color="#64748b" />
+                    <Text style={styles.dateButtonText}>
+                      {deliverySchedule
+                        ? deliverySchedule.toLocaleDateString('en-US', {
+                            weekday: 'short',
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })
+                        : 'Select date'}
+                    </Text>
+                  </TouchableOpacity>
+                  {deliverySchedule && (
+                    <TouchableOpacity
+                      style={[styles.dateButton, { marginTop: 8 }]}
+                      onPress={() => setShowTimePicker('delivery')}
+                    >
+                      <Ionicons name="time-outline" size={20} color="#64748b" />
+                      <Text style={styles.dateButtonText}>
+                        {deliverySchedule.toLocaleTimeString('en-US', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                          hour12: true,
+                        })}
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+            </View>
+          </View>
+
+          {/* Date Picker Modal */}
+          {showDatePicker && (
+            <DateTimePicker
+              value={
+                showDatePicker === 'pickup'
+                  ? estimatedPickupDate || new Date()
+                  : showDatePicker === 'dropoff'
+                  ? dropOffDate || new Date()
+                  : deliverySchedule || new Date()
+              }
+              mode="date"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(event, selectedDate) => {
+                if (Platform.OS === 'android') {
+                  setShowDatePicker(null);
+                }
+                if (event.type === 'set' && selectedDate) {
+                  if (showDatePicker === 'pickup') {
+                    const newDate = estimatedPickupDate ? new Date(estimatedPickupDate) : new Date();
+                    newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                    setEstimatedPickupDate(newDate);
+                  } else if (showDatePicker === 'dropoff') {
+                    setDropOffDate(selectedDate);
+                  } else {
+                    const newDate = deliverySchedule ? new Date(deliverySchedule) : new Date();
+                    newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                    setDeliverySchedule(newDate);
+                  }
+                }
+                if (Platform.OS === 'ios') {
+                  setShowDatePicker(null);
+                }
+              }}
+            />
+          )}
+
+          {/* Time Picker Modal */}
+          {showTimePicker && (
+            <DateTimePicker
+              value={
+                showTimePicker === 'pickup'
+                  ? estimatedPickupDate || new Date()
+                  : deliverySchedule || new Date()
+              }
+              mode="time"
+              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+              onChange={(event, selectedTime) => {
+                if (Platform.OS === 'android') {
+                  setShowTimePicker(null);
+                }
+                if (event.type === 'set' && selectedTime) {
+                  if (showTimePicker === 'pickup') {
+                    const newDate = estimatedPickupDate ? new Date(estimatedPickupDate) : new Date();
+                    newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                    setEstimatedPickupDate(newDate);
+                  } else {
+                    const newDate = deliverySchedule ? new Date(deliverySchedule) : new Date();
+                    newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                    setDeliverySchedule(newDate);
+                  }
+                }
+                if (Platform.OS === 'ios') {
+                  setShowTimePicker(null);
+                }
+              }}
+            />
+          )}
 
           {/* Bags */}
           <View style={styles.section}>
@@ -1503,6 +1697,20 @@ const styles = StyleSheet.create({
   removeOverrideText: {
     color: '#ef4444',
     fontSize: 14,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#1e293b',
   },
   actionsSection: {
     marginHorizontal: 16,

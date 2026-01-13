@@ -384,18 +384,14 @@ class PrinterService {
       r += this.leftRightAlign('Laundry', `${order.weight || 0} LBS`) + '\n';
     }
 
-    // Special order items
-    if (order.items && order.items.length > 0) {
+    // Extra items (if any)
+    if (order.extraItems && order.extraItems.length > 0) {
       r += '\n';
       r += ESC.CENTER;
-      r += 'Special Order Items\n';
+      r += 'Extra Items\n';
       r += ESC.LEFT;
-      order.items.forEach(item => {
-        r += this.leftRightAlign(`Item`, 'Qty') + '\n';
-        r += this.leftRightAlign(`${item.serviceName}`, `${item.quantity}@ $${item.pricePerUnit?.toFixed(2) || '0.00'} EA`) + '\n';
-        if (item.notes) {
-          r += `- ${item.notes}\n`;
-        }
+      order.extraItems.forEach(item => {
+        r += this.leftRightAlign(`${item.name} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
       });
     }
 
@@ -404,10 +400,25 @@ class PrinterService {
     // === TOTALS SECTION ===
     r += ESC.LEFT;
     const totalWeight = order.weight || 0;
-    const pricePerLb = order.totalAmount && totalWeight > 0 ? (order.totalAmount / totalWeight) : 1.25;
-    const weightTotal = totalWeight * pricePerLb;
 
-    r += this.leftRightAlign('Total Weight', `${totalWeight} LBS = $${weightTotal.toFixed(2)}`) + '\n';
+    // Show subtotal breakdown
+    r += this.leftRightAlign('Weight', `${totalWeight} LBS`) + '\n';
+    r += this.leftRightAlign('Subtotal', `$${(order.subtotal || 0).toFixed(2)}`) + '\n';
+
+    // Show delivery fee if applicable
+    if (order.deliveryFee && order.deliveryFee > 0) {
+      r += this.leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`) + '\n';
+    }
+
+    // Show same day fee if applicable
+    if (order.sameDayFee && order.sameDayFee > 0) {
+      r += this.leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`) + '\n';
+    }
+
+    // Show credit applied if any
+    if (order.creditApplied && order.creditApplied > 0) {
+      r += this.leftRightAlign('Credit Applied', `-$${order.creditApplied.toFixed(2)}`) + '\n';
+    }
 
     // === PICKUP INFO ===
     r += ESC.CENTER;
@@ -566,18 +577,14 @@ class PrinterService {
       r += this.leftRightAlign('Laundry', `${order.weight || 0} LBS`) + '\n';
     }
 
-    // Special order items
-    if (order.items && order.items.length > 0) {
+    // Extra items (if any)
+    if (order.extraItems && order.extraItems.length > 0) {
       r += '\n';
       r += ESC.CENTER;
-      r += 'Special Order Items\n';
+      r += 'Extra Items\n';
       r += ESC.LEFT;
-      order.items.forEach(item => {
-        r += this.leftRightAlign(`Item`, 'Qty') + '\n';
-        r += this.leftRightAlign(`${item.serviceName}`, `${item.quantity}@ $${item.pricePerUnit?.toFixed(2) || '0.00'} EA`) + '\n';
-        if (item.notes) {
-          r += `- ${item.notes}\n`;
-        }
+      order.extraItems.forEach(item => {
+        r += this.leftRightAlign(`${item.name} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
       });
     }
 
@@ -586,10 +593,25 @@ class PrinterService {
     // === TOTALS SECTION ===
     r += ESC.LEFT;
     const totalWeight = order.weight || 0;
-    const pricePerLb = order.totalAmount && totalWeight > 0 ? (order.totalAmount / totalWeight) : 1.25;
-    const weightTotal = totalWeight * pricePerLb;
 
-    r += this.leftRightAlign('Total Weight', `${totalWeight} LBS = $${weightTotal.toFixed(2)}`) + '\n';
+    // Show subtotal breakdown
+    r += this.leftRightAlign('Weight', `${totalWeight} LBS`) + '\n';
+    r += this.leftRightAlign('Subtotal', `$${(order.subtotal || 0).toFixed(2)}`) + '\n';
+
+    // Show delivery fee if applicable
+    if (order.deliveryFee && order.deliveryFee > 0) {
+      r += this.leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`) + '\n';
+    }
+
+    // Show same day fee if applicable
+    if (order.sameDayFee && order.sameDayFee > 0) {
+      r += this.leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`) + '\n';
+    }
+
+    // Show credit applied if any
+    if (order.creditApplied && order.creditApplied > 0) {
+      r += this.leftRightAlign('Credit Applied', `-$${order.creditApplied.toFixed(2)}`) + '\n';
+    }
 
     // === PICKUP INFO ===
     r += ESC.CENTER;

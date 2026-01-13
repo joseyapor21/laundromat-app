@@ -175,18 +175,14 @@ export function generateCustomerReceiptText(order: Order): string {
     r += leftRightAlign('Laundry', `${order.weight || 0} LBS`) + '\n';
   }
 
-  // Special order items
-  if (order.items && order.items.length > 0) {
+  // Extra items (if any)
+  if (order.extraItems && order.extraItems.length > 0) {
     r += '\n';
     r += ESC.CENTER;
-    r += 'Special Order Items\n';
+    r += 'Extra Items\n';
     r += ESC.LEFT;
-    order.items.forEach(item => {
-      r += leftRightAlign(`Item`, 'Qty') + '\n';
-      r += leftRightAlign(`${item.serviceName}`, `${item.quantity}@ $${item.pricePerUnit?.toFixed(2) || '0.00'} EA`) + '\n';
-      if (item.notes) {
-        r += `- ${item.notes}\n`;
-      }
+    order.extraItems.forEach(item => {
+      r += leftRightAlign(`${item.name} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
     });
   }
 
@@ -195,10 +191,25 @@ export function generateCustomerReceiptText(order: Order): string {
   // === TOTALS SECTION ===
   r += ESC.LEFT;
   const totalWeight = order.weight || 0;
-  const pricePerLb = order.totalAmount && totalWeight > 0 ? (order.totalAmount / totalWeight) : 1.25;
-  const weightTotal = totalWeight * pricePerLb;
 
-  r += leftRightAlign('Total Weight', `${totalWeight} LBS = $${weightTotal.toFixed(2)}`) + '\n';
+  // Show subtotal breakdown
+  r += leftRightAlign('Weight', `${totalWeight} LBS`) + '\n';
+  r += leftRightAlign('Subtotal', `$${(order.subtotal || 0).toFixed(2)}`) + '\n';
+
+  // Show delivery fee if applicable
+  if (order.deliveryFee && order.deliveryFee > 0) {
+    r += leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`) + '\n';
+  }
+
+  // Show same day fee if applicable
+  if (order.sameDayFee && order.sameDayFee > 0) {
+    r += leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`) + '\n';
+  }
+
+  // Show credit applied if any
+  if (order.creditApplied && order.creditApplied > 0) {
+    r += leftRightAlign('Credit Applied', `-$${order.creditApplied.toFixed(2)}`) + '\n';
+  }
 
   // === PICKUP INFO ===
   r += ESC.CENTER;
@@ -343,28 +354,25 @@ export function generateStoreCopyText(order: Order): string {
     order.bags.forEach((bag, index) => {
       const bagName = bag.identifier || `Bag ${index + 1}`;
       const bagWeight = bag.weight || 0;
-      r += leftRightAlign(`Item`, 'WEIGHT');
-      r += '\n';
-      r += leftRightAlign(`${bagName}`, `${bagWeight} LBS`);
-      r += '\n';
+      r += leftRightAlign(`Item`, 'WEIGHT') + '\n';
+      r += leftRightAlign(`${bagName}`, `${bagWeight} LBS`) + '\n';
+      if (bag.color) {
+        r += `  Color: ${bag.color}\n`;
+      }
     });
   } else {
     r += leftRightAlign('Item', 'WEIGHT') + '\n';
     r += leftRightAlign('Laundry', `${order.weight || 0} LBS`) + '\n';
   }
 
-  // Special order items
-  if (order.items && order.items.length > 0) {
+  // Extra items (if any)
+  if (order.extraItems && order.extraItems.length > 0) {
     r += '\n';
     r += ESC.CENTER;
-    r += 'Special Order Items\n';
+    r += 'Extra Items\n';
     r += ESC.LEFT;
-    order.items.forEach(item => {
-      r += leftRightAlign(`Item`, 'Qty') + '\n';
-      r += leftRightAlign(`${item.serviceName}`, `${item.quantity}@ $${item.pricePerUnit?.toFixed(2) || '0.00'} EA`) + '\n';
-      if (item.notes) {
-        r += `- ${item.notes}\n`;
-      }
+    order.extraItems.forEach(item => {
+      r += leftRightAlign(`${item.name} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
     });
   }
 
@@ -373,10 +381,25 @@ export function generateStoreCopyText(order: Order): string {
   // === TOTALS SECTION ===
   r += ESC.LEFT;
   const totalWeight = order.weight || 0;
-  const pricePerLb = order.totalAmount && totalWeight > 0 ? (order.totalAmount / totalWeight) : 1.25;
-  const weightTotal = totalWeight * pricePerLb;
 
-  r += leftRightAlign('Total Weight', `${totalWeight} LBS = $${weightTotal.toFixed(2)}`) + '\n';
+  // Show subtotal breakdown
+  r += leftRightAlign('Weight', `${totalWeight} LBS`) + '\n';
+  r += leftRightAlign('Subtotal', `$${(order.subtotal || 0).toFixed(2)}`) + '\n';
+
+  // Show delivery fee if applicable
+  if (order.deliveryFee && order.deliveryFee > 0) {
+    r += leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`) + '\n';
+  }
+
+  // Show same day fee if applicable
+  if (order.sameDayFee && order.sameDayFee > 0) {
+    r += leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`) + '\n';
+  }
+
+  // Show credit applied if any
+  if (order.creditApplied && order.creditApplied > 0) {
+    r += leftRightAlign('Credit Applied', `-$${order.creditApplied.toFixed(2)}`) + '\n';
+  }
 
   // === PICKUP INFO ===
   r += ESC.CENTER;
@@ -418,7 +441,14 @@ export function generateStoreCopyText(order: Order): string {
 
   // === QR CODE (Large for easy scanning) ===
   r += generateQRCode(orderNum, 12);
-  r += '\n\n';
+  r += '\n';
+
+  // Footer
+  r += ESC.CENTER;
+  r += ESC.INVERT_ON;
+  r += ' STORE COPY - KEEP FOR RECORDS \n';
+  r += ESC.INVERT_OFF;
+  r += '\n';
 
   r += cutCommand;
 

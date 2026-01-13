@@ -110,8 +110,16 @@ export default function DashboardScreen() {
       setManualOrderInput('');
       navigation.navigate('OrderDetail', { orderId: found._id });
     } else {
-      Alert.alert('Not Found', `Order #${num} not found`);
-      hasScannedRef.current = false;
+      // Keep hasScannedRef true while alert is showing to prevent loop
+      // Only reset when user dismisses the alert
+      Alert.alert('Not Found', `Order #${num} not found`, [
+        {
+          text: 'OK',
+          onPress: () => {
+            hasScannedRef.current = false;
+          },
+        },
+      ]);
     }
   };
 

@@ -61,11 +61,15 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     // Populate existing extra items
     if (order.extraItems) {
       const extraItemsMap: Record<string, { quantity: number; price: number }> = {};
-      order.extraItems.forEach((item: OrderExtraItem) => {
-        extraItemsMap[item.item._id] = {
-          quantity: item.quantity,
-          price: item.price / item.quantity // Get per-unit price
-        };
+      order.extraItems.forEach((item: any) => {
+        // Handle both item.item._id and item.itemId formats
+        const itemId = item.item?._id || item.itemId;
+        if (itemId) {
+          extraItemsMap[itemId] = {
+            quantity: item.quantity,
+            price: item.quantity > 0 ? item.price / item.quantity : item.price // Get per-unit price
+          };
+        }
       });
       setSelectedExtraItems(extraItemsMap);
       // Show extra items section if there are existing items
@@ -443,6 +447,32 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                 </select>
               </div>
 
+              {/* Pickup/Ready Date - shown for all order types */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {orderType === 'delivery' ? 'Estimated Ready Date' : 'Pickup Date/Time'}
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={estimatedPickupDate}
+                    onChange={(e) => setEstimatedPickupDate(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Drop-off Date
+                  </label>
+                  <input
+                    type="date"
+                    value={dropOffDate}
+                    onChange={(e) => setDropOffDate(e.target.value)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+
               {orderType === 'delivery' && (
                 <>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -454,30 +484,6 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                         type="datetime-local"
                         value={scheduledPickupTime}
                         onChange={(e) => setScheduledPickupTime(e.target.value)}
-                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Drop-off Date
-                      </label>
-                      <input
-                        type="date"
-                        value={dropOffDate}
-                        onChange={(e) => setDropOffDate(e.target.value)}
-                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Estimated Pickup Date
-                      </label>
-                      <input
-                        type="datetime-local"
-                        value={estimatedPickupDate}
-                        onChange={(e) => setEstimatedPickupDate(e.target.value)}
                         className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-blue-500 focus:outline-none"
                       />
                     </div>
