@@ -819,6 +819,45 @@ export default function AdminPage() {
               </button>
             </div>
 
+            {/* Thermal Printer Settings Section */}
+            <div className="mt-8 pt-6 border-t-2 border-gray-200">
+              <h3 className="text-md font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Thermal Printer Settings
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Configure your network thermal printer for printing receipts and tags. Enter the IP address of your thermal printer.
+              </p>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Printer IP Address</label>
+                  <input
+                    type="text"
+                    value={settings.thermalPrinterIp || ''}
+                    onChange={e => setSettings(s => s ? { ...s, thermalPrinterIp: e.target.value } : s)}
+                    placeholder="e.g., 192.168.1.100"
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-purple-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Enter the IP address of your network thermal printer</p>
+                </div>
+              </div>
+              <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+                <p className="text-sm text-purple-800">
+                  <strong>How to find your printer IP:</strong> Check your printer&apos;s network settings menu or print a configuration page.
+                  The printer must be connected to the same network as your devices.
+                </p>
+              </div>
+              <button
+                onClick={handleUpdateSettings}
+                disabled={loading}
+                className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+              >
+                Save Printer Settings
+              </button>
+            </div>
+
             {/* Gmail Payment Integration Section */}
             <div className="mt-8 pt-6 border-t-2 border-gray-200">
               <h3 className="text-md font-semibold text-gray-800 mb-3 flex items-center gap-2">

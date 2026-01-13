@@ -151,6 +151,8 @@ export interface Settings {
   storeAddress?: string;
   storeLatitude?: number;
   storeLongitude?: number;
+  // Thermal printer settings
+  thermalPrinterIp?: string;
   updatedAt: Date;
   updatedBy: string;
 }

@@ -46,6 +46,12 @@ const settingsSchema = new mongoose.Schema<SettingsDocument>({
     required: false,
     default: -74.0060,  // Default NYC
   },
+  // Thermal printer settings
+  thermalPrinterIp: {
+    type: String,
+    required: false,
+    default: '',
+  },
   // Gmail integration for payment notifications
   gmailAccessToken: {
     type: String,

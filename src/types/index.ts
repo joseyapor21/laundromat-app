@@ -192,6 +192,8 @@ export interface Settings {
   storeAddress?: string;
   storeLatitude?: number;
   storeLongitude?: number;
+  // Thermal printer settings
+  thermalPrinterIp?: string;
   // Gmail integration for payment notifications
   gmailAccessToken?: string;
   gmailRefreshToken?: string;
