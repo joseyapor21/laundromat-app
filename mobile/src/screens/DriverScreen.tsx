@@ -222,10 +222,11 @@ export default function DriverScreen() {
     Linking.openURL(url);
   }
 
-  // Open Google Maps with optimized route for all addresses
+  // Open Google Maps with optimized route for ALL addresses (pickups + deliveries)
   function openOptimizedRoute() {
-    const orders = activeTab === 'pickups' ? pickupOrders : deliveryOrders;
-    const addresses = orders
+    // Combine both pickups and deliveries for full route
+    const allOrders = [...pickupOrders, ...deliveryOrders];
+    const addresses = allOrders
       .filter(order => order.customer?.address)
       .map(order => order.customer!.address);
 
@@ -292,17 +293,19 @@ export default function DriverScreen() {
           )}
         </View>
 
-        {/* Order Info */}
-        <View style={styles.orderInfo}>
-          <View style={styles.infoItem}>
-            <Ionicons name="scale-outline" size={16} color="#64748b" />
-            <Text style={styles.infoText}>{order.weight || 0} lbs</Text>
+        {/* Order Info - Only show for deliveries */}
+        {!isPickup && (
+          <View style={styles.orderInfo}>
+            <View style={styles.infoItem}>
+              <Ionicons name="scale-outline" size={16} color="#64748b" />
+              <Text style={styles.infoText}>{order.weight || 0} lbs</Text>
+            </View>
+            <View style={styles.infoItem}>
+              <Ionicons name="cash-outline" size={16} color="#64748b" />
+              <Text style={styles.infoText}>${(order.totalAmount || 0).toFixed(2)}</Text>
+            </View>
           </View>
-          <View style={styles.infoItem}>
-            <Ionicons name="cash-outline" size={16} color="#64748b" />
-            <Text style={styles.infoText}>${(order.totalAmount || 0).toFixed(2)}</Text>
-          </View>
-        </View>
+        )}
 
         {/* Actions */}
         <View style={styles.actions}>
@@ -528,15 +531,17 @@ export default function DriverScreen() {
         )}
       </View>
 
-      {/* Optimize Route Button */}
-      {activeOrders.length > 0 && (
+      {/* Optimize Route Button - Shows all pickups + deliveries */}
+      {(pickupOrders.length > 0 || deliveryOrders.length > 0) && (
         <View style={styles.actionBar}>
           <TouchableOpacity
             style={[styles.actionBarButton, styles.routeButton]}
             onPress={openOptimizedRoute}
           >
             <Ionicons name="map" size={20} color="#fff" />
-            <Text style={styles.actionBarButtonText}>Optimize Route</Text>
+            <Text style={styles.actionBarButtonText}>
+              Optimize Route ({pickupOrders.length + deliveryOrders.length} stops)
+            </Text>
           </TouchableOpacity>
         </View>
       )}
