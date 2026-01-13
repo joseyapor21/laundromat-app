@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import net from 'net';
-import { verifyAuth } from '@/lib/auth';
+import { verifyToken, getAuthCookie } from '@/lib/auth';
 import Settings from '@/lib/db/models/Settings';
-import connectDB from '@/lib/db/mongoose';
+import connectDB from '@/lib/db/connection';
 
 // Send print data to thermal printer via TCP
 async function sendToPrinter(ip: string, port: number, content: string): Promise<boolean> {
@@ -44,9 +44,14 @@ async function sendToPrinter(ip: string, port: number, content: string): Promise
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication
-    const authResult = await verifyAuth(request);
-    if (!authResult.success) {
+    const token = getAuthCookie();
+    if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const payload = verifyToken(token);
+    if (!payload) {
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     const body = await request.json();
@@ -58,7 +63,7 @@ export async function POST(request: NextRequest) {
 
     // Get printer IP from settings if not provided
     let ip = printerIP;
-    let port = printerPort || 9100;
+    const port = printerPort || 9100;
 
     if (!ip) {
       await connectDB();
