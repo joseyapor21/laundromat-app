@@ -23,16 +23,8 @@ async function sendToPrinter(ip: string, port: number, content: string): Promise
     });
 
     socket.connect(port, ip, () => {
-      // ESC/POS initialization
-      const init = Buffer.from([0x1B, 0x40]); // Initialize printer
-      socket.write(init);
-
-      // Write content
+      // Write content directly - the content already includes ESC/POS init and cut commands
       socket.write(content, 'utf8');
-
-      // Cut paper and feed
-      const cut = Buffer.from([0x1D, 0x56, 0x00]); // Full cut
-      socket.write(cut);
 
       socket.end(() => {
         resolve(true);
