@@ -43,8 +43,17 @@ async function sendToPrinter(ip: string, port: number, content: string): Promise
 
 export async function POST(request: NextRequest) {
   try {
-    // Verify authentication
-    const token = await getAuthCookie();
+    // Verify authentication - check both cookie (web) and Bearer token (mobile)
+    let token = await getAuthCookie();
+
+    // If no cookie, check Authorization header (for mobile app)
+    if (!token) {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+      }
+    }
+
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
