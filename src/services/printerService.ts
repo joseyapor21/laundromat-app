@@ -402,23 +402,12 @@ class PrinterService {
     r += ESC.LEFT;
     const totalWeight = order.weight || 0;
 
-    // Show subtotal breakdown
-    r += this.leftRightAlign('Weight', `${totalWeight} LBS`) + '\n';
-    r += this.leftRightAlign('Subtotal', `$${(order.subtotal || 0).toFixed(2)}`) + '\n';
+    // Show weight
+    r += this.leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
 
-    // Show delivery fee if applicable
-    if (order.deliveryFee && order.deliveryFee > 0) {
-      r += this.leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`) + '\n';
-    }
-
-    // Show same day fee if applicable
-    if (order.sameDayFee && order.sameDayFee > 0) {
-      r += this.leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`) + '\n';
-    }
-
-    // Show credit applied if any
-    if (order.creditApplied && order.creditApplied > 0) {
-      r += this.leftRightAlign('Credit Applied', `-$${order.creditApplied.toFixed(2)}`) + '\n';
+    // Show same day indicator if applicable
+    if (order.isSameDay) {
+      r += this.leftRightAlign('Same Day Service', 'YES') + '\n';
     }
 
     // === PICKUP INFO ===
@@ -596,23 +585,12 @@ class PrinterService {
     r += ESC.LEFT;
     const totalWeight = order.weight || 0;
 
-    // Show subtotal breakdown
-    r += this.leftRightAlign('Weight', `${totalWeight} LBS`) + '\n';
-    r += this.leftRightAlign('Subtotal', `$${(order.subtotal || 0).toFixed(2)}`) + '\n';
+    // Show weight
+    r += this.leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
 
-    // Show delivery fee if applicable
-    if (order.deliveryFee && order.deliveryFee > 0) {
-      r += this.leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`) + '\n';
-    }
-
-    // Show same day fee if applicable
-    if (order.sameDayFee && order.sameDayFee > 0) {
-      r += this.leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`) + '\n';
-    }
-
-    // Show credit applied if any
-    if (order.creditApplied && order.creditApplied > 0) {
-      r += this.leftRightAlign('Credit Applied', `-$${order.creditApplied.toFixed(2)}`) + '\n';
+    // Show same day indicator if applicable
+    if (order.isSameDay) {
+      r += this.leftRightAlign('Same Day Service', 'YES') + '\n';
     }
 
     // === PICKUP INFO ===
