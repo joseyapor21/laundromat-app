@@ -153,8 +153,7 @@ export interface Settings {
   storeLongitude?: number;
   // Thermal printer settings
   thermalPrinterIp?: string;
-  backupPrinterIp?: string;
-  printRetryAttempts?: number;
+  thermalPrinterPort?: number;
   updatedAt: Date;
   updatedBy: string;
 }

@@ -73,6 +73,8 @@ export default function AdminScreen() {
     storeAddress: '',
     storeLatitude: '',
     storeLongitude: '',
+    thermalPrinterIp: '',
+    thermalPrinterPort: '',
   });
 
   const loadData = useCallback(async () => {
@@ -171,6 +173,32 @@ export default function AdminScreen() {
       Alert.alert('Success', 'Test print sent successfully');
     } else {
       Alert.alert('Error', 'Failed to print. Please check the printer connection.');
+    }
+  }
+
+  async function testPosPrint() {
+    try {
+      const testContent =
+        '\x1B\x40' + // Initialize
+        '\x1B\x61\x01' + // Center
+        '\x1D\x21\x11' + // Double size
+        'TEST PRINT\n' +
+        '\x1D\x21\x00' + // Normal size
+        '================================\n' +
+        'Laundromat App\n' +
+        'POS Printer Test\n' +
+        '================================\n' +
+        '\n\n\n' +
+        '\x1D\x56\x00'; // Cut
+
+      const result = await api.printReceipt(testContent);
+      if (result.success) {
+        Alert.alert('Success', 'Test print sent to POS printer');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to print');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to send test print');
     }
   }
 
@@ -362,6 +390,8 @@ export default function AdminScreen() {
         storeAddress: settings.storeAddress || '',
         storeLatitude: (settings.storeLatitude || 40.7128).toString(),
         storeLongitude: (settings.storeLongitude || -74.0060).toString(),
+        thermalPrinterIp: settings.thermalPrinterIp || '',
+        thermalPrinterPort: (settings.thermalPrinterPort || 9100).toString(),
       });
     }
     setShowSettingsModal(true);
@@ -379,6 +409,8 @@ export default function AdminScreen() {
         storeAddress: settingsForm.storeAddress,
         storeLatitude: parseFloat(settingsForm.storeLatitude) || 40.7128,
         storeLongitude: parseFloat(settingsForm.storeLongitude) || -74.0060,
+        thermalPrinterIp: settingsForm.thermalPrinterIp,
+        thermalPrinterPort: parseInt(settingsForm.thermalPrinterPort) || 9100,
       });
       Alert.alert('Success', 'Settings updated');
       setShowSettingsModal(false);
@@ -770,23 +802,52 @@ export default function AdminScreen() {
             )}
           </View>
 
-          {/* WiFi POS Printer Info */}
+          {/* WiFi POS Thermal Printer */}
           <View style={styles.settingsCard}>
             <View style={styles.printerHeaderRow}>
               <View style={styles.printerHeaderLeft}>
                 <Ionicons name="wifi" size={28} color="#3b82f6" />
                 <View>
                   <Text style={styles.settingsTitle}>WiFi POS Printer</Text>
-                  <Text style={styles.printerSubtitle}>For receipts (configured in web app)</Text>
+                  <Text style={styles.printerSubtitle}>Thermal receipt printer</Text>
                 </View>
               </View>
             </View>
-            <View style={styles.printerHintBox}>
-              <Ionicons name="information-circle-outline" size={20} color="#64748b" />
-              <Text style={styles.printerHintText}>
-                WiFi POS printers are configured through the web admin dashboard. The WiFi printer is used for printing receipts at the point of sale.
-              </Text>
-            </View>
+
+            {/* Current Settings Display */}
+            {settings?.thermalPrinterIp ? (
+              <View style={styles.connectedPrinterSection}>
+                <View style={styles.connectedPrinterInfo}>
+                  <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+                  <Text style={styles.connectedPrinterName}>
+                    {settings.thermalPrinterIp}:{settings.thermalPrinterPort || 9100}
+                  </Text>
+                </View>
+                <View style={styles.printerActionButtons}>
+                  <TouchableOpacity style={styles.testPrintBtn} onPress={testPosPrint}>
+                    <Ionicons name="document-text-outline" size={18} color="#fff" />
+                    <Text style={styles.printerBtnText}>Test Print</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.editPrinterBtn} onPress={openSettingsModal}>
+                    <Ionicons name="pencil" size={18} color="#fff" />
+                    <Text style={styles.printerBtnText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.disconnectedPrinterSection}>
+                <View style={styles.printerHintBox}>
+                  <Ionicons name="information-circle-outline" size={20} color="#64748b" />
+                  <Text style={styles.printerHintText}>
+                    No POS printer configured. Tap below to add your thermal printer IP address.
+                  </Text>
+                </View>
+                <TouchableOpacity style={[styles.scanButton, { marginTop: 12 }]} onPress={openSettingsModal}>
+                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
+                  <Text style={styles.scanButtonText}>Configure POS Printer</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </ScrollView>
       )}
@@ -1244,6 +1305,34 @@ export default function AdminScreen() {
               </View>
               <Text style={styles.hintText}>
                 Get coordinates from Google Maps by right-clicking on your store location.
+              </Text>
+
+              <Text style={styles.sectionLabel}>POS Thermal Printer</Text>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Printer IP Address</Text>
+                <TextInput
+                  style={styles.input}
+                  value={settingsForm.thermalPrinterIp}
+                  onChangeText={(text) => setSettingsForm({ ...settingsForm, thermalPrinterIp: text })}
+                  placeholder="192.168.1.100"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                  autoCapitalize="none"
+                />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Printer Port</Text>
+                <TextInput
+                  style={styles.input}
+                  value={settingsForm.thermalPrinterPort}
+                  onChangeText={(text) => setSettingsForm({ ...settingsForm, thermalPrinterPort: text })}
+                  placeholder="9100"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="number-pad"
+                />
+              </View>
+              <Text style={styles.hintText}>
+                Enter your thermal receipt printer's IP address. Default port is 9100.
               </Text>
 
             </ScrollView>
@@ -1704,6 +1793,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     backgroundColor: '#ef4444',
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  editPrinterBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#64748b',
     paddingVertical: 12,
     borderRadius: 10,
   },
