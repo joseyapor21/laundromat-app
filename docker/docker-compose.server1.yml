@@ -1,0 +1,101 @@
+version: '3.8'
+
+# Server 1 (Primary) - docker-compose.server1.yml
+# Run with: docker-compose -f docker-compose.server1.yml up -d
+
+services:
+  # MongoDB Primary
+  mongodb:
+    image: mongo:7
+    container_name: mongodb-primary
+    restart: always
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:-your_secure_password}
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-keyfile:/data/mongo-keyfile:ro
+    command: >
+      mongod
+      --replSet rs0
+      --keyFile /data/mongo-keyfile
+      --bind_ip_all
+    networks:
+      - laundromat-net
+
+  # Application instances (3 for load balancing)
+  app1:
+    image: laundromat-app:latest
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: laundromat-app-1
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGODB_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-your_secure_password}@mongodb:27017,${SERVER2_IP}:27017/laundromat?replicaSet=rs0&authSource=admin
+      - JWT_SECRET=${JWT_SECRET}
+      - NEXT_PUBLIC_APP_NAME=Laundromat
+    depends_on:
+      - mongodb
+    networks:
+      - laundromat-net
+
+  app2:
+    image: laundromat-app:latest
+    container_name: laundromat-app-2
+    restart: always
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - MONGODB_URI=mongodb://${MONGO_USER:-admin}:${MONGO_PASSWORD:-your_secure_password}@mongodb:27017,${SERVER2_IP}:27017/laundromat?replicaSet=rs0&authSource=admin
+      - JWT_SECRET=${JWT_SECRET}
+      - NEXT_PUBLIC_APP_NAME=Laundromat
+    depends_on:
+      - mongodb
+    networks:
+      - laundromat-net
+
+  # Nginx Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-lb
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro
+    depends_on:
+      - app1
+      - app2
+    networks:
+      - laundromat-net
+
+  # Health check service
+  healthcheck:
+    image: curlimages/curl:latest
+    container_name: healthcheck
+    restart: always
+    command: >
+      sh -c "while true; do
+        curl -sf http://app1:3000/api/health || echo 'App1 unhealthy';
+        curl -sf http://app2:3000/api/health || echo 'App2 unhealthy';
+        sleep 30;
+      done"
+    depends_on:
+      - app1
+      - app2
+    networks:
+      - laundromat-net
+
+volumes:
+  mongodb_data:
+
+networks:
+  laundromat-net:
+    driver: bridge
