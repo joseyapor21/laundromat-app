@@ -17,6 +17,8 @@
       "bundleIdentifier": "com.laundromat.app",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan QR codes on washers and dryers.",
+        "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to connect to thermal label printers for printing bag labels.",
+        "NSBluetoothPeripheralUsageDescription": "This app uses Bluetooth to connect to thermal label printers for printing bag labels.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -27,7 +29,12 @@
       },
       "package": "com.laundromat.app",
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.ACCESS_FINE_LOCATION"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false

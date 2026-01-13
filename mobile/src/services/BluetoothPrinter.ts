@@ -1,24 +1,24 @@
 import { BleManager, Device, State } from 'react-native-ble-plx';
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
-// Base64 encoding helper for React Native
-function stringToBase64(str: string): string {
+// Helper to convert Uint8Array to base64
+function uint8ArrayToBase64(bytes: Uint8Array): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   let result = '';
-  let i = 0;
+  const len = bytes.length;
 
-  while (i < str.length) {
-    const a = str.charCodeAt(i++);
-    const b = i < str.length ? str.charCodeAt(i++) : 0;
-    const c = i < str.length ? str.charCodeAt(i++) : 0;
+  for (let i = 0; i < len; i += 3) {
+    const a = bytes[i];
+    const b = i + 1 < len ? bytes[i + 1] : 0;
+    const c = i + 2 < len ? bytes[i + 2] : 0;
 
     const n = (a << 16) | (b << 8) | c;
 
     result += chars[(n >> 18) & 63];
     result += chars[(n >> 12) & 63];
-    result += i - 2 < str.length ? chars[(n >> 6) & 63] : '=';
-    result += i - 1 < str.length ? chars[n & 63] : '=';
+    result += i + 1 < len ? chars[(n >> 6) & 63] : '=';
+    result += i + 2 < len ? chars[n & 63] : '=';
   }
 
   return result;
@@ -26,17 +26,60 @@ function stringToBase64(str: string): string {
 
 const PRINTER_STORAGE_KEY = 'connected_printer';
 
-// Common thermal printer service UUIDs
-const PRINTER_SERVICE_UUIDS = [
-  '49535343-fe7d-4ae5-8fa9-9fafd205e455', // Generic printer service
-  '000018f0-0000-1000-8000-00805f9b34fb', // Star Micronics
-  'e7810a71-73ae-499d-8c15-faa9aef0c3f2', // Some ESC/POS printers
-];
-
-const PRINTER_CHARACTERISTIC_UUIDS = [
-  '49535343-8841-43f4-a8d4-ecbe34729bb3', // Generic write characteristic
-  '00002af1-0000-1000-8000-00805f9b34fb', // Star Micronics
-];
+// Bitmap font data for characters (8x8 pixels each)
+const BITMAP_FONT: { [key: string]: number[] } = {
+  ' ': [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+  'A': [0x18, 0x3C, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x00],
+  'B': [0x7C, 0x66, 0x66, 0x7C, 0x66, 0x66, 0x7C, 0x00],
+  'C': [0x3C, 0x66, 0x60, 0x60, 0x60, 0x66, 0x3C, 0x00],
+  'D': [0x78, 0x6C, 0x66, 0x66, 0x66, 0x6C, 0x78, 0x00],
+  'E': [0x7E, 0x60, 0x60, 0x7C, 0x60, 0x60, 0x7E, 0x00],
+  'F': [0x7E, 0x60, 0x60, 0x7C, 0x60, 0x60, 0x60, 0x00],
+  'G': [0x3C, 0x66, 0x60, 0x6E, 0x66, 0x66, 0x3C, 0x00],
+  'H': [0x66, 0x66, 0x66, 0x7E, 0x66, 0x66, 0x66, 0x00],
+  'I': [0x3C, 0x18, 0x18, 0x18, 0x18, 0x18, 0x3C, 0x00],
+  'J': [0x1E, 0x0C, 0x0C, 0x0C, 0x0C, 0x6C, 0x38, 0x00],
+  'K': [0x66, 0x6C, 0x78, 0x70, 0x78, 0x6C, 0x66, 0x00],
+  'L': [0x60, 0x60, 0x60, 0x60, 0x60, 0x60, 0x7E, 0x00],
+  'M': [0x63, 0x77, 0x7F, 0x6B, 0x63, 0x63, 0x63, 0x00],
+  'N': [0x66, 0x76, 0x7E, 0x7E, 0x6E, 0x66, 0x66, 0x00],
+  'O': [0x3C, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x00],
+  'P': [0x7C, 0x66, 0x66, 0x7C, 0x60, 0x60, 0x60, 0x00],
+  'Q': [0x3C, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x0E, 0x00],
+  'R': [0x7C, 0x66, 0x66, 0x7C, 0x78, 0x6C, 0x66, 0x00],
+  'S': [0x3C, 0x66, 0x60, 0x3C, 0x06, 0x66, 0x3C, 0x00],
+  'T': [0x7E, 0x18, 0x18, 0x18, 0x18, 0x18, 0x18, 0x00],
+  'U': [0x66, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x00],
+  'V': [0x66, 0x66, 0x66, 0x66, 0x66, 0x3C, 0x18, 0x00],
+  'W': [0x63, 0x63, 0x63, 0x6B, 0x7F, 0x77, 0x63, 0x00],
+  'X': [0x66, 0x66, 0x3C, 0x18, 0x3C, 0x66, 0x66, 0x00],
+  'Y': [0x66, 0x66, 0x66, 0x3C, 0x18, 0x18, 0x18, 0x00],
+  'Z': [0x7E, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x7E, 0x00],
+  '0': [0x3C, 0x66, 0x6E, 0x76, 0x66, 0x66, 0x3C, 0x00],
+  '1': [0x18, 0x18, 0x38, 0x18, 0x18, 0x18, 0x7E, 0x00],
+  '2': [0x3C, 0x66, 0x06, 0x0C, 0x30, 0x60, 0x7E, 0x00],
+  '3': [0x3C, 0x66, 0x06, 0x1C, 0x06, 0x66, 0x3C, 0x00],
+  '4': [0x06, 0x0E, 0x1E, 0x66, 0x7F, 0x06, 0x06, 0x00],
+  '5': [0x7E, 0x60, 0x7C, 0x06, 0x06, 0x66, 0x3C, 0x00],
+  '6': [0x3C, 0x66, 0x60, 0x7C, 0x66, 0x66, 0x3C, 0x00],
+  '7': [0x7E, 0x66, 0x0C, 0x18, 0x18, 0x18, 0x18, 0x00],
+  '8': [0x3C, 0x66, 0x66, 0x3C, 0x66, 0x66, 0x3C, 0x00],
+  '9': [0x3C, 0x66, 0x66, 0x3E, 0x06, 0x66, 0x3C, 0x00],
+  ':': [0x00, 0x00, 0x18, 0x00, 0x00, 0x18, 0x00, 0x00],
+  '#': [0x36, 0x36, 0x7F, 0x36, 0x7F, 0x36, 0x36, 0x00],
+  '.': [0x00, 0x00, 0x00, 0x00, 0x00, 0x18, 0x18, 0x00],
+  ',': [0x00, 0x00, 0x00, 0x00, 0x18, 0x18, 0x30, 0x00],
+  '-': [0x00, 0x00, 0x00, 0x7E, 0x00, 0x00, 0x00, 0x00],
+  '/': [0x00, 0x03, 0x06, 0x0C, 0x18, 0x30, 0x60, 0x00],
+  '(': [0x0C, 0x18, 0x30, 0x30, 0x30, 0x18, 0x0C, 0x00],
+  ')': [0x30, 0x18, 0x0C, 0x0C, 0x0C, 0x18, 0x30, 0x00],
+  '*': [0x00, 0x66, 0x3C, 0xFF, 0x3C, 0x66, 0x00, 0x00],
+  '=': [0x00, 0x00, 0x7E, 0x00, 0x7E, 0x00, 0x00, 0x00],
+  '!': [0x18, 0x18, 0x18, 0x18, 0x00, 0x18, 0x18, 0x00],
+  '?': [0x3C, 0x66, 0x06, 0x0C, 0x18, 0x00, 0x18, 0x00],
+  '$': [0x18, 0x3E, 0x60, 0x3C, 0x06, 0x7C, 0x18, 0x00],
+  '@': [0x3E, 0x63, 0x7B, 0x7B, 0x7B, 0x03, 0x1E, 0x00],
+};
 
 class BluetoothPrinterService {
   private manager: BleManager;
@@ -223,58 +266,93 @@ class BluetoothPrinterService {
     return false;
   }
 
-  // ESC/POS commands for thermal printers
-  private createESCPOSCommands() {
-    return {
-      INIT: '\x1B\x40', // Initialize printer
-      CUT: '\x1D\x56\x00', // Full cut
-      PARTIAL_CUT: '\x1D\x56\x01', // Partial cut
-      ALIGN_CENTER: '\x1B\x61\x01',
-      ALIGN_LEFT: '\x1B\x61\x00',
-      ALIGN_RIGHT: '\x1B\x61\x02',
-      BOLD_ON: '\x1B\x45\x01',
-      BOLD_OFF: '\x1B\x45\x00',
-      DOUBLE_HEIGHT: '\x1B\x21\x10',
-      DOUBLE_WIDTH: '\x1B\x21\x20',
-      DOUBLE_SIZE: '\x1B\x21\x30',
-      NORMAL_SIZE: '\x1B\x21\x00',
-      FEED_LINES: (n: number) => `\x1B\x64${String.fromCharCode(n)}`,
-      BARCODE_HEIGHT: (h: number) => `\x1D\x68${String.fromCharCode(h)}`,
-      BARCODE_WIDTH: (w: number) => `\x1D\x77${String.fromCharCode(w)}`,
-      BARCODE_CODE39: '\x1D\x6B\x04', // CODE39 barcode
-    };
-  }
-
-  async printText(text: string): Promise<boolean> {
+  // Send raw bytes to printer
+  private async sendRawData(data: Uint8Array): Promise<boolean> {
     if (!this.connectedDevice || !this.writeCharacteristicUUID || !this.serviceUUID) {
-      Alert.alert('Printer Not Connected', 'Please connect to a printer first');
       return false;
     }
 
     try {
-      const ESC = this.createESCPOSCommands();
-      const data = ESC.INIT + text + ESC.FEED_LINES(3) + ESC.CUT;
+      // Send in chunks for reliability
+      const chunkSize = 100;
+      for (let i = 0; i < data.length; i += chunkSize) {
+        const chunk = data.slice(i, i + chunkSize);
+        const base64Data = uint8ArrayToBase64(chunk);
 
-      // Convert to base64
-      const base64Data = stringToBase64(data);
+        await this.connectedDevice.writeCharacteristicWithoutResponseForService(
+          this.serviceUUID,
+          this.writeCharacteristicUUID,
+          base64Data
+        );
 
-      await this.connectedDevice.writeCharacteristicWithResponseForService(
-        this.serviceUUID,
-        this.writeCharacteristicUUID,
-        base64Data
-      );
-
+        // Small delay between chunks
+        if (i + chunkSize < data.length) {
+          await new Promise(resolve => setTimeout(resolve, 5));
+        }
+      }
       return true;
     } catch (error) {
-      console.error('Print error:', error);
+      console.error('Send raw data error:', error);
       return false;
     }
+  }
+
+  // Print text as bitmap (for Netum G5 and similar printers)
+  private async printBitmapText(text: string, scaleFactor: number = 2): Promise<boolean> {
+    const cleanText = text.replace(/\n/g, '').toUpperCase();
+    if (cleanText.length === 0) return true;
+
+    const charCount = cleanText.length;
+    const charWidthDots = 8;
+    const charHeightDots = 8;
+    const scaledCharWidth = charWidthDots * scaleFactor;
+    const labelWidthBytes = 48; // Fixed width for 57mm labels
+
+    // Build bitmap line by line
+    for (let row = 0; row < charHeightDots; row++) {
+      for (let scaleY = 0; scaleY < scaleFactor; scaleY++) {
+        const rowData = new Array(labelWidthBytes).fill(0);
+        const labelWidthDots = labelWidthBytes * 8;
+        const textWidthDots = charCount * scaledCharWidth;
+        const textStartBit = Math.floor((labelWidthDots - textWidthDots) / 2);
+        let bitPosition = textStartBit;
+
+        for (let charIndex = 0; charIndex < charCount; charIndex++) {
+          const char = cleanText[charIndex];
+          const bitmap = BITMAP_FONT[char] || BITMAP_FONT[' '];
+          const charRowByte = bitmap[row] || 0x00;
+
+          for (let bit = 7; bit >= 0; bit--) {
+            const bitValue = (charRowByte >> bit) & 1;
+            for (let scaleX = 0; scaleX < scaleFactor; scaleX++) {
+              if (bitPosition >= 0 && bitPosition < labelWidthDots) {
+                const byteIndex = Math.floor(bitPosition / 8);
+                const bitIndex = 7 - (bitPosition % 8);
+                if (bitValue) {
+                  rowData[byteIndex] |= (1 << bitIndex);
+                }
+              }
+              bitPosition++;
+            }
+          }
+        }
+
+        // Send this row using DothanTech command format
+        const command = new Uint8Array([0x1F, 0x2B, 0, rowData.length, ...rowData]);
+        await this.sendRawData(command);
+      }
+    }
+
+    // Add line spacing after text
+    await this.sendRawData(new Uint8Array([0x1B, 0x4A, 0x04]));
+    return true;
   }
 
   async printOrderTag(order: {
     orderId: string;
     customerName: string;
     customerPhone: string;
+    address?: string;
     weight?: number;
     bagNumber?: number;
     totalBags?: number;
@@ -286,61 +364,123 @@ class BluetoothPrinterService {
     }
 
     try {
-      const ESC = this.createESCPOSCommands();
-      const date = new Date().toLocaleDateString();
+      const date = new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' });
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      let label = ESC.INIT;
-      label += ESC.ALIGN_CENTER;
-      label += ESC.BOLD_ON + ESC.DOUBLE_SIZE;
-      label += `LAUNDROMAT\n`;
-      label += ESC.NORMAL_SIZE + ESC.BOLD_OFF;
-      label += `${date} ${time}\n\n`;
+      // Initialize printer with thermal settings
+      await this.sendRawData(new Uint8Array([0x1B, 0x40])); // Reset
+      await this.sendRawData(new Uint8Array([0x1B, 0x37, 0x07, 0x64, 0x64])); // Heat settings
+      await this.sendRawData(new Uint8Array([0x1B, 0x38, 0x07, 0x64, 0x64])); // Density settings
 
-      label += ESC.DOUBLE_SIZE + ESC.BOLD_ON;
-      label += `#${order.orderId}\n`;
-      label += ESC.NORMAL_SIZE + ESC.BOLD_OFF;
+      // Top margin
+      await this.sendRawData(new Uint8Array([0x1B, 0x4A, 0x18]));
 
-      if (order.bagNumber && order.totalBags) {
-        label += ESC.DOUBLE_HEIGHT;
-        label += `BAG ${order.bagNumber}/${order.totalBags}\n`;
-        label += ESC.NORMAL_SIZE;
+      // Print order info as bitmaps
+      await this.printBitmapText(`ORDER: ${order.orderId}`, 3);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      await this.printBitmapText(order.customerName, 3);
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      await this.printBitmapText(`PHONE: ${order.customerPhone}`, 2);
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      // Print address if available
+      if (order.address) {
+        await this.printBitmapText('ADDRESS:', 2);
+        await new Promise(resolve => setTimeout(resolve, 200));
+        // Split long addresses into multiple lines (max ~20 chars per line)
+        const addr = order.address.toUpperCase();
+        const maxLineLength = 20;
+        if (addr.length > maxLineLength) {
+          // Split at spaces or commas
+          const words = addr.split(/[\s,]+/);
+          let currentLine = '';
+          for (const word of words) {
+            if (currentLine.length + word.length + 1 <= maxLineLength) {
+              currentLine += (currentLine ? ' ' : '') + word;
+            } else {
+              if (currentLine) {
+                await this.printBitmapText(currentLine, 2);
+                await new Promise(resolve => setTimeout(resolve, 200));
+              }
+              currentLine = word;
+            }
+          }
+          if (currentLine) {
+            await this.printBitmapText(currentLine, 2);
+            await new Promise(resolve => setTimeout(resolve, 200));
+          }
+        } else {
+          await this.printBitmapText(addr, 2);
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
       }
 
-      label += '\n';
-      label += ESC.ALIGN_LEFT;
-      label += ESC.BOLD_ON + `Customer: ` + ESC.BOLD_OFF + `${order.customerName}\n`;
-      label += ESC.BOLD_ON + `Phone: ` + ESC.BOLD_OFF + `${order.customerPhone}\n`;
+      await this.printBitmapText(`DATE: ${date} ${time}`, 2);
+      await new Promise(resolve => setTimeout(resolve, 300));
 
-      if (order.weight) {
-        label += ESC.BOLD_ON + `Weight: ` + ESC.BOLD_OFF + `${order.weight} lbs\n`;
+      if (order.bagNumber && order.totalBags) {
+        await this.printBitmapText(`BAG ${order.bagNumber} OF ${order.totalBags}`, 3);
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
       if (order.isSameDay) {
-        label += '\n';
-        label += ESC.ALIGN_CENTER + ESC.DOUBLE_SIZE + ESC.BOLD_ON;
-        label += `** SAME DAY **\n`;
-        label += ESC.NORMAL_SIZE + ESC.BOLD_OFF;
+        await this.printBitmapText('** SAME DAY **', 3);
+        await new Promise(resolve => setTimeout(resolve, 300));
       }
 
-      label += '\n';
-      label += ESC.ALIGN_CENTER;
-      label += '--------------------------------\n';
-      label += ESC.FEED_LINES(2);
-      label += ESC.CUT;
+      // Footer line
+      await this.printBitmapText('========================', 1);
 
-      // Convert to base64
-      const base64Data = stringToBase64(label);
-
-      await this.connectedDevice.writeCharacteristicWithResponseForService(
-        this.serviceUUID,
-        this.writeCharacteristicUUID,
-        base64Data
-      );
+      // Feed and advance to next label
+      await this.sendRawData(new Uint8Array([0x1B, 0x4A, 0x06]));
+      await new Promise(resolve => setTimeout(resolve, 300));
+      await this.sendRawData(new Uint8Array([0x0C])); // Form feed
 
       return true;
     } catch (error) {
       console.error('Print tag error:', error);
+      return false;
+    }
+  }
+
+  // Print multiple bag labels for an order
+  async printMultipleBagLabels(order: {
+    orderId: string;
+    customerName: string;
+    customerPhone: string;
+    address?: string;
+    weight?: number;
+    isSameDay?: boolean;
+  }, totalBags: number): Promise<boolean> {
+    if (!this.connectedDevice || !this.writeCharacteristicUUID || !this.serviceUUID) {
+      Alert.alert('Printer Not Connected', 'Please connect to a printer first');
+      return false;
+    }
+
+    try {
+      for (let bagNumber = 1; bagNumber <= totalBags; bagNumber++) {
+        const success = await this.printOrderTag({
+          ...order,
+          bagNumber,
+          totalBags,
+        });
+
+        if (!success) {
+          Alert.alert('Print Error', `Failed to print bag ${bagNumber} of ${totalBags}`);
+          return false;
+        }
+
+        // Small delay between labels
+        if (bagNumber < totalBags) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.error('Print multiple bags error:', error);
       return false;
     }
   }
@@ -357,46 +497,77 @@ class BluetoothPrinterService {
     }
 
     try {
-      const ESC = this.createESCPOSCommands();
       const date = new Date().toLocaleDateString();
 
-      let sheet = ESC.INIT;
-      sheet += ESC.ALIGN_CENTER;
-      sheet += ESC.BOLD_ON + ESC.DOUBLE_SIZE;
-      sheet += `PICKUP SHEET\n`;
-      sheet += ESC.NORMAL_SIZE + ESC.BOLD_OFF;
-      sheet += `${date}\n`;
-      sheet += '================================\n\n';
+      // Initialize printer
+      await this.sendRawData(new Uint8Array([0x1B, 0x40]));
+      await this.sendRawData(new Uint8Array([0x1B, 0x37, 0x07, 0x64, 0x64]));
+      await this.sendRawData(new Uint8Array([0x1B, 0x4A, 0x18]));
 
+      // Header
+      await this.printBitmapText('PICKUP SHEET', 3);
+      await this.printBitmapText(date, 2);
+      await this.printBitmapText('========================', 1);
+
+      // Orders
       for (let i = 0; i < orders.length; i++) {
         const order = orders[i];
-        sheet += ESC.ALIGN_LEFT;
-        sheet += ESC.BOLD_ON + `${i + 1}. #${order.orderId}\n` + ESC.BOLD_OFF;
-        sheet += `   ${order.customerName}\n`;
-        sheet += `   ${order.customerPhone}\n`;
+        await this.printBitmapText(`${i + 1}. ${order.orderId}`, 2);
+        await this.printBitmapText(order.customerName, 2);
+        await this.printBitmapText(order.customerPhone, 1);
         if (order.address) {
-          sheet += `   ${order.address}\n`;
+          // Split long addresses
+          const addr = order.address.toUpperCase();
+          if (addr.length > 20) {
+            await this.printBitmapText(addr.substring(0, 20), 1);
+            await this.printBitmapText(addr.substring(20), 1);
+          } else {
+            await this.printBitmapText(addr, 1);
+          }
         }
-        sheet += '\n';
+        await this.printBitmapText('', 1); // Spacing
       }
 
-      sheet += ESC.ALIGN_CENTER;
-      sheet += '================================\n';
-      sheet += `Total: ${orders.length} pickups\n`;
-      sheet += ESC.FEED_LINES(3);
-      sheet += ESC.CUT;
+      await this.printBitmapText('========================', 1);
+      await this.printBitmapText(`TOTAL: ${orders.length} PICKUPS`, 2);
 
-      const base64Data = stringToBase64(sheet);
-
-      await this.connectedDevice.writeCharacteristicWithResponseForService(
-        this.serviceUUID,
-        this.writeCharacteristicUUID,
-        base64Data
-      );
+      // Feed paper
+      await this.sendRawData(new Uint8Array([0x1B, 0x64, 0x05]));
+      await this.sendRawData(new Uint8Array([0x0C]));
 
       return true;
     } catch (error) {
       console.error('Print pickup sheet error:', error);
+      return false;
+    }
+  }
+
+  // Test print to verify connection
+  async printTest(): Promise<boolean> {
+    if (!this.connectedDevice || !this.writeCharacteristicUUID || !this.serviceUUID) {
+      Alert.alert('Printer Not Connected', 'Please connect to a printer first');
+      return false;
+    }
+
+    try {
+      // Initialize
+      await this.sendRawData(new Uint8Array([0x1B, 0x40]));
+      await this.sendRawData(new Uint8Array([0x1B, 0x37, 0x07, 0x64, 0x64]));
+      await this.sendRawData(new Uint8Array([0x1B, 0x4A, 0x18]));
+
+      // Test content
+      await this.printBitmapText('PRINTER TEST', 3);
+      await this.printBitmapText('LAUNDROMAT APP', 2);
+      await this.printBitmapText('CONNECTION OK', 2);
+      await this.printBitmapText('========================', 1);
+
+      // Feed
+      await this.sendRawData(new Uint8Array([0x1B, 0x64, 0x03]));
+      await this.sendRawData(new Uint8Array([0x0C]));
+
+      return true;
+    } catch (error) {
+      console.error('Test print error:', error);
       return false;
     }
   }

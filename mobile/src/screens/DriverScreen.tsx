@@ -139,7 +139,7 @@ export default function DriverScreen() {
     }
   }
 
-  // Print tag for a specific order
+  // Print tag for a specific order - asks for number of bags
   async function printOrderTag(order: Order) {
     if (!bluetoothPrinter.isConnected()) {
       Alert.alert(
@@ -150,23 +150,46 @@ export default function DriverScreen() {
       return;
     }
 
-    setPrintingOrderId(order._id);
+    // Prompt for number of bags
+    Alert.prompt(
+      'Number of Bags',
+      `How many bag labels for ${order.customerName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Print',
+          onPress: async (bagCountStr) => {
+            const bagCount = parseInt(bagCountStr || '1', 10);
+            if (isNaN(bagCount) || bagCount < 1) {
+              Alert.alert('Invalid', 'Please enter a valid number of bags');
+              return;
+            }
 
-    const success = await bluetoothPrinter.printOrderTag({
-      orderId: String(order.orderId),
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      weight: order.weight,
-      isSameDay: order.isSameDay,
-    });
+            setPrintingOrderId(order._id);
 
-    setPrintingOrderId(null);
+            const success = await bluetoothPrinter.printMultipleBagLabels({
+              orderId: String(order.orderId),
+              customerName: order.customerName,
+              customerPhone: order.customerPhone,
+              address: order.customer?.address,
+              weight: order.weight,
+              isSameDay: order.isSameDay,
+            }, bagCount);
 
-    if (success) {
-      Alert.alert('Success', `Tag printed for ${order.customerName}`);
-    } else {
-      Alert.alert('Print Failed', 'Could not print. Please check printer connection.');
-    }
+            setPrintingOrderId(null);
+
+            if (success) {
+              Alert.alert('Success', `${bagCount} tag(s) printed for ${order.customerName}`);
+            } else {
+              Alert.alert('Print Failed', 'Could not print. Please check printer connection.');
+            }
+          },
+        },
+      ],
+      'plain-text',
+      '1',
+      'number-pad'
+    );
   }
 
   // Reload orders when screen comes into focus
