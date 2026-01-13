@@ -341,6 +341,61 @@ export default function AdminPage() {
     }
   };
 
+  // Test thermal printer
+  const handleTestPrinter = async () => {
+    if (!settings?.thermalPrinterIp) {
+      toast.error('Please enter a printer IP address first');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const date = new Date().toLocaleString();
+      const testContent = `
+================================================
+              PRINTER TEST
+================================================
+Date: ${date}
+Status: Connected
+Printer IP: ${settings.thermalPrinterIp}
+Port: 9100
+------------------------------------------------
+           TEST MESSAGE
+------------------------------------------------
+This is a test print from your Laundromat app.
+If you can read this clearly, your thermal
+printer is configured correctly.
+------------------------------------------------
+         CHARACTER WIDTH TEST
+------------------------------------------------
+123456789012345678901234567890123456789012345678
+================================================
+         TEST COMPLETED SUCCESSFULLY
+================================================
+
+
+
+`;
+
+      const response = await fetch('/api/print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: testContent }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Print failed');
+      }
+
+      toast.success('Test print sent successfully!');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to test printer');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Extra Items
   const handleCreateExtraItem = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -849,13 +904,22 @@ export default function AdminPage() {
                   The printer must be connected to the same network as your devices.
                 </p>
               </div>
-              <button
-                onClick={handleUpdateSettings}
-                disabled={loading}
-                className="mt-4 px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
-              >
-                Save Printer Settings
-              </button>
+              <div className="mt-4 flex gap-3">
+                <button
+                  onClick={handleUpdateSettings}
+                  disabled={loading}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  Save Printer Settings
+                </button>
+                <button
+                  onClick={handleTestPrinter}
+                  disabled={loading || !settings?.thermalPrinterIp}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  Test Printer
+                </button>
+              </div>
             </div>
 
             {/* Gmail Payment Integration Section */}

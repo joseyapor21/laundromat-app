@@ -228,7 +228,7 @@ export default function DriverScreen() {
     const allOrders = [...pickupOrders, ...deliveryOrders];
     const addresses = allOrders
       .filter(order => order.customer?.address)
-      .map(order => order.customer!.address);
+      .map(order => order.customer!.address.trim());
 
     if (addresses.length === 0) {
       Alert.alert('No Addresses', 'No orders have addresses to navigate to.');
@@ -241,9 +241,12 @@ export default function DriverScreen() {
     }
 
     // Multiple addresses - use Google Maps with waypoints
-    const origin = encodeURIComponent(addresses[0]);
-    const destination = encodeURIComponent(addresses[addresses.length - 1]);
-    const waypoints = addresses.slice(1, -1).map(encodeURIComponent).join('|');
+    // Replace spaces with + for Google Maps URL compatibility
+    const formatAddress = (addr: string) => addr.replace(/\s+/g, '+');
+
+    const origin = formatAddress(addresses[0]);
+    const destination = formatAddress(addresses[addresses.length - 1]);
+    const waypoints = addresses.slice(1, -1).map(formatAddress).join('%7C');
 
     let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
     if (waypoints) {
