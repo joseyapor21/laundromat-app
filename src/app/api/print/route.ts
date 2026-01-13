@@ -44,12 +44,12 @@ async function sendToPrinter(ip: string, port: number, content: string): Promise
 export async function POST(request: NextRequest) {
   try {
     // Verify authentication
-    const token = getAuthCookie();
+    const token = await getAuthCookie();
     if (!token) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const payload = verifyToken(token);
+    const payload = await verifyToken(token);
     if (!payload) {
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
