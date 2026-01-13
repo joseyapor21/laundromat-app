@@ -609,72 +609,96 @@ export default function EditOrderScreen() {
           </View>
 
           {/* Date Picker Modal */}
-          {showDatePicker && (
-            <DateTimePicker
-              value={
-                showDatePicker === 'pickup'
-                  ? estimatedPickupDate || new Date()
-                  : showDatePicker === 'dropoff'
-                  ? dropOffDate || new Date()
-                  : deliverySchedule || new Date()
-              }
-              mode="date"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, selectedDate) => {
-                if (Platform.OS === 'android') {
-                  setShowDatePicker(null);
-                }
-                if (event.type === 'set' && selectedDate) {
-                  if (showDatePicker === 'pickup') {
-                    const newDate = estimatedPickupDate ? new Date(estimatedPickupDate) : new Date();
-                    newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-                    setEstimatedPickupDate(newDate);
-                  } else if (showDatePicker === 'dropoff') {
-                    setDropOffDate(selectedDate);
-                  } else {
-                    const newDate = deliverySchedule ? new Date(deliverySchedule) : new Date();
-                    newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-                    setDeliverySchedule(newDate);
+          <Modal
+            visible={showDatePicker !== null}
+            transparent={true}
+            animationType="slide"
+          >
+            <View style={styles.datePickerModalOverlay}>
+              <View style={styles.datePickerModalContent}>
+                <View style={styles.datePickerHeader}>
+                  <TouchableOpacity onPress={() => setShowDatePicker(null)}>
+                    <Text style={styles.datePickerCancel}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.datePickerTitle}>Select Date</Text>
+                  <TouchableOpacity onPress={() => setShowDatePicker(null)}>
+                    <Text style={styles.datePickerDone}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={
+                    showDatePicker === 'pickup'
+                      ? estimatedPickupDate || new Date()
+                      : showDatePicker === 'dropoff'
+                      ? dropOffDate || new Date()
+                      : deliverySchedule || new Date()
                   }
-                }
-                if (Platform.OS === 'ios') {
-                  setShowDatePicker(null);
-                }
-              }}
-            />
-          )}
+                  mode="date"
+                  display="spinner"
+                  onChange={(event, selectedDate) => {
+                    if (selectedDate) {
+                      if (showDatePicker === 'pickup') {
+                        const newDate = estimatedPickupDate ? new Date(estimatedPickupDate) : new Date();
+                        newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                        setEstimatedPickupDate(newDate);
+                      } else if (showDatePicker === 'dropoff') {
+                        setDropOffDate(selectedDate);
+                      } else {
+                        const newDate = deliverySchedule ? new Date(deliverySchedule) : new Date();
+                        newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                        setDeliverySchedule(newDate);
+                      }
+                    }
+                  }}
+                  style={styles.datePickerSpinner}
+                />
+              </View>
+            </View>
+          </Modal>
 
           {/* Time Picker Modal */}
-          {showTimePicker && (
-            <DateTimePicker
-              value={
-                showTimePicker === 'pickup'
-                  ? estimatedPickupDate || new Date()
-                  : deliverySchedule || new Date()
-              }
-              mode="time"
-              display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-              onChange={(event, selectedTime) => {
-                if (Platform.OS === 'android') {
-                  setShowTimePicker(null);
-                }
-                if (event.type === 'set' && selectedTime) {
-                  if (showTimePicker === 'pickup') {
-                    const newDate = estimatedPickupDate ? new Date(estimatedPickupDate) : new Date();
-                    newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-                    setEstimatedPickupDate(newDate);
-                  } else {
-                    const newDate = deliverySchedule ? new Date(deliverySchedule) : new Date();
-                    newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-                    setDeliverySchedule(newDate);
+          <Modal
+            visible={showTimePicker !== null}
+            transparent={true}
+            animationType="slide"
+          >
+            <View style={styles.datePickerModalOverlay}>
+              <View style={styles.datePickerModalContent}>
+                <View style={styles.datePickerHeader}>
+                  <TouchableOpacity onPress={() => setShowTimePicker(null)}>
+                    <Text style={styles.datePickerCancel}>Cancel</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.datePickerTitle}>Select Time</Text>
+                  <TouchableOpacity onPress={() => setShowTimePicker(null)}>
+                    <Text style={styles.datePickerDone}>Done</Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={
+                    showTimePicker === 'pickup'
+                      ? estimatedPickupDate || new Date()
+                      : deliverySchedule || new Date()
                   }
-                }
-                if (Platform.OS === 'ios') {
-                  setShowTimePicker(null);
-                }
-              }}
-            />
-          )}
+                  mode="time"
+                  display="spinner"
+                  onChange={(event, selectedTime) => {
+                    if (selectedTime) {
+                      if (showTimePicker === 'pickup') {
+                        const newDate = estimatedPickupDate ? new Date(estimatedPickupDate) : new Date();
+                        newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                        setEstimatedPickupDate(newDate);
+                      } else {
+                        const newDate = deliverySchedule ? new Date(deliverySchedule) : new Date();
+                        newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                        setDeliverySchedule(newDate);
+                      }
+                    }
+                  }}
+                  style={styles.datePickerSpinner}
+                />
+              </View>
+            </View>
+          </Modal>
 
           {/* Bags */}
           <View style={styles.section}>
@@ -1711,6 +1735,42 @@ const styles = StyleSheet.create({
   dateButtonText: {
     fontSize: 16,
     color: '#1e293b',
+  },
+  datePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  datePickerModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  datePickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  datePickerCancel: {
+    fontSize: 16,
+    color: '#ef4444',
+  },
+  datePickerDone: {
+    fontSize: 16,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  datePickerSpinner: {
+    height: 200,
   },
   actionsSection: {
     marginHorizontal: 16,
