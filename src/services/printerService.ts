@@ -390,8 +390,9 @@ class PrinterService {
       r += ESC.CENTER;
       r += 'Extra Items\n';
       r += ESC.LEFT;
-      order.extraItems.forEach(item => {
-        r += this.leftRightAlign(`${item.name} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
+      order.extraItems.forEach(extraItem => {
+        const itemName = extraItem.item?.name || 'Extra Item';
+        r += this.leftRightAlign(`${itemName} x${extraItem.quantity}`, `$${(extraItem.price * extraItem.quantity).toFixed(2)}`) + '\n';
       });
     }
 
@@ -583,8 +584,9 @@ class PrinterService {
       r += ESC.CENTER;
       r += 'Extra Items\n';
       r += ESC.LEFT;
-      order.extraItems.forEach(item => {
-        r += this.leftRightAlign(`${item.name} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
+      order.extraItems.forEach(extraItem => {
+        const itemName = extraItem.item?.name || 'Extra Item';
+        r += this.leftRightAlign(`${itemName} x${extraItem.quantity}`, `$${(extraItem.price * extraItem.quantity).toFixed(2)}`) + '\n';
       });
     }
 
