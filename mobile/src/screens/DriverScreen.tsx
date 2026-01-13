@@ -376,10 +376,9 @@ export default function DriverScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: insets.top + 16 }]}>
-        <Text style={styles.headerTitle}>Driver Dashboard</Text>
-        <Text style={styles.headerSubtitle}>Manage pickups & deliveries</Text>
+      {/* Header - Compact */}
+      <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+        <Text style={styles.headerTitle}>Driver</Text>
       </View>
 
       {/* Tabs */}
@@ -421,22 +420,6 @@ export default function DriverScreen() {
             </Text>
           </View>
         </TouchableOpacity>
-      </View>
-
-      {/* Stats */}
-      <View style={styles.stats}>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{pickupOrders.length}</Text>
-          <Text style={styles.statLabel}>Pickups</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{deliveryOrders.length}</Text>
-          <Text style={styles.statLabel}>Deliveries</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statValue}>{pickupOrders.length + deliveryOrders.length}</Text>
-          <Text style={styles.statLabel}>Total</Text>
-        </View>
       </View>
 
       {/* Printer Section */}
@@ -593,25 +576,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
   },
   header: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
     backgroundColor: '#fff',
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#1e293b',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 2,
   },
   tabs: {
     flexDirection: 'row',
     backgroundColor: '#fff',
     paddingHorizontal: 16,
-    paddingBottom: 12,
+    paddingBottom: 8,
     gap: 8,
   },
   tab: {
@@ -620,8 +598,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
     backgroundColor: '#f1f5f9',
   },
   tabActive: {
@@ -677,12 +655,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   list: {
-    padding: 16,
+    padding: 12,
+    paddingTop: 4,
   },
   card: {
     backgroundColor: '#fff',
-    borderRadius: 16,
-    marginBottom: 12,
+    borderRadius: 12,
+    marginBottom: 10,
     overflow: 'hidden',
   },
   cardHeader: {
@@ -802,17 +781,17 @@ const styles = StyleSheet.create({
   actionBar: {
     flexDirection: 'row',
     paddingHorizontal: 16,
-    paddingBottom: 12,
-    gap: 12,
+    paddingBottom: 8,
+    gap: 8,
   },
   actionBarButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 14,
-    borderRadius: 12,
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
   },
   actionBarButtonText: {
     color: '#fff',
@@ -849,15 +828,15 @@ const styles = StyleSheet.create({
   printerSection: {
     backgroundColor: '#fff',
     marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 16,
+    marginBottom: 8,
+    borderRadius: 12,
     overflow: 'hidden',
   },
   printerHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    padding: 12,
   },
   printerHeaderLeft: {
     flexDirection: 'row',
