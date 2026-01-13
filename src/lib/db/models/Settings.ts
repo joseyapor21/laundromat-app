@@ -52,6 +52,18 @@ const settingsSchema = new mongoose.Schema<SettingsDocument>({
     required: false,
     default: '',
   },
+  // Backup printer for high availability
+  backupPrinterIp: {
+    type: String,
+    required: false,
+    default: '',
+  },
+  // Print retry settings
+  printRetryAttempts: {
+    type: Number,
+    required: false,
+    default: 3,
+  },
   // Gmail integration for payment notifications
   gmailAccessToken: {
     type: String,

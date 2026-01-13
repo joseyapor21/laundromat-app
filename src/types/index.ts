@@ -194,6 +194,8 @@ export interface Settings {
   storeLongitude?: number;
   // Thermal printer settings
   thermalPrinterIp?: string;
+  backupPrinterIp?: string;
+  printRetryAttempts?: number;
   // Gmail integration for payment notifications
   gmailAccessToken?: string;
   gmailRefreshToken?: string;

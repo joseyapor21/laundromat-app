@@ -883,11 +883,11 @@ printer is configured correctly.
                 Thermal Printer Settings
               </h3>
               <p className="text-sm text-gray-600 mb-4">
-                Configure your network thermal printer for printing receipts and tags. Enter the IP address of your thermal printer.
+                Configure your network thermal printer with high availability support. Add a backup printer for automatic failover.
               </p>
-              <div className="grid md:grid-cols-2 gap-4">
+              <div className="grid md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Printer IP Address</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Primary Printer IP</label>
                   <input
                     type="text"
                     value={settings.thermalPrinterIp || ''}
@@ -895,13 +895,35 @@ printer is configured correctly.
                     placeholder="e.g., 192.168.1.100"
                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-purple-500"
                   />
-                  <p className="text-xs text-gray-500 mt-1">Enter the IP address of your network thermal printer</p>
+                  <p className="text-xs text-gray-500 mt-1">Main thermal printer</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Backup Printer IP</label>
+                  <input
+                    type="text"
+                    value={settings.backupPrinterIp || ''}
+                    onChange={e => setSettings(s => s ? { ...s, backupPrinterIp: e.target.value } : s)}
+                    placeholder="e.g., 192.168.1.101"
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-purple-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Failover printer (optional)</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Retry Attempts</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="5"
+                    value={settings.printRetryAttempts || 3}
+                    onChange={e => setSettings(s => s ? { ...s, printRetryAttempts: parseInt(e.target.value) || 3 } : s)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-purple-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Retries before failover</p>
                 </div>
               </div>
               <div className="mt-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
                 <p className="text-sm text-purple-800">
-                  <strong>How to find your printer IP:</strong> Check your printer&apos;s network settings menu or print a configuration page.
-                  The printer must be connected to the same network as your devices.
+                  <strong>High Availability:</strong> If primary printer fails after retry attempts, the system will automatically try the backup printer.
                 </p>
               </div>
               <div className="mt-4 flex gap-3">
