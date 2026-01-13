@@ -17,6 +17,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useAuth } from '../contexts/AuthContext';
+import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
 import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag } from '../types';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
@@ -104,94 +105,7 @@ export default function OrderDetailScreen() {
     setShowPrintOptions(true);
   }
 
-  // Generate receipt text for POS thermal printer
-  function generateReceiptText(receiptType: 'customer' | 'store'): string {
-    if (!order) return '';
-    const date = new Date().toLocaleString();
-    const centerText = (text: string): string => {
-      const maxWidth = 48;
-      if (text.length >= maxWidth) return text;
-      const padding = Math.floor((maxWidth - text.length) / 2);
-      return ' '.repeat(padding) + text;
-    };
-    const leftRightAlign = (left: string, right: string): string => {
-      const maxWidth = 48;
-      const total = left.length + right.length;
-      if (total >= maxWidth) return `${left} ${right}`;
-      return left + ' '.repeat(maxWidth - total) + right;
-    };
-
-    let receipt = '';
-    receipt += '================================================\n';
-    receipt += centerText(receiptType === 'customer' ? '** CUSTOMER RECEIPT **' : '** STORE COPY **') + '\n';
-    receipt += centerText('LAUNDROMAT') + '\n';
-    receipt += '================================================\n';
-    receipt += leftRightAlign('Order #:', String(order.orderId)) + '\n';
-    receipt += leftRightAlign('Date:', date) + '\n';
-    receipt += '------------------------------------------------\n';
-    receipt += `Customer: ${order.customerName}\n`;
-    receipt += `Phone: ${order.customerPhone}\n`;
-    if (order.customer?.address) {
-      receipt += `Address: ${order.customer.address}\n`;
-    }
-    receipt += '------------------------------------------------\n';
-    if (order.weight) {
-      receipt += leftRightAlign('Weight:', `${order.weight} lbs`) + '\n';
-    }
-    if (order.isSameDay) {
-      receipt += centerText('** SAME DAY SERVICE **') + '\n';
-    }
-    receipt += '================================================\n';
-    receipt += leftRightAlign('TOTAL:', `$${(order.totalAmount || 0).toFixed(2)}`) + '\n';
-    receipt += '================================================\n';
-    receipt += centerText(order.isPaid ? `PAID: ${order.paymentMethod?.toUpperCase() || 'CASH'}` : 'PAYMENT: PENDING') + '\n';
-    if (order.specialInstructions) {
-      receipt += '------------------------------------------------\n';
-      receipt += `Notes: ${order.specialInstructions}\n`;
-    }
-    receipt += '================================================\n';
-    receipt += centerText('Thank you for your business!') + '\n';
-    receipt += '================================================\n\n\n';
-    return receipt;
-  }
-
-  // Generate bag label text for POS thermal printer
-  function generateBagLabelText(bagIndex: number): string {
-    if (!order || !order.bags || !order.bags[bagIndex]) return '';
-    const bag = order.bags[bagIndex];
-    const totalBags = order.bags.length;
-    const centerText = (text: string): string => {
-      const maxWidth = 48;
-      if (text.length >= maxWidth) return text;
-      const padding = Math.floor((maxWidth - text.length) / 2);
-      return ' '.repeat(padding) + text;
-    };
-    const leftRightAlign = (left: string, right: string): string => {
-      const maxWidth = 48;
-      const total = left.length + right.length;
-      if (total >= maxWidth) return `${left} ${right}`;
-      return left + ' '.repeat(maxWidth - total) + right;
-    };
-
-    let label = '';
-    label += '================================================\n';
-    label += centerText(`*** BAG ${bagIndex + 1} OF ${totalBags} ***`) + '\n';
-    label += '================================================\n';
-    label += leftRightAlign('Order:', String(order.orderId)) + '\n';
-    label += leftRightAlign('Customer:', order.customerName) + '\n';
-    label += leftRightAlign('Phone:', order.customerPhone) + '\n';
-    label += '------------------------------------------------\n';
-    label += leftRightAlign('Bag ID:', bag.identifier || String(bagIndex + 1)) + '\n';
-    label += leftRightAlign('Weight:', `${bag.weight || 'TBD'} lbs`) + '\n';
-    if (bag.color) label += leftRightAlign('Color:', bag.color) + '\n';
-    if (bag.description) label += `Notes: ${bag.description}\n`;
-    label += '================================================\n';
-    label += centerText('ATTACH TO BAG') + '\n';
-    label += '================================================\n\n\n';
-    return label;
-  }
-
-  // Print using POS thermal printer via API
+  // Print using POS thermal printer via API with ESC/POS formatting + QR codes
   async function handlePrint(type: 'customer' | 'store' | 'both') {
     setShowPrintOptions(false);
     if (!order) return;
@@ -200,10 +114,10 @@ export default function OrderDetailScreen() {
     try {
       const receipts: string[] = [];
       if (type === 'customer' || type === 'both') {
-        receipts.push(generateReceiptText('customer'));
+        receipts.push(generateCustomerReceiptText(order));
       }
       if (type === 'store' || type === 'both') {
-        receipts.push(generateReceiptText('store'));
+        receipts.push(generateStoreCopyText(order));
       }
 
       for (const content of receipts) {
@@ -229,8 +143,8 @@ export default function OrderDetailScreen() {
     setPrinting(true);
     try {
       for (let i = 0; i < order.bags.length; i++) {
-        const content = generateBagLabelText(i);
-        if (!content) continue;
+        const bag = order.bags[i];
+        const content = generateBagLabelText(order, bag, i + 1, order.bags.length);
         const response = await api.printReceipt(content);
         if (!response.success) {
           throw new Error(response.error || 'Print failed');
@@ -252,7 +166,8 @@ export default function OrderDetailScreen() {
 
     setPrinting(true);
     try {
-      const content = generateBagLabelText(bagIndex);
+      const bag = order.bags[bagIndex];
+      const content = generateBagLabelText(order, bag, bagIndex + 1, order.bags.length);
       const response = await api.printReceipt(content);
       if (!response.success) {
         throw new Error(response.error || 'Print failed');
