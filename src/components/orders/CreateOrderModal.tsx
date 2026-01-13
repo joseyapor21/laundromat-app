@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Customer, ExtraItem, Settings, Bag, OrderType, PaymentMethod } from '@/types';
+import { printerService } from '@/services/printerService';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
@@ -487,6 +488,17 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
       }
 
       toast.success('Order created successfully!');
+
+      // Auto-print receipts for in-store pickup (drop-off) orders
+      if (orderType === 'storePickup') {
+        try {
+          await printerService.printOrderReceipts(createdOrder);
+          toast.success('Receipts printed automatically');
+        } catch (printError) {
+          console.error('Auto-print failed:', printError);
+          // Don't show error toast - order was still created successfully
+        }
+      }
 
       onSuccess();
     } catch (error) {

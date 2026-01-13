@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
+import { generateCustomerReceiptText, generateStoreCopyText } from '../services/receiptGenerator';
 import type { Customer, Settings, ExtraItem, PaymentMethod } from '../types';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
@@ -318,7 +319,23 @@ export default function CreateOrderScreen() {
         paymentMethod: markAsPaid ? paymentMethod : 'pending',
       };
 
-      await api.createOrder(orderData);
+      const createdOrder = await api.createOrder(orderData);
+
+      // Auto-print receipts for in-store pickup (drop-off) orders
+      if (orderType === 'storePickup') {
+        try {
+          // Print customer receipt
+          const customerReceipt = generateCustomerReceiptText(createdOrder);
+          await api.printReceipt(customerReceipt);
+          // Print store copy
+          const storeCopy = generateStoreCopyText(createdOrder);
+          await api.printReceipt(storeCopy);
+        } catch (printError) {
+          console.error('Auto-print failed:', printError);
+          // Don't show error - order was still created successfully
+        }
+      }
+
       Alert.alert('Success', 'Order created successfully', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
