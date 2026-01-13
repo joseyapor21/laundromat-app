@@ -94,15 +94,151 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
     refreshOrder();
   }, [refreshOrder]);
 
+  // Generate receipt text for thermal printer
+  const generateReceiptText = (receiptType: 'customer' | 'store'): string => {
+    const date = new Date().toLocaleString();
+    const centerText = (text: string): string => {
+      const maxWidth = 48;
+      if (text.length >= maxWidth) return text;
+      const padding = Math.floor((maxWidth - text.length) / 2);
+      return ' '.repeat(padding) + text;
+    };
+    const leftRightAlign = (left: string, right: string): string => {
+      const maxWidth = 48;
+      const total = left.length + right.length;
+      if (total >= maxWidth) return `${left} ${right}`;
+      return left + ' '.repeat(maxWidth - total) + right;
+    };
+
+    let receipt = '';
+    receipt += '================================================\n';
+    receipt += centerText(receiptType === 'customer' ? '** CUSTOMER RECEIPT **' : '** STORE COPY **') + '\n';
+    receipt += centerText('LAUNDROMAT') + '\n';
+    receipt += '================================================\n';
+    receipt += leftRightAlign('Order #:', String(currentOrder.orderId)) + '\n';
+    receipt += leftRightAlign('Date:', date) + '\n';
+    receipt += '------------------------------------------------\n';
+    receipt += `Customer: ${currentOrder.customerName}\n`;
+    receipt += `Phone: ${currentOrder.customerPhone}\n`;
+    if (currentOrder.customer?.address) {
+      receipt += `Address: ${currentOrder.customer.address}\n`;
+    }
+    receipt += '------------------------------------------------\n';
+    if (currentOrder.weight) {
+      receipt += leftRightAlign('Weight:', `${currentOrder.weight} lbs`) + '\n';
+    }
+    if (currentOrder.isSameDay) {
+      receipt += centerText('** SAME DAY SERVICE **') + '\n';
+    }
+    receipt += '================================================\n';
+    receipt += leftRightAlign('TOTAL:', `$${(currentOrder.totalAmount || 0).toFixed(2)}`) + '\n';
+    receipt += '================================================\n';
+    receipt += centerText(currentOrder.isPaid ? `PAID: ${currentOrder.paymentMethod?.toUpperCase() || 'CASH'}` : 'PAYMENT: PENDING') + '\n';
+    if (currentOrder.specialInstructions) {
+      receipt += '------------------------------------------------\n';
+      receipt += `Notes: ${currentOrder.specialInstructions}\n`;
+    }
+    receipt += '================================================\n';
+    receipt += centerText('Thank you for your business!') + '\n';
+    receipt += '================================================\n\n\n';
+    return receipt;
+  };
+
+  // Generate bag label text
+  const generateBagLabelText = (bagIndex: number): string => {
+    const bag = currentOrder.bags?.[bagIndex];
+    if (!bag) return '';
+    const totalBags = currentOrder.bags?.length || 1;
+    const centerText = (text: string): string => {
+      const maxWidth = 48;
+      if (text.length >= maxWidth) return text;
+      const padding = Math.floor((maxWidth - text.length) / 2);
+      return ' '.repeat(padding) + text;
+    };
+    const leftRightAlign = (left: string, right: string): string => {
+      const maxWidth = 48;
+      const total = left.length + right.length;
+      if (total >= maxWidth) return `${left} ${right}`;
+      return left + ' '.repeat(maxWidth - total) + right;
+    };
+
+    let label = '';
+    label += '================================================\n';
+    label += centerText(`*** BAG ${bagIndex + 1} OF ${totalBags} ***`) + '\n';
+    label += '================================================\n';
+    label += leftRightAlign('Order:', String(currentOrder.orderId)) + '\n';
+    label += leftRightAlign('Customer:', currentOrder.customerName) + '\n';
+    label += leftRightAlign('Phone:', currentOrder.customerPhone) + '\n';
+    label += '------------------------------------------------\n';
+    label += leftRightAlign('Bag ID:', bag.identifier || String(bagIndex + 1)) + '\n';
+    label += leftRightAlign('Weight:', `${bag.weight || 'TBD'} lbs`) + '\n';
+    if (bag.color) label += leftRightAlign('Color:', bag.color) + '\n';
+    if (bag.description) label += `Notes: ${bag.description}\n`;
+    label += '================================================\n';
+    label += centerText('ATTACH TO BAG') + '\n';
+    label += '================================================\n\n\n';
+    return label;
+  };
+
   // Print order receipts - with options
   const handlePrintOrder = async (type: 'customer' | 'store' | 'both') => {
     setShowPrintOptions(false);
-    toast('Printing is not available', { icon: '🖨️' });
+    setPrinting(true);
+    try {
+      const receipts: string[] = [];
+      if (type === 'customer' || type === 'both') {
+        receipts.push(generateReceiptText('customer'));
+      }
+      if (type === 'store' || type === 'both') {
+        receipts.push(generateReceiptText('store'));
+      }
+
+      for (const content of receipts) {
+        const response = await fetch('/api/print', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Print failed');
+        }
+      }
+      toast.success(`${type === 'both' ? 'Both receipts' : type === 'customer' ? 'Customer receipt' : 'Store copy'} printed!`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to print');
+    } finally {
+      setPrinting(false);
+    }
   };
 
   // Print bag labels
   const handlePrintLabel = async (bagIndex?: number) => {
-    toast('Printing is not available', { icon: '🖨️' });
+    setPrinting(true);
+    try {
+      const bags = currentOrder.bags || [];
+      const indicesToPrint = bagIndex !== undefined ? [bagIndex] : bags.map((_, i) => i);
+
+      for (const idx of indicesToPrint) {
+        const content = generateBagLabelText(idx);
+        if (!content) continue;
+
+        const response = await fetch('/api/print', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content }),
+        });
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Print failed');
+        }
+      }
+      toast.success(`${indicesToPrint.length} bag label(s) printed!`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to print labels');
+    } finally {
+      setPrinting(false);
+    }
   };
 
   // Update order status
