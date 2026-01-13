@@ -222,10 +222,6 @@ export default function DriverScreen() {
     Linking.openURL(url);
   }
 
-  function callCustomer(phone: string) {
-    Linking.openURL(`tel:${phone}`);
-  }
-
   // Open Google Maps with optimized route for all addresses
   function openOptimizedRoute() {
     const orders = activeTab === 'pickups' ? pickupOrders : deliveryOrders;
@@ -239,13 +235,11 @@ export default function DriverScreen() {
     }
 
     if (addresses.length === 1) {
-      // Single address - just navigate directly
       openNavigation(addresses[0]);
       return;
     }
 
     // Multiple addresses - use Google Maps with waypoints
-    // Format: origin -> waypoints -> destination
     const origin = encodeURIComponent(addresses[0]);
     const destination = encodeURIComponent(addresses[addresses.length - 1]);
     const waypoints = addresses.slice(1, -1).map(encodeURIComponent).join('|');
@@ -256,40 +250,6 @@ export default function DriverScreen() {
     }
 
     Linking.openURL(url);
-  }
-
-  // Print pickup/delivery sheet
-  async function printSheet() {
-    const orders = activeTab === 'pickups' ? pickupOrders : deliveryOrders;
-
-    if (orders.length === 0) {
-      Alert.alert('No Orders', `No ${activeTab} to print.`);
-      return;
-    }
-
-    if (!bluetoothPrinter.isConnected()) {
-      Alert.alert(
-        'Printer Not Connected',
-        'Please connect a Bluetooth printer in Settings > Bluetooth Printer',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
-    const printData = orders.map(order => ({
-      orderId: String(order.orderId),
-      customerName: order.customerName,
-      customerPhone: order.customerPhone,
-      address: order.customer?.address,
-    }));
-
-    const success = await bluetoothPrinter.printPickupSheet(printData);
-
-    if (success) {
-      Alert.alert('Success', `${activeTab === 'pickups' ? 'Pickup' : 'Delivery'} sheet printed successfully`);
-    } else {
-      Alert.alert('Print Failed', 'Could not print. Please check printer connection.');
-    }
   }
 
   const getStatusConfig = (status: string) => {
@@ -355,14 +315,6 @@ export default function DriverScreen() {
               <Text style={styles.actionButtonText}>Navigate</Text>
             </TouchableOpacity>
           )}
-
-          <TouchableOpacity
-            style={[styles.actionButton, styles.callButton]}
-            onPress={() => callCustomer(order.customerPhone)}
-          >
-            <Ionicons name="call" size={20} color="#fff" />
-            <Text style={styles.actionButtonText}>Call</Text>
-          </TouchableOpacity>
 
           {isPickup ? (
             order.status === 'new_order' || order.status === 'scheduled_pickup' ? (
@@ -593,7 +545,7 @@ export default function DriverScreen() {
         )}
       </View>
 
-      {/* Action Buttons */}
+      {/* Optimize Route Button */}
       {activeOrders.length > 0 && (
         <View style={styles.actionBar}>
           <TouchableOpacity
@@ -602,13 +554,6 @@ export default function DriverScreen() {
           >
             <Ionicons name="map" size={20} color="#fff" />
             <Text style={styles.actionBarButtonText}>Optimize Route</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBarButton, styles.printButton]}
-            onPress={printSheet}
-          >
-            <Ionicons name="print" size={20} color="#fff" />
-            <Text style={styles.actionBarButtonText}>Print Sheet</Text>
           </TouchableOpacity>
         </View>
       )}
