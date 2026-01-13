@@ -22,6 +22,28 @@ import type { Order } from '../types';
 
 type FilterType = 'all' | 'in-store' | 'delivery' | 'new_order' | 'processing' | 'ready' | 'completed';
 
+// Format date as "Tue - Oct 08, 11:45 AM"
+function formatOrderDate(dateStr: string | Date | undefined): string {
+  if (!dateStr) return 'Not set';
+  const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return 'Not set';
+
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const dayName = days[date.getDay()];
+  const monthName = months[date.getMonth()];
+  const dayNum = date.getDate().toString().padStart(2, '0');
+
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+
+  return `${dayName} - ${monthName} ${dayNum}, ${hours}:${minutes} ${ampm}`;
+}
+
 // Status groups matching web app
 const STATUS_GROUPS: Record<string, string[]> = {
   new_order: ['new_order', 'received', 'scheduled_pickup'],
@@ -203,7 +225,7 @@ export default function DashboardScreen() {
       <View style={styles.orderFooter}>
         <Text style={styles.orderAmount}>${(order.totalAmount || 0).toFixed(2)}</Text>
         <Text style={styles.orderDate}>
-          {new Date(order.dropOffDate).toLocaleDateString()}
+          {formatOrderDate(order.estimatedPickupDate || order.deliverySchedule)}
         </Text>
       </View>
     </TouchableOpacity>
