@@ -168,6 +168,13 @@ class ApiService {
     });
   }
 
+  async useCustomerCredit(id: string, amount: number, description: string): Promise<Customer> {
+    return this.request<Customer>(`/customers/${id}/credit`, {
+      method: 'POST',
+      body: JSON.stringify({ amount, type: 'use', description }),
+    });
+  }
+
   // Settings
   async getSettings(): Promise<Settings> {
     return this.request<Settings>('/settings');

@@ -56,6 +56,10 @@ export default function EditOrderScreen() {
   // Delivery
   const [deliveryPrice, setDeliveryPrice] = useState(0);
 
+  // Customer credit
+  const [applyCredit, setApplyCredit] = useState(false);
+  const [creditToApply, setCreditToApply] = useState(0);
+
   // Date/Time
   const [estimatedPickupDate, setEstimatedPickupDate] = useState<Date | null>(null);
   const [dropOffDate, setDropOffDate] = useState<Date | null>(null);
@@ -290,12 +294,15 @@ export default function EditOrderScreen() {
           };
         });
 
+      const finalPrice = getFinalPrice();
+      const creditCoversOrder = applyCredit && creditToApply >= finalPrice;
+
       const updates: any = {
         customerName,
         customerPhone,
         weight: calculateTotalWeight(),
         specialInstructions,
-        totalAmount: getFinalPrice(),
+        totalAmount: finalPrice,
         priceOverride: priceOverride || undefined,
         priceChangeNote: priceChangeNote || undefined,
         extraItems: orderExtraItems,
@@ -307,6 +314,13 @@ export default function EditOrderScreen() {
         estimatedPickupDate: estimatedPickupDate || undefined,
         dropOffDate: dropOffDate || undefined,
         deliverySchedule: orderType === 'delivery' ? deliverySchedule || undefined : undefined,
+        // Credit fields
+        creditApplied: applyCredit ? creditToApply : (order?.creditApplied || 0),
+        // Mark as paid if credit covers full amount
+        ...(creditCoversOrder && {
+          isPaid: true,
+          paymentMethod: 'credit',
+        }),
       };
 
       // Update customer address if delivery order
@@ -322,6 +336,21 @@ export default function EditOrderScreen() {
       }
 
       await api.updateOrder(order!._id, updates);
+
+      // Apply customer credit if selected
+      if (applyCredit && creditToApply > 0 && order?.customer) {
+        try {
+          await api.useCustomerCredit(
+            order.customer._id,
+            creditToApply,
+            `Applied to Order #${order.orderId}`
+          );
+        } catch (creditError) {
+          console.error('Failed to apply credit:', creditError);
+          // Order was still updated, just credit wasn't applied
+        }
+      }
+
       Alert.alert('Success', 'Order updated successfully', [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
@@ -820,6 +849,49 @@ export default function EditOrderScreen() {
               numberOfLines={3}
             />
           </View>
+
+          {/* Customer Credit - only show if customer has credit */}
+          {order?.customer && (order.customer.credit || 0) > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Customer Credit</Text>
+              <View style={styles.creditCard}>
+                <View style={styles.creditHeader}>
+                  <View style={styles.creditInfo}>
+                    <Ionicons name="wallet" size={24} color="#10b981" />
+                    <View>
+                      <Text style={styles.creditLabel}>Available Credit</Text>
+                      <Text style={styles.creditAmount}>${(order.customer.credit || 0).toFixed(2)}</Text>
+                    </View>
+                  </View>
+                  <Switch
+                    value={applyCredit}
+                    onValueChange={(value) => {
+                      setApplyCredit(value);
+                      if (value) {
+                        const available = order.customer?.credit || 0;
+                        const total = getFinalPrice();
+                        setCreditToApply(Math.min(available, total));
+                      } else {
+                        setCreditToApply(0);
+                      }
+                    }}
+                    trackColor={{ false: '#e2e8f0', true: '#86efac' }}
+                    thumbColor={applyCredit ? '#10b981' : '#94a3b8'}
+                  />
+                </View>
+                {applyCredit && creditToApply > 0 && (
+                  <View style={styles.creditApplied}>
+                    <Text style={styles.creditAppliedText}>
+                      Credit Applied: -${creditToApply.toFixed(2)}
+                    </Text>
+                    <Text style={styles.creditFinalTotal}>
+                      Final Total: ${Math.max(0, getFinalPrice() - creditToApply).toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
 
           {/* Pricing */}
           <View style={styles.section}>
@@ -1648,6 +1720,50 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  // Customer credit styles
+  creditCard: {
+    backgroundColor: '#ecfdf5',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+  },
+  creditHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  creditInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  creditLabel: {
+    fontSize: 14,
+    color: '#065f46',
+  },
+  creditAmount: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  creditApplied: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#a7f3d0',
+  },
+  creditAppliedText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  creditFinalTotal: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#047857',
+    marginTop: 4,
   },
   pricingCard: {
     backgroundColor: '#fff',

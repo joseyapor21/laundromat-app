@@ -72,6 +72,10 @@ export default function CreateOrderScreen() {
   const [markAsPaid, setMarkAsPaid] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
 
+  // Customer credit
+  const [applyCredit, setApplyCredit] = useState(false);
+  const [creditToApply, setCreditToApply] = useState(0);
+
   // Pickup date - default to tomorrow at 5 PM
   const getDefaultPickupDate = () => {
     const date = new Date();
@@ -340,13 +344,31 @@ export default function CreateOrderScreen() {
         items: [],
         extraItems: extraItemsData,
         totalAmount: calculateTotal(),
-        dropOffDate: new Date().toISOString(),
-        estimatedPickupDate: estimatedPickupDate.toISOString(),
-        isPaid: markAsPaid,
-        paymentMethod: markAsPaid ? paymentMethod : 'pending',
+        dropOffDate: new Date(),
+        estimatedPickupDate: estimatedPickupDate,
+        // If credit covers full amount, mark as paid
+        isPaid: markAsPaid || (applyCredit && creditToApply >= calculateTotal()),
+        paymentMethod: (applyCredit && creditToApply >= calculateTotal())
+          ? 'credit'
+          : (markAsPaid ? paymentMethod : 'pending'),
+        creditApplied: applyCredit ? creditToApply : 0,
       };
 
       const createdOrder = await api.createOrder(orderData);
+
+      // Apply customer credit if selected
+      if (applyCredit && creditToApply > 0 && selectedCustomer) {
+        try {
+          await api.useCustomerCredit(
+            selectedCustomer._id,
+            creditToApply,
+            `Applied to Order #${createdOrder.orderId}`
+          );
+        } catch (creditError) {
+          console.error('Failed to apply credit:', creditError);
+          // Order was still created, just credit wasn't applied
+        }
+      }
 
       // Auto-print receipts for in-store pickup (drop-off) orders
       if (orderType === 'storePickup') {
@@ -405,6 +427,8 @@ export default function CreateOrderScreen() {
             <TouchableOpacity onPress={() => {
               setSelectedCustomer(null);
               setSpecialInstructions('');
+              setApplyCredit(false);
+              setCreditToApply(0);
             }}>
               <Ionicons name="close-circle" size={24} color="#ef4444" />
             </TouchableOpacity>
@@ -432,6 +456,9 @@ export default function CreateOrderScreen() {
                       if (customer.notes) {
                         setSpecialInstructions(customer.notes);
                       }
+                      // Reset credit when customer changes
+                      setApplyCredit(false);
+                      setCreditToApply(0);
                     }}
                   >
                     <Text style={styles.customerItemName}>{customer.name}</Text>
@@ -780,6 +807,51 @@ export default function CreateOrderScreen() {
         )}
       </View>
 
+      {/* Customer Credit */}
+      {selectedCustomer && (selectedCustomer.credit || 0) > 0 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Customer Credit</Text>
+          <View style={styles.creditCard}>
+            <View style={styles.creditHeader}>
+              <View style={styles.creditInfo}>
+                <Ionicons name="wallet" size={24} color="#10b981" />
+                <View>
+                  <Text style={styles.creditLabel}>Available Credit</Text>
+                  <Text style={styles.creditAmount}>${(selectedCustomer.credit || 0).toFixed(2)}</Text>
+                </View>
+              </View>
+              <Switch
+                value={applyCredit}
+                onValueChange={(value) => {
+                  setApplyCredit(value);
+                  if (value) {
+                    const available = selectedCustomer.credit || 0;
+                    const total = calculateTotal();
+                    setCreditToApply(Math.min(available, total));
+                  } else {
+                    setCreditToApply(0);
+                  }
+                }}
+                trackColor={{ false: '#e2e8f0', true: '#86efac' }}
+                thumbColor={applyCredit ? '#10b981' : '#94a3b8'}
+              />
+            </View>
+            {applyCredit && creditToApply > 0 && (
+              <View style={styles.creditApplied}>
+                <Text style={styles.creditAppliedText}>
+                  Credit Applied: -${creditToApply.toFixed(2)}
+                </Text>
+                {(selectedCustomer.credit || 0) > creditToApply && (
+                  <Text style={styles.creditRemaining}>
+                    Remaining after order: ${((selectedCustomer.credit || 0) - creditToApply).toFixed(2)}
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
+        </View>
+      )}
+
       {/* Price Breakdown */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Price Breakdown</Text>
@@ -792,10 +864,18 @@ export default function CreateOrderScreen() {
                   <Text style={styles.breakdownAmount}>${item.amount.toFixed(2)}</Text>
                 </View>
               ))}
+              {applyCredit && creditToApply > 0 && (
+                <View style={styles.breakdownRow}>
+                  <Text style={[styles.breakdownLabel, { color: '#10b981' }]}>Credit Applied</Text>
+                  <Text style={[styles.breakdownAmount, { color: '#10b981' }]}>-${creditToApply.toFixed(2)}</Text>
+                </View>
+              )}
               <View style={styles.breakdownDivider} />
               <View style={styles.breakdownTotal}>
                 <Text style={styles.breakdownTotalLabel}>Total</Text>
-                <Text style={styles.breakdownTotalAmount}>${calculateTotal().toFixed(2)}</Text>
+                <Text style={styles.breakdownTotalAmount}>
+                  ${Math.max(0, calculateTotal() - creditToApply).toFixed(2)}
+                </Text>
               </View>
             </>
           ) : (
@@ -1380,6 +1460,49 @@ const styles = StyleSheet.create({
   },
   paymentMethodTextActive: {
     color: '#fff',
+  },
+  // Customer credit styles
+  creditCard: {
+    backgroundColor: '#ecfdf5',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: '#a7f3d0',
+  },
+  creditHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  creditInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  creditLabel: {
+    fontSize: 14,
+    color: '#065f46',
+  },
+  creditAmount: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#10b981',
+  },
+  creditApplied: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#a7f3d0',
+  },
+  creditAppliedText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#059669',
+  },
+  creditRemaining: {
+    fontSize: 13,
+    color: '#065f46',
+    marginTop: 4,
   },
   // Price breakdown styles
   breakdownCard: {
