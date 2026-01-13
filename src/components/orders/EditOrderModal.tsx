@@ -221,9 +221,10 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
   }, [bags]);
 
   // Calculate quantity for weight-based items (e.g., "per 15 lbs")
+  // Returns exact proportional quantity for pricing calculations
   const calculateWeightBasedQuantity = useCallback((perWeightUnit: number, totalWeight: number): number => {
     if (perWeightUnit <= 0 || totalWeight <= 0) return 0;
-    return Math.ceil(totalWeight / perWeightUnit);
+    return totalWeight / perWeightUnit;
   }, []);
 
   // Update the main weight when bags change

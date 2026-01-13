@@ -121,9 +121,10 @@ export default function EditOrderScreen() {
   }, [bags]);
 
   // Calculate quantity for weight-based items (e.g., "per 15 lbs")
+  // Returns exact proportional quantity for pricing calculations
   const calculateWeightBasedQuantity = (perWeightUnit: number, totalWeight: number): number => {
     if (perWeightUnit <= 0 || totalWeight <= 0) return 0;
-    return Math.ceil(totalWeight / perWeightUnit);
+    return totalWeight / perWeightUnit;
   };
 
   // Update weight-based extra items when weight changes
@@ -196,8 +197,13 @@ export default function EditOrderScreen() {
     const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
       const item = extraItems.find(e => e._id === itemId);
       const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
-      const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, weight) : data.quantity;
-      return total + (data.price * qty);
+      if (isWeightBased) {
+        // Proportional pricing: (weight / perWeightUnit) * price, rounded to nearest quarter
+        const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, weight);
+        const itemTotal = roundToQuarter(data.price * proportionalQty);
+        return total + itemTotal;
+      }
+      return total + (data.price * data.quantity);
     }, 0);
 
     let deliveryFee = 0;

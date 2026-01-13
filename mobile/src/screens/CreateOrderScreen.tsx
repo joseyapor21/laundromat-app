@@ -78,9 +78,15 @@ export default function CreateOrderScreen() {
   }
 
   // Calculate quantity for weight-based items (e.g., "per 15 lbs")
+  // Returns the exact proportional quantity (e.g., 20lbs / 15lbs = 1.33)
   function calculateWeightBasedQuantity(perWeightUnit: number, totalWeight: number): number {
     if (perWeightUnit <= 0 || totalWeight <= 0) return 0;
-    return Math.ceil(totalWeight / perWeightUnit);
+    return totalWeight / perWeightUnit;
+  }
+
+  // Round amount to nearest quarter (0.25)
+  function roundToNearestQuarter(amount: number): number {
+    return Math.round(amount * 4) / 4;
   }
 
   // Update weight-based extra items when weight changes
@@ -136,14 +142,20 @@ export default function CreateOrderScreen() {
       }
     }
 
-    // Add extras (handle weight-based items)
+    // Add extras (handle weight-based items with proportional pricing rounded to nearest quarter)
     let extrasTotal = 0;
     Object.entries(selectedExtras).forEach(([itemId, data]) => {
       if (data.quantity > 0) {
         const item = extraItems.find(e => e._id === itemId);
         const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
-        const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
-        extrasTotal += data.price * qty;
+        if (isWeightBased) {
+          // Proportional pricing: (weight / perWeightUnit) * price, rounded to nearest quarter
+          const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight);
+          const itemTotal = roundToNearestQuarter(data.price * proportionalQty);
+          extrasTotal += itemTotal;
+        } else {
+          extrasTotal += data.price * data.quantity;
+        }
       }
     });
 
@@ -203,18 +215,24 @@ export default function CreateOrderScreen() {
       }
     }
 
-    // Extra items (handle weight-based items)
+    // Extra items (handle weight-based items with proportional pricing)
     Object.entries(selectedExtras).forEach(([itemId, data]) => {
       const item = extraItems.find(e => e._id === itemId);
       if (item && data.quantity > 0) {
         const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
-        const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
-        breakdown.push({
-          label: isWeightBased
-            ? `${item.name} (${totalWeight}lbs ÷ ${item.perWeightUnit}) × ${qty}`
-            : `${item.name} × ${qty}`,
-          amount: data.price * qty,
-        });
+        if (isWeightBased) {
+          const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight);
+          const itemTotal = roundToNearestQuarter(data.price * proportionalQty);
+          breakdown.push({
+            label: `${item.name} (${totalWeight}lbs @ $${data.price}/${item.perWeightUnit}lbs)`,
+            amount: itemTotal,
+          });
+        } else {
+          breakdown.push({
+            label: `${item.name} × ${data.quantity}`,
+            amount: data.price * data.quantity,
+          });
+        }
       }
     });
 
