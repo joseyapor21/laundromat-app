@@ -27,10 +27,7 @@ services:
 
   # Application instances (2 for load balancing)
   app1:
-    image: laundromat-app:latest
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
+    image: ghcr.io/joseyapor21/laundromat-app:latest
     container_name: laundromat-app-1
     restart: always
     environment:
@@ -45,7 +42,7 @@ services:
       - laundromat-net
 
   app2:
-    image: laundromat-app:latest
+    image: ghcr.io/joseyapor21/laundromat-app:latest
     container_name: laundromat-app-2
     restart: always
     environment:
