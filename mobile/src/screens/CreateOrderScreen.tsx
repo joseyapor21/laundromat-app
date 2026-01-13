@@ -11,12 +11,32 @@ import {
   Switch,
   Keyboard,
   Modal,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { api } from '../services/api';
 import { generateCustomerReceiptText, generateStoreCopyText } from '../services/receiptGenerator';
 import type { Customer, Settings, ExtraItem, PaymentMethod } from '../types';
+
+// Format date as "Tue - Oct 08, 11:45 AM"
+function formatPickupDate(date: Date): string {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  const dayName = days[date.getDay()];
+  const monthName = months[date.getMonth()];
+  const dayNum = date.getDate().toString().padStart(2, '0');
+
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+
+  return `${dayName} - ${monthName} ${dayNum}, ${hours}:${minutes} ${ampm}`;
+}
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
@@ -51,6 +71,17 @@ export default function CreateOrderScreen() {
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
   const [markAsPaid, setMarkAsPaid] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
+
+  // Pickup date - default to tomorrow at 5 PM
+  const getDefaultPickupDate = () => {
+    const date = new Date();
+    date.setDate(date.getDate() + 1);
+    date.setHours(17, 0, 0, 0);
+    return date;
+  };
+  const [estimatedPickupDate, setEstimatedPickupDate] = useState<Date>(getDefaultPickupDate());
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -277,10 +308,6 @@ export default function CreateOrderScreen() {
 
     setSubmitting(true);
     try {
-      // Calculate estimated pickup date (tomorrow by default)
-      const estimatedPickup = new Date();
-      estimatedPickup.setDate(estimatedPickup.getDate() + 1);
-
       // Convert selected extras to ExtraItemUsage format (handle weight-based items)
       const extraItemsData = Object.entries(selectedExtras)
         .filter(([_, data]) => data.quantity > 0)
@@ -314,7 +341,7 @@ export default function CreateOrderScreen() {
         extraItems: extraItemsData,
         totalAmount: calculateTotal(),
         dropOffDate: new Date().toISOString(),
-        estimatedPickupDate: estimatedPickup.toISOString(),
+        estimatedPickupDate: estimatedPickupDate.toISOString(),
         isPaid: markAsPaid,
         paymentMethod: markAsPaid ? paymentMethod : 'pending',
       };
@@ -524,6 +551,121 @@ export default function CreateOrderScreen() {
           />
         </View>
       </View>
+
+      {/* Pickup Date */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Pickup Date & Time</Text>
+        <View style={styles.pickupDateCard}>
+          <TouchableOpacity
+            style={styles.dateButton}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Ionicons name="calendar-outline" size={20} color="#2563eb" />
+            <Text style={styles.dateButtonText}>
+              {formatPickupDate(estimatedPickupDate)}
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+          </TouchableOpacity>
+          <View style={styles.dateButtonsRow}>
+            <TouchableOpacity
+              style={styles.quickDateButton}
+              onPress={() => {
+                const date = new Date();
+                date.setHours(17, 0, 0, 0);
+                setEstimatedPickupDate(date);
+              }}
+            >
+              <Text style={styles.quickDateButtonText}>Today</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickDateButton}
+              onPress={() => {
+                const date = new Date();
+                date.setDate(date.getDate() + 1);
+                date.setHours(17, 0, 0, 0);
+                setEstimatedPickupDate(date);
+              }}
+            >
+              <Text style={styles.quickDateButtonText}>Tomorrow</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.quickDateButton}
+              onPress={() => setShowTimePicker(true)}
+            >
+              <Ionicons name="time-outline" size={16} color="#2563eb" />
+              <Text style={styles.quickDateButtonText}>Time</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* Date Picker Modal */}
+      <Modal
+        visible={showDatePicker}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.datePickerModalOverlay}>
+          <View style={styles.datePickerModalContent}>
+            <View style={styles.datePickerHeader}>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                <Text style={styles.datePickerCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.datePickerTitle}>Select Date</Text>
+              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                <Text style={styles.datePickerDone}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <DateTimePicker
+              value={estimatedPickupDate}
+              mode="date"
+              display="spinner"
+              onChange={(event, selectedDate) => {
+                if (selectedDate) {
+                  const newDate = new Date(estimatedPickupDate);
+                  newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                  setEstimatedPickupDate(newDate);
+                }
+              }}
+              style={styles.datePickerSpinner}
+            />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Time Picker Modal */}
+      <Modal
+        visible={showTimePicker}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.datePickerModalOverlay}>
+          <View style={styles.datePickerModalContent}>
+            <View style={styles.datePickerHeader}>
+              <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                <Text style={styles.datePickerCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.datePickerTitle}>Select Time</Text>
+              <TouchableOpacity onPress={() => setShowTimePicker(false)}>
+                <Text style={styles.datePickerDone}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <DateTimePicker
+              value={estimatedPickupDate}
+              mode="time"
+              display="spinner"
+              onChange={(event, selectedTime) => {
+                if (selectedTime) {
+                  const newDate = new Date(estimatedPickupDate);
+                  newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                  setEstimatedPickupDate(newDate);
+                }
+              }}
+              style={styles.datePickerSpinner}
+            />
+          </View>
+        </View>
+      </Modal>
 
       {/* Extra Items */}
       <View style={styles.section}>
@@ -1577,5 +1719,85 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  // Pickup date styles
+  pickupDateCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+  },
+  dateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  dateButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  dateButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  quickDateButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 10,
+    backgroundColor: '#eff6ff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  quickDateButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2563eb',
+  },
+  // Date picker modal styles
+  datePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  datePickerModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+  },
+  datePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  datePickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  datePickerCancel: {
+    fontSize: 16,
+    color: '#ef4444',
+  },
+  datePickerDone: {
+    fontSize: 16,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  datePickerSpinner: {
+    height: 200,
   },
 });
