@@ -175,6 +175,21 @@ export function generateCustomerReceiptText(order: Order): string {
     r += leftRightAlign('Laundry', `${order.weight || 0} LBS`) + '\n';
   }
 
+  // Special order items
+  if (order.items && order.items.length > 0) {
+    r += '\n';
+    r += ESC.CENTER;
+    r += 'Special Order Items\n';
+    r += ESC.LEFT;
+    order.items.forEach(item => {
+      r += leftRightAlign(`Item`, 'Qty') + '\n';
+      r += leftRightAlign(`${item.serviceName}`, `${item.quantity}@ $${item.pricePerUnit?.toFixed(2) || '0.00'} EA`) + '\n';
+      if (item.notes) {
+        r += `- ${item.notes}\n`;
+      }
+    });
+  }
+
   r += '------------------------------------------------\n';
 
   // === TOTALS SECTION ===
@@ -336,6 +351,21 @@ export function generateStoreCopyText(order: Order): string {
   } else {
     r += leftRightAlign('Item', 'WEIGHT') + '\n';
     r += leftRightAlign('Laundry', `${order.weight || 0} LBS`) + '\n';
+  }
+
+  // Special order items
+  if (order.items && order.items.length > 0) {
+    r += '\n';
+    r += ESC.CENTER;
+    r += 'Special Order Items\n';
+    r += ESC.LEFT;
+    order.items.forEach(item => {
+      r += leftRightAlign(`Item`, 'Qty') + '\n';
+      r += leftRightAlign(`${item.serviceName}`, `${item.quantity}@ $${item.pricePerUnit?.toFixed(2) || '0.00'} EA`) + '\n';
+      if (item.notes) {
+        r += `- ${item.notes}\n`;
+      }
+    });
   }
 
   r += '------------------------------------------------\n';
