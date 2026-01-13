@@ -17,7 +17,6 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useAuth } from '../contexts/AuthContext';
-import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag } from '../types';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
@@ -105,53 +104,123 @@ export default function OrderDetailScreen() {
     setShowPrintOptions(true);
   }
 
+  // Generate receipt text for POS thermal printer
+  function generateReceiptText(receiptType: 'customer' | 'store'): string {
+    if (!order) return '';
+    const date = new Date().toLocaleString();
+    const centerText = (text: string): string => {
+      const maxWidth = 48;
+      if (text.length >= maxWidth) return text;
+      const padding = Math.floor((maxWidth - text.length) / 2);
+      return ' '.repeat(padding) + text;
+    };
+    const leftRightAlign = (left: string, right: string): string => {
+      const maxWidth = 48;
+      const total = left.length + right.length;
+      if (total >= maxWidth) return `${left} ${right}`;
+      return left + ' '.repeat(maxWidth - total) + right;
+    };
+
+    let receipt = '';
+    receipt += '================================================\n';
+    receipt += centerText(receiptType === 'customer' ? '** CUSTOMER RECEIPT **' : '** STORE COPY **') + '\n';
+    receipt += centerText('LAUNDROMAT') + '\n';
+    receipt += '================================================\n';
+    receipt += leftRightAlign('Order #:', String(order.orderId)) + '\n';
+    receipt += leftRightAlign('Date:', date) + '\n';
+    receipt += '------------------------------------------------\n';
+    receipt += `Customer: ${order.customerName}\n`;
+    receipt += `Phone: ${order.customerPhone}\n`;
+    if (order.customer?.address) {
+      receipt += `Address: ${order.customer.address}\n`;
+    }
+    receipt += '------------------------------------------------\n';
+    if (order.weight) {
+      receipt += leftRightAlign('Weight:', `${order.weight} lbs`) + '\n';
+    }
+    if (order.isSameDay) {
+      receipt += centerText('** SAME DAY SERVICE **') + '\n';
+    }
+    receipt += '================================================\n';
+    receipt += leftRightAlign('TOTAL:', `$${(order.totalAmount || 0).toFixed(2)}`) + '\n';
+    receipt += '================================================\n';
+    receipt += centerText(order.isPaid ? `PAID: ${order.paymentMethod?.toUpperCase() || 'CASH'}` : 'PAYMENT: PENDING') + '\n';
+    if (order.specialInstructions) {
+      receipt += '------------------------------------------------\n';
+      receipt += `Notes: ${order.specialInstructions}\n`;
+    }
+    receipt += '================================================\n';
+    receipt += centerText('Thank you for your business!') + '\n';
+    receipt += '================================================\n\n\n';
+    return receipt;
+  }
+
+  // Generate bag label text for POS thermal printer
+  function generateBagLabelText(bagIndex: number): string {
+    if (!order || !order.bags || !order.bags[bagIndex]) return '';
+    const bag = order.bags[bagIndex];
+    const totalBags = order.bags.length;
+    const centerText = (text: string): string => {
+      const maxWidth = 48;
+      if (text.length >= maxWidth) return text;
+      const padding = Math.floor((maxWidth - text.length) / 2);
+      return ' '.repeat(padding) + text;
+    };
+    const leftRightAlign = (left: string, right: string): string => {
+      const maxWidth = 48;
+      const total = left.length + right.length;
+      if (total >= maxWidth) return `${left} ${right}`;
+      return left + ' '.repeat(maxWidth - total) + right;
+    };
+
+    let label = '';
+    label += '================================================\n';
+    label += centerText(`*** BAG ${bagIndex + 1} OF ${totalBags} ***`) + '\n';
+    label += '================================================\n';
+    label += leftRightAlign('Order:', String(order.orderId)) + '\n';
+    label += leftRightAlign('Customer:', order.customerName) + '\n';
+    label += leftRightAlign('Phone:', order.customerPhone) + '\n';
+    label += '------------------------------------------------\n';
+    label += leftRightAlign('Bag ID:', bag.identifier || String(bagIndex + 1)) + '\n';
+    label += leftRightAlign('Weight:', `${bag.weight || 'TBD'} lbs`) + '\n';
+    if (bag.color) label += leftRightAlign('Color:', bag.color) + '\n';
+    if (bag.description) label += `Notes: ${bag.description}\n`;
+    label += '================================================\n';
+    label += centerText('ATTACH TO BAG') + '\n';
+    label += '================================================\n\n\n';
+    return label;
+  }
+
+  // Print using POS thermal printer via API
   async function handlePrint(type: 'customer' | 'store' | 'both') {
     setShowPrintOptions(false);
-
-    if (!bluetoothPrinter.isConnected()) {
-      Alert.alert(
-        'Printer Not Connected',
-        'Please connect a Bluetooth printer in Profile > Settings > Bluetooth Printer',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
     if (!order) return;
 
     setPrinting(true);
     try {
-      // Print receipt/tag for the order
-      const success = await bluetoothPrinter.printOrderTag({
-        orderId: String(order.orderId),
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        weight: order.weight,
-        isSameDay: order.isSameDay,
-      });
-
-      if (success) {
-        Alert.alert('Success', 'Receipt printed successfully');
-      } else {
-        Alert.alert('Print Failed', 'Could not print. Please check printer connection.');
+      const receipts: string[] = [];
+      if (type === 'customer' || type === 'both') {
+        receipts.push(generateReceiptText('customer'));
       }
+      if (type === 'store' || type === 'both') {
+        receipts.push(generateReceiptText('store'));
+      }
+
+      for (const content of receipts) {
+        const response = await api.printReceipt(content);
+        if (!response.success) {
+          throw new Error(response.error || 'Print failed');
+        }
+      }
+      Alert.alert('Success', `${type === 'both' ? 'Both receipts' : type === 'customer' ? 'Customer receipt' : 'Store copy'} printed!`);
     } catch (error) {
-      Alert.alert('Error', 'Failed to print');
+      Alert.alert('Print Error', error instanceof Error ? error.message : 'Failed to print. Check printer IP in admin settings.');
     } finally {
       setPrinting(false);
     }
   }
 
   async function handlePrintBagLabels() {
-    if (!bluetoothPrinter.isConnected()) {
-      Alert.alert(
-        'Printer Not Connected',
-        'Please connect a Bluetooth printer in Profile > Settings > Bluetooth Printer',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
     if (!order || !order.bags || order.bags.length === 0) {
       Alert.alert('No Bags', 'No bags to print labels for');
       return;
@@ -160,39 +229,22 @@ export default function OrderDetailScreen() {
     setPrinting(true);
     try {
       for (let i = 0; i < order.bags.length; i++) {
-        const bag = order.bags[i];
-        await bluetoothPrinter.printOrderTag({
-          orderId: String(order.orderId),
-          customerName: order.customerName,
-          customerPhone: order.customerPhone,
-          weight: bag.weight,
-          bagNumber: i + 1,
-          totalBags: order.bags.length,
-          isSameDay: order.isSameDay,
-        });
-        // Small delay between prints
-        if (i < order.bags.length - 1) {
-          await new Promise(resolve => setTimeout(resolve, 500));
+        const content = generateBagLabelText(i);
+        if (!content) continue;
+        const response = await api.printReceipt(content);
+        if (!response.success) {
+          throw new Error(response.error || 'Print failed');
         }
       }
       Alert.alert('Success', `Printed ${order.bags.length} bag label(s)`);
     } catch (error) {
-      Alert.alert('Error', 'Failed to print bag labels');
+      Alert.alert('Print Error', error instanceof Error ? error.message : 'Failed to print. Check printer IP in admin settings.');
     } finally {
       setPrinting(false);
     }
   }
 
   async function handlePrintSingleBag(bagIndex: number) {
-    if (!bluetoothPrinter.isConnected()) {
-      Alert.alert(
-        'Printer Not Connected',
-        'Please connect a Bluetooth printer in Profile > Settings > Bluetooth Printer',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-
     if (!order || !order.bags || !order.bags[bagIndex]) {
       Alert.alert('Error', 'Bag not found');
       return;
@@ -200,24 +252,14 @@ export default function OrderDetailScreen() {
 
     setPrinting(true);
     try {
-      const bag = order.bags[bagIndex];
-      const success = await bluetoothPrinter.printOrderTag({
-        orderId: String(order.orderId),
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        weight: bag.weight,
-        bagNumber: bagIndex + 1,
-        totalBags: order.bags.length,
-        isSameDay: order.isSameDay,
-      });
-
-      if (success) {
-        Alert.alert('Success', `Bag ${bagIndex + 1} label printed`);
-      } else {
-        Alert.alert('Print Failed', 'Could not print. Please check printer connection.');
+      const content = generateBagLabelText(bagIndex);
+      const response = await api.printReceipt(content);
+      if (!response.success) {
+        throw new Error(response.error || 'Print failed');
       }
+      Alert.alert('Success', `Bag ${bagIndex + 1} label printed`);
     } catch (error) {
-      Alert.alert('Error', 'Failed to print bag label');
+      Alert.alert('Print Error', error instanceof Error ? error.message : 'Failed to print. Check printer IP in admin settings.');
     } finally {
       setPrinting(false);
     }

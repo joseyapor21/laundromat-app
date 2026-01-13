@@ -293,6 +293,14 @@ class ApiService {
     const query = searchParams.toString();
     return this.request<{ logs: ActivityLog[]; total: number }>(`/activity-logs${query ? `?${query}` : ''}`);
   }
+
+  // Print receipt via POS thermal printer
+  async printReceipt(content: string): Promise<{ success: boolean; error?: string }> {
+    return this.request<{ success: boolean; error?: string }>('/print', {
+      method: 'POST',
+      body: JSON.stringify({ content }),
+    });
+  }
 }
 
 export const api = new ApiService();
