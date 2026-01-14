@@ -111,17 +111,44 @@ class PushNotificationService {
 
     if (Platform.OS === 'android') {
       try {
+        // Delete old default channel if exists
+        await this.Notifications.deleteNotificationChannelAsync('default').catch(() => {});
+
+        // Create orders channel
         await this.Notifications.setNotificationChannelAsync('orders', {
           name: 'Order Updates',
-          importance: this.Notifications.AndroidImportance.HIGH,
+          description: 'Notifications for new orders and status changes',
+          importance: this.Notifications.AndroidImportance.MAX,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#2563eb',
           sound: 'default',
+          enableVibrate: true,
+          showBadge: true,
+        });
+
+        // Create default channel for other notifications
+        await this.Notifications.setNotificationChannelAsync('default', {
+          name: 'General',
+          description: 'General notifications',
+          importance: this.Notifications.AndroidImportance.HIGH,
+          sound: 'default',
         });
       } catch (e) {
-        console.log('Failed to setup Android channel');
+        console.log('Failed to setup Android channel:', e);
       }
     }
+  }
+
+  // Add listener for received notifications
+  addNotificationReceivedListener(callback: (notification: any) => void) {
+    if (!this.isAvailable || !this.Notifications) return null;
+    return this.Notifications.addNotificationReceivedListener(callback);
+  }
+
+  // Add listener for notification responses (when user taps notification)
+  addNotificationResponseListener(callback: (response: any) => void) {
+    if (!this.isAvailable || !this.Notifications) return null;
+    return this.Notifications.addNotificationResponseReceivedListener(callback);
   }
 }
 

@@ -84,12 +84,18 @@ export async function POST(request: NextRequest) {
 
       const results = [];
       for (const user of usersWithTokens) {
-        const result = await sendPushNotification({
+        const notificationPayload = {
           to: user.pushToken,
-          title: title || 'Test Notification',
-          body: body || 'This is a test notification from the laundromat app.',
+          title: title || '🧺 Test Notification',
+          body: body || 'Push notifications are working! You will receive order updates here.',
           sound: 'default',
-        });
+          channelId: 'orders',
+          priority: 'high',
+          data: { type: 'test' },
+        };
+        console.log('Sending notification:', JSON.stringify(notificationPayload));
+        const result = await sendPushNotification(notificationPayload);
+        console.log('Notification result:', JSON.stringify(result));
         results.push({
           email: user.email,
           success: result.success,
