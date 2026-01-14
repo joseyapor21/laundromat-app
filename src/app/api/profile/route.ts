@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
-import { connectDB } from '@/lib/db/connection';
+import { ObjectId } from 'mongodb';
+import { connectDB, getAuthDatabase } from '@/lib/db/connection';
 import { User, ActivityLog } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
 
@@ -17,7 +18,29 @@ export async function GET() {
 
     await connectDB();
 
-    const user = await User.findById(currentUser.userId).select('-password');
+    // Try to find user in app User model first
+    let user = await User.findById(currentUser.userId).select('-password').lean();
+
+    // If not found, check auth database (v5users)
+    if (!user) {
+      const db = await getAuthDatabase();
+      const authUser = await db.collection('v5users').findOne(
+        { _id: new ObjectId(currentUser.userId) },
+        { projection: { password: 0 } }
+      );
+
+      if (authUser) {
+        user = {
+          _id: authUser._id,
+          email: authUser.email,
+          firstName: authUser.firstName || currentUser.email.split('@')[0],
+          lastName: authUser.lastName || '',
+          role: authUser.role || 'employee',
+          mustChangePassword: authUser.mustChangePassword || false,
+          pushNotificationsEnabled: authUser.pushNotificationsEnabled ?? true,
+        } as any;
+      }
+    }
 
     if (!user) {
       return NextResponse.json(
@@ -59,13 +82,46 @@ export async function PUT(request: NextRequest) {
 
     const { firstName, lastName, currentPassword, newPassword, pushNotificationsEnabled } = await request.json();
 
-    const user = await User.findById(currentUser.userId);
+    // Try to find user in app User model first
+    let user = await User.findById(currentUser.userId);
+    let isAuthDbUser = false;
 
+    // If not found in app model, check auth database
     if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
+      const db = await getAuthDatabase();
+      const authUser = await db.collection('v5users').findOne(
+        { _id: new ObjectId(currentUser.userId) }
       );
+
+      if (!authUser) {
+        return NextResponse.json(
+          { error: 'User not found' },
+          { status: 404 }
+        );
+      }
+
+      isAuthDbUser = true;
+
+      // For auth-only users, we can only update pushNotificationsEnabled
+      if (typeof pushNotificationsEnabled === 'boolean') {
+        await db.collection('v5users').updateOne(
+          { _id: new ObjectId(currentUser.userId) },
+          { $set: { pushNotificationsEnabled } }
+        );
+      }
+
+      return NextResponse.json({
+        message: 'Profile updated successfully',
+        user: {
+          _id: authUser._id.toString(),
+          email: authUser.email,
+          firstName: authUser.firstName || currentUser.email.split('@')[0],
+          lastName: authUser.lastName || '',
+          role: authUser.role || 'employee',
+          mustChangePassword: authUser.mustChangePassword || false,
+          pushNotificationsEnabled: pushNotificationsEnabled ?? authUser.pushNotificationsEnabled ?? true,
+        },
+      });
     }
 
     // If changing password, verify current password
@@ -99,6 +155,19 @@ export async function PUT(request: NextRequest) {
     }
 
     await user.save();
+
+    // Also update in auth database if pushNotificationsEnabled changed
+    if (typeof pushNotificationsEnabled === 'boolean') {
+      try {
+        const db = await getAuthDatabase();
+        await db.collection('v5users').updateOne(
+          { email: user.email.toLowerCase() },
+          { $set: { pushNotificationsEnabled } }
+        );
+      } catch (e) {
+        console.error('Failed to sync notification preference to auth db:', e);
+      }
+    }
 
     // Log the profile update
     try {

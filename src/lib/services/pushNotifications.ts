@@ -139,11 +139,16 @@ export async function getUsersWithPushTokens(): Promise<UserWithToken[]> {
   }
 
   // Get users from auth database (fallback for users not in app model)
+  // Only include users who have notifications enabled
   try {
     const db = await getAuthDatabase();
     const authUsers = await db.collection('v5users')
       .find({
         pushToken: { $ne: null, $exists: true },
+        $or: [
+          { pushNotificationsEnabled: true },
+          { pushNotificationsEnabled: { $exists: false } }, // Default to enabled
+        ],
       })
       .project({ _id: 1, pushToken: 1, email: 1 })
       .toArray();
