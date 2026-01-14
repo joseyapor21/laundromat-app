@@ -14,11 +14,13 @@ class PushNotificationService {
       this.Notifications = require('expo-notifications');
       this.isAvailable = true;
       // Configure how notifications are handled when app is in foreground
-      this.Notifications.setNotificationHandler({
+      this.Notifications!.setNotificationHandler({
         handleNotification: async () => ({
           shouldShowAlert: true,
           shouldPlaySound: true,
           shouldSetBadge: true,
+          shouldShowBanner: true,
+          shouldShowList: true,
         }),
       });
     } catch (e) {

@@ -1,11 +1,23 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, View } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { ScannerProvider, FloatingActionButtons } from '../contexts/ScannerContext';
+import pushNotificationService from '../services/pushNotifications';
+
+// Navigation ref for use outside of components (e.g., notification handling)
+export const navigationRef = React.createRef<NavigationContainerRef<any>>();
+
+// Navigate to a screen from anywhere
+export function navigate(name: string, params?: object) {
+  if (navigationRef.current?.isReady()) {
+    // @ts-ignore - Navigation types are complex
+    navigationRef.current.navigate(name, params);
+  }
+}
 
 // Screens
 import LoginScreen from '../screens/LoginScreen';
@@ -171,8 +183,51 @@ function AuthenticatedApp() {
   );
 }
 
+// Handle notification response (when user taps on notification)
+function handleNotificationResponse(response: any) {
+  const data = response?.notification?.request?.content?.data;
+  console.log('Notification tapped, data:', data);
+
+  if (data?.orderId) {
+    // Navigate to order detail screen
+    navigate('OrderDetail', { orderId: data.orderId });
+  }
+}
+
 export default function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
+  const notificationResponseListener = useRef<any>(null);
+
+  useEffect(() => {
+    // Set up notification response listener (when user taps notification)
+    notificationResponseListener.current = pushNotificationService.addNotificationResponseListener(
+      handleNotificationResponse
+    );
+
+    // Check if app was opened from a killed state via notification
+    // This handles the cold start case
+    const checkInitialNotification = async () => {
+      try {
+        const Notifications = require('expo-notifications');
+        const response = await Notifications.getLastNotificationResponseAsync();
+        if (response) {
+          console.log('App opened from notification (cold start):', response);
+          handleNotificationResponse(response);
+        }
+      } catch (e) {
+        // Notifications not available
+      }
+    };
+
+    // Small delay to ensure navigation is ready
+    setTimeout(checkInitialNotification, 500);
+
+    return () => {
+      if (notificationResponseListener.current) {
+        notificationResponseListener.current.remove();
+      }
+    };
+  }, []);
 
   if (isLoading) {
     return (
@@ -183,7 +238,7 @@ export default function AppNavigator() {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef}>
       {isAuthenticated ? <AuthenticatedApp /> : <AuthStack />}
     </NavigationContainer>
   );
