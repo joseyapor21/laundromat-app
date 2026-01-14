@@ -107,9 +107,20 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Update isDriver on the user document in auth database
+    if (updates.isDriver !== undefined) {
+      await db.collection('v5users').updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { isDriver: updates.isDriver, updatedAt: new Date() } }
+      );
+    }
+
     // Determine the user's current role after update
     const updatedDept = await db.collection('v5departments').findOne({ name: DEPARTMENT_NAME });
     const isNowAdmin = (updatedDept?.adminIds || []).includes(id);
+
+    // Get updated isDriver value
+    const updatedUser = await db.collection('v5users').findOne({ _id: new ObjectId(id) });
 
     return NextResponse.json({
       _id: id,
@@ -118,6 +129,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       firstName: user.name?.split(' ')[0] || '',
       lastName: user.name?.split(' ').slice(1).join(' ') || '',
       role: isNowAdmin ? 'admin' : updates.role || 'employee',
+      isDriver: updatedUser?.isDriver || false,
       isActive: true,
       isSuperUser: user.isSuperUser || false,
     });

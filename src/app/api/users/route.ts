@@ -36,6 +36,7 @@ export async function GET() {
       firstName: user.firstName,
       lastName: user.lastName,
       role: user.role,
+      isDriver: user.isDriver || false,
       isActive: user.isActive,
       source: 'app',
     }));
@@ -80,6 +81,7 @@ export async function GET() {
               firstName: user.name?.split(' ')[0] || '',
               lastName: user.name?.split(' ').slice(1).join(' ') || '',
               role: isDeptAdmin ? 'admin' : 'employee',
+              isDriver: user.isDriver || false,
               isActive: true,
               source: 'auth',
             });

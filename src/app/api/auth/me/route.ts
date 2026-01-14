@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getAuthDatabase } from '@/lib/db/connection';
+import { connectDB, getAuthDatabase } from '@/lib/db/connection';
+import { User } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
 import { ObjectId } from 'mongodb';
 
@@ -16,6 +17,24 @@ export async function GET() {
       );
     }
 
+    // First check if user exists in app User model
+    await connectDB();
+    const appUser = await User.findById(currentUser.userId).select('-password').lean();
+
+    if (appUser) {
+      return NextResponse.json({
+        _id: appUser._id.toString(),
+        email: appUser.email,
+        firstName: appUser.firstName,
+        lastName: appUser.lastName,
+        role: appUser.role,
+        isDriver: appUser.isDriver || false,
+        isActive: appUser.isActive,
+        isSuperUser: false,
+      });
+    }
+
+    // Fall back to auth database
     const db = await getAuthDatabase();
 
     const user = await db.collection('v5users').findOne({
@@ -44,6 +63,7 @@ export async function GET() {
       firstName: user.name?.split(' ')[0] || '',
       lastName: user.name?.split(' ').slice(1).join(' ') || '',
       role: role,
+      isDriver: user.isDriver || false,
       isActive: true,
       isSuperUser: isSuperUser,
       isDeptAdmin: isAdmin,
