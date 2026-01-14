@@ -288,7 +288,8 @@ export default function EditOrderScreen() {
           const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
           const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
           return {
-            item: item!,
+            itemId,
+            name: item?.name || '',
             quantity: qty,
             price: data.price
           };

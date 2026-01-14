@@ -274,7 +274,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
             ? roundToQuarter((weight / item!.perWeightUnit!) * data.price)
             : data.price * data.quantity;
           return {
-            item: item!,
+            itemId,
+            name: item?.name || '',
             quantity: 1, // Quantity is 1 since price is the total
             price: totalPrice
           };
