@@ -27,7 +27,14 @@ const ESC = {
   NORMAL_SIZE: '\x1B\x21\x00',
   CENTER: '\x1B\x61\x01',
   LEFT: '\x1B\x61\x00',
-  FEED_AND_CUT: '\n\n\n\x1D\x56\x00',
+  FEED_AND_CUT: '\n\n\n\n\n\x1D\x56\x41\x03',
+};
+
+const STORE_CONFIG = {
+  name: 'E&F Laundromat',
+  address: '215-23 73rd Ave',
+  city: 'Oakland Gardens, NY 11364',
+  phone: '(347) 204-1333',
 };
 
 // Display payment methods (credit is counted as cash)
@@ -167,6 +174,15 @@ export default function CashierReportScreen() {
       r += ESC.INIT;
       r += ESC.CENTER;
 
+      // Store Info
+      r += ESC.BOLD_ON;
+      r += `${STORE_CONFIG.name}\n`;
+      r += ESC.BOLD_OFF;
+      r += `${STORE_CONFIG.address}\n`;
+      r += `${STORE_CONFIG.city}\n`;
+      r += `${STORE_CONFIG.phone}\n`;
+      r += '\n';
+
       // Header
       r += ESC.DOUBLE_SIZE_ON;
       r += ESC.INVERT_ON;
@@ -224,8 +240,9 @@ export default function CashierReportScreen() {
         const method = order.paymentMethod === 'credit'
           ? 'CASH (Credit)'
           : (order.paymentMethod?.toUpperCase() || 'CASH');
-        r += leftRightAlign(`#${order.orderId} ${order.customerName?.substring(0, 20) || ''}`, `$${order.totalAmount.toFixed(2)}`) + '\n';
-        r += `  ${method}\n`;
+        const weightStr = order.weight ? `${order.weight} lbs` : '';
+        r += leftRightAlign(`#${order.orderId} ${order.customerName?.substring(0, 18) || ''}`, `$${order.totalAmount.toFixed(2)}`) + '\n';
+        r += `  ${method}${weightStr ? ` - ${weightStr}` : ''}\n`;
       });
 
       r += '================================================\n';
