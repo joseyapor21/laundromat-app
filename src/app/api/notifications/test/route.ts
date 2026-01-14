@@ -88,9 +88,8 @@ export async function POST(request: NextRequest) {
           to: user.pushToken,
           title: title || '🧺 Test Notification',
           body: body || 'Push notifications are working! You will receive order updates here.',
-          sound: 'default',
+          sound: 'default' as const,
           channelId: 'orders',
-          priority: 'high',
           data: { type: 'test' },
         };
         console.log('Sending notification:', JSON.stringify(notificationPayload));
