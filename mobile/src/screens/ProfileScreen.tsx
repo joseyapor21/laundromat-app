@@ -268,64 +268,9 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Reports Section - Admin Only */}
-      {isAdmin && (
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Reports</Text>
-
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => navigation.navigate('CashierReport')}
-          >
-            <View style={styles.cardRow}>
-              <View style={[styles.cardIcon, { backgroundColor: '#dcfce7' }]}>
-                <Ionicons name="cash" size={24} color="#10b981" />
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardValue}>Cashier Report</Text>
-                <Text style={styles.cardLabel}>Daily payment summary</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.card}
-            onPress={() => navigation.navigate('EODReport')}
-          >
-            <View style={styles.cardRow}>
-              <View style={[styles.cardIcon, { backgroundColor: '#dbeafe' }]}>
-                <Ionicons name="document-text" size={24} color="#3b82f6" />
-              </View>
-              <View style={styles.cardContent}>
-                <Text style={styles.cardValue}>End of Day Report</Text>
-                <Text style={styles.cardLabel}>Closing checklist & summary</Text>
-              </View>
-              <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
-            </View>
-          </TouchableOpacity>
-        </View>
-      )}
-
       {/* Settings */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Settings</Text>
-
-        <TouchableOpacity
-          style={styles.card}
-          onPress={() => navigation.navigate('BluetoothPrinter')}
-        >
-          <View style={styles.cardRow}>
-            <View style={[styles.cardIcon, { backgroundColor: '#e0e7ff' }]}>
-              <Ionicons name="bluetooth" size={24} color="#6366f1" />
-            </View>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardValue}>Bluetooth Printer</Text>
-              <Text style={styles.cardLabel}>Connect thermal printer for tags</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
-          </View>
-        </TouchableOpacity>
 
         <View style={styles.card}>
           <View style={styles.cardRow}>

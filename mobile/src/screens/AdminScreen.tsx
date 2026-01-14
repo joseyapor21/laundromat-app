@@ -21,7 +21,7 @@ import { api } from '../services/api';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog } from '../types';
 
-type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity';
+type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports';
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
@@ -526,6 +526,7 @@ export default function AdminScreen() {
     { key: 'settings', label: 'Settings', icon: 'settings' },
     { key: 'machines', label: 'Machines', icon: 'hardware-chip' },
     { key: 'printers', label: 'Printers', icon: 'print' },
+    { key: 'reports', label: 'Reports', icon: 'document-text' },
     { key: 'activity', label: 'Activity', icon: 'time' },
   ];
 
@@ -1015,6 +1016,38 @@ export default function AdminScreen() {
       )}
 
       {/* Activity Tab */}
+      {activeTab === 'reports' && (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.listContent}>
+          <TouchableOpacity
+            style={styles.reportCard}
+            onPress={() => navigation.navigate('CashierReport')}
+          >
+            <View style={[styles.reportIcon, { backgroundColor: '#dcfce7' }]}>
+              <Ionicons name="cash" size={28} color="#10b981" />
+            </View>
+            <View style={styles.reportInfo}>
+              <Text style={styles.reportTitle}>Cashier Report</Text>
+              <Text style={styles.reportDescription}>Daily payment summary by cashier</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#94a3b8" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.reportCard}
+            onPress={() => navigation.navigate('EODReport')}
+          >
+            <View style={[styles.reportIcon, { backgroundColor: '#dbeafe' }]}>
+              <Ionicons name="document-text" size={28} color="#3b82f6" />
+            </View>
+            <View style={styles.reportInfo}>
+              <Text style={styles.reportTitle}>End of Day Report</Text>
+              <Text style={styles.reportDescription}>Closing checklist & daily summary</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="#94a3b8" />
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
       {activeTab === 'activity' && (
         <View style={{ flex: 1 }}>
           <View style={styles.actionHeader}>
@@ -2091,5 +2124,35 @@ const styles = StyleSheet.create({
   },
   maintenanceToggleActive: {
     backgroundColor: '#ef4444',
+  },
+  // Report styles
+  reportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  reportIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 16,
+  },
+  reportInfo: {
+    flex: 1,
+  },
+  reportTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  reportDescription: {
+    fontSize: 14,
+    color: '#64748b',
   },
 });
