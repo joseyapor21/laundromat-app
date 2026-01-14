@@ -107,20 +107,36 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Update isDriver on the user document in auth database
+    // Update user fields on the user document in auth database
+    const userUpdates: Record<string, unknown> = { updatedAt: new Date() };
     if (updates.isDriver !== undefined) {
-      await db.collection('v5users').updateOne(
-        { _id: new ObjectId(id) },
-        { $set: { isDriver: updates.isDriver, updatedAt: new Date() } }
-      );
+      userUpdates.isDriver = updates.isDriver;
     }
+    if (updates.role !== undefined) {
+      userUpdates.appRole = updates.role; // Store the app-specific role
+    }
+
+    await db.collection('v5users').updateOne(
+      { _id: new ObjectId(id) },
+      { $set: userUpdates }
+    );
 
     // Determine the user's current role after update
     const updatedDept = await db.collection('v5departments').findOne({ name: DEPARTMENT_NAME });
     const isNowAdmin = (updatedDept?.adminIds || []).includes(id);
 
-    // Get updated isDriver value
+    // Get updated user values
     const updatedUser = await db.collection('v5users').findOne({ _id: new ObjectId(id) });
+
+    // Determine final role: admin if in adminIds, otherwise use stored appRole or the update
+    let finalRole = 'employee';
+    if (isNowAdmin) {
+      finalRole = 'admin';
+    } else if (updatedUser?.appRole) {
+      finalRole = updatedUser.appRole;
+    } else if (updates.role) {
+      finalRole = updates.role;
+    }
 
     return NextResponse.json({
       _id: id,
@@ -128,7 +144,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       name: user.name || '',
       firstName: user.name?.split(' ')[0] || '',
       lastName: user.name?.split(' ').slice(1).join(' ') || '',
-      role: isNowAdmin ? 'admin' : updates.role || 'employee',
+      role: finalRole,
       isDriver: updatedUser?.isDriver || false,
       isActive: true,
       isSuperUser: user.isSuperUser || false,

@@ -55,7 +55,14 @@ export async function GET() {
     // Compare as strings to handle both ObjectId and string formats in the database
     const adminIds = department ? (department.adminIds || []).map((id: unknown) => id?.toString()) : [];
     const isAdmin = adminIds.includes(userId);
-    const role = (isAdmin || isSuperUser) ? 'admin' : 'user';
+
+    // Determine role: admin/super_admin if in adminIds, otherwise use stored appRole
+    let role = 'user';
+    if (isAdmin || isSuperUser) {
+      role = 'admin';
+    } else if (user.appRole) {
+      role = user.appRole;
+    }
 
     return NextResponse.json({
       _id: userId,

@@ -3,6 +3,7 @@ import { connectDB, getAuthDatabase } from '@/lib/db/connection';
 import { User } from '@/lib/db/models';
 import { getCurrentUser, isAdmin } from '@/lib/auth/server';
 import { ObjectId } from 'mongodb';
+import type { UserRole } from '@/types';
 
 const DEPARTMENT_NAME = 'Laundromat Department';
 
@@ -74,13 +75,20 @@ export async function GET() {
           if (!appEmails.has(user.email?.toLowerCase())) {
             const odId = user._id.toString();
             const isDeptAdmin = adminIds.includes(odId);
+            // Use stored appRole if available, otherwise derive from dept membership
+            let role: UserRole = 'employee';
+            if (isDeptAdmin) {
+              role = 'admin';
+            } else if (user.appRole) {
+              role = user.appRole as UserRole;
+            }
             appUsersFormatted.push({
               _id: odId,
               email: user.email,
               name: user.name || '',
               firstName: user.name?.split(' ')[0] || '',
               lastName: user.name?.split(' ').slice(1).join(' ') || '',
-              role: isDeptAdmin ? 'admin' : 'employee',
+              role: role,
               isDriver: user.isDriver || false,
               isActive: true,
               source: 'auth',
