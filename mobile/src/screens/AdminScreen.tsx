@@ -19,6 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Device } from 'react-native-ble-plx';
 import { api } from '../services/api';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
+import { useAuth } from '../contexts/AuthContext';
 import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog } from '../types';
 
 type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports';
@@ -26,7 +27,12 @@ type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printer
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const [activeTab, setActiveTab] = useState<Tab>('users');
+  const { user: currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
+  const isCashier = currentUser?.role === 'cashier';
+
+  // Cashiers default to customers tab, admins to users tab
+  const [activeTab, setActiveTab] = useState<Tab>(isCashier ? 'customers' : 'users');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -521,16 +527,20 @@ export default function AdminScreen() {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const tabs = [
-    { key: 'users', label: 'Users', icon: 'people' },
-    { key: 'customers', label: 'Customers', icon: 'person' },
-    { key: 'extras', label: 'Extras', icon: 'pricetags' },
-    { key: 'settings', label: 'Settings', icon: 'settings' },
-    { key: 'machines', label: 'Machines', icon: 'hardware-chip' },
-    { key: 'printers', label: 'Printers', icon: 'print' },
-    { key: 'reports', label: 'Reports', icon: 'document-text' },
-    { key: 'activity', label: 'Activity', icon: 'time' },
+  // All available tabs
+  const allTabs = [
+    { key: 'users', label: 'Users', icon: 'people', adminOnly: true },
+    { key: 'customers', label: 'Customers', icon: 'person', adminOnly: false },
+    { key: 'extras', label: 'Extras', icon: 'pricetags', adminOnly: false },
+    { key: 'settings', label: 'Settings', icon: 'settings', adminOnly: true },
+    { key: 'machines', label: 'Machines', icon: 'hardware-chip', adminOnly: true },
+    { key: 'printers', label: 'Printers', icon: 'print', adminOnly: true },
+    { key: 'reports', label: 'Reports', icon: 'document-text', adminOnly: false },
+    { key: 'activity', label: 'Activity', icon: 'time', adminOnly: true },
   ];
+
+  // Filter tabs based on role - cashiers only see non-admin tabs
+  const tabs = isAdmin ? allTabs : allTabs.filter(tab => !tab.adminOnly);
 
   if (loading) {
     return (
