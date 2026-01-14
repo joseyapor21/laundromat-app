@@ -239,8 +239,8 @@ export default function AdminScreen() {
   };
 
   const handleSaveUser = async () => {
-    if (!userForm.email || !userForm.firstName || !userForm.lastName) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    if (!userForm.email || !userForm.firstName) {
+      Alert.alert('Error', 'Please fill in email and first name');
       return;
     }
 
@@ -1121,7 +1121,7 @@ export default function AdminScreen() {
                   />
                 </View>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Last Name *</Text>
+                  <Text style={styles.inputLabel}>Last Name</Text>
                   <TextInput
                     style={styles.input}
                     value={userForm.lastName}
