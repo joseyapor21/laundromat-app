@@ -59,7 +59,7 @@ export type OrderStatus =
 
 export type OrderType = 'storePickup' | 'delivery';
 
-export type PaymentMethod = 'cash' | 'check' | 'venmo' | 'zelle';
+export type PaymentMethod = 'cash' | 'check' | 'venmo' | 'zelle' | 'credit';
 
 export interface Service {
   id: string;

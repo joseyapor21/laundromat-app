@@ -37,8 +37,10 @@ export default function CashierReportPage() {
   };
 
   // Calculate totals and counts by payment method
+  // Credit payments are counted under cash
+  type DisplayPaymentMethod = 'cash' | 'check' | 'venmo' | 'zelle';
   const getPaymentSummary = () => {
-    const summary: Record<PaymentMethod, { total: number; count: number }> = {
+    const summary: Record<DisplayPaymentMethod, { total: number; count: number }> = {
       cash: { total: 0, count: 0 },
       check: { total: 0, count: 0 },
       venmo: { total: 0, count: 0 },
@@ -49,7 +51,11 @@ export default function CashierReportPage() {
 
     orders.forEach(order => {
       // Default to 'cash' if no payment method is set
-      const method = order.paymentMethod || 'cash';
+      // Count 'credit' payments as cash
+      let method: DisplayPaymentMethod = (order.paymentMethod || 'cash') as DisplayPaymentMethod;
+      if (order.paymentMethod === 'credit') {
+        method = 'cash';
+      }
       summary[method].total += order.totalAmount;
       summary[method].count += 1;
       grandTotal += order.totalAmount;
