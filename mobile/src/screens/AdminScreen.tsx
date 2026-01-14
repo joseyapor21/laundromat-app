@@ -64,7 +64,7 @@ export default function AdminScreen() {
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null);
 
   // Form state for modals
-  const [userForm, setUserForm] = useState({ email: '', firstName: '', lastName: '', role: 'employee' as UserRole, password: '' });
+  const [userForm, setUserForm] = useState({ email: '', firstName: '', lastName: '', role: 'employee' as UserRole, isDriver: false, password: '' });
   const [extraItemForm, setExtraItemForm] = useState({ name: '', description: '', price: '', isActive: true, perWeightUnit: '' });
   const [machineForm, setMachineForm] = useState({ name: '', type: 'washer' as MachineType, qrCode: '', status: 'available' as MachineStatus });
   const [settingsForm, setSettingsForm] = useState({
@@ -228,11 +228,12 @@ export default function AdminScreen() {
         firstName: user.firstName,
         lastName: user.lastName,
         role: user.role,
+        isDriver: user.isDriver || false,
         password: '',
       });
     } else {
       setEditingUser(null);
-      setUserForm({ email: '', firstName: '', lastName: '', role: 'employee', password: '' });
+      setUserForm({ email: '', firstName: '', lastName: '', role: 'employee', isDriver: false, password: '' });
     }
     setShowUserModal(true);
   };
@@ -246,8 +247,8 @@ export default function AdminScreen() {
     setSaving(true);
     try {
       if (editingUser) {
-        // Update user role
-        await api.updateUser(editingUser._id, { role: userForm.role });
+        // Update user role and driver status
+        await api.updateUser(editingUser._id, { role: userForm.role, isDriver: userForm.isDriver });
         Alert.alert('Success', 'User updated successfully');
       } else {
         // Create/invite new user
@@ -261,6 +262,7 @@ export default function AdminScreen() {
           firstName: userForm.firstName,
           lastName: userForm.lastName,
           role: userForm.role,
+          isDriver: userForm.isDriver,
           temporaryPassword: userForm.password,
         });
         Alert.alert('Success', 'User invited successfully');
@@ -1132,17 +1134,31 @@ export default function AdminScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Role</Text>
                 <View style={styles.roleOptions}>
-                  {['cashier', 'employee', 'driver', 'supervisor', 'admin'].map(role => (
+                  {['employee', 'cashier', 'admin'].map(role => (
                     <TouchableOpacity
                       key={role}
                       style={[styles.roleOption, userForm.role === role && styles.roleOptionActive]}
                       onPress={() => setUserForm({ ...userForm, role: role as UserRole })}
                     >
                       <Text style={[styles.roleOptionText, userForm.role === role && styles.roleOptionTextActive]}>
-                        {role}
+                        {role === 'employee' ? 'Employee' : role === 'cashier' ? 'Cashier' : 'Admin'}
                       </Text>
                     </TouchableOpacity>
                   ))}
+                </View>
+              </View>
+              <View style={styles.inputGroup}>
+                <View style={styles.driverToggleRow}>
+                  <View>
+                    <Text style={styles.inputLabel}>Driver Access</Text>
+                    <Text style={styles.driverToggleHint}>Can access Driver tab for deliveries</Text>
+                  </View>
+                  <Switch
+                    value={userForm.isDriver}
+                    onValueChange={(value) => setUserForm({ ...userForm, isDriver: value })}
+                    trackColor={{ false: '#e2e8f0', true: '#86efac' }}
+                    thumbColor={userForm.isDriver ? '#10b981' : '#94a3b8'}
+                  />
                 </View>
               </View>
               {!editingUser && (
@@ -2124,6 +2140,17 @@ const styles = StyleSheet.create({
   },
   maintenanceToggleActive: {
     backgroundColor: '#ef4444',
+  },
+  // Driver toggle styles
+  driverToggleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  driverToggleHint: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
   },
   // Report styles
   reportCard: {

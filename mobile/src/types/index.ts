@@ -2,7 +2,7 @@
 // Note: In a real monorepo setup, you'd use a shared package
 // For now, we'll define the types we need
 
-export type UserRole = 'super_admin' | 'admin' | 'supervisor' | 'employee' | 'driver' | 'cashier' | 'user';
+export type UserRole = 'super_admin' | 'admin' | 'employee' | 'cashier' | 'user';
 
 export interface User {
   _id: string;
@@ -11,6 +11,7 @@ export interface User {
   lastName: string;
   name?: string;
   role: UserRole;
+  isDriver?: boolean;
   isActive: boolean;
   isSuperUser?: boolean;
   isDeptAdmin?: boolean;

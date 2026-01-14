@@ -33,5 +33,6 @@ export function isAdmin(user: CurrentUser | null): boolean {
 }
 
 export function isSupervisor(user: CurrentUser | null): boolean {
-  return hasRole(user, ['super_admin', 'admin', 'supervisor']);
+  // Supervisors are now just admins (supervisor role was removed)
+  return hasRole(user, ['super_admin', 'admin']);
 }

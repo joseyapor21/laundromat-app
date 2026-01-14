@@ -23,12 +23,12 @@ export async function POST(request: NextRequest) {
 
     await connectDB();
 
-    const { email, firstName, lastName, role, temporaryPassword } = await request.json();
+    const { email, firstName, lastName, role, isDriver, temporaryPassword } = await request.json();
 
     // Validate required fields
-    if (!email || !firstName || !lastName || !role || !temporaryPassword) {
+    if (!email || !firstName || !role || !temporaryPassword) {
       return NextResponse.json(
-        { error: 'All fields are required' },
+        { error: 'Email, first name, role, and password are required' },
         { status: 400 }
       );
     }
@@ -48,8 +48,9 @@ export async function POST(request: NextRequest) {
       email: email.toLowerCase(),
       password: temporaryPassword,
       firstName,
-      lastName,
+      lastName: lastName || '',
       role,
+      isDriver: isDriver || false,
       mustChangePassword: true,
       createdBy: currentUser.userId,
     });

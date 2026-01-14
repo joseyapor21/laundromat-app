@@ -172,7 +172,7 @@ export async function getUsersWithPushTokens(): Promise<UserWithToken[]> {
 
 /**
  * Get drivers with push tokens
- * Only returns drivers who have push notifications enabled
+ * Only returns users with driver access who have push notifications enabled
  */
 export async function getDriversWithPushTokens(): Promise<UserWithToken[]> {
   try {
@@ -180,12 +180,19 @@ export async function getDriversWithPushTokens(): Promise<UserWithToken[]> {
     const drivers = await User.find({
       pushToken: { $ne: null, $exists: true },
       isActive: true,
-      role: { $in: ['driver', 'admin', 'super_admin'] }, // Drivers and admins
       $or: [
-        { pushNotificationsEnabled: true },
-        { pushNotificationsEnabled: { $exists: false } }, // Default to enabled for existing users
+        { isDriver: true },
+        { role: { $in: ['admin', 'super_admin'] } }, // Admins always have driver access
       ],
-    }).select('_id pushToken email role').lean();
+      $and: [
+        {
+          $or: [
+            { pushNotificationsEnabled: true },
+            { pushNotificationsEnabled: { $exists: false } }, // Default to enabled for existing users
+          ],
+        },
+      ],
+    }).select('_id pushToken email role isDriver').lean();
 
     return drivers.filter(u => u.pushToken).map(u => ({
       _id: u._id.toString(),

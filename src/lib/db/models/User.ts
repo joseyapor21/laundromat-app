@@ -9,6 +9,7 @@ export interface UserDoc {
   firstName: string;
   lastName: string;
   role: UserRole;
+  isDriver: boolean;
   isActive: boolean;
   mustChangePassword: boolean;
   createdAt: Date;
@@ -39,8 +40,12 @@ const userSchema = new mongoose.Schema<UserDoc>({
   },
   role: {
     type: String,
-    enum: ['super_admin', 'admin', 'supervisor', 'employee', 'driver', 'cashier'] as UserRole[],
+    enum: ['super_admin', 'admin', 'employee', 'cashier'] as UserRole[],
     required: true,
+  },
+  isDriver: {
+    type: Boolean,
+    default: false,
   },
   isActive: {
     type: Boolean,

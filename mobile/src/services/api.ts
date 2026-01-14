@@ -280,8 +280,9 @@ class ApiService {
   async inviteUser(data: {
     email: string;
     firstName: string;
-    lastName: string;
+    lastName?: string;
     role: string;
+    isDriver?: boolean;
     temporaryPassword: string;
   }): Promise<{ message: string; user: User }> {
     return this.request<{ message: string; user: User }>('/users/invite', {

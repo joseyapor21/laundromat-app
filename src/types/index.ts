@@ -1,5 +1,5 @@
 // User types
-export type UserRole = 'super_admin' | 'admin' | 'supervisor' | 'employee' | 'driver' | 'cashier' | 'user';
+export type UserRole = 'super_admin' | 'admin' | 'employee' | 'cashier' | 'user';
 
 export interface User {
   _id: string;
@@ -9,6 +9,7 @@ export interface User {
   firstName: string;
   lastName: string;
   role: UserRole;
+  isDriver?: boolean;
   isActive: boolean;
   mustChangePassword?: boolean;
   isSuperUser?: boolean;

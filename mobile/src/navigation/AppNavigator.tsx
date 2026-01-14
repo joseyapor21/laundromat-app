@@ -40,7 +40,7 @@ const Tab = createBottomTabNavigator();
 function MainTabs() {
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-  const isDriver = isAdmin || user?.role === 'driver';
+  const canAccessDriver = isAdmin || user?.isDriver;
 
   return (
     <Tab.Navigator
@@ -75,7 +75,7 @@ function MainTabs() {
       })}
     >
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
-      {isDriver && (
+      {canAccessDriver && (
         <Tab.Screen name="Driver" component={DriverScreen} />
       )}
       {isAdmin && (
