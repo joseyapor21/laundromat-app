@@ -40,6 +40,7 @@ export default function EditCustomerScreen() {
   const [showAddCredit, setShowAddCredit] = useState(false);
   const [creditAmount, setCreditAmount] = useState('');
   const [creditDescription, setCreditDescription] = useState('');
+  const [printing, setPrinting] = useState(false);
 
   const loadCustomer = useCallback(async () => {
     try {
@@ -124,6 +125,19 @@ export default function EditCustomerScreen() {
     }
   };
 
+  const handlePrintBalance = async () => {
+    setPrinting(true);
+    try {
+      await api.printCustomerBalance(customer!._id);
+      Alert.alert('Success', 'Balance receipt printed');
+    } catch (error) {
+      console.error('Failed to print balance:', error);
+      Alert.alert('Error', 'Failed to print balance receipt');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   const handleDelete = () => {
     Alert.alert(
       'Delete Customer',
@@ -202,15 +216,31 @@ export default function EditCustomerScreen() {
                 ${(customer.credit || 0).toFixed(2)}
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.addCreditButton}
-              onPress={() => setShowAddCredit(!showAddCredit)}
-            >
-              <Ionicons name={showAddCredit ? 'close' : 'add'} size={20} color="#fff" />
-              <Text style={styles.addCreditButtonText}>
-                {showAddCredit ? 'Cancel' : 'Add Credit'}
-              </Text>
-            </TouchableOpacity>
+            <View style={styles.creditActions}>
+              <TouchableOpacity
+                style={[styles.printBalanceButton, printing && styles.buttonDisabled]}
+                onPress={handlePrintBalance}
+                disabled={printing}
+              >
+                {printing ? (
+                  <ActivityIndicator color="#10b981" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="print-outline" size={18} color="#10b981" />
+                    <Text style={styles.printBalanceButtonText}>Print</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.addCreditButton}
+                onPress={() => setShowAddCredit(!showAddCredit)}
+              >
+                <Ionicons name={showAddCredit ? 'close' : 'add'} size={20} color="#fff" />
+                <Text style={styles.addCreditButtonText}>
+                  {showAddCredit ? 'Cancel' : 'Add Credit'}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {showAddCredit && (
@@ -446,6 +476,25 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   creditInfo: {},
+  creditActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  printBalanceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fff',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  printBalanceButtonText: {
+    color: '#10b981',
+    fontSize: 14,
+    fontWeight: '600',
+  },
   creditLabel: {
     fontSize: 12,
     color: 'rgba(255,255,255,0.8)',

@@ -1,6 +1,6 @@
 'use client';
 
-import type { Order, Bag } from '@/types';
+import type { Order, Bag, Customer } from '@/types';
 
 // ESC/POS commands
 const ESC = {
@@ -751,6 +751,128 @@ class PrinterService {
     r += ESC.INVERT_ON;
     r += ` ATTACH TO BAG \n`;
     r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
+
+    r += '\n';
+    r += this.cutCommand;
+
+    return r;
+  }
+
+  // Print customer balance/credit statement
+  async printCustomerBalance(customer: Customer): Promise<boolean> {
+    try {
+      const balanceReceipt = this.generateCustomerBalanceText(customer);
+      await this.printDocument(balanceReceipt, 'Customer Balance');
+      return true;
+    } catch (error) {
+      console.error('Customer balance printing error:', error);
+      throw new Error(`Failed to print customer balance: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Generate customer balance receipt with QR code
+  private generateCustomerBalanceText(customer: Customer): string {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-US', {
+      month: '2-digit',
+      day: '2-digit',
+      year: 'numeric',
+    }).replace(/\//g, '-');
+    const timeStr = now.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
+
+    let r = '';
+
+    // Initialize printer
+    r += ESC.INIT;
+    r += ESC.CENTER;
+
+    // === HEADER ===
+    r += ESC.DOUBLE_SIZE_ON;
+    r += ESC.INVERT_ON;
+    r += ' CUSTOMER CREDIT \n';
+    r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
+
+    r += '\n';
+
+    // Date/Time
+    r += ESC.DOUBLE_HEIGHT_ON;
+    r += `${dateStr} ${timeStr}\n`;
+    r += ESC.NORMAL_SIZE;
+
+    // === STORE INFO ===
+    r += ESC.BOLD_ON;
+    r += ESC.DOUBLE_HEIGHT_ON;
+    r += `${STORE_CONFIG.name}\n`;
+    r += ESC.NORMAL_SIZE;
+    r += ESC.BOLD_OFF;
+    r += `${STORE_CONFIG.address}\n`;
+    r += `${STORE_CONFIG.city}\n`;
+    r += `TEL ${STORE_CONFIG.phone}\n`;
+    r += '------------------------------------------------\n';
+
+    // === CUSTOMER INFO ===
+    r += ESC.DOUBLE_HEIGHT_ON;
+    r += `${customer.name || 'Customer'}\n`;
+    r += ESC.NORMAL_SIZE;
+    r += `${customer.phoneNumber || ''}\n`;
+    if (customer.address) {
+      r += `${customer.address}\n`;
+    }
+    r += '------------------------------------------------\n';
+
+    // === CREDIT BALANCE ===
+    r += ESC.CENTER;
+    r += ESC.DOUBLE_SIZE_ON;
+    r += ESC.BOLD_ON;
+    r += 'CREDIT BALANCE\n';
+    r += ESC.INVERT_ON;
+    r += ` $${(customer.credit || 0).toFixed(2)} \n`;
+    r += ESC.INVERT_OFF;
+    r += ESC.BOLD_OFF;
+    r += ESC.NORMAL_SIZE;
+    r += '\n';
+
+    // === RECENT CREDIT HISTORY (last 5 transactions) ===
+    if (customer.creditHistory && customer.creditHistory.length > 0) {
+      r += ESC.CENTER;
+      r += ESC.BOLD_ON;
+      r += 'Recent Transactions\n';
+      r += ESC.BOLD_OFF;
+      r += ESC.LEFT;
+
+      const recentTransactions = customer.creditHistory.slice(-5).reverse();
+      recentTransactions.forEach(tx => {
+        const txDate = new Date(tx.createdAt).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+        });
+        const amount = tx.type === 'add' ? `+$${tx.amount.toFixed(2)}` : `-$${tx.amount.toFixed(2)}`;
+        r += this.leftRightAlign(txDate, amount) + '\n';
+        if (tx.description) {
+          const desc = tx.description.length > 30 ? tx.description.substring(0, 30) + '...' : tx.description;
+          r += `  ${desc}\n`;
+        }
+      });
+      r += '------------------------------------------------\n';
+    }
+
+    // === QR CODE (Links to customer profile) ===
+    // Format: CUSTOMER:customerId
+    const qrData = `CUSTOMER:${customer._id}`;
+    r += this.generateQRCode(qrData, 12);
+
+    r += ESC.CENTER;
+    r += 'Scan QR to view full credit history\n';
+    r += '\n';
+
+    r += ESC.DOUBLE_HEIGHT_ON;
+    r += 'Thank you for your business!\n';
     r += ESC.NORMAL_SIZE;
 
     r += '\n';

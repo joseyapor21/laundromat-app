@@ -115,6 +115,14 @@ export default function DashboardScreen() {
     if (hasScannedRef.current) return;
     hasScannedRef.current = true;
 
+    // Check if this is a customer QR code
+    if (data.startsWith('CUSTOMER:')) {
+      const customerId = data.replace('CUSTOMER:', '').trim();
+      setShowScanner(false);
+      navigation.navigate('EditCustomer', { customerId });
+      return;
+    }
+
     const orderNum = data.replace(/^#/, '').trim();
     findOrderByNumber(orderNum);
   };

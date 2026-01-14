@@ -263,6 +263,13 @@ class ApiService {
     });
   }
 
+  // Print customer balance
+  async printCustomerBalance(customerId: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/customers/${customerId}/print-balance`, {
+      method: 'POST',
+    });
+  }
+
   // Push Notifications
   async registerPushToken(token: string, platform: 'ios' | 'android'): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>('/users/push-token', {
