@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { ScannerProvider, FloatingScanButton } from '../contexts/ScannerContext';
 
 // Screens
 import LoginScreen from '../screens/LoginScreen';
@@ -161,6 +162,15 @@ function MainStack() {
   );
 }
 
+function AuthenticatedApp() {
+  return (
+    <ScannerProvider>
+      <MainStack />
+      <FloatingScanButton />
+    </ScannerProvider>
+  );
+}
+
 export default function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
 
@@ -174,7 +184,7 @@ export default function AppNavigator() {
 
   return (
     <NavigationContainer>
-      {isAuthenticated ? <MainStack /> : <AuthStack />}
+      {isAuthenticated ? <AuthenticatedApp /> : <AuthStack />}
     </NavigationContainer>
   );
 }
