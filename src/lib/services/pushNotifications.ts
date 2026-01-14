@@ -135,10 +135,9 @@ export async function getUsersWithPushTokens(): Promise<UserWithToken[]> {
   // Get users from auth database (fallback for users not in app model)
   try {
     const db = await getAuthDatabase();
-    const authUsers = await db.collection('users')
+    const authUsers = await db.collection('v5users')
       .find({
         pushToken: { $ne: null, $exists: true },
-        isActive: { $ne: false },
       })
       .project({ _id: 1, pushToken: 1, email: 1 })
       .toArray();

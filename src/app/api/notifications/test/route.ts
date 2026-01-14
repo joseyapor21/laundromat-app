@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db/connection';
+import { connectDB, getAuthDatabase } from '@/lib/db/connection';
 import { User } from '@/lib/db/models';
 import { getCurrentUser, isAdmin } from '@/lib/auth/server';
 import { sendPushNotification, getUsersWithPushTokens } from '@/lib/services/pushNotifications';
@@ -17,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Admin only' }, { status: 403 });
     }
 
-    // Get all users with push tokens
+    // Get all users with push tokens using our function
     const usersWithTokens = await getUsersWithPushTokens();
 
     // Also check the app User model directly
@@ -25,6 +25,13 @@ export async function GET() {
     const appUsersWithTokens = await User.find({
       pushToken: { $ne: null, $exists: true },
     }).select('email pushToken role').lean();
+
+    // Also check the auth database directly (v5users collection)
+    const db = await getAuthDatabase();
+    const authUsersWithTokens = await db.collection('v5users')
+      .find({ pushToken: { $ne: null, $exists: true } })
+      .project({ email: 1, pushToken: 1 })
+      .toArray();
 
     return NextResponse.json({
       usersWithPushTokens: usersWithTokens.length,
@@ -36,7 +43,11 @@ export async function GET() {
       appModelUsers: appUsersWithTokens.map(u => ({
         email: u.email,
         role: u.role,
-        hasToken: !!u.pushToken,
+        token: u.pushToken?.substring(0, 30) + '...',
+      })),
+      authDatabaseUsers: authUsersWithTokens.map(u => ({
+        email: u.email,
+        token: u.pushToken?.substring(0, 30) + '...',
       })),
     });
   } catch (error) {

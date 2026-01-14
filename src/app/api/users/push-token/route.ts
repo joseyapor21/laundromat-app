@@ -33,9 +33,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update in auth database
+    // Update in auth database (v5users collection)
     const db = await getAuthDatabase();
-    await db.collection('users').updateOne(
+    await db.collection('v5users').updateOne(
       { _id: new ObjectId(currentUser.userId) },
       {
         $set: {
@@ -81,9 +81,9 @@ export async function DELETE() {
       );
     }
 
-    // Remove from auth database
+    // Remove from auth database (v5users collection)
     const db = await getAuthDatabase();
-    await db.collection('users').updateOne(
+    await db.collection('v5users').updateOne(
       { _id: new ObjectId(currentUser.userId) },
       {
         $set: {
