@@ -64,6 +64,8 @@ export default function CashierReportPage() {
     };
 
     let grandTotal = 0;
+    let creditCount = 0;
+    let creditTotal = 0;
 
     orders.forEach(order => {
       // Default to 'cash' if no payment method is set
@@ -71,16 +73,18 @@ export default function CashierReportPage() {
       let method: DisplayPaymentMethod = (order.paymentMethod || 'cash') as DisplayPaymentMethod;
       if (order.paymentMethod === 'credit') {
         method = 'cash';
+        creditCount += 1;
+        creditTotal += order.totalAmount;
       }
       summary[method].total += order.totalAmount;
       summary[method].count += 1;
       grandTotal += order.totalAmount;
     });
 
-    return { summary, grandTotal };
+    return { summary, grandTotal, creditCount, creditTotal };
   };
 
-  const { summary, grandTotal } = getPaymentSummary();
+  const { summary, grandTotal, creditCount, creditTotal } = getPaymentSummary();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -97,6 +101,67 @@ export default function CashierReportPage() {
     }
     const padding = maxWidth - totalContentLength;
     return left + ' '.repeat(padding) + right;
+  };
+
+  const handleShare = async () => {
+    // Format date for display
+    const reportDate = new Date(selectedDate + 'T00:00:00');
+    const dateStr = reportDate.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
+    let text = '📊 CASHIER REPORT\n';
+    text += `📅 ${dateStr}\n`;
+    text += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
+
+    text += '💰 PAYMENT SUMMARY\n';
+    text += `Cash: ${formatCurrency(summary.cash.total)} (${summary.cash.count} orders)\n`;
+    if (creditCount > 0) {
+      text += `  └ ${creditCount} from credit: ${formatCurrency(creditTotal)}\n`;
+    }
+    text += `Check: ${formatCurrency(summary.check.total)} (${summary.check.count} orders)\n`;
+    text += `Venmo: ${formatCurrency(summary.venmo.total)} (${summary.venmo.count} orders)\n`;
+    text += `Zelle: ${formatCurrency(summary.zelle.total)} (${summary.zelle.count} orders)\n\n`;
+
+    text += '━━━━━━━━━━━━━━━━━━━━━━\n';
+    text += `💵 TOTAL: ${formatCurrency(grandTotal)}\n`;
+    text += `📦 Orders: ${orders.length}\n`;
+    text += '━━━━━━━━━━━━━━━━━━━━━━\n\n';
+
+    text += '📋 ORDER DETAILS\n';
+    orders.forEach(order => {
+      const method = order.paymentMethod === 'credit'
+        ? 'Credit'
+        : (order.paymentMethod?.toUpperCase() || 'CASH');
+      text += `#${order.orderId} ${order.customerName || ''} - ${formatCurrency(order.totalAmount)} (${method})\n`;
+    });
+
+    text += '\n━━━━━━━━━━━━━━━━━━━━━━\n';
+    text += `Generated: ${new Date().toLocaleString()}\n`;
+
+    // Try Web Share API first, fallback to clipboard
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `Cashier Report - ${dateStr}`,
+          text: text,
+        });
+        toast.success('Report shared successfully');
+      } catch (error) {
+        // User cancelled or share failed - try clipboard
+        if ((error as Error).name !== 'AbortError') {
+          await navigator.clipboard.writeText(text);
+          toast.success('Report copied to clipboard');
+        }
+      }
+    } else {
+      // Fallback to clipboard
+      await navigator.clipboard.writeText(text);
+      toast.success('Report copied to clipboard');
+    }
   };
 
   const handlePrintThermal = async () => {
@@ -136,6 +201,9 @@ export default function CashierReportPage() {
       r += '------------------------------------------------\n';
 
       r += leftRightAlign(`Cash (${summary.cash.count} orders)`, `$${summary.cash.total.toFixed(2)}`) + '\n';
+      if (creditCount > 0) {
+        r += `  (${creditCount} from credit)\n`;
+      }
       r += leftRightAlign(`Check (${summary.check.count} orders)`, `$${summary.check.total.toFixed(2)}`) + '\n';
       r += leftRightAlign(`Venmo (${summary.venmo.count} orders)`, `$${summary.venmo.total.toFixed(2)}`) + '\n';
       r += leftRightAlign(`Zelle (${summary.zelle.count} orders)`, `$${summary.zelle.total.toFixed(2)}`) + '\n';
@@ -159,7 +227,9 @@ export default function CashierReportPage() {
       r += '------------------------------------------------\n';
 
       orders.forEach(order => {
-        const method = order.paymentMethod?.toUpperCase() || 'CASH';
+        const method = order.paymentMethod === 'credit'
+          ? 'CASH (Credit)'
+          : (order.paymentMethod?.toUpperCase() || 'CASH');
         r += leftRightAlign(`#${order.orderId} ${order.customerName?.substring(0, 20) || ''}`, `$${order.totalAmount.toFixed(2)}`) + '\n';
         r += `  ${method}\n`;
       });
@@ -235,6 +305,11 @@ export default function CashierReportPage() {
                 <div className="text-2xl font-bold text-green-800 mt-1">
                   {formatCurrency(summary.cash.total)}
                 </div>
+                {creditCount > 0 && (
+                  <div className="text-xs text-green-600 mt-1">
+                    ({creditCount} credit = {formatCurrency(creditTotal)})
+                  </div>
+                )}
               </div>
               <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
                 <div className="flex items-center justify-between">
@@ -306,7 +381,11 @@ export default function CashierReportPage() {
                           #{order.orderId} - {order.customerName}
                         </div>
                         <div className="text-sm text-slate-500">
-                          {order.paymentMethod?.toUpperCase()}
+                          {order.paymentMethod === 'credit' ? (
+                            <span>CASH <span className="text-green-600">(Credit)</span></span>
+                          ) : (
+                            order.paymentMethod?.toUpperCase() || 'CASH'
+                          )}
                         </div>
                       </div>
                       <div className="font-bold text-slate-800">
@@ -318,7 +397,7 @@ export default function CashierReportPage() {
               )}
             </div>
 
-            {/* Print Buttons */}
+            {/* Print & Share Buttons */}
             <div className="mt-6 flex flex-col md:flex-row gap-3">
               <button
                 onClick={handlePrintThermal}
@@ -344,6 +423,15 @@ export default function CashierReportPage() {
                 className="flex-1 md:flex-none px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
               >
                 Print to Browser
+              </button>
+              <button
+                onClick={handleShare}
+                className="flex-1 md:flex-none px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                Share Report
               </button>
             </div>
           </>

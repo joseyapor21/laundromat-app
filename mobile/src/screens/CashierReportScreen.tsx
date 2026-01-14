@@ -8,13 +8,31 @@ import {
   ActivityIndicator,
   RefreshControl,
   Share,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
 import type { Order, PaymentMethod } from '../types';
 
-const PAYMENT_METHODS: { key: PaymentMethod; label: string; color: string }[] = [
+// ESC/POS commands for thermal printer
+const ESC = {
+  INIT: '\x1B\x40',
+  INVERT_ON: '\x1D\x42\x01',
+  INVERT_OFF: '\x1D\x42\x00',
+  BOLD_ON: '\x1B\x45\x01',
+  BOLD_OFF: '\x1B\x45\x00',
+  DOUBLE_HEIGHT_ON: '\x1B\x21\x10',
+  DOUBLE_SIZE_ON: '\x1B\x21\x30',
+  NORMAL_SIZE: '\x1B\x21\x00',
+  CENTER: '\x1B\x61\x01',
+  LEFT: '\x1B\x61\x00',
+  FEED_AND_CUT: '\n\n\n\x1D\x56\x00',
+};
+
+// Display payment methods (credit is counted as cash)
+type DisplayPaymentMethod = 'cash' | 'check' | 'venmo' | 'zelle';
+const PAYMENT_METHODS: { key: DisplayPaymentMethod; label: string; color: string }[] = [
   { key: 'cash', label: 'Cash', color: '#10b981' },
   { key: 'check', label: 'Check', color: '#3b82f6' },
   { key: 'venmo', label: 'Venmo', color: '#8b5cf6' },
@@ -24,6 +42,7 @@ const PAYMENT_METHODS: { key: PaymentMethod; label: string; color: string }[] = 
 export default function CashierReportScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [printing, setPrinting] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -59,14 +78,28 @@ export default function CashierReportScreen() {
     );
   });
 
-  // Calculate totals by payment method
+  // Calculate totals by payment method (credit counts as cash)
+  const getDisplayMethod = (paymentMethod: PaymentMethod | undefined): DisplayPaymentMethod => {
+    if (paymentMethod === 'credit') return 'cash';
+    if (!paymentMethod || !['cash', 'check', 'venmo', 'zelle'].includes(paymentMethod)) return 'cash';
+    return paymentMethod as DisplayPaymentMethod;
+  };
+
+  // Track credit separately for display
+  const creditOrders = paidOrdersToday.filter(o => o.paymentMethod === 'credit');
+  const creditCount = creditOrders.length;
+  const creditTotal = creditOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+
   const totalsByMethod = PAYMENT_METHODS.map(method => {
-    const methodOrders = paidOrdersToday.filter(o => o.paymentMethod === method.key);
+    const methodOrders = paidOrdersToday.filter(o => getDisplayMethod(o.paymentMethod) === method.key);
     const total = methodOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
     return {
       ...method,
       count: methodOrders.length,
       total,
+      // Add credit info for cash method
+      creditCount: method.key === 'cash' ? creditCount : 0,
+      creditTotal: method.key === 'cash' ? creditTotal : 0,
     };
   });
 
@@ -108,20 +141,144 @@ export default function CashierReportScreen() {
     );
   };
 
+  // Helper for thermal print alignment
+  const leftRightAlign = (left: string, right: string): string => {
+    const maxWidth = 48;
+    const totalContentLength = left.length + right.length;
+    if (totalContentLength >= maxWidth) {
+      return `${left} ${right}`;
+    }
+    const padding = maxWidth - totalContentLength;
+    return left + ' '.repeat(padding) + right;
+  };
+
+  // Print to thermal printer
+  const handlePrint = async () => {
+    setPrinting(true);
+    try {
+      const dateStr = selectedDate.toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      });
+
+      let r = '';
+      r += ESC.INIT;
+      r += ESC.CENTER;
+
+      // Header
+      r += ESC.DOUBLE_SIZE_ON;
+      r += ESC.INVERT_ON;
+      r += ' CASHIER REPORT \n';
+      r += ESC.INVERT_OFF;
+      r += ESC.NORMAL_SIZE;
+      r += '\n';
+
+      r += ESC.DOUBLE_HEIGHT_ON;
+      r += `${dateStr}\n`;
+      r += ESC.NORMAL_SIZE;
+      r += '================================================\n';
+
+      // Summary by payment method
+      r += ESC.LEFT;
+      r += ESC.BOLD_ON;
+      r += 'PAYMENT SUMMARY\n';
+      r += ESC.BOLD_OFF;
+      r += '------------------------------------------------\n';
+
+      const cashMethod = totalsByMethod.find(m => m.key === 'cash');
+      r += leftRightAlign(`Cash (${cashMethod?.count || 0} orders)`, `$${(cashMethod?.total || 0).toFixed(2)}`) + '\n';
+      if (creditCount > 0) {
+        r += `  (${creditCount} from credit)\n`;
+      }
+
+      const checkMethod = totalsByMethod.find(m => m.key === 'check');
+      r += leftRightAlign(`Check (${checkMethod?.count || 0} orders)`, `$${(checkMethod?.total || 0).toFixed(2)}`) + '\n';
+
+      const venmoMethod = totalsByMethod.find(m => m.key === 'venmo');
+      r += leftRightAlign(`Venmo (${venmoMethod?.count || 0} orders)`, `$${(venmoMethod?.total || 0).toFixed(2)}`) + '\n';
+
+      const zelleMethod = totalsByMethod.find(m => m.key === 'zelle');
+      r += leftRightAlign(`Zelle (${zelleMethod?.count || 0} orders)`, `$${(zelleMethod?.total || 0).toFixed(2)}`) + '\n';
+
+      r += '================================================\n';
+      r += ESC.DOUBLE_HEIGHT_ON;
+      r += ESC.BOLD_ON;
+      r += leftRightAlign('TOTAL', `$${grandTotal.toFixed(2)}`) + '\n';
+      r += leftRightAlign('Orders', totalOrderCount.toString()) + '\n';
+      r += ESC.BOLD_OFF;
+      r += ESC.NORMAL_SIZE;
+      r += '================================================\n';
+
+      // Individual orders
+      r += '\n';
+      r += ESC.CENTER;
+      r += ESC.BOLD_ON;
+      r += 'ORDER DETAILS\n';
+      r += ESC.BOLD_OFF;
+      r += ESC.LEFT;
+      r += '------------------------------------------------\n';
+
+      paidOrdersToday.forEach(order => {
+        const method = order.paymentMethod === 'credit'
+          ? 'CASH (Credit)'
+          : (order.paymentMethod?.toUpperCase() || 'CASH');
+        r += leftRightAlign(`#${order.orderId} ${order.customerName?.substring(0, 20) || ''}`, `$${order.totalAmount.toFixed(2)}`) + '\n';
+        r += `  ${method}\n`;
+      });
+
+      r += '================================================\n';
+      r += ESC.CENTER;
+      r += `Printed: ${new Date().toLocaleString()}\n`;
+      r += '\n';
+      r += ESC.FEED_AND_CUT;
+
+      // Send to printer via API
+      const result = await api.printReceipt(r);
+      if (result.success) {
+        Alert.alert('Success', 'Report printed successfully');
+      } else {
+        throw new Error(result.error || 'Print failed');
+      }
+    } catch (error) {
+      console.error('Print error:', error);
+      Alert.alert('Error', 'Failed to print report');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
   // Share report
   const handleShare = async () => {
-    const report = `
-CASHIER REPORT
-${formatDate(selectedDate)}
+    let summaryLines = totalsByMethod.map(m => {
+      let line = `${m.label}: ${m.count} orders - $${m.total.toFixed(2)}`;
+      if (m.creditCount > 0) {
+        line += `\n  └ ${m.creditCount} from credit: $${m.creditTotal.toFixed(2)}`;
+      }
+      return line;
+    }).join('\n');
 
-SUMMARY:
-${totalsByMethod.map(m => `${m.label}: ${m.count} orders - $${m.total.toFixed(2)}`).join('\n')}
+    const report = `📊 CASHIER REPORT
+📅 ${formatDate(selectedDate)}
+━━━━━━━━━━━━━━━━━━━━━━
 
-TOTAL: ${totalOrderCount} orders - $${grandTotal.toFixed(2)}
+💰 PAYMENT SUMMARY
+${summaryLines}
 
-PAID ORDERS:
-${paidOrdersToday.map(o => `#${o.orderId} - ${o.customerName} - $${o.totalAmount.toFixed(2)} (${o.paymentMethod})`).join('\n')}
-    `.trim();
+━━━━━━━━━━━━━━━━━━━━━━
+💵 TOTAL: $${grandTotal.toFixed(2)}
+📦 Orders: ${totalOrderCount}
+━━━━━━━━━━━━━━━━━━━━━━
+
+📋 ORDER DETAILS
+${paidOrdersToday.map(o => {
+  const method = o.paymentMethod === 'credit' ? 'Credit' : (o.paymentMethod?.toUpperCase() || 'CASH');
+  return `#${o.orderId} ${o.customerName} - $${o.totalAmount.toFixed(2)} (${method})`;
+}).join('\n')}
+
+━━━━━━━━━━━━━━━━━━━━━━
+Generated: ${new Date().toLocaleString()}`.trim();
 
     try {
       await Share.share({
@@ -184,7 +341,12 @@ ${paidOrdersToday.map(o => `#${o.orderId} - ${o.customerName} - $${o.totalAmount
             <View key={method.key} style={styles.methodCard}>
               <View style={styles.methodInfo}>
                 <View style={[styles.methodDot, { backgroundColor: method.color }]} />
-                <Text style={styles.methodLabel}>{method.label}</Text>
+                <View>
+                  <Text style={styles.methodLabel}>{method.label}</Text>
+                  {method.creditCount > 0 && (
+                    <Text style={styles.creditNote}>({method.creditCount} credit = ${method.creditTotal.toFixed(2)})</Text>
+                  )}
+                </View>
               </View>
               <View style={styles.methodStats}>
                 <Text style={styles.methodCount}>{method.count} orders</Text>
@@ -202,31 +364,54 @@ ${paidOrdersToday.map(o => `#${o.orderId} - ${o.customerName} - $${o.totalAmount
               <Text style={styles.emptyText}>No paid orders for this date</Text>
             </View>
           ) : (
-            paidOrdersToday.map(order => (
-              <View key={order._id} style={styles.orderCard}>
-                <View style={styles.orderInfo}>
-                  <Text style={styles.orderNumber}>#{order.orderId}</Text>
-                  <Text style={styles.orderCustomer}>{order.customerName}</Text>
-                </View>
-                <View style={styles.orderPayment}>
-                  <Text style={styles.orderAmount}>${order.totalAmount.toFixed(2)}</Text>
-                  <View style={[
-                    styles.paymentBadge,
-                    { backgroundColor: PAYMENT_METHODS.find(m => m.key === order.paymentMethod)?.color || '#94a3b8' }
-                  ]}>
-                    <Text style={styles.paymentBadgeText}>{order.paymentMethod}</Text>
+            paidOrdersToday.map(order => {
+              const isCredit = order.paymentMethod === 'credit';
+              const displayMethod = getDisplayMethod(order.paymentMethod);
+              return (
+                <View key={order._id} style={styles.orderCard}>
+                  <View style={styles.orderInfo}>
+                    <Text style={styles.orderNumber}>#{order.orderId}</Text>
+                    <Text style={styles.orderCustomer}>{order.customerName}</Text>
+                  </View>
+                  <View style={styles.orderPayment}>
+                    <Text style={styles.orderAmount}>${order.totalAmount.toFixed(2)}</Text>
+                    <View style={[
+                      styles.paymentBadge,
+                      { backgroundColor: PAYMENT_METHODS.find(m => m.key === displayMethod)?.color || '#94a3b8' }
+                    ]}>
+                      <Text style={styles.paymentBadgeText}>
+                        {isCredit ? 'Cash (Credit)' : displayMethod}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            ))
+              );
+            })
           )}
         </View>
 
-        {/* Share Button */}
-        <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
-          <Ionicons name="share-outline" size={20} color="#fff" />
-          <Text style={styles.shareButtonText}>Share Report</Text>
-        </TouchableOpacity>
+        {/* Print & Share Buttons */}
+        <View style={styles.buttonRow}>
+          <TouchableOpacity
+            style={[styles.printButton, printing && styles.buttonDisabled]}
+            onPress={handlePrint}
+            disabled={printing}
+          >
+            {printing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="print-outline" size={20} color="#fff" />
+            )}
+            <Text style={styles.buttonText}>
+              {printing ? 'Printing...' : 'Print'}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+            <Ionicons name="share-outline" size={20} color="#fff" />
+            <Text style={styles.buttonText}>Share</Text>
+          </TouchableOpacity>
+        </View>
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -342,6 +527,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#1e293b',
   },
+  creditNote: {
+    fontSize: 11,
+    color: '#10b981',
+    marginTop: 2,
+  },
   methodStats: {
     alignItems: 'flex-end',
   },
@@ -404,17 +594,35 @@ const styles = StyleSheet.create({
     color: '#fff',
     textTransform: 'capitalize',
   },
+  buttonRow: {
+    flexDirection: 'row',
+    marginHorizontal: 16,
+    gap: 12,
+  },
+  printButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#10b981',
+    padding: 16,
+    borderRadius: 12,
+  },
   shareButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     backgroundColor: '#2563eb',
-    marginHorizontal: 16,
     padding: 16,
     borderRadius: 12,
   },
-  shareButtonText: {
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+  buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
