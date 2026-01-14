@@ -308,6 +308,16 @@ class ApiService {
     });
   }
 
+  async testPushNotification(): Promise<{ success: boolean; message?: string }> {
+    return this.request<{ success: boolean; message?: string }>('/notifications/test', {
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'Test Notification',
+        body: 'Push notifications are working!',
+      }),
+    });
+  }
+
   // Activity Logs
   async getActivityLogs(params?: {
     limit?: number;

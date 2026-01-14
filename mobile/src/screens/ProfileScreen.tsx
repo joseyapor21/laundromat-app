@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { api } from '../services/api';
 
+// Dynamically import push notifications
+let pushNotificationService: {
+  registerForPushNotifications: () => Promise<string | null>;
+} | null = null;
+
+try {
+  pushNotificationService = require('../services/pushNotifications').pushNotificationService;
+} catch (e) {
+  console.log('Push notifications not available');
+}
+
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
@@ -32,6 +43,46 @@ export default function ProfileScreen() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+
+  // Push notification status
+  const [pushStatus, setPushStatus] = useState<'checking' | 'enabled' | 'disabled' | 'unavailable'>('checking');
+  const [pushToken, setPushToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    checkPushNotificationStatus();
+  }, []);
+
+  const checkPushNotificationStatus = async () => {
+    if (!pushNotificationService) {
+      setPushStatus('unavailable');
+      return;
+    }
+    try {
+      const token = await pushNotificationService.registerForPushNotifications();
+      if (token) {
+        setPushStatus('enabled');
+        setPushToken(token);
+      } else {
+        setPushStatus('disabled');
+      }
+    } catch (e) {
+      console.log('Push check error:', e);
+      setPushStatus('unavailable');
+    }
+  };
+
+  const handleTestPushNotification = async () => {
+    if (!pushToken) {
+      Alert.alert('Error', 'Push notifications are not enabled');
+      return;
+    }
+    try {
+      const response = await api.testPushNotification();
+      Alert.alert('Success', 'Test notification sent! You should receive it shortly.');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to send test notification');
+    }
+  };
 
   async function handleLogout() {
     Alert.alert(
@@ -259,6 +310,41 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
           </View>
         </TouchableOpacity>
+
+        <View style={styles.card}>
+          <View style={styles.cardRow}>
+            <View style={[styles.cardIcon, {
+              backgroundColor: pushStatus === 'enabled' ? '#dcfce7' :
+                             pushStatus === 'disabled' ? '#fef3c7' : '#fee2e2'
+            }]}>
+              <Ionicons
+                name="notifications"
+                size={24}
+                color={pushStatus === 'enabled' ? '#10b981' :
+                       pushStatus === 'disabled' ? '#f59e0b' : '#ef4444'}
+              />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardValue}>Push Notifications</Text>
+              <Text style={styles.cardLabel}>
+                {pushStatus === 'checking' ? 'Checking...' :
+                 pushStatus === 'enabled' ? 'Enabled - receiving notifications' :
+                 pushStatus === 'disabled' ? 'Disabled - tap to enable' :
+                 'Unavailable - requires native build'}
+              </Text>
+            </View>
+            {pushStatus === 'enabled' && (
+              <TouchableOpacity onPress={handleTestPushNotification}>
+                <Ionicons name="send" size={20} color="#2563eb" />
+              </TouchableOpacity>
+            )}
+            {pushStatus === 'disabled' && (
+              <TouchableOpacity onPress={checkPushNotificationStatus}>
+                <Ionicons name="refresh" size={20} color="#f59e0b" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
       </View>
 
       {/* App Info */}
