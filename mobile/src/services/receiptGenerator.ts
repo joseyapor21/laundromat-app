@@ -207,8 +207,9 @@ export function generateCustomerReceiptText(order: Order): string {
     r += ESC.CENTER;
     r += 'Extra Items\n';
     r += ESC.LEFT;
-    order.extraItems.forEach(item => {
-      r += leftRightAlign(`${item.name} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
+    order.extraItems.forEach((item: any) => {
+      const itemName = item.name || item.item?.name || 'Extra Item';
+      r += leftRightAlign(`${itemName} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
     });
   }
 
@@ -384,8 +385,9 @@ export function generateStoreCopyText(order: Order): string {
     r += ESC.CENTER;
     r += 'Extra Items\n';
     r += ESC.LEFT;
-    order.extraItems.forEach(item => {
-      r += leftRightAlign(`${item.name} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
+    order.extraItems.forEach((item: any) => {
+      const itemName = item.name || item.item?.name || 'Extra Item';
+      r += leftRightAlign(`${itemName} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
     });
   }
 

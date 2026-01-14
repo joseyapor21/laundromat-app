@@ -956,12 +956,15 @@ export default function OrderDetailScreen() {
             {order.extraItems && order.extraItems.length > 0 && (
               <View style={styles.extraItemsSection}>
                 <Text style={styles.extraItemsLabel}>Extra Items</Text>
-                {order.extraItems.map((item, index) => (
-                  <View key={`extra-${index}`} style={styles.itemRow}>
-                    <Text style={styles.itemName}>{item.name} x{item.quantity}</Text>
-                    <Text style={styles.itemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
-                  </View>
-                ))}
+                {order.extraItems.map((item: any, index) => {
+                  const itemName = item.name || item.item?.name || 'Extra Item';
+                  return (
+                    <View key={`extra-${index}`} style={styles.itemRow}>
+                      <Text style={styles.itemName}>{itemName} x{item.quantity}</Text>
+                      <Text style={styles.itemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+                    </View>
+                  );
+                })}
               </View>
             )}
             <View style={styles.totalRow}>
