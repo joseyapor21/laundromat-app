@@ -135,18 +135,32 @@ export function ScannerProvider({ children }: ScannerProviderProps) {
   );
 }
 
-// Floating Scan Button Component
-export function FloatingScanButton() {
+// Floating Action Buttons Component (Scan + Add)
+export function FloatingActionButtons() {
   const { openScanner } = useScanner();
+  const navigation = useNavigation<any>();
+
+  const handleAddOrder = () => {
+    navigation.navigate('CreateOrder');
+  };
 
   return (
-    <TouchableOpacity
-      style={styles.floatingButton}
-      onPress={openScanner}
-      activeOpacity={0.8}
-    >
-      <Ionicons name="scan" size={28} color="#fff" />
-    </TouchableOpacity>
+    <View style={styles.floatingButtonsContainer}>
+      <TouchableOpacity
+        style={[styles.floatingButton, styles.floatingButtonScan]}
+        onPress={openScanner}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="qr-code" size={24} color="#fff" />
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={[styles.floatingButton, styles.floatingButtonAdd]}
+        onPress={handleAddOrder}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="add" size={32} color="#fff" />
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -204,14 +218,18 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 8,
   },
-  floatingButton: {
+  floatingButtonsContainer: {
     position: 'absolute',
     bottom: 90,
     right: 20,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#2563eb',
+    flexDirection: 'row',
+    gap: 12,
+    zIndex: 1000,
+  },
+  floatingButton: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -219,6 +237,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-    zIndex: 1000,
+  },
+  floatingButtonScan: {
+    backgroundColor: '#f59e0b',
+  },
+  floatingButtonAdd: {
+    backgroundColor: '#2563eb',
   },
 });

@@ -276,20 +276,6 @@ export default function DashboardScreen() {
           <Text style={styles.headerTitle}>Dashboard</Text>
           <Text style={styles.headerSubtitle}>Welcome, {user?.firstName || 'User'}</Text>
         </View>
-        <View style={styles.headerButtons}>
-          <TouchableOpacity
-            style={styles.scanButton}
-            onPress={openScanner}
-          >
-            <Ionicons name="qr-code" size={24} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => navigation.navigate('CreateOrder')}
-          >
-            <Ionicons name="add" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* Filter Tabs */}
