@@ -161,6 +161,10 @@ class ApiService {
     });
   }
 
+  async getCustomerOrders(customerId: string): Promise<Order[]> {
+    return this.request<Order[]>(`/customers/${customerId}/orders`);
+  }
+
   async addCustomerCredit(id: string, amount: number, description: string): Promise<Customer> {
     return this.request<Customer>(`/customers/${id}/credit`, {
       method: 'POST',

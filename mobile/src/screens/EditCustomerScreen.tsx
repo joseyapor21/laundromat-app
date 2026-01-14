@@ -16,7 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import type { Customer, CreditTransaction } from '../types';
+import type { Customer, CreditTransaction, Order, StatusHistoryEntry } from '../types';
 
 export default function EditCustomerScreen() {
   const route = useRoute<any>();
@@ -42,6 +42,11 @@ export default function EditCustomerScreen() {
   const [creditDescription, setCreditDescription] = useState('');
   const [printing, setPrinting] = useState(false);
 
+  // Orders
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
   const loadCustomer = useCallback(async () => {
     try {
       const data = await api.getCustomer(route.params.customerId);
@@ -54,6 +59,9 @@ export default function EditCustomerScreen() {
       setEmail(data.email || '');
       setDeliveryFee(data.deliveryFee?.replace('$', '') || '');
       setNotes(data.notes || '');
+
+      // Load orders
+      loadOrders(route.params.customerId);
     } catch (error) {
       Alert.alert('Error', 'Failed to load customer');
       navigation.goBack();
@@ -61,6 +69,18 @@ export default function EditCustomerScreen() {
       setLoading(false);
     }
   }, [route.params.customerId, navigation]);
+
+  const loadOrders = async (customerId: string) => {
+    setLoadingOrders(true);
+    try {
+      const ordersData = await api.getCustomerOrders(customerId);
+      setOrders(ordersData);
+    } catch (error) {
+      console.error('Failed to load orders:', error);
+    } finally {
+      setLoadingOrders(false);
+    }
+  };
 
   useEffect(() => {
     loadCustomer();
@@ -180,6 +200,50 @@ export default function EditCustomerScreen() {
     } catch {
       return '';
     }
+  };
+
+  const formatShortDate = (date: Date | string): string => {
+    try {
+      const d = new Date(date);
+      return d.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+    } catch {
+      return '';
+    }
+  };
+
+  const getStatusLabel = (status: string): string => {
+    const labels: Record<string, string> = {
+      new_order: 'New Order',
+      received: 'Received',
+      in_washer: 'In Washer',
+      in_dryer: 'In Dryer',
+      folded: 'Folded',
+      ready_for_pickup: 'Ready for Pickup',
+      ready_for_delivery: 'Ready for Delivery',
+      out_for_delivery: 'Out for Delivery',
+      delivered: 'Delivered',
+      completed: 'Completed',
+    };
+    return labels[status] || status;
+  };
+
+  const getStatusColor = (status: string): string => {
+    const colors: Record<string, string> = {
+      new_order: '#f59e0b',
+      received: '#3b82f6',
+      in_washer: '#06b6d4',
+      in_dryer: '#8b5cf6',
+      folded: '#ec4899',
+      ready_for_pickup: '#10b981',
+      ready_for_delivery: '#10b981',
+      out_for_delivery: '#f97316',
+      delivered: '#22c55e',
+      completed: '#22c55e',
+    };
+    return colors[status] || '#64748b';
   };
 
   if (loading) {
@@ -307,6 +371,131 @@ export default function EditCustomerScreen() {
               </View>
             </View>
           )}
+
+          {/* Order History */}
+          <View style={styles.section}>
+            <View style={styles.orderHistoryHeader}>
+              <Text style={styles.sectionTitle}>Order History</Text>
+              <Text style={styles.orderCount}>{orders.length} orders</Text>
+            </View>
+            {loadingOrders ? (
+              <View style={styles.orderLoadingContainer}>
+                <ActivityIndicator size="small" color="#2563eb" />
+                <Text style={styles.loadingText}>Loading orders...</Text>
+              </View>
+            ) : orders.length === 0 ? (
+              <View style={styles.emptyOrders}>
+                <Ionicons name="receipt-outline" size={32} color="#94a3b8" />
+                <Text style={styles.emptyOrdersText}>No orders yet</Text>
+              </View>
+            ) : (
+              <View style={styles.ordersList}>
+                {orders.map((order) => {
+                  const isExpanded = expandedOrderId === order._id;
+                  return (
+                    <View key={order._id} style={styles.orderCard}>
+                      <TouchableOpacity
+                        style={styles.orderCardHeader}
+                        onPress={() => setExpandedOrderId(isExpanded ? null : order._id)}
+                      >
+                        <View style={styles.orderMainInfo}>
+                          <View style={styles.orderIdRow}>
+                            <Text style={styles.orderId}>#{order.orderId}</Text>
+                            <View style={[styles.orderStatusBadge, { backgroundColor: getStatusColor(order.status) + '20' }]}>
+                              <Text style={[styles.orderStatusText, { color: getStatusColor(order.status) }]}>
+                                {getStatusLabel(order.status)}
+                              </Text>
+                            </View>
+                          </View>
+                          <Text style={styles.orderDate}>
+                            {formatShortDate(order.createdAt)} • {order.bags?.length || 0} bag{(order.bags?.length || 0) !== 1 ? 's' : ''} • {order.weight || 0} lbs
+                          </Text>
+                          <View style={styles.orderPriceRow}>
+                            <Text style={styles.orderPrice}>${(order.totalAmount || 0).toFixed(2)}</Text>
+                            {order.isPaid ? (
+                              <View style={styles.paidBadge}>
+                                <Ionicons name="checkmark-circle" size={14} color="#10b981" />
+                                <Text style={styles.paidText}>Paid</Text>
+                              </View>
+                            ) : (
+                              <View style={styles.unpaidBadge}>
+                                <Ionicons name="alert-circle" size={14} color="#f59e0b" />
+                                <Text style={styles.unpaidText}>Unpaid</Text>
+                              </View>
+                            )}
+                          </View>
+                        </View>
+                        <Ionicons
+                          name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                          size={20}
+                          color="#64748b"
+                        />
+                      </TouchableOpacity>
+
+                      {/* Expanded Timeline */}
+                      {isExpanded && (
+                        <View style={styles.orderTimeline}>
+                          <Text style={styles.timelineTitle}>Order Timeline</Text>
+                          {order.statusHistory && order.statusHistory.length > 0 ? (
+                            order.statusHistory
+                              .sort((a: StatusHistoryEntry, b: StatusHistoryEntry) =>
+                                new Date(b.changedAt).getTime() - new Date(a.changedAt).getTime()
+                              )
+                              .map((entry: StatusHistoryEntry, index: number) => (
+                                <View key={index} style={styles.timelineEntry}>
+                                  <View style={styles.timelineDot}>
+                                    <View style={[styles.timelineDotInner, { backgroundColor: getStatusColor(entry.status) }]} />
+                                  </View>
+                                  <View style={styles.timelineContent}>
+                                    <View style={styles.timelineHeader}>
+                                      <Text style={styles.timelineStatus}>{getStatusLabel(entry.status)}</Text>
+                                      <Text style={styles.timelineDate}>{formatDate(entry.changedAt)}</Text>
+                                    </View>
+                                    <Text style={styles.timelineUser}>by {entry.changedBy}</Text>
+                                    {entry.notes && (
+                                      <Text style={styles.timelineNotes}>{entry.notes}</Text>
+                                    )}
+                                  </View>
+                                </View>
+                              ))
+                          ) : (
+                            <Text style={styles.noTimeline}>No status history available</Text>
+                          )}
+
+                          {/* Additional Info */}
+                          {order.foldedBy && (
+                            <View style={styles.additionalInfo}>
+                              <Text style={styles.additionalInfoLabel}>Folded by:</Text>
+                              <Text style={styles.additionalInfoValue}>
+                                {order.foldedBy} ({order.foldedByInitials}) - {formatDate(order.foldedAt!)}
+                              </Text>
+                            </View>
+                          )}
+                          {order.foldingCheckedBy && (
+                            <View style={styles.additionalInfo}>
+                              <Text style={styles.additionalInfoLabel}>Checked by:</Text>
+                              <Text style={styles.additionalInfoValue}>
+                                {order.foldingCheckedBy} ({order.foldingCheckedByInitials}) - {formatDate(order.foldingCheckedAt!)}
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* View Order Button */}
+                          <TouchableOpacity
+                            style={styles.viewOrderButton}
+                            onPress={() => navigation.navigate('OrderDetail', { orderId: order._id })}
+                          >
+                            <Text style={styles.viewOrderButtonText}>View Full Order</Text>
+                            <Ionicons name="arrow-forward" size={16} color="#2563eb" />
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </View>
 
           {/* Basic Information */}
           <View style={styles.section}>
@@ -677,5 +866,206 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  // Order History Styles
+  orderHistoryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  orderCount: {
+    fontSize: 12,
+    color: '#94a3b8',
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  orderLoadingContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    gap: 8,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  emptyOrders: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 32,
+    alignItems: 'center',
+    gap: 8,
+  },
+  emptyOrdersText: {
+    fontSize: 14,
+    color: '#94a3b8',
+  },
+  ordersList: {
+    gap: 12,
+  },
+  orderCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  orderCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+  },
+  orderMainInfo: {
+    flex: 1,
+  },
+  orderIdRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  orderId: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  orderStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  orderStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  orderDate: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  orderPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  orderPrice: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  paidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  paidText: {
+    fontSize: 12,
+    color: '#10b981',
+    fontWeight: '500',
+  },
+  unpaidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  unpaidText: {
+    fontSize: 12,
+    color: '#f59e0b',
+    fontWeight: '500',
+  },
+  orderTimeline: {
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    padding: 14,
+    backgroundColor: '#fafafa',
+  },
+  timelineTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    marginBottom: 12,
+  },
+  timelineEntry: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  timelineDot: {
+    width: 24,
+    alignItems: 'center',
+    paddingTop: 2,
+  },
+  timelineDotInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  timelineContent: {
+    flex: 1,
+  },
+  timelineHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  timelineStatus: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  timelineDate: {
+    fontSize: 11,
+    color: '#94a3b8',
+  },
+  timelineUser: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  timelineNotes: {
+    fontSize: 12,
+    color: '#64748b',
+    fontStyle: 'italic',
+    marginTop: 2,
+  },
+  noTimeline: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
+    paddingVertical: 12,
+  },
+  additionalInfo: {
+    flexDirection: 'row',
+    marginBottom: 8,
+    paddingLeft: 24,
+  },
+  additionalInfoLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '500',
+    marginRight: 4,
+  },
+  additionalInfoValue: {
+    fontSize: 12,
+    color: '#1e293b',
+    flex: 1,
+  },
+  viewOrderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#eff6ff',
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  viewOrderButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2563eb',
   },
 });

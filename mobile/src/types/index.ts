@@ -86,6 +86,13 @@ export interface Bag {
   foldingCheckedByInitials?: string;
 }
 
+export interface StatusHistoryEntry {
+  status: OrderStatus;
+  changedBy: string;
+  changedAt: Date;
+  notes: string;
+}
+
 export interface Order {
   _id: string;
   orderId: number;
@@ -138,6 +145,7 @@ export interface Order {
   createdAt: Date;
   updatedAt: Date;
   customer?: Customer;
+  statusHistory?: StatusHistoryEntry[];
 }
 
 export interface Settings {
