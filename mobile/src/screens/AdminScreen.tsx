@@ -62,7 +62,7 @@ export default function AdminScreen() {
 
   // Form state for modals
   const [userForm, setUserForm] = useState({ email: '', firstName: '', lastName: '', role: 'employee' as UserRole, password: '' });
-  const [extraItemForm, setExtraItemForm] = useState({ name: '', description: '', price: '', isActive: true });
+  const [extraItemForm, setExtraItemForm] = useState({ name: '', description: '', price: '', isActive: true, perWeightUnit: '' });
   const [machineForm, setMachineForm] = useState({ name: '', type: 'washer' as MachineType, qrCode: '', status: 'available' as MachineStatus });
   const [settingsForm, setSettingsForm] = useState({
     minimumWeight: '',
@@ -267,10 +267,11 @@ export default function AdminScreen() {
         description: item.description,
         price: item.price.toString(),
         isActive: item.isActive,
+        perWeightUnit: item.perWeightUnit ? item.perWeightUnit.toString() : '',
       });
     } else {
       setEditingExtraItem(null);
-      setExtraItemForm({ name: '', description: '', price: '', isActive: true });
+      setExtraItemForm({ name: '', description: '', price: '', isActive: true, perWeightUnit: '' });
     }
     setShowExtraItemModal(true);
   };
@@ -283,12 +284,15 @@ export default function AdminScreen() {
 
     setSaving(true);
     try {
+      const perWeightUnit = extraItemForm.perWeightUnit ? parseFloat(extraItemForm.perWeightUnit) : null;
+
       if (editingExtraItem) {
         await api.updateExtraItem(editingExtraItem._id, {
           name: extraItemForm.name,
           description: extraItemForm.description,
           price: parseFloat(extraItemForm.price),
           isActive: extraItemForm.isActive,
+          perWeightUnit: perWeightUnit,
         });
         Alert.alert('Success', 'Extra item updated');
       } else {
@@ -297,6 +301,7 @@ export default function AdminScreen() {
           description: extraItemForm.description,
           price: parseFloat(extraItemForm.price),
           isActive: extraItemForm.isActive,
+          perWeightUnit: perWeightUnit,
         });
         Alert.alert('Success', 'Extra item created');
       }
@@ -619,26 +624,42 @@ export default function AdminScreen() {
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-            renderItem={({ item }) => (
-              <View style={[styles.card, !item.isActive && styles.cardInactive]}>
-                <TouchableOpacity style={styles.cardContent} onPress={() => openExtraItemModal(item)}>
-                  <Text style={styles.cardTitle}>{item.name}</Text>
-                  <Text style={styles.cardSubtitle}>{item.description}</Text>
-                  <Text style={styles.priceText}>${item.price.toFixed(2)}</Text>
-                </TouchableOpacity>
-                <View style={styles.cardActions}>
-                  <Switch
-                    value={item.isActive}
-                    onValueChange={() => handleToggleExtraItem(item)}
-                    trackColor={{ false: '#e2e8f0', true: '#86efac' }}
-                    thumbColor={item.isActive ? '#10b981' : '#fff'}
-                  />
-                  <TouchableOpacity onPress={() => handleDeleteExtraItem(item)}>
-                    <Ionicons name="trash-outline" size={20} color="#ef4444" />
+            renderItem={({ item }) => {
+              const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
+              return (
+                <View style={[styles.card, !item.isActive && styles.cardInactive]}>
+                  <TouchableOpacity style={styles.cardContent} onPress={() => openExtraItemModal(item)}>
+                    <View style={styles.itemHeader}>
+                      <Text style={styles.cardTitle}>{item.name}</Text>
+                      {isWeightBased && (
+                        <View style={styles.weightBadge}>
+                          <Ionicons name="scale-outline" size={12} color="#7c3aed" />
+                          <Text style={styles.weightBadgeText}>By Weight</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={styles.cardSubtitle}>{item.description}</Text>
+                    <Text style={styles.priceText}>
+                      ${item.price.toFixed(2)}
+                      {isWeightBased && (
+                        <Text style={styles.perWeightText}> per {item.perWeightUnit} lbs</Text>
+                      )}
+                    </Text>
                   </TouchableOpacity>
+                  <View style={styles.cardActions}>
+                    <Switch
+                      value={item.isActive}
+                      onValueChange={() => handleToggleExtraItem(item)}
+                      trackColor={{ false: '#e2e8f0', true: '#86efac' }}
+                      thumbColor={item.isActive ? '#10b981' : '#fff'}
+                    />
+                    <TouchableOpacity onPress={() => handleDeleteExtraItem(item)}>
+                      <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            )}
+              );
+            }}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <Text style={styles.emptyText}>No extra items</Text>
@@ -1078,6 +1099,20 @@ export default function AdminScreen() {
                   keyboardType="decimal-pad"
                 />
               </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Weight-Based Pricing (lbs)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={extraItemForm.perWeightUnit}
+                  onChangeText={(text) => setExtraItemForm({ ...extraItemForm, perWeightUnit: text })}
+                  placeholder="Leave empty for fixed price"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="decimal-pad"
+                />
+                <Text style={styles.inputHint}>
+                  If set, price applies per X lbs (e.g., 15 = $price per 15 lbs)
+                </Text>
+              </View>
               <View style={styles.switchRow}>
                 <Text style={styles.inputLabel}>Active</Text>
                 <Switch
@@ -1490,6 +1525,36 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#10b981',
     marginTop: 4,
+  },
+  perWeightText: {
+    fontSize: 12,
+    fontWeight: '400',
+    color: '#7c3aed',
+  },
+  itemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  weightBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#ede9fe',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  weightBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#7c3aed',
+  },
+  inputHint: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   badge: {
     paddingHorizontal: 10,
