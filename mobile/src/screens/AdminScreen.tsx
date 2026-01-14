@@ -246,16 +246,29 @@ export default function AdminScreen() {
     setSaving(true);
     try {
       if (editingUser) {
-        // Update user - Note: You may need to implement this endpoint
-        Alert.alert('Info', 'User update functionality requires backend support');
+        // Update user role
+        await api.updateUser(editingUser._id, { role: userForm.role });
+        Alert.alert('Success', 'User updated successfully');
       } else {
-        // Create/invite user - Note: You may need to implement this endpoint
-        Alert.alert('Info', 'User creation functionality requires backend support');
+        // Create/invite new user
+        if (!userForm.password) {
+          Alert.alert('Error', 'Please provide a temporary password for the new user');
+          setSaving(false);
+          return;
+        }
+        await api.inviteUser({
+          email: userForm.email,
+          firstName: userForm.firstName,
+          lastName: userForm.lastName,
+          role: userForm.role,
+          temporaryPassword: userForm.password,
+        });
+        Alert.alert('Success', 'User invited successfully');
       }
       setShowUserModal(false);
       loadData();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to save user');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to save user');
     } finally {
       setSaving(false);
     }
@@ -1086,7 +1099,7 @@ export default function AdminScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Role</Text>
                 <View style={styles.roleOptions}>
-                  {['employee', 'driver', 'admin'].map(role => (
+                  {['cashier', 'employee', 'driver', 'supervisor', 'admin'].map(role => (
                     <TouchableOpacity
                       key={role}
                       style={[styles.roleOption, userForm.role === role && styles.roleOptionActive]}

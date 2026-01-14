@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getAuthDatabase } from '@/lib/db/connection';
+import { connectDB, getAuthDatabase } from '@/lib/db/connection';
+import { User } from '@/lib/db/models';
 import { getCurrentUser, isAdmin } from '@/lib/auth/server';
 import { ObjectId } from 'mongodb';
 
@@ -23,59 +24,71 @@ export async function GET() {
       );
     }
 
-    const db = await getAuthDatabase();
+    // First, get users from the application User model (these have proper roles)
+    await connectDB();
+    const appUsers = await User.find({}).select('-password').lean();
 
-    // Get the Laundromat Department
+    // Map app users to the response format
+    const appUsersFormatted = appUsers.map(user => ({
+      _id: user._id.toString(),
+      email: user.email,
+      name: `${user.firstName} ${user.lastName}`,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      isActive: user.isActive,
+      source: 'app',
+    }));
+
+    // Also get users from the auth database for those not in the app database
+    const db = await getAuthDatabase();
     const department = await db.collection('v5departments').findOne({ name: DEPARTMENT_NAME });
 
-    if (!department) {
-      return NextResponse.json(
-        { error: 'Department not found' },
-        { status: 404 }
-      );
-    }
+    if (department) {
+      const adminIds = department.adminIds || [];
+      const memberIds = department.memberIds || [];
+      const allUserIds = [...adminIds, ...memberIds];
 
-    // Get all user IDs in the department
-    const adminIds = department.adminIds || [];
-    const memberIds = department.memberIds || [];
-    const allUserIds = [...adminIds, ...memberIds];
+      // Get emails that are already in app users
+      const appEmails = new Set(appUsersFormatted.map(u => u.email.toLowerCase()));
 
-    if (allUserIds.length === 0) {
-      return NextResponse.json([]);
-    }
+      // Fetch auth users
+      const userObjectIds: ObjectId[] = [];
+      for (const id of allUserIds) {
+        try {
+          userObjectIds.push(new ObjectId(id));
+        } catch {
+          // Skip invalid IDs
+        }
+      }
 
-    // Fetch all users in the department
-    const userObjectIds: ObjectId[] = [];
-    for (const id of allUserIds) {
-      try {
-        userObjectIds.push(new ObjectId(id));
-      } catch {
-        // Skip invalid IDs
+      if (userObjectIds.length > 0) {
+        const authUsers = await db.collection('v5users')
+          .find({ _id: { $in: userObjectIds } })
+          .project({ password: 0 })
+          .toArray();
+
+        // Add auth users that are not in app users
+        for (const user of authUsers) {
+          if (!appEmails.has(user.email?.toLowerCase())) {
+            const odId = user._id.toString();
+            const isDeptAdmin = adminIds.includes(odId);
+            appUsersFormatted.push({
+              _id: odId,
+              email: user.email,
+              name: user.name || '',
+              firstName: user.name?.split(' ')[0] || '',
+              lastName: user.name?.split(' ').slice(1).join(' ') || '',
+              role: isDeptAdmin ? 'admin' : 'employee',
+              isActive: true,
+              source: 'auth',
+            });
+          }
+        }
       }
     }
 
-    const users = await db.collection('v5users')
-      .find({ _id: { $in: userObjectIds } })
-      .project({ password: 0 })
-      .toArray();
-
-    // Map users with their department role
-    const usersWithRoles = users.map(user => {
-      const odId = user._id.toString();
-      const isDeptAdmin = adminIds.includes(odId);
-      return {
-        _id: odId,
-        email: user.email,
-        name: user.name || '',
-        firstName: user.name?.split(' ')[0] || '',
-        lastName: user.name?.split(' ').slice(1).join(' ') || '',
-        role: isDeptAdmin ? 'admin' : 'user',
-        isActive: true,
-        isSuperUser: user.isSuperUser || false,
-      };
-    });
-
-    return NextResponse.json(usersWithRoles);
+    return NextResponse.json(appUsersFormatted);
   } catch (error) {
     console.error('Get users error:', error);
     return NextResponse.json(

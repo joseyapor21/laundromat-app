@@ -1,4 +1,5 @@
-import { getAuthDatabase } from '@/lib/db/connection';
+import { connectDB, getAuthDatabase } from '@/lib/db/connection';
+import { User } from '@/lib/db/models';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
@@ -16,6 +17,13 @@ interface PushResult {
   success: boolean;
   message?: string;
   error?: string;
+}
+
+interface UserWithToken {
+  _id: string;
+  pushToken: string;
+  email: string;
+  role?: string;
 }
 
 // Status labels for notifications
@@ -97,23 +105,83 @@ export async function sendPushNotifications(messages: PushMessage[]): Promise<Pu
 
 /**
  * Get all users with push tokens (for broadcasting)
+ * Merges users from both auth database and app User model
  */
-export async function getUsersWithPushTokens(): Promise<{ _id: string; pushToken: string; email: string }[]> {
-  const db = await getAuthDatabase();
+export async function getUsersWithPushTokens(): Promise<UserWithToken[]> {
+  const usersMap = new Map<string, UserWithToken>();
 
-  const users = await db.collection('users')
-    .find({
+  // Get users from app User model (these have proper roles)
+  try {
+    await connectDB();
+    const appUsers = await User.find({
       pushToken: { $ne: null, $exists: true },
       isActive: true,
-    })
-    .project({ _id: 1, pushToken: 1, email: 1 })
-    .toArray();
+    }).select('_id pushToken email role').lean();
 
-  return users.map(u => ({
-    _id: u._id.toString(),
-    pushToken: u.pushToken,
-    email: u.email,
-  }));
+    for (const u of appUsers) {
+      if (u.pushToken) {
+        usersMap.set(u.email.toLowerCase(), {
+          _id: u._id.toString(),
+          pushToken: u.pushToken,
+          email: u.email,
+          role: u.role,
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Error getting app users:', e);
+  }
+
+  // Get users from auth database (fallback for users not in app model)
+  try {
+    const db = await getAuthDatabase();
+    const authUsers = await db.collection('users')
+      .find({
+        pushToken: { $ne: null, $exists: true },
+        isActive: { $ne: false },
+      })
+      .project({ _id: 1, pushToken: 1, email: 1 })
+      .toArray();
+
+    for (const u of authUsers) {
+      if (u.pushToken && !usersMap.has(u.email?.toLowerCase())) {
+        usersMap.set(u.email?.toLowerCase(), {
+          _id: u._id.toString(),
+          pushToken: u.pushToken,
+          email: u.email,
+          role: undefined, // Auth users don't have specific roles
+        });
+      }
+    }
+  } catch (e) {
+    console.error('Error getting auth users:', e);
+  }
+
+  return Array.from(usersMap.values());
+}
+
+/**
+ * Get drivers with push tokens
+ */
+export async function getDriversWithPushTokens(): Promise<UserWithToken[]> {
+  try {
+    await connectDB();
+    const drivers = await User.find({
+      pushToken: { $ne: null, $exists: true },
+      isActive: true,
+      role: { $in: ['driver', 'admin', 'super_admin'] }, // Drivers and admins
+    }).select('_id pushToken email role').lean();
+
+    return drivers.filter(u => u.pushToken).map(u => ({
+      _id: u._id.toString(),
+      pushToken: u.pushToken!,
+      email: u.email,
+      role: u.role,
+    }));
+  } catch (e) {
+    console.error('Error getting drivers:', e);
+    return [];
+  }
 }
 
 /**
@@ -262,5 +330,84 @@ export async function notifyPaymentReceived(
     await sendPushNotifications(messages);
   } catch (error) {
     console.error('Error notifying payment:', error);
+  }
+}
+
+/**
+ * Notify drivers about a delivery order ready for pickup
+ */
+export async function notifyDriversForDelivery(
+  orderId: string,
+  orderNumber: number,
+  customerName: string,
+  customerAddress: string,
+  excludeUserId?: string
+): Promise<void> {
+  try {
+    const drivers = await getDriversWithPushTokens();
+
+    const recipients = excludeUserId
+      ? drivers.filter(u => u._id !== excludeUserId)
+      : drivers;
+
+    if (recipients.length === 0) {
+      console.log('No drivers with push tokens to notify');
+      return;
+    }
+
+    const messages: PushMessage[] = recipients.map(user => ({
+      to: user.pushToken,
+      title: `Delivery Ready - Order #${orderNumber}`,
+      body: `${customerName}\n${customerAddress || 'Address pending'}`,
+      data: { orderId, orderNumber, type: 'delivery_ready' },
+      sound: 'default',
+      channelId: 'orders',
+    }));
+
+    console.log(`Notifying ${messages.length} drivers about delivery order #${orderNumber}`);
+    await sendPushNotifications(messages);
+  } catch (error) {
+    console.error('Error notifying drivers for delivery:', error);
+  }
+}
+
+/**
+ * Notify about order pickup (customer picked up or driver picked up for delivery)
+ */
+export async function notifyOrderPickedUp(
+  orderId: string,
+  orderNumber: number,
+  customerName: string,
+  isDelivery: boolean,
+  excludeUserId?: string
+): Promise<void> {
+  try {
+    const users = await getUsersWithPushTokens();
+
+    const recipients = excludeUserId
+      ? users.filter(u => u._id !== excludeUserId)
+      : users;
+
+    if (recipients.length === 0) return;
+
+    const title = isDelivery
+      ? `Out for Delivery - Order #${orderNumber}`
+      : `Order Picked Up - #${orderNumber}`;
+    const body = isDelivery
+      ? `Driver picked up order for ${customerName}`
+      : `${customerName} picked up their order`;
+
+    const messages: PushMessage[] = recipients.map(user => ({
+      to: user.pushToken,
+      title,
+      body,
+      data: { orderId, orderNumber, type: isDelivery ? 'out_for_delivery' : 'picked_up' },
+      sound: 'default',
+      channelId: 'orders',
+    }));
+
+    await sendPushNotifications(messages);
+  } catch (error) {
+    console.error('Error notifying order pickup:', error);
   }
 }

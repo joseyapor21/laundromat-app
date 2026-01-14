@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthDatabase } from '@/lib/db/connection';
+import { connectDB, getAuthDatabase } from '@/lib/db/connection';
+import { User } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
 import { ObjectId } from 'mongodb';
 
@@ -32,11 +33,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Update in auth database
     const db = await getAuthDatabase();
-
-    // Update user's push token
     await db.collection('users').updateOne(
       { _id: new ObjectId(currentUser.userId) },
+      {
+        $set: {
+          pushToken,
+          pushTokenPlatform: platform || null,
+        },
+      }
+    );
+
+    // Also update in app User model if user exists there (for role-based notifications)
+    await connectDB();
+    await User.findOneAndUpdate(
+      { email: currentUser.email.toLowerCase() },
       {
         $set: {
           pushToken,
@@ -69,11 +81,22 @@ export async function DELETE() {
       );
     }
 
+    // Remove from auth database
     const db = await getAuthDatabase();
-
-    // Remove user's push token
     await db.collection('users').updateOne(
       { _id: new ObjectId(currentUser.userId) },
+      {
+        $set: {
+          pushToken: null,
+          pushTokenPlatform: null,
+        },
+      }
+    );
+
+    // Also remove from app User model
+    await connectDB();
+    await User.findOneAndUpdate(
+      { email: currentUser.email.toLowerCase() },
       {
         $set: {
           pushToken: null,

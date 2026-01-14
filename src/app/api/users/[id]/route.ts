@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthDatabase } from '@/lib/db/connection';
+import { connectDB, getAuthDatabase } from '@/lib/db/connection';
+import { User } from '@/lib/db/models';
 import { getCurrentUser, isAdmin } from '@/lib/auth/server';
 import { ObjectId } from 'mongodb';
 
@@ -27,11 +28,35 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const db = await getAuthDatabase();
     const { id } = await params;
     const updates = await request.json();
 
-    // Find the user
+    // First try to update in the app User model
+    await connectDB();
+    const appUser = await User.findById(id);
+
+    if (appUser) {
+      // Update in app User model
+      if (updates.role) appUser.role = updates.role;
+      if (updates.firstName) appUser.firstName = updates.firstName;
+      if (updates.lastName) appUser.lastName = updates.lastName;
+      if (updates.isActive !== undefined) appUser.isActive = updates.isActive;
+
+      await appUser.save();
+
+      return NextResponse.json({
+        _id: appUser._id.toString(),
+        email: appUser.email,
+        name: `${appUser.firstName} ${appUser.lastName}`,
+        firstName: appUser.firstName,
+        lastName: appUser.lastName,
+        role: appUser.role,
+        isActive: appUser.isActive,
+      });
+    }
+
+    // If not in app model, try auth database
+    const db = await getAuthDatabase();
     const user = await db.collection('v5users').findOne({ _id: new ObjectId(id) });
 
     if (!user) {
@@ -61,7 +86,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       const newMemberIds = memberIds.filter((mid: string) => mid !== id);
 
       // Add to appropriate array based on new role
-      if (updates.role === 'admin') {
+      if (updates.role === 'admin' || updates.role === 'super_admin') {
         newAdminIds.push(id);
       } else {
         newMemberIds.push(id);
@@ -90,7 +115,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       name: user.name || '',
       firstName: user.name?.split(' ')[0] || '',
       lastName: user.name?.split(' ').slice(1).join(' ') || '',
-      role: isNowAdmin ? 'admin' : 'user',
+      role: isNowAdmin ? 'admin' : updates.role || 'employee',
       isActive: true,
       isSuperUser: user.isSuperUser || false,
     });

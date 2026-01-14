@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
-import { Order, ActivityLog, Machine } from '@/lib/db/models';
+import { Order, ActivityLog, Machine, Customer } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
-import { notifyOrderStatusChange } from '@/lib/services/pushNotifications';
+import { notifyOrderStatusChange, notifyDriversForDelivery, notifyOrderPickedUp } from '@/lib/services/pushNotifications';
 
 // Statuses where machines should be released (past washer/dryer stages)
 const POST_MACHINE_STATUSES = [
@@ -172,6 +172,36 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       finalStatus,
       currentUser.userId
     ).catch(err => console.error('Push notification error:', err));
+
+    // Special notifications for specific status changes
+    if (finalStatus === 'ready_for_delivery' && order.orderType === 'delivery') {
+      // Notify drivers when a delivery order is ready
+      let customerAddress = '';
+      try {
+        const customer = await Customer.findById(order.customerId);
+        customerAddress = customer?.address || '';
+      } catch (e) {
+        console.error('Error getting customer address:', e);
+      }
+      notifyDriversForDelivery(
+        order._id.toString(),
+        order.orderId,
+        order.customerName,
+        customerAddress,
+        currentUser.userId
+      ).catch(err => console.error('Driver notification error:', err));
+    }
+
+    if (finalStatus === 'out_for_delivery' || finalStatus === 'completed') {
+      // Notify when order is picked up (by customer or for delivery)
+      notifyOrderPickedUp(
+        order._id.toString(),
+        order.orderId,
+        order.customerName,
+        order.orderType === 'delivery',
+        currentUser.userId
+      ).catch(err => console.error('Pickup notification error:', err));
+    }
 
     return NextResponse.json(order);
   } catch (error) {

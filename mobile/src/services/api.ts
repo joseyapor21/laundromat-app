@@ -259,6 +259,26 @@ class ApiService {
     return this.request<User[]>('/users');
   }
 
+  async inviteUser(data: {
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    temporaryPassword: string;
+  }): Promise<{ message: string; user: User }> {
+    return this.request<{ message: string; user: User }>('/users/invite', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateUser(id: string, updates: Partial<User>): Promise<User> {
+    return this.request<User>(`/users/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(updates),
+    });
+  }
+
   // Order-level folding verification (verifies folding complete and moves to ready status)
   async verifyFoldingComplete(orderId: string, checkedBy: string, checkedByInitials: string): Promise<{ success: boolean; message: string; order: Order }> {
     return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/fold-check`, {
