@@ -124,11 +124,14 @@ export interface MachineAssignment {
   isChecked?: boolean;
 }
 
-// Extra item in order format
+// Extra item in order format (stored in database)
 export interface OrderExtraItem {
-  item: ExtraItem;
+  itemId: string;
+  name: string;
   quantity: number;
   price: number;
+  // Legacy format - some old orders may have item object
+  item?: ExtraItem;
 }
 
 export interface Order {
