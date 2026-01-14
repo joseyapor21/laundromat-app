@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
-import { Order, ActivityLog } from '@/lib/db/models';
+import { Order, ActivityLog, Machine } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
 import { notifyOrderStatusChange } from '@/lib/services/pushNotifications';
+
+// Statuses where machines should be released (past washer/dryer stages)
+const POST_MACHINE_STATUSES = [
+  'laid_on_cart',
+  'folding',
+  'folded',
+  'ready_for_pickup',
+  'ready_for_delivery',
+  'out_for_delivery',
+  'completed',
+  'cancelled',
+];
 
 interface RouteParams {
   params: Promise<{ id: string }>;
@@ -95,6 +107,40 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     });
 
     await order.save();
+
+    // Release all machines if moving to a post-machine status
+    if (POST_MACHINE_STATUSES.includes(finalStatus)) {
+      const activeAssignments = order.machineAssignments?.filter(
+        (a: { removedAt?: Date }) => !a.removedAt
+      ) || [];
+
+      for (const assignment of activeAssignments) {
+        if (assignment.machineId) {
+          // Release the machine
+          await Machine.findByIdAndUpdate(assignment.machineId, {
+            status: 'available',
+            currentOrderId: null,
+            lastUsedAt: new Date(),
+          });
+        }
+      }
+
+      // Mark all assignments as removed
+      if (activeAssignments.length > 0) {
+        await Order.updateOne(
+          { _id: order._id },
+          {
+            $set: {
+              'machineAssignments.$[elem].removedAt': new Date(),
+              'machineAssignments.$[elem].removedBy': 'System (Status Change)',
+            },
+          },
+          {
+            arrayFilters: [{ 'elem.removedAt': { $exists: false } }],
+          }
+        );
+      }
+    }
 
     // Log the activity
     try {

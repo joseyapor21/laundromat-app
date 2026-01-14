@@ -49,6 +49,9 @@ export default function AdminScreen() {
   // Search
   const [customerSearch, setCustomerSearch] = useState('');
 
+  // Machine filter
+  const [machineTypeFilter, setMachineTypeFilter] = useState<'all' | 'washer' | 'dryer'>('all');
+
   // Modals
   const [showUserModal, setShowUserModal] = useState(false);
   const [showExtraItemModal, setShowExtraItemModal] = useState(false);
@@ -431,6 +434,31 @@ export default function AdminScreen() {
     c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
     c.phoneNumber.includes(customerSearch)
   );
+
+  // Filtered and sorted machines
+  const filteredMachines = machines
+    .filter(m => machineTypeFilter === 'all' || m.type === machineTypeFilter)
+    .sort((a, b) => {
+      // Sort by status: available first, then in_use, then maintenance
+      const statusOrder = { available: 0, in_use: 1, maintenance: 2 };
+      const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+      if (statusDiff !== 0) return statusDiff;
+      // Then sort by name
+      return a.name.localeCompare(b.name);
+    });
+
+  // Quick toggle maintenance
+  const handleToggleMaintenance = async (machine: Machine) => {
+    try {
+      const newStatus = machine.status === 'maintenance' ? 'available' : 'maintenance';
+      await api.updateMachine(machine._id, { ...machine, status: newStatus });
+      setMachines(machines.map(m =>
+        m._id === machine._id ? { ...m, status: newStatus } : m
+      ));
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update machine status');
+    }
+  };
 
   // Activity helpers
   const getActionColor = (action: string): string => {
@@ -877,42 +905,92 @@ export default function AdminScreen() {
       {activeTab === 'machines' && (
         <View style={{ flex: 1 }}>
           <View style={styles.actionHeader}>
-            <Text style={styles.countText}>{machines.length} machines</Text>
+            <Text style={styles.countText}>{filteredMachines.length} machines</Text>
             <TouchableOpacity style={styles.addButton} onPress={() => openMachineModal()}>
               <Ionicons name="add" size={20} color="#fff" />
               <Text style={styles.addButtonText}>Add Machine</Text>
             </TouchableOpacity>
           </View>
+
+          {/* Machine Type Filter Tabs */}
+          <View style={styles.machineFilterTabs}>
+            {(['all', 'washer', 'dryer'] as const).map(filter => (
+              <TouchableOpacity
+                key={filter}
+                style={[
+                  styles.machineFilterTab,
+                  machineTypeFilter === filter && styles.machineFilterTabActive,
+                  filter === 'washer' && machineTypeFilter === filter && { backgroundColor: '#06b6d4' },
+                  filter === 'dryer' && machineTypeFilter === filter && { backgroundColor: '#f97316' },
+                ]}
+                onPress={() => setMachineTypeFilter(filter)}
+              >
+                <Ionicons
+                  name={filter === 'washer' ? 'water' : filter === 'dryer' ? 'flame' : 'grid'}
+                  size={16}
+                  color={machineTypeFilter === filter ? '#fff' : '#64748b'}
+                />
+                <Text style={[
+                  styles.machineFilterTabText,
+                  machineTypeFilter === filter && styles.machineFilterTabTextActive,
+                ]}>
+                  {filter === 'all' ? 'All' : filter === 'washer' ? 'Washers' : 'Dryers'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           <FlatList
-            data={machines}
+            data={filteredMachines}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             renderItem={({ item: machine }) => (
-              <TouchableOpacity style={styles.card} onPress={() => openMachineModal(machine)}>
-                <View style={styles.cardContent}>
-                  <Text style={styles.cardTitle}>{machine.name}</Text>
-                  <Text style={styles.cardSubtitle}>QR: {machine.qrCode}</Text>
-                </View>
-                <View style={{ alignItems: 'flex-end' }}>
-                  <View style={[
-                    styles.badge,
-                    { backgroundColor: machine.type === 'washer' ? '#06b6d4' : '#f97316' }
-                  ]}>
-                    <Text style={styles.badgeText}>{machine.type}</Text>
+              <View style={[
+                styles.card,
+                machine.status === 'maintenance' && styles.machineMaintenanceCard,
+              ]}>
+                <TouchableOpacity
+                  style={styles.cardContent}
+                  onPress={() => openMachineModal(machine)}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Ionicons
+                      name={machine.type === 'washer' ? 'water' : 'flame'}
+                      size={20}
+                      color={machine.type === 'washer' ? '#06b6d4' : '#f97316'}
+                    />
+                    <Text style={styles.cardTitle}>{machine.name}</Text>
                   </View>
+                  <Text style={styles.cardSubtitle}>QR: {machine.qrCode}</Text>
+                </TouchableOpacity>
+                <View style={{ alignItems: 'flex-end', gap: 8 }}>
                   <View style={[
                     styles.badge,
                     {
                       backgroundColor: machine.status === 'available' ? '#10b981' :
                         machine.status === 'in_use' ? '#3b82f6' : '#ef4444',
-                      marginTop: 4,
                     }
                   ]}>
                     <Text style={styles.badgeText}>{machine.status.replace('_', ' ')}</Text>
                   </View>
+                  {machine.status !== 'in_use' && (
+                    <TouchableOpacity
+                      style={[
+                        styles.maintenanceToggle,
+                        machine.status === 'maintenance' && styles.maintenanceToggleActive,
+                      ]}
+                      onPress={() => handleToggleMaintenance(machine)}
+                    >
+                      <Ionicons
+                        name="construct"
+                        size={14}
+                        color={machine.status === 'maintenance' ? '#fff' : '#64748b'}
+                      />
+                    </TouchableOpacity>
+                  )}
                 </View>
-              </TouchableOpacity>
+              </View>
             )}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
@@ -1955,5 +2033,50 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748b',
     lineHeight: 18,
+  },
+  // Machine filter tabs
+  machineFilterTabs: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    gap: 8,
+  },
+  machineFilterTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+  },
+  machineFilterTabActive: {
+    backgroundColor: '#1e293b',
+  },
+  machineFilterTabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  machineFilterTabTextActive: {
+    color: '#fff',
+  },
+  machineMaintenanceCard: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  maintenanceToggle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  maintenanceToggleActive: {
+    backgroundColor: '#ef4444',
   },
 });

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
-import { Order, ActivityLog } from '@/lib/db/models';
+import { Order, ActivityLog, Machine } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
 import { notifyMachineChecked } from '@/lib/services/pushNotifications';
 
@@ -85,6 +85,13 @@ export async function POST(request: NextRequest) {
     };
 
     await order.save();
+
+    // Release the machine - set status to available and clear currentOrderId
+    await Machine.findByIdAndUpdate(machineId, {
+      status: 'available',
+      currentOrderId: null,
+      lastUsedAt: new Date(),
+    });
 
     // Log the activity
     try {
