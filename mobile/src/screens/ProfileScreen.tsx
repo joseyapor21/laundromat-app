@@ -9,6 +9,7 @@ import {
   Modal,
   TextInput,
   ActivityIndicator,
+  Switch,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -46,11 +47,22 @@ export default function ProfileScreen() {
 
   // Push notification status
   const [pushStatus, setPushStatus] = useState<'checking' | 'enabled' | 'disabled' | 'unavailable'>('checking');
-  const [pushToken, setPushToken] = useState<string | null>(null);
+  const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(true);
+  const [togglingPush, setTogglingPush] = useState(false);
 
   useEffect(() => {
     checkPushNotificationStatus();
+    loadNotificationPreference();
   }, []);
+
+  const loadNotificationPreference = async () => {
+    try {
+      const profile = await api.getProfile();
+      setPushNotificationsEnabled(profile.pushNotificationsEnabled ?? true);
+    } catch (e) {
+      console.log('Failed to load notification preference');
+    }
+  };
 
   const checkPushNotificationStatus = async () => {
     if (!pushNotificationService) {
@@ -61,7 +73,6 @@ export default function ProfileScreen() {
       const token = await pushNotificationService.registerForPushNotifications();
       if (token) {
         setPushStatus('enabled');
-        setPushToken(token);
       } else {
         setPushStatus('disabled');
       }
@@ -71,16 +82,21 @@ export default function ProfileScreen() {
     }
   };
 
-  const handleTestPushNotification = async () => {
-    if (!pushToken) {
-      Alert.alert('Error', 'Push notifications are not enabled');
-      return;
-    }
+  const handleTogglePushNotifications = async (value: boolean) => {
+    setTogglingPush(true);
     try {
-      const response = await api.testPushNotification();
-      Alert.alert('Success', 'Test notification sent! You should receive it shortly.');
+      await api.updateProfile({ pushNotificationsEnabled: value });
+      setPushNotificationsEnabled(value);
+      Alert.alert(
+        'Success',
+        value ? 'Push notifications enabled' : 'Push notifications disabled'
+      );
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to send test notification');
+      Alert.alert('Error', error.message || 'Failed to update notification preference');
+      // Revert the switch
+      setPushNotificationsEnabled(!value);
+    } finally {
+      setTogglingPush(false);
     }
   };
 
@@ -314,29 +330,33 @@ export default function ProfileScreen() {
         <View style={styles.card}>
           <View style={styles.cardRow}>
             <View style={[styles.cardIcon, {
-              backgroundColor: pushStatus === 'enabled' ? '#dcfce7' :
-                             pushStatus === 'disabled' ? '#fef3c7' : '#fee2e2'
+              backgroundColor: pushNotificationsEnabled && pushStatus === 'enabled' ? '#dcfce7' :
+                             pushStatus === 'unavailable' ? '#fee2e2' : '#fef3c7'
             }]}>
               <Ionicons
                 name="notifications"
                 size={24}
-                color={pushStatus === 'enabled' ? '#10b981' :
-                       pushStatus === 'disabled' ? '#f59e0b' : '#ef4444'}
+                color={pushNotificationsEnabled && pushStatus === 'enabled' ? '#10b981' :
+                       pushStatus === 'unavailable' ? '#ef4444' : '#f59e0b'}
               />
             </View>
             <View style={styles.cardContent}>
               <Text style={styles.cardValue}>Push Notifications</Text>
               <Text style={styles.cardLabel}>
                 {pushStatus === 'checking' ? 'Checking...' :
-                 pushStatus === 'enabled' ? 'Enabled - receiving notifications' :
-                 pushStatus === 'disabled' ? 'Disabled - tap to enable' :
-                 'Unavailable - requires native build'}
+                 pushStatus === 'unavailable' ? 'Unavailable - requires native build' :
+                 pushNotificationsEnabled ? 'Enabled - receiving notifications' :
+                 'Disabled - you won\'t receive notifications'}
               </Text>
             </View>
             {pushStatus === 'enabled' && (
-              <TouchableOpacity onPress={handleTestPushNotification}>
-                <Ionicons name="send" size={20} color="#2563eb" />
-              </TouchableOpacity>
+              <Switch
+                value={pushNotificationsEnabled}
+                onValueChange={handleTogglePushNotifications}
+                disabled={togglingPush}
+                trackColor={{ false: '#e2e8f0', true: '#86efac' }}
+                thumbColor={pushNotificationsEnabled ? '#10b981' : '#94a3b8'}
+              />
             )}
             {pushStatus === 'disabled' && (
               <TouchableOpacity onPress={checkPushNotificationStatus}>

@@ -106,16 +106,22 @@ export async function sendPushNotifications(messages: PushMessage[]): Promise<Pu
 /**
  * Get all users with push tokens (for broadcasting)
  * Merges users from both auth database and app User model
+ * Only returns users who have push notifications enabled
  */
 export async function getUsersWithPushTokens(): Promise<UserWithToken[]> {
   const usersMap = new Map<string, UserWithToken>();
 
   // Get users from app User model (these have proper roles)
+  // Only include users who have notifications enabled (default true for backwards compatibility)
   try {
     await connectDB();
     const appUsers = await User.find({
       pushToken: { $ne: null, $exists: true },
       isActive: true,
+      $or: [
+        { pushNotificationsEnabled: true },
+        { pushNotificationsEnabled: { $exists: false } }, // Default to enabled for existing users
+      ],
     }).select('_id pushToken email role').lean();
 
     for (const u of appUsers) {
@@ -161,6 +167,7 @@ export async function getUsersWithPushTokens(): Promise<UserWithToken[]> {
 
 /**
  * Get drivers with push tokens
+ * Only returns drivers who have push notifications enabled
  */
 export async function getDriversWithPushTokens(): Promise<UserWithToken[]> {
   try {
@@ -169,6 +176,10 @@ export async function getDriversWithPushTokens(): Promise<UserWithToken[]> {
       pushToken: { $ne: null, $exists: true },
       isActive: true,
       role: { $in: ['driver', 'admin', 'super_admin'] }, // Drivers and admins
+      $or: [
+        { pushNotificationsEnabled: true },
+        { pushNotificationsEnabled: { $exists: false } }, // Default to enabled for existing users
+      ],
     }).select('_id pushToken email role').lean();
 
     return drivers.filter(u => u.pushToken).map(u => ({

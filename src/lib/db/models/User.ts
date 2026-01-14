@@ -15,6 +15,7 @@ export interface UserDoc {
   createdBy: string;
   pushToken?: string;
   pushTokenPlatform?: 'ios' | 'android';
+  pushNotificationsEnabled: boolean;
   comparePassword(password: string): Promise<boolean>;
 }
 
@@ -65,6 +66,10 @@ const userSchema = new mongoose.Schema<UserDoc>({
     type: String,
     enum: ['ios', 'android'],
     default: null,
+  },
+  pushNotificationsEnabled: {
+    type: Boolean,
+    default: true,
   },
 }, {
   collection: 'users',

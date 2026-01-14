@@ -33,6 +33,7 @@ export async function GET() {
       lastName: user.lastName,
       role: user.role,
       mustChangePassword: user.mustChangePassword,
+      pushNotificationsEnabled: user.pushNotificationsEnabled ?? true,
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -56,7 +57,7 @@ export async function PUT(request: NextRequest) {
 
     await connectDB();
 
-    const { firstName, lastName, currentPassword, newPassword } = await request.json();
+    const { firstName, lastName, currentPassword, newPassword, pushNotificationsEnabled } = await request.json();
 
     const user = await User.findById(currentUser.userId);
 
@@ -93,6 +94,9 @@ export async function PUT(request: NextRequest) {
     // Update profile fields
     if (firstName) user.firstName = firstName;
     if (lastName) user.lastName = lastName;
+    if (typeof pushNotificationsEnabled === 'boolean') {
+      user.pushNotificationsEnabled = pushNotificationsEnabled;
+    }
 
     await user.save();
 
@@ -121,6 +125,7 @@ export async function PUT(request: NextRequest) {
         lastName: user.lastName,
         role: user.role,
         mustChangePassword: user.mustChangePassword,
+        pushNotificationsEnabled: user.pushNotificationsEnabled ?? true,
       },
     });
   } catch (error) {

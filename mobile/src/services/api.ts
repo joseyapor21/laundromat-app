@@ -104,6 +104,24 @@ class ApiService {
     return this.request<User>('/auth/me');
   }
 
+  // Profile
+  async getProfile(): Promise<User & { pushNotificationsEnabled?: boolean }> {
+    return this.request<User & { pushNotificationsEnabled?: boolean }>('/profile');
+  }
+
+  async updateProfile(data: {
+    firstName?: string;
+    lastName?: string;
+    currentPassword?: string;
+    newPassword?: string;
+    pushNotificationsEnabled?: boolean;
+  }): Promise<{ message: string; user: User }> {
+    return this.request<{ message: string; user: User }>('/profile', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
   // Orders
   async getOrders(): Promise<Order[]> {
     return this.request<Order[]>('/orders');
@@ -305,16 +323,6 @@ class ApiService {
   async unregisterPushToken(): Promise<{ success: boolean }> {
     return this.request<{ success: boolean }>('/users/push-token', {
       method: 'DELETE',
-    });
-  }
-
-  async testPushNotification(): Promise<{ success: boolean; message?: string }> {
-    return this.request<{ success: boolean; message?: string }>('/notifications/test', {
-      method: 'POST',
-      body: JSON.stringify({
-        title: 'Test Notification',
-        body: 'Push notifications are working!',
-      }),
     });
   }
 

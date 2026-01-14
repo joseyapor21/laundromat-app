@@ -20,7 +20,8 @@
         "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to connect to thermal label printers for printing bag labels.",
         "NSBluetoothPeripheralUsageDescription": "This app uses Bluetooth to connect to thermal label printers for printing bag labels.",
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "2"
     },
     "android": {
       "adaptiveIcon": {
