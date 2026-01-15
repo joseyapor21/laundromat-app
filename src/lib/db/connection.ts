@@ -3,12 +3,15 @@ import { MongoClient, Db } from 'mongodb';
 
 // MongoDB connection settings - use environment variables
 // Set MONGODB_URI in .env.local or as environment variable
-const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
 const AUTH_DB_NAME = process.env.AUTH_DB_NAME || 'emergency';
 const APP_DB_NAME = process.env.APP_DB_NAME || 'laundromat';
 
-if (!MONGODB_URI) {
-  throw new Error('MONGODB_URI environment variable is required. Set it in .env.local or pass to Docker.');
+function getMongoUri(): string {
+  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
+  if (!uri) {
+    throw new Error('MONGODB_URI environment variable is required');
+  }
+  return uri;
 }
 
 // Shared auth database connection (for v5users and v5departments)
@@ -20,7 +23,7 @@ export async function getAuthDatabase(): Promise<Db> {
     return cachedAuthDb;
   }
 
-  const client = new MongoClient(`${MONGODB_URI}/${AUTH_DB_NAME}?authSource=admin`, {
+  const client = new MongoClient(`${getMongoUri()}/${AUTH_DB_NAME}?authSource=admin`, {
     serverSelectionTimeoutMS: 5000,
   });
 
@@ -61,7 +64,7 @@ export async function connectDB(): Promise<typeof mongoose> {
       maxPoolSize: 10,
     };
 
-    cached.promise = mongoose.connect(`${MONGODB_URI}/${APP_DB_NAME}?authSource=admin`, opts).then((mongoose) => {
+    cached.promise = mongoose.connect(`${getMongoUri()}/${APP_DB_NAME}?authSource=admin`, opts).then((mongoose) => {
       console.log('MongoDB connected successfully to laundromat database');
       return mongoose;
     });
