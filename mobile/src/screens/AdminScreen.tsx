@@ -18,6 +18,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Device } from 'react-native-ble-plx';
 import { api } from '../services/api';
+import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import { useAuth } from '../contexts/AuthContext';
 import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog } from '../types';
@@ -192,6 +193,14 @@ export default function AdminScreen() {
   }
 
   async function testPosPrint() {
+    const printerIp = settings?.thermalPrinterIp;
+    const printerPort = settings?.thermalPrinterPort || 9100;
+
+    if (!printerIp) {
+      Alert.alert('Printer Not Configured', 'Please set the thermal printer IP first.');
+      return;
+    }
+
     try {
       const testContent =
         '\x1B\x40' + // Initialize
@@ -202,11 +211,12 @@ export default function AdminScreen() {
         '================================\n' +
         'Laundromat App\n' +
         'POS Printer Test\n' +
+        `Printer: ${printerIp}:${printerPort}\n` +
         '================================\n' +
         '\n\n\n' +
         '\x1D\x56\x00'; // Cut
 
-      const result = await api.printReceipt(testContent);
+      const result = await localPrinter.printReceipt(printerIp, testContent, printerPort);
       if (result.success) {
         Alert.alert('Success', 'Test print sent to POS printer');
       } else {

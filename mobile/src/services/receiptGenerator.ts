@@ -209,7 +209,8 @@ export function generateCustomerReceiptText(order: Order): string {
     r += ESC.LEFT;
     order.extraItems.forEach((item: any) => {
       const itemName = item.name || item.item?.name || 'Extra Item';
-      r += leftRightAlign(`${itemName} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
+      const itemTotal = Number((item.price * item.quantity).toFixed(2));
+      r += leftRightAlign(`${itemName} x${item.quantity}`, `$${itemTotal.toFixed(2)}`) + '\n';
     });
   }
 
@@ -219,9 +220,11 @@ export function generateCustomerReceiptText(order: Order): string {
   r += ESC.LEFT;
   const totalWeight = order.weight || 0;
 
-  // Show subtotal breakdown
+  // Show subtotal breakdown (only if > 0)
   r += leftRightAlign('Weight', `${totalWeight} LBS`) + '\n';
-  r += leftRightAlign('Subtotal', `$${(order.subtotal || 0).toFixed(2)}`) + '\n';
+  if (order.subtotal && order.subtotal > 0) {
+    r += leftRightAlign('Subtotal', `$${order.subtotal.toFixed(2)}`) + '\n';
+  }
 
   // Show delivery fee if applicable
   if (order.deliveryFee && order.deliveryFee > 0) {
@@ -387,7 +390,8 @@ export function generateStoreCopyText(order: Order): string {
     r += ESC.LEFT;
     order.extraItems.forEach((item: any) => {
       const itemName = item.name || item.item?.name || 'Extra Item';
-      r += leftRightAlign(`${itemName} x${item.quantity}`, `$${(item.price * item.quantity).toFixed(2)}`) + '\n';
+      const itemTotal = Number((item.price * item.quantity).toFixed(2));
+      r += leftRightAlign(`${itemName} x${item.quantity}`, `$${itemTotal.toFixed(2)}`) + '\n';
     });
   }
 
@@ -397,9 +401,11 @@ export function generateStoreCopyText(order: Order): string {
   r += ESC.LEFT;
   const totalWeight = order.weight || 0;
 
-  // Show subtotal breakdown
+  // Show subtotal breakdown (only if > 0)
   r += leftRightAlign('Weight', `${totalWeight} LBS`) + '\n';
-  r += leftRightAlign('Subtotal', `$${(order.subtotal || 0).toFixed(2)}`) + '\n';
+  if (order.subtotal && order.subtotal > 0) {
+    r += leftRightAlign('Subtotal', `$${order.subtotal.toFixed(2)}`) + '\n';
+  }
 
   // Show delivery fee if applicable
   if (order.deliveryFee && order.deliveryFee > 0) {

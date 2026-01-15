@@ -55,7 +55,7 @@
         {
           "icon": "./assets/icon.png",
           "color": "#2563eb",
-          "sounds": []
+          "sounds": ["./assets/neworder.wav"]
         }
       ],
       "react-native-ble-plx"

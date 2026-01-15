@@ -13,7 +13,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
-import type { Order, PaymentMethod } from '../types';
+import { localPrinter } from '../services/LocalPrinter';
+import type { Order, PaymentMethod, Settings } from '../types';
 
 // ESC/POS commands for thermal printer
 const ESC = {
@@ -52,11 +53,16 @@ export default function CashierReportScreen() {
   const [printing, setPrinting] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [settings, setSettings] = useState<Settings | null>(null);
 
   const loadOrders = useCallback(async () => {
     try {
-      const allOrders = await api.getOrders();
+      const [allOrders, settingsData] = await Promise.all([
+        api.getOrders(),
+        api.getSettings(),
+      ]);
       setOrders(allOrders);
+      setSettings(settingsData);
     } catch (error) {
       console.error('Failed to load orders:', error);
     } finally {
@@ -161,6 +167,14 @@ export default function CashierReportScreen() {
 
   // Print to thermal printer
   const handlePrint = async () => {
+    const printerIp = settings?.thermalPrinterIp;
+    const printerPort = settings?.thermalPrinterPort || 9100;
+
+    if (!printerIp) {
+      Alert.alert('Printer Not Configured', 'Please set the thermal printer IP in Admin Settings.');
+      return;
+    }
+
     setPrinting(true);
     try {
       const dateStr = selectedDate.toLocaleDateString('en-US', {
@@ -251,8 +265,8 @@ export default function CashierReportScreen() {
       r += '\n';
       r += ESC.FEED_AND_CUT;
 
-      // Send to printer via API
-      const result = await api.printReceipt(r);
+      // Send to local printer via TCP
+      const result = await localPrinter.printReceipt(printerIp, r, printerPort);
       if (result.success) {
         Alert.alert('Success', 'Report printed successfully');
       } else {

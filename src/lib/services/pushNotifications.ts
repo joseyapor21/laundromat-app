@@ -8,7 +8,7 @@ interface PushMessage {
   title: string;
   body: string;
   data?: Record<string, unknown>;
-  sound?: 'default' | null;
+  sound?: 'default' | 'neworder.wav' | null;
   badge?: number;
   channelId?: string;
 }
@@ -275,7 +275,7 @@ export async function notifyNewOrder(
       title: `New ${typeLabel} Order #${orderNumber}`,
       body: `Customer: ${customerName}`,
       data: { orderId, orderNumber, type: 'new_order' },
-      sound: 'default',
+      sound: 'neworder.wav',
       channelId: 'orders',
     }));
 
@@ -382,7 +382,7 @@ export async function notifyDriversForDelivery(
       title: `Delivery Ready - Order #${orderNumber}`,
       body: `${customerName}\n${customerAddress || 'Address pending'}`,
       data: { orderId, orderNumber, type: 'delivery_ready' },
-      sound: 'default',
+      sound: 'neworder.wav',
       channelId: 'orders',
     }));
 
@@ -424,7 +424,7 @@ export async function notifyOrderPickedUp(
       title,
       body,
       data: { orderId, orderNumber, type: isDelivery ? 'out_for_delivery' : 'picked_up' },
-      sound: 'default',
+      sound: 'neworder.wav',
       channelId: 'orders',
     }));
 

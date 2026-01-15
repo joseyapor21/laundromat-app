@@ -15,10 +15,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
+import { localPrinter } from '../services/LocalPrinter';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useAuth } from '../contexts/AuthContext';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
-import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag } from '../types';
+import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag, Settings } from '../types';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
@@ -60,6 +61,7 @@ export default function OrderDetailScreen() {
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [verifyingFolding, setVerifyingFolding] = useState(false);
+  const [settings, setSettings] = useState<Settings | null>(null);
   const isProcessingScan = useRef(false);
 
   const loadOrder = useCallback(async () => {
@@ -79,6 +81,8 @@ export default function OrderDetailScreen() {
 
   useEffect(() => {
     loadOrder();
+    // Load settings for printer IP
+    api.getSettings().then(setSettings).catch(console.error);
   }, [loadOrder]);
 
   // Refresh when screen comes into focus (e.g., after editing)
@@ -111,10 +115,18 @@ export default function OrderDetailScreen() {
     setShowPrintOptions(true);
   }
 
-  // Print using POS thermal printer via API with ESC/POS formatting + QR codes
+  // Print using local POS thermal printer via TCP with ESC/POS formatting
   async function handlePrint(type: 'customer' | 'store' | 'both') {
     setShowPrintOptions(false);
     if (!order) return;
+
+    const printerIp = settings?.thermalPrinterIp;
+    const printerPort = settings?.thermalPrinterPort || 9100;
+
+    if (!printerIp) {
+      Alert.alert('Printer Not Configured', 'Please set the thermal printer IP in Admin Settings.');
+      return;
+    }
 
     setPrinting(true);
     try {
@@ -127,7 +139,7 @@ export default function OrderDetailScreen() {
       }
 
       for (const content of receipts) {
-        const response = await api.printReceipt(content);
+        const response = await localPrinter.printReceipt(printerIp, content, printerPort);
         if (!response.success) {
           throw new Error(response.error || 'Print failed');
         }
@@ -146,12 +158,20 @@ export default function OrderDetailScreen() {
       return;
     }
 
+    const printerIp = settings?.thermalPrinterIp;
+    const printerPort = settings?.thermalPrinterPort || 9100;
+
+    if (!printerIp) {
+      Alert.alert('Printer Not Configured', 'Please set the thermal printer IP in Admin Settings.');
+      return;
+    }
+
     setPrinting(true);
     try {
       for (let i = 0; i < order.bags.length; i++) {
         const bag = order.bags[i];
         const content = generateBagLabelText(order, bag, i + 1, order.bags.length);
-        const response = await api.printReceipt(content);
+        const response = await localPrinter.printReceipt(printerIp, content, printerPort);
         if (!response.success) {
           throw new Error(response.error || 'Print failed');
         }
@@ -170,11 +190,19 @@ export default function OrderDetailScreen() {
       return;
     }
 
+    const printerIp = settings?.thermalPrinterIp;
+    const printerPort = settings?.thermalPrinterPort || 9100;
+
+    if (!printerIp) {
+      Alert.alert('Printer Not Configured', 'Please set the thermal printer IP in Admin Settings.');
+      return;
+    }
+
     setPrinting(true);
     try {
       const bag = order.bags[bagIndex];
       const content = generateBagLabelText(order, bag, bagIndex + 1, order.bags.length);
-      const response = await api.printReceipt(content);
+      const response = await localPrinter.printReceipt(printerIp, content, printerPort);
       if (!response.success) {
         throw new Error(response.error || 'Print failed');
       }

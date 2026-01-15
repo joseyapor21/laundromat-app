@@ -18,6 +18,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
+import { localPrinter } from '../services/LocalPrinter';
+import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
 import { useAuth } from '../contexts/AuthContext';
 import type { Order, ExtraItem, Settings, Bag, OrderType, OrderExtraItem } from '../types';
 
@@ -337,6 +339,41 @@ export default function EditOrderScreen() {
       }
 
       await api.updateOrder(order!._id, updates);
+
+      // Auto-print if bags were added to delivery order
+      const originalBagCount = order?.bags?.length || 0;
+      const newBagCount = bags.length;
+      const bagsWereAdded = newBagCount > originalBagCount;
+
+      if (bagsWereAdded && settings?.thermalPrinterIp) {
+        try {
+          const printerIp = settings.thermalPrinterIp;
+          const printerPort = settings.thermalPrinterPort || 9100;
+
+          // Fetch updated order for printing
+          const updatedOrder = await api.getOrder(order!._id);
+
+          // Print customer receipt
+          const customerReceipt = generateCustomerReceiptText(updatedOrder);
+          await localPrinter.printReceipt(printerIp, customerReceipt, printerPort);
+
+          // Print store copy
+          const storeCopy = generateStoreCopyText(updatedOrder);
+          await localPrinter.printReceipt(printerIp, storeCopy, printerPort);
+
+          // Print bag labels
+          if (updatedOrder.bags && updatedOrder.bags.length > 0) {
+            for (let i = 0; i < updatedOrder.bags.length; i++) {
+              const bag = updatedOrder.bags[i];
+              const bagLabel = generateBagLabelText(updatedOrder, bag, i + 1, updatedOrder.bags.length);
+              await localPrinter.printReceipt(printerIp, bagLabel, printerPort);
+            }
+          }
+        } catch (printError) {
+          console.error('Auto-print failed:', printError);
+          // Don't show error - order was still updated successfully
+        }
+      }
 
       // Apply customer credit if selected
       if (applyCredit && creditToApply > 0 && order?.customer) {
