@@ -2,11 +2,13 @@ import mongoose from 'mongoose';
 import { MongoClient, Db } from 'mongodb';
 
 // MongoDB connection settings - use environment variables
-const MONGODB_URI = process.env.MONGODB_URI;
+// IMPORTANT: Set MONGODB_URI in your environment for production
+const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
 const AUTH_DB_NAME = process.env.AUTH_DB_NAME || 'emergency';
 const APP_DB_NAME = process.env.APP_DB_NAME || 'laundromat';
 
 if (!MONGODB_URI) {
+  console.error('WARNING: MONGODB_URI environment variable is not set!');
   throw new Error('Please define the MONGODB_URI environment variable');
 }
 
