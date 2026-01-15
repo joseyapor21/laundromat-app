@@ -113,8 +113,14 @@ export default function AdminScreen() {
 
   useEffect(() => {
     loadData();
-    checkPrinterConnection();
   }, [loadData]);
+
+  // Only check printer connection when on Printers tab
+  useEffect(() => {
+    if (activeTab === 'printers' && isAdmin) {
+      checkPrinterConnection();
+    }
+  }, [activeTab, isAdmin]);
 
   // Printer functions
   async function checkPrinterConnection() {
