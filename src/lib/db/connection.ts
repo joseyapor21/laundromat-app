@@ -1,10 +1,14 @@
 import mongoose from 'mongoose';
 import { MongoClient, Db } from 'mongodb';
 
-// MongoDB connection settings
-const MONGODB_URI = 'process.env.MONGODB_URI';
-const AUTH_DB_NAME = 'emergency';
-const APP_DB_NAME = 'laundromat';
+// MongoDB connection settings - use environment variables
+const MONGODB_URI = process.env.MONGODB_URI;
+const AUTH_DB_NAME = process.env.AUTH_DB_NAME || 'emergency';
+const APP_DB_NAME = process.env.APP_DB_NAME || 'laundromat';
+
+if (!MONGODB_URI) {
+  throw new Error('Please define the MONGODB_URI environment variable');
+}
 
 // Shared auth database connection (for v5users and v5departments)
 let cachedAuthClient: MongoClient | null = null;
