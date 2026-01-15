@@ -2,14 +2,13 @@ import mongoose from 'mongoose';
 import { MongoClient, Db } from 'mongodb';
 
 // MongoDB connection settings - use environment variables
-// IMPORTANT: Set MONGODB_URI in your environment for production
+// Set MONGODB_URI in .env.local or as environment variable
 const MONGODB_URI = process.env.MONGODB_URI || process.env.MONGO_URI;
 const AUTH_DB_NAME = process.env.AUTH_DB_NAME || 'emergency';
 const APP_DB_NAME = process.env.APP_DB_NAME || 'laundromat';
 
 if (!MONGODB_URI) {
-  console.error('WARNING: MONGODB_URI environment variable is not set!');
-  throw new Error('Please define the MONGODB_URI environment variable');
+  throw new Error('MONGODB_URI environment variable is required. Set it in .env.local or pass to Docker.');
 }
 
 // Shared auth database connection (for v5users and v5departments)
