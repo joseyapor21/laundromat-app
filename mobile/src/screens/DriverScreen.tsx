@@ -10,6 +10,9 @@ import {
   Linking,
   ActivityIndicator,
   ScrollView,
+  Modal,
+  TextInput,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +22,14 @@ import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import type { Order } from '../types';
+
+type MapApp = 'google' | 'apple' | 'waze';
+
+interface RouteStop {
+  order: Order;
+  address: string;
+  editedAddress?: string;
+}
 
 type Tab = 'pickups' | 'deliveries';
 
@@ -38,6 +49,13 @@ export default function DriverScreen() {
   const [devices, setDevices] = useState<Device[]>([]);
   const [connectedDeviceName, setConnectedDeviceName] = useState<string | null>(null);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+
+  // Route planning state
+  const [showRouteModal, setShowRouteModal] = useState(false);
+  const [routeStops, setRouteStops] = useState<RouteStop[]>([]);
+  const [editingStopIndex, setEditingStopIndex] = useState<number | null>(null);
+  const [editAddressText, setEditAddressText] = useState('');
+  const [selectedMapApp, setSelectedMapApp] = useState<MapApp>('google');
 
   const loadOrders = useCallback(async () => {
     try {
@@ -217,43 +235,152 @@ export default function DriverScreen() {
     }
   }
 
-  function openNavigation(address: string) {
-    const url = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}&travelmode=driving`;
-    Linking.openURL(url);
+  function openNavigation(address: string, mapApp: MapApp = selectedMapApp) {
+    const encodedAddress = encodeURIComponent(address);
+    let url = '';
+
+    switch (mapApp) {
+      case 'apple':
+        url = `maps://maps.apple.com/?daddr=${encodedAddress}`;
+        break;
+      case 'waze':
+        url = `waze://?q=${encodedAddress}&navigate=yes`;
+        break;
+      case 'google':
+      default:
+        url = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
+        break;
+    }
+
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        // Fallback to Google Maps web
+        const fallbackUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
+        Linking.openURL(fallbackUrl);
+      }
+    });
   }
 
-  // Open Google Maps with optimized route for ALL addresses (pickups + deliveries)
-  function openOptimizedRoute() {
-    // Combine both pickups and deliveries for full route
+  // Open route planning modal
+  function openRoutePlanner() {
     const allOrders = [...pickupOrders, ...deliveryOrders];
-    const addresses = allOrders
+    const stops: RouteStop[] = allOrders
       .filter(order => order.customer?.address)
-      .map(order => order.customer!.address.trim());
+      .map(order => ({
+        order,
+        address: order.customer!.address.trim(),
+      }));
 
-    if (addresses.length === 0) {
+    if (stops.length === 0) {
       Alert.alert('No Addresses', 'No orders have addresses to navigate to.');
       return;
     }
 
+    setRouteStops(stops);
+    setShowRouteModal(true);
+  }
+
+  // Move stop up in the list
+  function moveStopUp(index: number) {
+    if (index === 0) return;
+    const newStops = [...routeStops];
+    [newStops[index - 1], newStops[index]] = [newStops[index], newStops[index - 1]];
+    setRouteStops(newStops);
+  }
+
+  // Move stop down in the list
+  function moveStopDown(index: number) {
+    if (index === routeStops.length - 1) return;
+    const newStops = [...routeStops];
+    [newStops[index], newStops[index + 1]] = [newStops[index + 1], newStops[index]];
+    setRouteStops(newStops);
+  }
+
+  // Start editing an address
+  function startEditAddress(index: number) {
+    const stop = routeStops[index];
+    setEditingStopIndex(index);
+    setEditAddressText(stop.editedAddress || stop.address);
+  }
+
+  // Save edited address
+  function saveEditedAddress() {
+    if (editingStopIndex === null) return;
+    const newStops = [...routeStops];
+    newStops[editingStopIndex] = {
+      ...newStops[editingStopIndex],
+      editedAddress: editAddressText.trim(),
+    };
+    setRouteStops(newStops);
+    setEditingStopIndex(null);
+    setEditAddressText('');
+  }
+
+  // Cancel editing
+  function cancelEditAddress() {
+    setEditingStopIndex(null);
+    setEditAddressText('');
+  }
+
+  // Start navigation with selected map app
+  function startNavigation() {
+    const addresses = routeStops.map(stop => stop.editedAddress || stop.address);
+
     if (addresses.length === 1) {
       openNavigation(addresses[0]);
+      setShowRouteModal(false);
       return;
     }
 
-    // Multiple addresses - use Google Maps with waypoints
-    // Replace spaces with + for Google Maps URL compatibility
-    const formatAddress = (addr: string) => addr.replace(/\s+/g, '+');
+    const formatAddress = (addr: string) => encodeURIComponent(addr);
 
-    const origin = formatAddress(addresses[0]);
-    const destination = formatAddress(addresses[addresses.length - 1]);
-    const waypoints = addresses.slice(1, -1).map(formatAddress).join('%7C');
+    let url = '';
 
-    let url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
-    if (waypoints) {
-      url += `&waypoints=${waypoints}`;
+    switch (selectedMapApp) {
+      case 'apple':
+        // Apple Maps with multiple stops
+        const appleAddresses = addresses.map(a => `daddr=${formatAddress(a)}`).join('&');
+        url = `maps://maps.apple.com/?${appleAddresses}`;
+        break;
+
+      case 'waze':
+        // Waze only supports single destination, use first address
+        url = `waze://?q=${formatAddress(addresses[0])}&navigate=yes`;
+        Alert.alert('Note', 'Waze only supports single destination. Opening first stop.');
+        break;
+
+      case 'google':
+      default:
+        // Google Maps with waypoints
+        const origin = formatAddress(addresses[0]);
+        const destination = formatAddress(addresses[addresses.length - 1]);
+        const waypoints = addresses.slice(1, -1).map(formatAddress).join('%7C');
+        url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+        if (waypoints) {
+          url += `&waypoints=${waypoints}`;
+        }
+        break;
     }
 
-    Linking.openURL(url);
+    Linking.canOpenURL(url).then(supported => {
+      if (supported) {
+        Linking.openURL(url);
+      } else {
+        // Fallback to Google Maps
+        const origin = encodeURIComponent(addresses[0]);
+        const destination = encodeURIComponent(addresses[addresses.length - 1]);
+        const waypoints = addresses.slice(1, -1).map(encodeURIComponent).join('%7C');
+        let fallbackUrl = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+        if (waypoints) {
+          fallbackUrl += `&waypoints=${waypoints}`;
+        }
+        Linking.openURL(fallbackUrl);
+      }
+    });
+
+    setShowRouteModal(false);
   }
 
   const getStatusConfig = (status: string) => {
@@ -539,11 +666,11 @@ export default function DriverScreen() {
         <View style={styles.actionBar}>
           <TouchableOpacity
             style={[styles.actionBarButton, styles.routeButton]}
-            onPress={openOptimizedRoute}
+            onPress={openRoutePlanner}
           >
             <Ionicons name="map" size={20} color="#fff" />
             <Text style={styles.actionBarButtonText}>
-              Optimize Route ({pickupOrders.length + deliveryOrders.length} stops)
+              Plan Route ({pickupOrders.length + deliveryOrders.length} stops)
             </Text>
           </TouchableOpacity>
         </View>
@@ -567,6 +694,120 @@ export default function DriverScreen() {
           </View>
         }
       />
+
+      {/* Route Planning Modal */}
+      <Modal
+        visible={showRouteModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowRouteModal(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Plan Route</Text>
+            <TouchableOpacity onPress={() => setShowRouteModal(false)}>
+              <Ionicons name="close" size={28} color="#1e293b" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Map App Selection */}
+          <View style={styles.mapAppSection}>
+            <Text style={styles.mapAppLabel}>Select Map App:</Text>
+            <View style={styles.mapAppButtons}>
+              <TouchableOpacity
+                style={[styles.mapAppBtn, selectedMapApp === 'google' && styles.mapAppBtnActive]}
+                onPress={() => setSelectedMapApp('google')}
+              >
+                <Text style={[styles.mapAppBtnText, selectedMapApp === 'google' && styles.mapAppBtnTextActive]}>
+                  Google Maps
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.mapAppBtn, selectedMapApp === 'apple' && styles.mapAppBtnActive]}
+                onPress={() => setSelectedMapApp('apple')}
+              >
+                <Text style={[styles.mapAppBtnText, selectedMapApp === 'apple' && styles.mapAppBtnTextActive]}>
+                  Apple Maps
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.mapAppBtn, selectedMapApp === 'waze' && styles.mapAppBtnActive]}
+                onPress={() => setSelectedMapApp('waze')}
+              >
+                <Text style={[styles.mapAppBtnText, selectedMapApp === 'waze' && styles.mapAppBtnTextActive]}>
+                  Waze
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <Text style={styles.stopsLabel}>Stops ({routeStops.length}) - Drag to reorder:</Text>
+
+          {/* Stops List */}
+          <ScrollView style={styles.stopsList}>
+            {routeStops.map((stop, index) => (
+              <View key={stop.order._id} style={styles.stopItem}>
+                <View style={styles.stopNumber}>
+                  <Text style={styles.stopNumberText}>{index + 1}</Text>
+                </View>
+
+                <View style={styles.stopContent}>
+                  <Text style={styles.stopCustomer}>#{stop.order.orderId} - {stop.order.customerName}</Text>
+                  {editingStopIndex === index ? (
+                    <View style={styles.editAddressContainer}>
+                      <TextInput
+                        style={styles.editAddressInput}
+                        value={editAddressText}
+                        onChangeText={setEditAddressText}
+                        placeholder="Enter address"
+                        autoFocus
+                      />
+                      <View style={styles.editAddressButtons}>
+                        <TouchableOpacity style={styles.saveAddressBtn} onPress={saveEditedAddress}>
+                          <Ionicons name="checkmark" size={20} color="#fff" />
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.cancelAddressBtn} onPress={cancelEditAddress}>
+                          <Ionicons name="close" size={20} color="#fff" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ) : (
+                    <TouchableOpacity onPress={() => startEditAddress(index)}>
+                      <Text style={[styles.stopAddress, stop.editedAddress && styles.stopAddressEdited]}>
+                        {stop.editedAddress || stop.address}
+                        <Text style={styles.editHint}> (tap to edit)</Text>
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                <View style={styles.stopActions}>
+                  <TouchableOpacity
+                    style={[styles.moveBtn, index === 0 && styles.moveBtnDisabled]}
+                    onPress={() => moveStopUp(index)}
+                    disabled={index === 0}
+                  >
+                    <Ionicons name="chevron-up" size={24} color={index === 0 ? '#cbd5e1' : '#1e293b'} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.moveBtn, index === routeStops.length - 1 && styles.moveBtnDisabled]}
+                    onPress={() => moveStopDown(index)}
+                    disabled={index === routeStops.length - 1}
+                  >
+                    <Ionicons name="chevron-down" size={24} color={index === routeStops.length - 1 ? '#cbd5e1' : '#1e293b'} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+
+          {/* Start Navigation Button */}
+          <TouchableOpacity style={styles.startNavBtn} onPress={startNavigation}>
+            <Ionicons name="navigate" size={24} color="#fff" />
+            <Text style={styles.startNavBtnText}>Start Navigation</Text>
+          </TouchableOpacity>
+        </View>
+      </Modal>
 
     </View>
   );
@@ -965,5 +1206,167 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     textAlign: 'center',
     marginTop: 12,
+  },
+  // Route Planning Modal
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  mapAppSection: {
+    backgroundColor: '#fff',
+    padding: 16,
+    marginBottom: 8,
+  },
+  mapAppLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 12,
+  },
+  mapAppButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  mapAppBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  mapAppBtnActive: {
+    backgroundColor: '#2563eb',
+  },
+  mapAppBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  mapAppBtnTextActive: {
+    color: '#fff',
+  },
+  stopsLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  stopsList: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  stopItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 8,
+    padding: 12,
+    gap: 12,
+  },
+  stopNumber: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  stopNumberText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  stopContent: {
+    flex: 1,
+  },
+  stopCustomer: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  stopAddress: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  stopAddressEdited: {
+    color: '#2563eb',
+    fontStyle: 'italic',
+  },
+  editHint: {
+    fontSize: 11,
+    color: '#94a3b8',
+  },
+  stopActions: {
+    flexDirection: 'column',
+    gap: 4,
+  },
+  moveBtn: {
+    padding: 4,
+  },
+  moveBtnDisabled: {
+    opacity: 0.3,
+  },
+  editAddressContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  editAddressInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    backgroundColor: '#fff',
+  },
+  editAddressButtons: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  saveAddressBtn: {
+    backgroundColor: '#10b981',
+    padding: 8,
+    borderRadius: 8,
+  },
+  cancelAddressBtn: {
+    backgroundColor: '#ef4444',
+    padding: 8,
+    borderRadius: 8,
+  },
+  startNavBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#10b981',
+    margin: 16,
+    padding: 16,
+    borderRadius: 12,
+  },
+  startNavBtnText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
 });

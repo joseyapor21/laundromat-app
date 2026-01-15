@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthDatabase } from '@/lib/db/connection';
+import { connectDB, getAuthDatabase } from '@/lib/db/connection';
+import { User } from '@/lib/db/models';
 import { createHash, createHmac, pbkdf2Sync } from 'crypto';
 import { createToken, getTokenExpiry, setAuthCookie } from '@/lib/auth';
 
@@ -114,16 +115,36 @@ export async function POST(request: NextRequest) {
       }, { status: 403 });
     }
 
-    // Determine role: admin if in adminIds or is SuperUser, otherwise user
-    const role = (isAdmin || isSuperUser) ? 'admin' : 'user';
+    // Check if user exists in app User model for proper role/isDriver
+    await connectDB();
+    const appUser = await User.findById(userId).select('-password').lean();
+
+    // Determine role and isDriver from app User model if exists, otherwise from auth DB
+    let role = 'user';
+    let isDriver = false;
+
+    if (appUser) {
+      // Use role and isDriver from app User model
+      role = appUser.role || 'user';
+      isDriver = appUser.isDriver || false;
+    } else {
+      // Fall back to auth database fields
+      if (isAdmin || isSuperUser) {
+        role = 'admin';
+      } else if (user.appRole) {
+        role = user.appRole;
+      }
+      isDriver = user.isDriver || false;
+    }
 
     // Create JWT token with user info
     const userPayload = {
       _id: userId,
       email: user.email,
-      firstName: user.name?.split(' ')[0] || '',
-      lastName: user.name?.split(' ').slice(1).join(' ') || '',
+      firstName: appUser?.firstName || user.name?.split(' ')[0] || '',
+      lastName: appUser?.lastName || user.name?.split(' ').slice(1).join(' ') || '',
       role: role,
+      isDriver: isDriver,
       isActive: true,
       isSuperUser: isSuperUser,
       isDeptAdmin: isAdmin,
