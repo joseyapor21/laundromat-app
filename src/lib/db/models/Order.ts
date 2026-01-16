@@ -46,6 +46,8 @@ export interface OrderDoc {
   deliverySchedule?: Date | null;
   paymentMethod?: PaymentMethod | null;
   isPaid: boolean;
+  paidAt?: Date | null;
+  paidBy?: string;
   // Same day service
   isSameDay?: boolean;
   sameDayPricePerPound?: number;
@@ -247,6 +249,14 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   isPaid: {
     type: Boolean,
     default: false,
+  },
+  paidAt: {
+    type: Date,
+    default: null,
+  },
+  paidBy: {
+    type: String,
+    default: null,
   },
   // Same day service
   isSameDay: {

@@ -157,6 +157,8 @@ export interface Order {
   deliverySchedule?: Date;
   paymentMethod?: PaymentMethod;
   isPaid: boolean;
+  paidAt?: Date;
+  paidBy?: string;
   statusHistory: StatusHistoryEntry[];
   machineAssignments?: MachineAssignment[];
   // Extra items with quantities

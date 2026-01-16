@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, View, Platform } from 'react-native';
+import { ActivityIndicator, View, Platform, useWindowDimensions } from 'react-native';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -41,13 +41,22 @@ const Tab = createBottomTabNavigator();
 function MainTabs() {
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const isCashier = user?.role === 'cashier';
   const canAccessDriver = isAdmin || user?.isDriver;
   const canAccessAdmin = isAdmin || isCashier; // Cashiers get limited admin access
 
-  // Calculate tab bar style based on platform
+  // Detect landscape mode
+  const isLandscape = width > height && width >= 700;
+
+  // Calculate tab bar style based on platform and orientation
   const getTabBarStyle = () => {
+    // Hide tab bar in landscape mode
+    if (isLandscape) {
+      return { display: 'none' as const };
+    }
+
     if (Platform.OS === 'android') {
       // Android: Add extra padding for system navigation bar
       const bottomPadding = Math.max(insets.bottom, 24);

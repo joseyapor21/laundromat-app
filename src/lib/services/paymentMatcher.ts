@@ -219,6 +219,8 @@ export async function markOrderAsPaid(
 
     // Update order
     order.isPaid = true;
+    order.paidAt = new Date();
+    order.paidBy = 'Payment System';
     order.paymentMethod = paymentMethod;
 
     // Add to status history

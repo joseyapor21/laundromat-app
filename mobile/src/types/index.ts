@@ -117,6 +117,8 @@ export interface Order {
   notes?: string;
   isSameDay?: boolean;
   isPaid?: boolean;
+  paidAt?: Date;
+  paidBy?: string;
   // Folding tracking - who started folding
   foldingStartedBy?: string;
   foldingStartedByInitials?: string;

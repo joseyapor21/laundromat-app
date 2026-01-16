@@ -44,12 +44,13 @@ export default function CashierReportPage() {
   const loadOrders = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/orders?date=${selectedDate}`, {
+      // Use paidDate to get orders paid on the selected date (not by pickup/delivery date)
+      const response = await fetch(`/api/orders?paidDate=${selectedDate}`, {
         credentials: 'include',
       });
       if (response.ok) {
         const data = await response.json();
-        setOrders(data.filter((o: Order) => o.isPaid));
+        setOrders(data);
       }
     } catch (error) {
       console.error('Failed to load orders:', error);
@@ -402,6 +403,14 @@ export default function CashierReportPage() {
                             <span>CASH <span className="text-green-600">(Credit)</span></span>
                           ) : (
                             order.paymentMethod?.toUpperCase() || 'CASH'
+                          )}
+                          {order.paidAt && (
+                            <span className="ml-2 text-slate-400">
+                              • {new Date(order.paidAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                            </span>
+                          )}
+                          {order.paidBy && (
+                            <span className="ml-1 text-slate-400">by {order.paidBy}</span>
                           )}
                         </div>
                       </div>

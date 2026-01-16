@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Pressable,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -141,6 +142,10 @@ export function FloatingActionButtons() {
   const { openScanner } = useScanner();
   const navigation = useNavigation<any>();
   const [isExpanded, setIsExpanded] = useState(false);
+  const { width, height } = useWindowDimensions();
+
+  // Detect landscape mode (tab bar hidden)
+  const isLandscape = width > height && width >= 700;
 
   const handleAddOrder = () => {
     setIsExpanded(false);
@@ -167,7 +172,10 @@ export function FloatingActionButtons() {
         />
       )}
 
-      <View style={styles.fabContainer}>
+      <View style={[
+        styles.fabContainer,
+        isLandscape && styles.fabContainerLandscape
+      ]}>
         {/* Expandable options */}
         {isExpanded && (
           <View style={styles.fabOptions}>
@@ -276,6 +284,10 @@ const styles = StyleSheet.create({
     right: 20,
     alignItems: 'flex-end',
     zIndex: 1000,
+  },
+  fabContainerLandscape: {
+    bottom: 20,
+    right: 20,
   },
   fabOptions: {
     marginBottom: 12,

@@ -111,6 +111,17 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // If marking as paid, automatically set paidAt timestamp and paidBy
+    if (updates.isPaid === true && !order.isPaid) {
+      updates.paidAt = new Date();
+      updates.paidBy = currentUser.name;
+    }
+    // If unmarking as paid, clear paidAt and paidBy
+    if (updates.isPaid === false && order.isPaid) {
+      updates.paidAt = null;
+      updates.paidBy = null;
+    }
+
     // Update the order
     Object.assign(order, updates);
     await order.save();

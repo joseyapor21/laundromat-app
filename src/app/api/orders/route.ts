@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const date = searchParams.get('date');
+    const paidDate = searchParams.get('paidDate');
 
     // Build query
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -35,6 +36,16 @@ export async function GET(request: NextRequest) {
       const endOfDay = new Date(date);
       endOfDay.setHours(23, 59, 59, 999);
       query.dropOffDate = { $gte: startOfDay, $lte: endOfDay };
+    }
+
+    // Filter by paidAt date (for cashier reports)
+    if (paidDate) {
+      const startOfDay = new Date(paidDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(paidDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      query.paidAt = { $gte: startOfDay, $lte: endOfDay };
+      query.isPaid = true;
     }
 
     const orders = await Order.find(query).sort({ dropOffDate: -1 }).lean();
