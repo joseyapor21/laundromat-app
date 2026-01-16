@@ -81,7 +81,11 @@ export default function CreateOrderScreen() {
   const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
   const [quickAddName, setQuickAddName] = useState('');
   const [quickAddPhone, setQuickAddPhone] = useState('');
+  const [quickAddEmail, setQuickAddEmail] = useState('');
   const [quickAddAddress, setQuickAddAddress] = useState('');
+  const [quickAddDeliveryFee, setQuickAddDeliveryFee] = useState('');
+  const [quickAddBuzzerCode, setQuickAddBuzzerCode] = useState('');
+  const [quickAddNotes, setQuickAddNotes] = useState('');
   const [quickAddCreating, setQuickAddCreating] = useState(false);
 
   // Pickup date - default to tomorrow at 5 PM
@@ -190,7 +194,10 @@ export default function CreateOrderScreen() {
       const newCustomer = await api.createCustomer({
         name: quickAddName.trim(),
         phoneNumber: formatPhoneNumber(quickAddPhone),
+        email: quickAddEmail.trim() || undefined,
         address: quickAddAddress.trim() || undefined,
+        deliveryFee: quickAddDeliveryFee ? `$${parseFloat(quickAddDeliveryFee).toFixed(2)}` : '$0.00',
+        notes: quickAddNotes.trim() || undefined,
       });
 
       // Add to local customers list
@@ -201,8 +208,17 @@ export default function CreateOrderScreen() {
       setShowQuickAddCustomer(false);
       setQuickAddName('');
       setQuickAddPhone('');
+      setQuickAddEmail('');
       setQuickAddAddress('');
+      setQuickAddDeliveryFee('');
+      setQuickAddBuzzerCode('');
+      setQuickAddNotes('');
       setCustomerSearch('');
+
+      // Set special instructions from notes if any
+      if (newCustomer.notes) {
+        setSpecialInstructions(newCustomer.notes);
+      }
 
       Alert.alert('Success', `Customer "${newCustomer.name}" created!`);
     } catch (error) {
@@ -225,7 +241,11 @@ export default function CreateOrderScreen() {
       setQuickAddName(searchText);
       setQuickAddPhone('');
     }
+    setQuickAddEmail('');
     setQuickAddAddress('');
+    setQuickAddDeliveryFee('');
+    setQuickAddBuzzerCode('');
+    setQuickAddNotes('');
     setShowQuickAddCustomer(true);
   }
 
@@ -1278,80 +1298,154 @@ export default function CreateOrderScreen() {
         </View>
       </Modal>
 
-      {/* Quick Add Customer Modal */}
+      {/* Quick Add Customer Modal - Full Screen like Admin */}
       <Modal
         visible={showQuickAddCustomer}
         animationType="slide"
-        transparent={true}
         onRequestClose={() => setShowQuickAddCustomer(false)}
       >
-        <View style={styles.quickAddOverlay}>
-          <View style={styles.quickAddModal}>
-            <View style={styles.quickAddHeader}>
-              <Text style={styles.quickAddTitle}>New Customer</Text>
-              <TouchableOpacity onPress={() => setShowQuickAddCustomer(false)}>
-                <Ionicons name="close" size={28} color="#1e293b" />
-              </TouchableOpacity>
+        <View style={styles.quickAddContainer}>
+          {/* Header */}
+          <View style={styles.quickAddHeader}>
+            <Text style={styles.quickAddHeaderTitle}>New Customer</Text>
+            <TouchableOpacity onPress={() => setShowQuickAddCustomer(false)}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView style={styles.quickAddScrollView} keyboardShouldPersistTaps="handled">
+            {/* Basic Information Section */}
+            <View style={styles.quickAddSection}>
+              <Text style={styles.quickAddSectionTitle}>Basic Information</Text>
+              <View style={styles.quickAddCard}>
+                <View style={styles.quickAddInputGroup}>
+                  <Text style={styles.quickAddInputLabel}>Name *</Text>
+                  <TextInput
+                    style={styles.quickAddInput}
+                    value={quickAddName}
+                    onChangeText={setQuickAddName}
+                    placeholder="Customer name"
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="words"
+                  />
+                </View>
+                <View style={styles.quickAddInputGroup}>
+                  <Text style={styles.quickAddInputLabel}>Phone Number *</Text>
+                  <TextInput
+                    style={styles.quickAddInput}
+                    value={quickAddPhone}
+                    onChangeText={(text) => setQuickAddPhone(text.replace(/\D/g, ''))}
+                    placeholder="(555) 123-4567"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="phone-pad"
+                    maxLength={10}
+                  />
+                  {quickAddPhone.length > 0 && (
+                    <Text style={styles.quickAddPhoneFormatted}>
+                      {formatPhoneNumber(quickAddPhone)}
+                    </Text>
+                  )}
+                </View>
+                <View style={styles.quickAddInputGroup}>
+                  <Text style={styles.quickAddInputLabel}>Email</Text>
+                  <TextInput
+                    style={styles.quickAddInput}
+                    value={quickAddEmail}
+                    onChangeText={setQuickAddEmail}
+                    placeholder="Email address"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
             </View>
 
-            <View style={styles.quickAddContent}>
-              <Text style={styles.quickAddLabel}>Phone Number *</Text>
-              <TextInput
-                style={styles.quickAddInput}
-                value={quickAddPhone}
-                onChangeText={(text) => setQuickAddPhone(text.replace(/\D/g, ''))}
-                placeholder="(555) 123-4567"
-                placeholderTextColor="#94a3b8"
-                keyboardType="phone-pad"
-                maxLength={10}
-                autoFocus
-              />
-              <Text style={styles.quickAddFormatted}>
-                {quickAddPhone.length > 0 ? formatPhoneNumber(quickAddPhone) : ''}
-              </Text>
+            {/* Delivery Information Section */}
+            <View style={styles.quickAddSection}>
+              <Text style={styles.quickAddSectionTitle}>Delivery Information</Text>
+              <View style={styles.quickAddCard}>
+                <View style={styles.quickAddInputGroup}>
+                  <Text style={styles.quickAddInputLabel}>Address</Text>
+                  <TextInput
+                    style={[styles.quickAddInput, styles.quickAddTextArea]}
+                    value={quickAddAddress}
+                    onChangeText={setQuickAddAddress}
+                    placeholder="Delivery address"
+                    placeholderTextColor="#94a3b8"
+                    multiline
+                    numberOfLines={2}
+                  />
+                </View>
+                <View style={styles.quickAddInputRow}>
+                  <View style={[styles.quickAddInputGroup, { flex: 1 }]}>
+                    <Text style={styles.quickAddInputLabel}>Delivery Fee ($)</Text>
+                    <TextInput
+                      style={styles.quickAddInput}
+                      value={quickAddDeliveryFee}
+                      onChangeText={setQuickAddDeliveryFee}
+                      placeholder="0.00"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  <View style={[styles.quickAddInputGroup, { flex: 1 }]}>
+                    <Text style={styles.quickAddInputLabel}>Buzzer Code</Text>
+                    <TextInput
+                      style={styles.quickAddInput}
+                      value={quickAddBuzzerCode}
+                      onChangeText={setQuickAddBuzzerCode}
+                      placeholder="Buzzer code"
+                      placeholderTextColor="#94a3b8"
+                    />
+                  </View>
+                </View>
+              </View>
+            </View>
 
-              <Text style={styles.quickAddLabel}>Customer Name *</Text>
+            {/* Notes Section */}
+            <View style={styles.quickAddSection}>
+              <Text style={styles.quickAddSectionTitle}>Notes</Text>
               <TextInput
-                style={styles.quickAddInput}
-                value={quickAddName}
-                onChangeText={setQuickAddName}
-                placeholder="John Doe"
-                placeholderTextColor="#94a3b8"
-                autoCapitalize="words"
-              />
-
-              <Text style={styles.quickAddLabel}>Address (Optional)</Text>
-              <TextInput
-                style={[styles.quickAddInput, styles.quickAddAddressInput]}
-                value={quickAddAddress}
-                onChangeText={setQuickAddAddress}
-                placeholder="123 Main St, Apt 4B"
+                style={[styles.quickAddInput, styles.quickAddTextArea, { backgroundColor: '#fff' }]}
+                value={quickAddNotes}
+                onChangeText={setQuickAddNotes}
+                placeholder="Any notes about this customer..."
                 placeholderTextColor="#94a3b8"
                 multiline
-                numberOfLines={2}
+                numberOfLines={3}
               />
             </View>
 
-            <View style={styles.quickAddFooter}>
-              <TouchableOpacity
-                style={styles.quickAddCancelButton}
-                onPress={() => setShowQuickAddCustomer(false)}
-              >
-                <Text style={styles.quickAddCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.quickAddCreateButton, quickAddCreating && styles.quickAddButtonDisabled]}
-                onPress={handleQuickAddCustomer}
-                disabled={quickAddCreating}
-              >
-                {quickAddCreating ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Text style={styles.quickAddCreateText}>Create Customer</Text>
-                )}
-              </TouchableOpacity>
+            {/* Actions */}
+            <View style={styles.quickAddActionsSection}>
+              <View style={styles.quickAddMainActions}>
+                <TouchableOpacity
+                  style={styles.quickAddCancelButton}
+                  onPress={() => setShowQuickAddCustomer(false)}
+                  disabled={quickAddCreating}
+                >
+                  <Text style={styles.quickAddCancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.quickAddSaveButton, quickAddCreating && styles.quickAddButtonDisabled]}
+                  onPress={handleQuickAddCustomer}
+                  disabled={quickAddCreating}
+                >
+                  {quickAddCreating ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark" size={20} color="#fff" />
+                      <Text style={styles.quickAddSaveButtonText}>Create Customer</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
+
+            <View style={{ height: 40 }} />
+          </ScrollView>
         </View>
       </Modal>
     </ScrollView>
@@ -2197,7 +2291,7 @@ const styles = StyleSheet.create({
   datePickerSpinner: {
     height: 200,
   },
-  // Quick Add Customer styles
+  // Quick Add Customer styles - Full screen like CreateCustomerScreen
   quickAddButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2216,97 +2310,109 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#2563eb',
   },
-  quickAddOverlay: {
+  quickAddContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    backgroundColor: '#f1f5f9',
   },
-  quickAddModal: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    width: '100%',
-    maxWidth: 400,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 10,
+  quickAddScrollView: {
+    flex: 1,
   },
   quickAddHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
+    backgroundColor: '#1e293b',
+    padding: 20,
+    paddingTop: 60,
   },
-  quickAddTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1e293b',
+  quickAddHeaderTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
   },
-  quickAddContent: {
-    padding: 16,
+  quickAddSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
   },
-  quickAddLabel: {
+  quickAddSectionTitle: {
     fontSize: 14,
     fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    marginBottom: 8,
+  },
+  quickAddCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+  },
+  quickAddInputGroup: {
+    marginBottom: 12,
+  },
+  quickAddInputRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  quickAddInputLabel: {
+    fontSize: 14,
+    fontWeight: '500',
     color: '#475569',
     marginBottom: 6,
-    marginTop: 12,
   },
   quickAddInput: {
     backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
     color: '#1e293b',
   },
-  quickAddAddressInput: {
-    minHeight: 60,
+  quickAddTextArea: {
+    minHeight: 80,
     textAlignVertical: 'top',
   },
-  quickAddFormatted: {
+  quickAddPhoneFormatted: {
     fontSize: 13,
     color: '#2563eb',
     marginTop: 4,
-    marginLeft: 4,
   },
-  quickAddFooter: {
+  quickAddActionsSection: {
+    marginHorizontal: 16,
+    marginTop: 16,
+  },
+  quickAddMainActions: {
     flexDirection: 'row',
     gap: 12,
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
   },
   quickAddCancelButton: {
     flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: '#f1f5f9',
+    padding: 14,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 12,
     alignItems: 'center',
   },
-  quickAddCancelText: {
-    fontSize: 16,
-    fontWeight: '600',
+  quickAddCancelButtonText: {
     color: '#64748b',
-  },
-  quickAddCreateButton: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 10,
-    backgroundColor: '#2563eb',
-    alignItems: 'center',
-  },
-  quickAddCreateText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  quickAddSaveButton: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563eb',
+    padding: 14,
+    borderRadius: 12,
+  },
+  quickAddSaveButtonText: {
     color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   quickAddButtonDisabled: {
     opacity: 0.6,
