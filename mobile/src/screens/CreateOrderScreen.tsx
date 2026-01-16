@@ -77,6 +77,13 @@ export default function CreateOrderScreen() {
   const [applyCredit, setApplyCredit] = useState(false);
   const [creditToApply, setCreditToApply] = useState(0);
 
+  // Quick add customer
+  const [showQuickAddCustomer, setShowQuickAddCustomer] = useState(false);
+  const [quickAddName, setQuickAddName] = useState('');
+  const [quickAddPhone, setQuickAddPhone] = useState('');
+  const [quickAddAddress, setQuickAddAddress] = useState('');
+  const [quickAddCreating, setQuickAddCreating] = useState(false);
+
   // Pickup date - default to tomorrow at 5 PM
   const getDefaultPickupDate = () => {
     const date = new Date();
@@ -107,6 +114,178 @@ export default function CreateOrderScreen() {
     } finally {
       setLoading(false);
     }
+  }
+
+  // Format phone number as user types (XXX) XXX-XXXX
+  function formatPhoneNumber(text: string): string {
+    const cleaned = text.replace(/\D/g, '');
+    const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
+    if (!match) return text;
+
+    let formatted = '';
+    if (match[1]) {
+      formatted = `(${match[1]}`;
+      if (match[1].length === 3) {
+        formatted += ') ';
+        if (match[2]) {
+          formatted += match[2];
+          if (match[2].length === 3 && match[3]) {
+            formatted += `-${match[3]}`;
+          }
+        }
+      }
+    }
+    return formatted || text;
+  }
+
+  // Check if phone number already exists
+  function findCustomerByPhone(phone: string): Customer | undefined {
+    const cleanPhone = phone.replace(/\D/g, '');
+    return customers.find(c => c.phoneNumber.replace(/\D/g, '') === cleanPhone);
+  }
+
+  // Quick add customer with duplicate check
+  async function handleQuickAddCustomer() {
+    if (!quickAddName.trim()) {
+      Alert.alert('Error', 'Please enter customer name');
+      return;
+    }
+    if (!quickAddPhone.trim()) {
+      Alert.alert('Error', 'Please enter phone number');
+      return;
+    }
+
+    const cleanPhone = quickAddPhone.replace(/\D/g, '');
+    if (cleanPhone.length < 10) {
+      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      return;
+    }
+
+    // Check for duplicate
+    const existingCustomer = findCustomerByPhone(quickAddPhone);
+    if (existingCustomer) {
+      Alert.alert(
+        'Customer Already Exists',
+        `A customer with this phone number already exists:\n\n${existingCustomer.name}\n${existingCustomer.phoneNumber}`,
+        [
+          { text: 'Use Existing', onPress: () => {
+            setSelectedCustomer(existingCustomer);
+            setShowQuickAddCustomer(false);
+            setQuickAddName('');
+            setQuickAddPhone('');
+            setQuickAddAddress('');
+            setCustomerSearch('');
+            if (existingCustomer.notes) {
+              setSpecialInstructions(existingCustomer.notes);
+            }
+          }},
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+
+    setQuickAddCreating(true);
+    try {
+      const newCustomer = await api.createCustomer({
+        name: quickAddName.trim(),
+        phoneNumber: formatPhoneNumber(quickAddPhone),
+        address: quickAddAddress.trim() || undefined,
+      });
+
+      // Add to local customers list
+      setCustomers(prev => [newCustomer, ...prev]);
+
+      // Select the new customer
+      setSelectedCustomer(newCustomer);
+      setShowQuickAddCustomer(false);
+      setQuickAddName('');
+      setQuickAddPhone('');
+      setQuickAddAddress('');
+      setCustomerSearch('');
+
+      Alert.alert('Success', `Customer "${newCustomer.name}" created!`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to create customer');
+    } finally {
+      setQuickAddCreating(false);
+    }
+  }
+
+  // Open quick add with phone pre-filled from search
+  function openQuickAddCustomer() {
+    const searchText = customerSearch.trim();
+    // Check if search looks like a phone number
+    const isPhone = /^\d+$/.test(searchText.replace(/\D/g, '')) && searchText.replace(/\D/g, '').length >= 3;
+
+    if (isPhone) {
+      setQuickAddPhone(searchText);
+      setQuickAddName('');
+    } else {
+      setQuickAddName(searchText);
+      setQuickAddPhone('');
+    }
+    setQuickAddAddress('');
+    setShowQuickAddCustomer(true);
+  }
+
+  // Update customer phone number
+  async function updateCustomerPhone(customer: Customer, newPhone: string) {
+    try {
+      const formattedPhone = formatPhoneNumber(newPhone);
+      const updatedCustomer = await api.updateCustomer(customer._id, {
+        phoneNumber: formattedPhone,
+      });
+
+      // Update local customers list
+      setCustomers(prev => prev.map(c => c._id === customer._id ? updatedCustomer : c));
+
+      // Select the updated customer
+      setSelectedCustomer(updatedCustomer);
+      setShowQuickAddCustomer(false);
+      setQuickAddName('');
+      setQuickAddPhone('');
+      setQuickAddAddress('');
+      setCustomerSearch('');
+
+      Alert.alert('Success', `Phone number updated for ${customer.name}`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update phone number');
+    }
+  }
+
+  // Handle selecting existing customer with option to update phone
+  function handleSelectCustomerWithPhoneOption(customer: Customer) {
+    const searchText = customerSearch.trim();
+    const searchIsPhone = /^\d+$/.test(searchText.replace(/\D/g, '')) && searchText.replace(/\D/g, '').length >= 7;
+    const searchPhone = searchText.replace(/\D/g, '');
+    const customerPhone = customer.phoneNumber.replace(/\D/g, '');
+
+    // If searching by phone and it's different from customer's phone, offer to update
+    if (searchIsPhone && searchPhone !== customerPhone && searchPhone.length >= 10) {
+      Alert.alert(
+        'Update Phone Number?',
+        `${customer.name}'s phone is:\n${customer.phoneNumber}\n\nUpdate to new number?\n${formatPhoneNumber(searchText)}`,
+        [
+          { text: 'Keep Old Number', onPress: () => selectCustomer(customer) },
+          { text: 'Update Phone', onPress: () => updateCustomerPhone(customer, searchText) },
+        ]
+      );
+    } else {
+      selectCustomer(customer);
+    }
+  }
+
+  // Select a customer
+  function selectCustomer(customer: Customer) {
+    Keyboard.dismiss();
+    setSelectedCustomer(customer);
+    setCustomerSearch('');
+    if (customer.notes) {
+      setSpecialInstructions(customer.notes);
+    }
+    setApplyCredit(false);
+    setCreditToApply(0);
   }
 
   // Calculate total weight from all bags
@@ -459,23 +638,22 @@ export default function CreateOrderScreen() {
                   <TouchableOpacity
                     key={customer._id}
                     style={styles.customerItem}
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setSelectedCustomer(customer);
-                      setCustomerSearch('');
-                      // Auto-populate special instructions with customer notes
-                      if (customer.notes) {
-                        setSpecialInstructions(customer.notes);
-                      }
-                      // Reset credit when customer changes
-                      setApplyCredit(false);
-                      setCreditToApply(0);
-                    }}
+                    onPress={() => handleSelectCustomerWithPhoneOption(customer)}
                   >
                     <Text style={styles.customerItemName}>{customer.name}</Text>
                     <Text style={styles.customerItemPhone}>{customer.phoneNumber}</Text>
                   </TouchableOpacity>
                 ))}
+                {/* Quick Add Customer Button */}
+                <TouchableOpacity
+                  style={styles.quickAddButton}
+                  onPress={openQuickAddCustomer}
+                >
+                  <Ionicons name="person-add" size={20} color="#2563eb" />
+                  <Text style={styles.quickAddButtonText}>
+                    {filteredCustomers.length === 0 ? 'Add New Customer' : 'Add as New Customer'}
+                  </Text>
+                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -1096,6 +1274,83 @@ export default function CreateOrderScreen() {
             >
               <Text style={styles.modalDoneButtonText}>Done</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Quick Add Customer Modal */}
+      <Modal
+        visible={showQuickAddCustomer}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowQuickAddCustomer(false)}
+      >
+        <View style={styles.quickAddOverlay}>
+          <View style={styles.quickAddModal}>
+            <View style={styles.quickAddHeader}>
+              <Text style={styles.quickAddTitle}>New Customer</Text>
+              <TouchableOpacity onPress={() => setShowQuickAddCustomer(false)}>
+                <Ionicons name="close" size={28} color="#1e293b" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.quickAddContent}>
+              <Text style={styles.quickAddLabel}>Phone Number *</Text>
+              <TextInput
+                style={styles.quickAddInput}
+                value={quickAddPhone}
+                onChangeText={(text) => setQuickAddPhone(text.replace(/\D/g, ''))}
+                placeholder="(555) 123-4567"
+                placeholderTextColor="#94a3b8"
+                keyboardType="phone-pad"
+                maxLength={10}
+                autoFocus
+              />
+              <Text style={styles.quickAddFormatted}>
+                {quickAddPhone.length > 0 ? formatPhoneNumber(quickAddPhone) : ''}
+              </Text>
+
+              <Text style={styles.quickAddLabel}>Customer Name *</Text>
+              <TextInput
+                style={styles.quickAddInput}
+                value={quickAddName}
+                onChangeText={setQuickAddName}
+                placeholder="John Doe"
+                placeholderTextColor="#94a3b8"
+                autoCapitalize="words"
+              />
+
+              <Text style={styles.quickAddLabel}>Address (Optional)</Text>
+              <TextInput
+                style={[styles.quickAddInput, styles.quickAddAddressInput]}
+                value={quickAddAddress}
+                onChangeText={setQuickAddAddress}
+                placeholder="123 Main St, Apt 4B"
+                placeholderTextColor="#94a3b8"
+                multiline
+                numberOfLines={2}
+              />
+            </View>
+
+            <View style={styles.quickAddFooter}>
+              <TouchableOpacity
+                style={styles.quickAddCancelButton}
+                onPress={() => setShowQuickAddCustomer(false)}
+              >
+                <Text style={styles.quickAddCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.quickAddCreateButton, quickAddCreating && styles.quickAddButtonDisabled]}
+                onPress={handleQuickAddCustomer}
+                disabled={quickAddCreating}
+              >
+                {quickAddCreating ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.quickAddCreateText}>Create Customer</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1941,5 +2196,119 @@ const styles = StyleSheet.create({
   },
   datePickerSpinner: {
     height: 200,
+  },
+  // Quick Add Customer styles
+  quickAddButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    backgroundColor: '#eff6ff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+    borderStyle: 'dashed',
+    marginTop: 4,
+  },
+  quickAddButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  quickAddOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  quickAddModal: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  quickAddHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  quickAddTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  quickAddContent: {
+    padding: 16,
+  },
+  quickAddLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  quickAddInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#1e293b',
+  },
+  quickAddAddressInput: {
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  quickAddFormatted: {
+    fontSize: 13,
+    color: '#2563eb',
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  quickAddFooter: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  quickAddCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  quickAddCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  quickAddCreateButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+  },
+  quickAddCreateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  quickAddButtonDisabled: {
+    opacity: 0.6,
   },
 });
