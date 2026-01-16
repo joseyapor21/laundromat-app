@@ -742,10 +742,11 @@ export default function AdminScreen() {
 
       {/* Settings Tab */}
       {activeTab === 'settings' && settings && (
-        <ScrollView
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        >
+        <View style={{ flex: 1 }}>
+          <ScrollView
+            contentContainerStyle={styles.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          >
           <TouchableOpacity style={styles.editSettingsButton} onPress={openSettingsModal}>
             <Ionicons name="pencil" size={18} color="#fff" />
             <Text style={styles.editSettingsText}>Edit Settings</Text>
@@ -795,16 +796,18 @@ export default function AdminScreen() {
             </View>
           </View>
 
-        </ScrollView>
+          </ScrollView>
+        </View>
       )}
 
       {/* Printers Tab */}
       {activeTab === 'printers' && (
-        <ScrollView
-          contentContainerStyle={styles.listContent}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        >
-          {/* Bluetooth Label Printer (Bipman) */}
+        <View style={{ flex: 1 }}>
+          <ScrollView
+            contentContainerStyle={styles.listContent}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          >
+            {/* Bluetooth Label Printer (Bipman) */}
           <View style={styles.settingsCard}>
             <View style={styles.printerHeaderRow}>
               <View style={styles.printerHeaderLeft}>
@@ -941,7 +944,8 @@ export default function AdminScreen() {
               </View>
             )}
           </View>
-        </ScrollView>
+          </ScrollView>
+        </View>
       )}
 
       {/* Machines Tab */}
