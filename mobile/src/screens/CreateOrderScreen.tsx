@@ -65,6 +65,8 @@ export default function CreateOrderScreen() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [orderType, setOrderType] = useState<'storePickup' | 'delivery'>('storePickup');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const [manualDeliveryFee, setManualDeliveryFee] = useState('');
   const [bags, setBags] = useState<Bag[]>([]);
   const [isSameDay, setIsSameDay] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
@@ -398,7 +400,12 @@ export default function CreateOrderScreen() {
     // Add delivery fee
     let deliveryFee = 0;
     if (orderType === 'delivery' && selectedCustomer) {
-      deliveryFee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
+      // Use manual fee if customer doesn't have one set
+      if (!selectedCustomer.deliveryFee || selectedCustomer.deliveryFee === '$0.00') {
+        deliveryFee = parseFloat(manualDeliveryFee) || 0;
+      } else {
+        deliveryFee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
+      }
     }
 
     return laundrySubtotal + sameDayExtra + extrasTotal + deliveryFee;
@@ -474,7 +481,12 @@ export default function CreateOrderScreen() {
 
     // Delivery fee
     if (orderType === 'delivery' && selectedCustomer) {
-      const fee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
+      let fee = 0;
+      if (!selectedCustomer.deliveryFee || selectedCustomer.deliveryFee === '$0.00') {
+        fee = parseFloat(manualDeliveryFee) || 0;
+      } else {
+        fee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
+      }
       if (fee > 0) {
         breakdown.push({
           label: 'Delivery Fee',
@@ -508,6 +520,12 @@ export default function CreateOrderScreen() {
       return;
     }
 
+    // Validate delivery address for delivery orders
+    if (orderType === 'delivery' && !selectedCustomer.address && !deliveryAddress.trim()) {
+      Alert.alert('Error', 'Please enter a delivery address');
+      return;
+    }
+
     const totalWeight = getTotalWeight();
 
     setSubmitting(true);
@@ -527,10 +545,14 @@ export default function CreateOrderScreen() {
           };
         });
 
+      // Use manual delivery address if customer doesn't have one
+      const finalDeliveryAddress = selectedCustomer.address || deliveryAddress.trim();
+
       const orderData = {
         customerId: selectedCustomer._id,
         customerName: selectedCustomer.name,
         customerPhone: selectedCustomer.phoneNumber,
+        deliveryAddress: orderType === 'delivery' ? finalDeliveryAddress : undefined,
         orderType,
         weight: totalWeight,
         bags: bags.filter(bag => bag.weight > 0 || bag.color || bag.description).map(bag => ({
@@ -629,22 +651,61 @@ export default function CreateOrderScreen() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Customer</Text>
         {selectedCustomer ? (
-          <View style={styles.selectedCustomer}>
-            <View style={styles.selectedCustomerInfo}>
-              <Text style={styles.customerName}>{selectedCustomer.name}</Text>
-              <Text style={styles.customerPhone}>{selectedCustomer.phoneNumber}</Text>
-              {selectedCustomer.address && (
-                <Text style={styles.customerAddress}>{selectedCustomer.address}</Text>
-              )}
+          <View>
+            <View style={styles.selectedCustomer}>
+              <View style={styles.selectedCustomerInfo}>
+                <Text style={styles.customerName}>{selectedCustomer.name}</Text>
+                <Text style={styles.customerPhone}>{selectedCustomer.phoneNumber}</Text>
+                {selectedCustomer.address && (
+                  <Text style={styles.customerAddress}>{selectedCustomer.address}</Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={() => {
+                setSelectedCustomer(null);
+                setSpecialInstructions('');
+                setApplyCredit(false);
+                setCreditToApply(0);
+                setDeliveryAddress('');
+                setManualDeliveryFee('');
+              }}>
+                <Ionicons name="close-circle" size={24} color="#ef4444" />
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity onPress={() => {
-              setSelectedCustomer(null);
-              setSpecialInstructions('');
-              setApplyCredit(false);
-              setCreditToApply(0);
-            }}>
-              <Ionicons name="close-circle" size={24} color="#ef4444" />
-            </TouchableOpacity>
+            {/* Delivery Info - Show when order is delivery and customer has missing info */}
+            {orderType === 'delivery' && (!selectedCustomer.address || !selectedCustomer.deliveryFee || selectedCustomer.deliveryFee === '$0.00') && (
+              <View style={styles.deliveryInfoSection}>
+                <Text style={styles.deliveryInfoTitle}>
+                  <Ionicons name="car" size={16} color="#f59e0b" /> Delivery Information Required
+                </Text>
+                {!selectedCustomer.address && (
+                  <View style={styles.deliveryInputGroup}>
+                    <Text style={styles.deliveryInputLabel}>Delivery Address *</Text>
+                    <TextInput
+                      style={styles.deliveryAddressInput}
+                      value={deliveryAddress}
+                      onChangeText={setDeliveryAddress}
+                      placeholder="Enter delivery address..."
+                      placeholderTextColor="#94a3b8"
+                      multiline
+                      numberOfLines={2}
+                    />
+                  </View>
+                )}
+                {(!selectedCustomer.deliveryFee || selectedCustomer.deliveryFee === '$0.00') && (
+                  <View style={styles.deliveryInputGroup}>
+                    <Text style={styles.deliveryInputLabel}>Delivery Fee ($)</Text>
+                    <TextInput
+                      style={styles.deliveryFeeInput}
+                      value={manualDeliveryFee}
+                      onChangeText={setManualDeliveryFee}
+                      placeholder="0.00"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                )}
+              </View>
+            )}
           </View>
         ) : (
           <View>
@@ -1542,6 +1603,49 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#94a3b8',
     marginTop: 4,
+  },
+  deliveryInfoSection: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+  },
+  deliveryInfoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 12,
+  },
+  deliveryInputGroup: {
+    marginBottom: 12,
+  },
+  deliveryInputLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#78350f',
+    marginBottom: 6,
+  },
+  deliveryAddressInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: '#1e293b',
+    minHeight: 60,
+    textAlignVertical: 'top',
+  },
+  deliveryFeeInput: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 15,
+    color: '#1e293b',
   },
   typeButtons: {
     flexDirection: 'row',
