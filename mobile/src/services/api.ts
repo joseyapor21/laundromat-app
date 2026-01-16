@@ -179,6 +179,29 @@ class ApiService {
     });
   }
 
+  // Address verification
+  async verifyAddress(address: string): Promise<{
+    verified: boolean;
+    error?: string;
+    bestMatch?: {
+      displayName: string;
+      formattedAddress: string;
+      latitude: number;
+      longitude: number;
+    };
+    suggestions: Array<{
+      displayName: string;
+      formattedAddress: string;
+      latitude: number;
+      longitude: number;
+    }>;
+  }> {
+    return this.request('/address/verify', {
+      method: 'POST',
+      body: JSON.stringify({ address }),
+    });
+  }
+
   async getCustomerOrders(customerId: string): Promise<Order[]> {
     return this.request<Order[]>(`/customers/${customerId}/orders`);
   }
