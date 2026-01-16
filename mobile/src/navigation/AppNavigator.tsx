@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, View, Platform } from 'react-native';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { ScannerProvider, FloatingActionButtons } from '../contexts/ScannerContext';
 import pushNotificationService from '../services/pushNotifications';
@@ -39,10 +40,16 @@ const Tab = createBottomTabNavigator();
 
 function MainTabs() {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const isCashier = user?.role === 'cashier';
   const canAccessDriver = isAdmin || user?.isDriver;
   const canAccessAdmin = isAdmin || isCashier; // Cashiers get limited admin access
+
+  // Calculate tab bar height based on platform and safe area
+  const tabBarHeight = Platform.OS === 'android'
+    ? 60 + Math.max(insets.bottom, 16) // Add extra padding on Android for nav bar
+    : 60 + insets.bottom;
 
   return (
     <Tab.Navigator
@@ -65,9 +72,9 @@ function MainTabs() {
         tabBarActiveTintColor: '#2563eb',
         tabBarInactiveTintColor: '#94a3b8',
         tabBarStyle: {
-          paddingBottom: 8,
+          paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom + 8,
           paddingTop: 8,
-          height: 60,
+          height: tabBarHeight,
         },
         tabBarLabelStyle: {
           fontSize: 12,
