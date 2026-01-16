@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Customer, ExtraItem, Settings, Bag, OrderType, PaymentMethod } from '@/types';
 import { printerService } from '@/services/printerService';
+import AddressInput from '@/components/AddressInput';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
@@ -658,13 +659,20 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
             {orderType === 'delivery' && (
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-gray-700">Address</label>
-                <textarea
-                  required
-                  value={newCustomer.address}
-                  onChange={(e) => setNewCustomer(prev => ({ ...prev, address: e.target.value }))}
-                  disabled={!!selectedCustomer}
-                  className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 disabled:bg-gray-100 min-h-20 resize-y text-gray-900 bg-white"
-                />
+                {selectedCustomer ? (
+                  <textarea
+                    value={newCustomer.address}
+                    disabled
+                    className="w-full px-3 py-2.5 border-2 border-gray-200 rounded-lg bg-gray-100 min-h-20 resize-y text-gray-900"
+                  />
+                ) : (
+                  <AddressInput
+                    value={newCustomer.address}
+                    onChange={(address) => setNewCustomer(prev => ({ ...prev, address }))}
+                    placeholder="Enter delivery address..."
+                    required
+                  />
+                )}
               </div>
             )}
           </div>

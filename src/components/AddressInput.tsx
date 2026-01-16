@@ -118,7 +118,7 @@ export default function AddressInput({
     if (newValue.length >= 10) {
       debounceRef.current = setTimeout(() => {
         verifyAddress(newValue);
-      }, 1000);
+      }, 800);
     }
   };
 

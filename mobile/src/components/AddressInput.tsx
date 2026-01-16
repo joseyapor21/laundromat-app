@@ -96,7 +96,7 @@ export default function AddressInput({
     if (text.length >= 10) {
       debounceRef.current = setTimeout(() => {
         verifyAddress(text);
-      }, 1500);
+      }, 800);
     }
   };
 
