@@ -46,10 +46,24 @@ function MainTabs() {
   const canAccessDriver = isAdmin || user?.isDriver;
   const canAccessAdmin = isAdmin || isCashier; // Cashiers get limited admin access
 
-  // Calculate tab bar height based on platform and safe area
-  const tabBarHeight = Platform.OS === 'android'
-    ? 60 + Math.max(insets.bottom, 16) // Add extra padding on Android for nav bar
-    : 60 + insets.bottom;
+  // Calculate tab bar style based on platform
+  const getTabBarStyle = () => {
+    if (Platform.OS === 'android') {
+      // Android: Add extra padding for system navigation bar
+      const bottomPadding = Math.max(insets.bottom, 24);
+      return {
+        paddingBottom: bottomPadding,
+        paddingTop: 8,
+        height: 60 + bottomPadding,
+      };
+    }
+    // iOS: Keep original style
+    return {
+      paddingBottom: 8,
+      paddingTop: 8,
+      height: 60,
+    };
+  };
 
   return (
     <Tab.Navigator
@@ -71,11 +85,7 @@ function MainTabs() {
         },
         tabBarActiveTintColor: '#2563eb',
         tabBarInactiveTintColor: '#94a3b8',
-        tabBarStyle: {
-          paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 16) : insets.bottom + 8,
-          paddingTop: 8,
-          height: tabBarHeight,
-        },
+        tabBarStyle: getTabBarStyle(),
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '500',
