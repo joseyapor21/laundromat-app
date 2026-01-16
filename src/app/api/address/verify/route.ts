@@ -1,29 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
 
-interface NominatimResult {
-  place_id: number;
-  licence: string;
-  osm_type: string;
-  osm_id: number;
-  lat: string;
-  lon: string;
-  display_name: string;
-  address: {
-    house_number?: string;
-    road?: string;
-    neighbourhood?: string;
-    suburb?: string;
-    city?: string;
-    town?: string;
-    village?: string;
-    county?: string;
-    state?: string;
-    postcode?: string;
-    country?: string;
-    country_code?: string;
+interface CensusMatch {
+  matchedAddress: string;
+  coordinates: {
+    x: number;
+    y: number;
   };
-  boundingbox: string[];
+  addressComponents: {
+    fromAddress: string;
+    toAddress: string;
+    preQualifier: string;
+    preDirection: string;
+    preType: string;
+    streetName: string;
+    suffixType: string;
+    suffixDirection: string;
+    suffixQualifier: string;
+    city: string;
+    state: string;
+    zip: string;
+  };
+}
+
+interface CensusResponse {
+  result: {
+    input: {
+      address: {
+        address: string;
+      };
+    };
+    addressMatches: CensusMatch[];
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -46,18 +54,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use Nominatim (OpenStreetMap) for free geocoding
-    // Add delay to respect rate limits (1 request per second)
-    const searchUrl = `https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=5&countrycodes=us&q=${encodeURIComponent(address)}`;
+    // Use US Census Geocoder - free and accurate for US addresses
+    const searchUrl = `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${encodeURIComponent(address)}&benchmark=Public_AR_Current&format=json`;
 
     const response = await fetch(searchUrl, {
       headers: {
-        'User-Agent': 'LaundromaApp/1.0',
+        'Accept': 'application/json',
       },
     });
 
     if (!response.ok) {
-      console.error('Nominatim API error:', response.status);
+      console.error('Census Geocoder API error:', response.status);
       return NextResponse.json({
         verified: false,
         error: 'Address verification service unavailable',
@@ -65,64 +72,61 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const results: NominatimResult[] = await response.json();
+    const data: CensusResponse = await response.json();
+    const matches = data.result?.addressMatches || [];
 
-    if (results.length === 0) {
+    if (matches.length === 0) {
       return NextResponse.json({
         verified: false,
-        error: 'Address not found. Please check the address and try again.',
+        error: 'Address not found. Please enter a valid US address with street number.',
         suggestions: [],
       });
     }
 
-    // Format suggestions
-    const suggestions = results.map(result => {
-      const addr = result.address;
+    // Format suggestions from Census results
+    const suggestions = matches.map(match => {
+      const comp = match.addressComponents;
 
-      // Build a clean formatted address
-      const parts = [];
-      if (addr.house_number && addr.road) {
-        parts.push(`${addr.house_number} ${addr.road}`);
-      } else if (addr.road) {
-        parts.push(addr.road);
+      // Build street address
+      let street = '';
+      if (comp.fromAddress) {
+        street = comp.fromAddress;
       }
+      if (comp.preDirection) {
+        street += ` ${comp.preDirection}`;
+      }
+      if (comp.streetName) {
+        street += ` ${comp.streetName}`;
+      }
+      if (comp.suffixType) {
+        street += ` ${comp.suffixType}`;
+      }
+      if (comp.suffixDirection) {
+        street += ` ${comp.suffixDirection}`;
+      }
+      street = street.trim();
 
-      const city = addr.city || addr.town || addr.village || addr.suburb;
-      if (city) {
-        parts.push(city);
-      }
-
-      if (addr.state) {
-        parts.push(addr.state);
-      }
-
-      if (addr.postcode) {
-        parts.push(addr.postcode);
-      }
+      const formattedAddress = `${street}, ${comp.city}, ${comp.state} ${comp.zip}`;
 
       return {
-        displayName: result.display_name,
-        formattedAddress: parts.join(', '),
-        latitude: parseFloat(result.lat),
-        longitude: parseFloat(result.lon),
+        displayName: match.matchedAddress,
+        formattedAddress,
+        latitude: match.coordinates.y,
+        longitude: match.coordinates.x,
         components: {
-          streetNumber: addr.house_number || '',
-          street: addr.road || '',
-          city: city || '',
-          state: addr.state || '',
-          zipCode: addr.postcode || '',
-          country: addr.country || 'United States',
+          streetNumber: comp.fromAddress || '',
+          street: comp.streetName || '',
+          city: comp.city || '',
+          state: comp.state || '',
+          zipCode: comp.zip || '',
+          country: 'United States',
         },
       };
     });
 
-    // If the first result is a close match, consider it verified
-    const bestMatch = suggestions[0];
-    const isVerified = results.length > 0;
-
     return NextResponse.json({
-      verified: isVerified,
-      bestMatch: isVerified ? bestMatch : null,
+      verified: true,
+      bestMatch: suggestions[0],
       suggestions,
     });
   } catch (error) {
