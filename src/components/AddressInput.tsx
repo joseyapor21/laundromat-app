@@ -115,10 +115,11 @@ export default function AddressInput({
       clearTimeout(debounceRef.current);
     }
 
-    if (newValue.length >= 10) {
+    // Auto-verify after user stops typing (shorter delay for faster feedback)
+    if (newValue.length >= 5) {
       debounceRef.current = setTimeout(() => {
         verifyAddress(newValue);
-      }, 800);
+      }, 600);
     }
   };
 

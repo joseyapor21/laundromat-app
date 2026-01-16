@@ -9,6 +9,8 @@ import {
   FlatList,
   ActivityIndicator,
   Alert,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
@@ -93,10 +95,11 @@ export default function AddressInput({
       clearTimeout(debounceRef.current);
     }
 
-    if (text.length >= 10) {
+    // Auto-verify after user stops typing (shorter delay for faster feedback)
+    if (text.length >= 5) {
       debounceRef.current = setTimeout(() => {
         verifyAddress(text);
-      }, 800);
+      }, 600);
     }
   };
 
@@ -151,38 +154,55 @@ export default function AddressInput({
         visible={showSuggestions}
         transparent
         animationType="slide"
-        onRequestClose={() => setShowSuggestions(false)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setShowSuggestions(false);
+        }}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Address</Text>
-              <TouchableOpacity onPress={() => setShowSuggestions(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
-            </View>
+        <TouchableWithoutFeedback onPress={() => {
+          Keyboard.dismiss();
+          setShowSuggestions(false);
+        }}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Select Address</Text>
+                  <TouchableOpacity onPress={() => {
+                    Keyboard.dismiss();
+                    setShowSuggestions(false);
+                  }}>
+                    <Ionicons name="close" size={24} color="#64748b" />
+                  </TouchableOpacity>
+                </View>
 
-            <FlatList
-              data={suggestions}
-              keyExtractor={(item, index) => index.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.suggestionItem}
-                  onPress={() => selectSuggestion(item)}
-                >
-                  <Ionicons name="location-outline" size={20} color="#2563eb" />
-                  <View style={styles.suggestionText}>
-                    <Text style={styles.suggestionMain}>{item.formattedAddress}</Text>
-                    <Text style={styles.suggestionSub} numberOfLines={1}>
-                      {item.displayName}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-            />
+                <FlatList
+                  data={suggestions}
+                  keyExtractor={(item, index) => index.toString()}
+                  keyboardShouldPersistTaps="handled"
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.suggestionItem}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        selectSuggestion(item);
+                      }}
+                    >
+                      <Ionicons name="location-outline" size={20} color="#2563eb" />
+                      <View style={styles.suggestionText}>
+                        <Text style={styles.suggestionMain}>{item.formattedAddress}</Text>
+                        <Text style={styles.suggestionSub} numberOfLines={1}>
+                          {item.displayName}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  )}
+                  ItemSeparatorComponent={() => <View style={styles.separator} />}
+                />
+              </View>
+            </TouchableWithoutFeedback>
           </View>
-        </View>
+        </TouchableWithoutFeedback>
       </Modal>
     </View>
   );

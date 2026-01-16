@@ -1367,18 +1367,28 @@ export default function CreateOrderScreen() {
       <Modal
         visible={showQuickAddCustomer}
         animationType="slide"
-        onRequestClose={() => setShowQuickAddCustomer(false)}
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setShowQuickAddCustomer(false);
+        }}
       >
         <View style={styles.quickAddContainer}>
           {/* Header */}
           <View style={styles.quickAddHeader}>
             <Text style={styles.quickAddHeaderTitle}>New Customer</Text>
-            <TouchableOpacity onPress={() => setShowQuickAddCustomer(false)}>
+            <TouchableOpacity onPress={() => {
+              Keyboard.dismiss();
+              setShowQuickAddCustomer(false);
+            }}>
               <Ionicons name="close" size={28} color="#fff" />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.quickAddScrollView} keyboardShouldPersistTaps="handled">
+          <ScrollView
+            style={styles.quickAddScrollView}
+            keyboardShouldPersistTaps="handled"
+            onScrollBeginDrag={() => Keyboard.dismiss()}
+          >
             {/* Basic Information Section */}
             <View style={styles.quickAddSection}>
               <Text style={styles.quickAddSectionTitle}>Basic Information</Text>
