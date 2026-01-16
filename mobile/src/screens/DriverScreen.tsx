@@ -57,6 +57,37 @@ export default function DriverScreen() {
   const [editAddressText, setEditAddressText] = useState('');
   const [selectedMapApp, setSelectedMapApp] = useState<MapApp>('google');
 
+  // Date filter for deliveries
+  const [deliveryDateFilter, setDeliveryDateFilter] = useState<'today' | 'tomorrow' | 'all'>('today');
+
+  // Helper to check if date matches filter
+  const isDateMatch = (dateStr: string | undefined, filter: 'today' | 'tomorrow' | 'all'): boolean => {
+    if (filter === 'all') return true;
+    if (!dateStr) return false;
+
+    const orderDate = new Date(dateStr);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    const orderDay = new Date(orderDate);
+    orderDay.setHours(0, 0, 0, 0);
+
+    if (filter === 'today') {
+      return orderDay.getTime() === today.getTime();
+    } else if (filter === 'tomorrow') {
+      return orderDay.getTime() === tomorrow.getTime();
+    }
+    return true;
+  };
+
+  // Filtered deliveries based on date
+  const filteredDeliveries = deliveryOrders.filter(order =>
+    isDateMatch(order.estimatedPickupDate, deliveryDateFilter)
+  );
+
   const loadOrders = useCallback(async () => {
     try {
       const allOrders = await api.getOrders();
@@ -497,7 +528,7 @@ export default function DriverScreen() {
     );
   };
 
-  const activeOrders = activeTab === 'pickups' ? pickupOrders : deliveryOrders;
+  const activeOrders = activeTab === 'pickups' ? pickupOrders : filteredDeliveries;
 
   if (loading) {
     return (
@@ -554,6 +585,36 @@ export default function DriverScreen() {
           </View>
         </TouchableOpacity>
       </View>
+
+      {/* Date Filter for Deliveries */}
+      {activeTab === 'deliveries' && (
+        <View style={styles.dateFilterContainer}>
+          <TouchableOpacity
+            style={[styles.dateFilterBtn, deliveryDateFilter === 'today' && styles.dateFilterBtnActive]}
+            onPress={() => setDeliveryDateFilter('today')}
+          >
+            <Text style={[styles.dateFilterText, deliveryDateFilter === 'today' && styles.dateFilterTextActive]}>
+              Today
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dateFilterBtn, deliveryDateFilter === 'tomorrow' && styles.dateFilterBtnActive]}
+            onPress={() => setDeliveryDateFilter('tomorrow')}
+          >
+            <Text style={[styles.dateFilterText, deliveryDateFilter === 'tomorrow' && styles.dateFilterTextActive]}>
+              Tomorrow
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dateFilterBtn, deliveryDateFilter === 'all' && styles.dateFilterBtnActive]}
+            onPress={() => setDeliveryDateFilter('all')}
+          >
+            <Text style={[styles.dateFilterText, deliveryDateFilter === 'all' && styles.dateFilterTextActive]}>
+              All ({deliveryOrders.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Printer Section */}
       <View style={styles.printerSection}>
@@ -1368,5 +1429,34 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  // Date filter styles
+  dateFilterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    gap: 8,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  dateFilterBtn: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  dateFilterBtnActive: {
+    backgroundColor: '#2563eb',
+  },
+  dateFilterText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  dateFilterTextActive: {
+    color: '#fff',
   },
 });
