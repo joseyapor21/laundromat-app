@@ -630,9 +630,12 @@ export default function CreateOrderScreen() {
         <Text style={styles.sectionTitle}>Customer</Text>
         {selectedCustomer ? (
           <View style={styles.selectedCustomer}>
-            <View>
+            <View style={styles.selectedCustomerInfo}>
               <Text style={styles.customerName}>{selectedCustomer.name}</Text>
               <Text style={styles.customerPhone}>{selectedCustomer.phoneNumber}</Text>
+              {selectedCustomer.address && (
+                <Text style={styles.customerAddress}>{selectedCustomer.address}</Text>
+              )}
             </View>
             <TouchableOpacity onPress={() => {
               setSelectedCustomer(null);
@@ -1519,7 +1522,11 @@ const styles = StyleSheet.create({
     padding: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+  },
+  selectedCustomerInfo: {
+    flex: 1,
+    marginRight: 12,
   },
   customerName: {
     fontSize: 18,
@@ -1530,6 +1537,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
     marginTop: 2,
+  },
+  customerAddress: {
+    fontSize: 13,
+    color: '#94a3b8',
+    marginTop: 4,
   },
   typeButtons: {
     flexDirection: 'row',
