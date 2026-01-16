@@ -60,23 +60,32 @@ class PushNotificationService {
       const projectId = Constants.expoConfig?.extra?.eas?.projectId;
 
       if (!projectId) {
-        console.error('No projectId found in app config');
+        console.log('No projectId found in app config - push notifications disabled');
         return null;
       }
 
-      const tokenData = await this.Notifications.getExpoPushTokenAsync({
-        projectId,
-      });
+      try {
+        const tokenData = await this.Notifications.getExpoPushTokenAsync({
+          projectId,
+        });
 
-      this.expoPushToken = tokenData.data;
-      console.log('Expo Push Token:', this.expoPushToken);
+        this.expoPushToken = tokenData.data;
+        console.log('Expo Push Token:', this.expoPushToken);
 
-      // Register token with backend
-      await this.registerTokenWithBackend();
+        // Register token with backend
+        await this.registerTokenWithBackend();
 
-      return this.expoPushToken;
+        return this.expoPushToken;
+      } catch (tokenError: any) {
+        // Handle FCM/Firebase not configured error on Android
+        if (Platform.OS === 'android' && tokenError?.message?.includes('SENDER_ID')) {
+          console.log('Push notifications require Firebase configuration on Android');
+          return null;
+        }
+        throw tokenError;
+      }
     } catch (error) {
-      console.error('Error getting push token:', error);
+      console.log('Push notifications not available:', error);
       return null;
     }
   }
