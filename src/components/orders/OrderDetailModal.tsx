@@ -919,11 +919,25 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
                 currentOrder.isPaid ? 'text-green-800' : 'text-yellow-800'
               }`}>Payment</h3>
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   {currentOrder.isPaid ? (
-                    <span className="px-3 py-1.5 bg-green-600 text-white rounded-full text-sm font-medium">
-                      Paid ({currentOrder.paymentMethod || 'cash'})
-                    </span>
+                    <div className="flex flex-col gap-1">
+                      <span className="px-3 py-1.5 bg-green-600 text-white rounded-full text-sm font-medium w-fit">
+                        Paid ({currentOrder.paymentMethod || 'cash'})
+                      </span>
+                      {currentOrder.paidAt && (
+                        <span className="text-xs text-green-700">
+                          {new Date(currentOrder.paidAt).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          })}
+                          {currentOrder.paidBy && ` by ${currentOrder.paidBy}`}
+                        </span>
+                      )}
+                    </div>
                   ) : (
                     <>
                       <select
