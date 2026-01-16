@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import toast from 'react-hot-toast';
 import type { User, Customer, Settings, ExtraItem, ActivityLog, UserRole, Machine, MachineType } from '@/types';
-import AddressInput from '@/components/AddressInput';
 
 type TabType = 'users' | 'customers' | 'settings' | 'extra-items' | 'machines' | 'activity';
 
@@ -1437,9 +1436,10 @@ printer is configured correctly.
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
-                <AddressInput
+                <textarea
                   value={editingCustomer.address}
-                  onChange={(address) => setEditingCustomer(c => c ? { ...c, address } : c)}
+                  onChange={e => setEditingCustomer(c => c ? { ...c, address: e.target.value } : c)}
+                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500 min-h-20"
                   placeholder="Enter delivery address..."
                 />
               </div>

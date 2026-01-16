@@ -15,7 +15,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
-import AddressInput from '../components/AddressInput';
 
 export default function CreateCustomerScreen() {
   const navigation = useNavigation<any>();
@@ -120,10 +119,14 @@ export default function CreateCustomerScreen() {
             <View style={styles.card}>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Address</Text>
-                <AddressInput
+                <TextInput
+                  style={[styles.input, styles.textArea]}
                   value={address}
-                  onChange={setAddress}
+                  onChangeText={setAddress}
                   placeholder="Delivery address"
+                  placeholderTextColor="#94a3b8"
+                  multiline
+                  numberOfLines={2}
                 />
               </View>
               <View style={styles.inputRow}>

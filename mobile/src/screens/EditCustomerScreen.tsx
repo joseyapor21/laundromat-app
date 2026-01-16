@@ -16,7 +16,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import AddressInput from '../components/AddressInput';
 import type { Customer, CreditTransaction, Order, StatusHistoryEntry } from '../types';
 
 export default function EditCustomerScreen() {
@@ -544,10 +543,14 @@ export default function EditCustomerScreen() {
             <View style={styles.card}>
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Address</Text>
-                <AddressInput
+                <TextInput
+                  style={[styles.input, styles.textArea]}
                   value={address}
-                  onChange={setAddress}
+                  onChangeText={setAddress}
                   placeholder="Delivery address"
+                  placeholderTextColor="#94a3b8"
+                  multiline
+                  numberOfLines={2}
                 />
               </View>
               <View style={styles.inputGroup}>
