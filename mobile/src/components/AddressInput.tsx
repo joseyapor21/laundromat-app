@@ -62,9 +62,7 @@ export default function AddressInput({
       if (result.verified && result.suggestions?.length > 0) {
         setSuggestions(result.suggestions);
         setShowSuggestions(true);
-        if (result.suggestions.length === 1) {
-          selectSuggestion(result.suggestions[0]);
-        }
+        // Don't auto-select - always let user choose
       } else {
         setVerificationError(result.error || 'Address not found');
         Alert.alert('Address Not Found', result.error || 'Please check the address and try again.');

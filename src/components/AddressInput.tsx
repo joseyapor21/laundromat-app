@@ -80,10 +80,7 @@ export default function AddressInput({
       if (data.verified && data.suggestions?.length > 0) {
         setSuggestions(data.suggestions);
         setShowSuggestions(true);
-        if (data.suggestions.length === 1) {
-          // Auto-select if only one match
-          selectSuggestion(data.suggestions[0]);
-        }
+        // Don't auto-select - always let user choose
       } else {
         setVerificationError(data.error || 'Address not found');
         setSuggestions([]);
