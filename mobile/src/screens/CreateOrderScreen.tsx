@@ -12,8 +12,8 @@ import {
   Keyboard,
   Modal,
   Platform,
-  KeyboardAvoidingView,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -643,16 +643,13 @@ export default function CreateOrderScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={{ flex: 1 }}
+    <KeyboardAwareScrollView
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      enableOnAndroid={true}
+      extraScrollHeight={Platform.OS === 'ios' ? 20 : 0}
+      keyboardShouldPersistTaps="handled"
     >
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={styles.contentContainer}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="on-drag"
-      >
       {/* Customer Selection */}
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Customer</Text>
@@ -1534,8 +1531,7 @@ export default function CreateOrderScreen() {
           </ScrollView>
         </View>
       </Modal>
-      </ScrollView>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 
