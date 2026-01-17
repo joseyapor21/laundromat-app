@@ -19,6 +19,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
+import AddressInput from '../components/AddressInput';
 import type { Customer, Settings, ExtraItem, PaymentMethod } from '../types';
 
 // Format date as "Tue - Oct 08, 11:45 AM"
@@ -1441,14 +1442,10 @@ export default function CreateOrderScreen() {
               <View style={styles.quickAddCard}>
                 <View style={styles.quickAddInputGroup}>
                   <Text style={styles.quickAddInputLabel}>Address</Text>
-                  <TextInput
-                    style={[styles.quickAddInput, styles.quickAddTextArea]}
+                  <AddressInput
                     value={quickAddAddress}
-                    onChangeText={setQuickAddAddress}
+                    onChange={setQuickAddAddress}
                     placeholder="Delivery address"
-                    placeholderTextColor="#94a3b8"
-                    multiline
-                    numberOfLines={2}
                   />
                 </View>
                 <View style={styles.quickAddInputRow}>
