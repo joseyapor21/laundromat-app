@@ -563,13 +563,22 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                   className="flex-1 px-3 py-2.5 border-2 border-gray-200 rounded-lg focus:outline-none focus:border-blue-600 text-gray-900 bg-white"
                 />
                 {selectedCustomer && (
-                  <button
-                    type="button"
-                    onClick={clearCustomer}
-                    className="px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-100 text-gray-900 bg-white"
-                  >
-                    Clear
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => window.open(`/admin?tab=customers&edit=${selectedCustomer._id}`, '_blank')}
+                      className="px-4 py-2 border-2 border-blue-300 rounded-lg hover:bg-blue-50 text-blue-600 bg-white"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearCustomer}
+                      className="px-4 py-2 border-2 border-gray-300 rounded-lg hover:bg-gray-100 text-gray-900 bg-white"
+                    >
+                      Clear
+                    </button>
+                  </div>
                 )}
               </div>
 

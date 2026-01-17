@@ -661,16 +661,26 @@ export default function CreateOrderScreen() {
                   <Text style={styles.customerAddress}>{selectedCustomer.address}</Text>
                 )}
               </View>
-              <TouchableOpacity onPress={() => {
-                setSelectedCustomer(null);
-                setSpecialInstructions('');
-                setApplyCredit(false);
-                setCreditToApply(0);
-                setDeliveryAddress('');
-                setManualDeliveryFee('');
-              }}>
-                <Ionicons name="close-circle" size={24} color="#ef4444" />
-              </TouchableOpacity>
+              <View style={styles.customerActions}>
+                <TouchableOpacity
+                  style={styles.editCustomerButton}
+                  onPress={() => {
+                    navigation.navigate('EditCustomer', { customerId: selectedCustomer._id });
+                  }}
+                >
+                  <Ionicons name="pencil" size={18} color="#2563eb" />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => {
+                  setSelectedCustomer(null);
+                  setSpecialInstructions('');
+                  setApplyCredit(false);
+                  setCreditToApply(0);
+                  setDeliveryAddress('');
+                  setManualDeliveryFee('');
+                }}>
+                  <Ionicons name="close-circle" size={24} color="#ef4444" />
+                </TouchableOpacity>
+              </View>
             </View>
             {/* Delivery Info - Show when order is delivery and customer has missing info */}
             {orderType === 'delivery' && (!selectedCustomer.address || !selectedCustomer.deliveryFee || selectedCustomer.deliveryFee === '$0.00') && (
@@ -1610,6 +1620,16 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#94a3b8',
     marginTop: 4,
+  },
+  customerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  editCustomerButton: {
+    backgroundColor: '#eff6ff',
+    padding: 8,
+    borderRadius: 8,
   },
   deliveryInfoSection: {
     backgroundColor: '#fef3c7',
