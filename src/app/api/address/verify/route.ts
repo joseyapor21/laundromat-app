@@ -152,10 +152,11 @@ export async function POST(request: NextRequest) {
     // Get USPS standardized address if available (most accurate for US)
     let formattedAddress = result.address.formattedAddress;
     const usps = result.uspsData?.standardizedAddress;
-    if (usps) {
+    // Only use USPS data if all required fields are present
+    if (usps?.firstAddressLine && usps?.city && usps?.state && usps?.zipCode) {
       formattedAddress = `${usps.firstAddressLine}, ${usps.city}, ${usps.state} ${usps.zipCode}`;
       if (usps.zipCodeExtension) {
-        formattedAddress = formattedAddress.replace(usps.zipCode, `${usps.zipCode}-${usps.zipCodeExtension}`);
+        formattedAddress += `-${usps.zipCodeExtension}`;
       }
     }
 

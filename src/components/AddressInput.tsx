@@ -58,15 +58,19 @@ export default function AddressInput({
     setVerificationError(null);
   }, [value]);
 
-  const verifyAddress = async (addressToVerify?: string) => {
+  const verifyAddress = async (addressToVerify?: string, isAutoVerify = false) => {
     const address = addressToVerify || value;
     if (!address || address.trim().length < 5) {
-      setVerificationError('Please enter a complete address');
+      if (!isAutoVerify) {
+        setVerificationError('Please enter a complete address');
+      }
       return;
     }
 
     setIsVerifying(true);
-    setVerificationError(null);
+    if (!isAutoVerify) {
+      setVerificationError(null);
+    }
 
     try {
       const response = await fetch('/api/address/verify', {
@@ -80,14 +84,17 @@ export default function AddressInput({
       if (data.verified && data.suggestions?.length > 0) {
         setSuggestions(data.suggestions);
         setShowSuggestions(true);
-        // Don't auto-select - always let user choose
-      } else {
+        setVerificationError(null);
+      } else if (!isAutoVerify) {
+        // Only show error on manual verify, not auto-verify while typing
         setVerificationError(data.error || 'Address not found');
         setSuggestions([]);
       }
     } catch (error) {
       console.error('Verification error:', error);
-      setVerificationError('Failed to verify address');
+      if (!isAutoVerify) {
+        setVerificationError('Failed to verify address');
+      }
     } finally {
       setIsVerifying(false);
     }
@@ -115,7 +122,7 @@ export default function AddressInput({
     // Auto-verify after user stops typing (shorter delay for faster feedback)
     if (newValue.length >= 5) {
       debounceRef.current = setTimeout(() => {
-        verifyAddress(newValue);
+        verifyAddress(newValue, true); // isAutoVerify = true, don't show errors
       }, 600);
     }
   };

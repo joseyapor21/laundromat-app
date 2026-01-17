@@ -46,15 +46,19 @@ export default function AddressInput({
     setVerificationError(null);
   }, [value]);
 
-  const verifyAddress = async (addressToVerify?: string) => {
+  const verifyAddress = async (addressToVerify?: string, isAutoVerify = false) => {
     const address = addressToVerify || value;
     if (!address || address.trim().length < 5) {
-      Alert.alert('Error', 'Please enter a complete address');
+      if (!isAutoVerify) {
+        Alert.alert('Error', 'Please enter a complete address');
+      }
       return;
     }
 
     setIsVerifying(true);
-    setVerificationError(null);
+    if (!isAutoVerify) {
+      setVerificationError(null);
+    }
 
     try {
       const result = await api.verifyAddress(address);
@@ -62,15 +66,18 @@ export default function AddressInput({
       if (result.verified && result.suggestions?.length > 0) {
         setSuggestions(result.suggestions);
         setShowSuggestions(true);
-        // Don't auto-select - always let user choose
-      } else {
+        setVerificationError(null);
+      } else if (!isAutoVerify) {
+        // Only show error on manual verify, not auto-verify while typing
         setVerificationError(result.error || 'Address not found');
         Alert.alert('Address Not Found', result.error || 'Please check the address and try again.');
       }
     } catch (error) {
       console.error('Verification error:', error);
-      setVerificationError('Failed to verify address');
-      Alert.alert('Error', 'Failed to verify address. Please try again.');
+      if (!isAutoVerify) {
+        setVerificationError('Failed to verify address');
+        Alert.alert('Error', 'Failed to verify address. Please try again.');
+      }
     } finally {
       setIsVerifying(false);
     }
@@ -96,7 +103,7 @@ export default function AddressInput({
     // Auto-verify after user stops typing (shorter delay for faster feedback)
     if (text.length >= 5) {
       debounceRef.current = setTimeout(() => {
-        verifyAddress(text);
+        verifyAddress(text, true); // isAutoVerify = true, don't show errors
       }, 600);
     }
   };
