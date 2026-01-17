@@ -13,6 +13,7 @@ import {
   Modal,
   Switch,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -568,9 +569,13 @@ export default function AdminScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? 16 : insets.top + 16 }]}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={{ flex: 1 }}
+    >
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={[styles.header, { paddingTop: Platform.OS === 'android' ? 16 : insets.top + 16 }]}>
         <Text style={styles.headerTitle}>Admin Panel</Text>
       </View>
 
@@ -1561,7 +1566,8 @@ export default function AdminScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 
