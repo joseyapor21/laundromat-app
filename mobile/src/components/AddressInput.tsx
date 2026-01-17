@@ -188,10 +188,12 @@ export default function AddressInput({
                     >
                       <Ionicons name="location-outline" size={20} color="#2563eb" />
                       <View style={styles.suggestionText}>
-                        <Text style={styles.suggestionMain}>{item.formattedAddress}</Text>
-                        <Text style={styles.suggestionSub} numberOfLines={1}>
-                          {item.displayName}
-                        </Text>
+                        <Text style={styles.suggestionMain}>{item.formattedAddress || 'Address'}</Text>
+                        {item.displayName && item.displayName !== item.formattedAddress && (
+                          <Text style={styles.suggestionSub} numberOfLines={1}>
+                            {item.displayName}
+                          </Text>
+                        )}
                       </View>
                     </TouchableOpacity>
                   )}

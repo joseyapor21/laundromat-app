@@ -195,11 +195,13 @@ export default function AddressInput({
               className="w-full text-left px-3 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 transition-colors"
             >
               <div className="font-medium text-gray-900 text-sm">
-                {suggestion.formattedAddress}
+                {suggestion.formattedAddress || 'Address'}
               </div>
-              <div className="text-xs text-gray-500 truncate">
-                {suggestion.displayName}
-              </div>
+              {suggestion.displayName && suggestion.displayName !== suggestion.formattedAddress && (
+                <div className="text-xs text-gray-500 truncate">
+                  {suggestion.displayName}
+                </div>
+              )}
             </button>
           ))}
         </div>
