@@ -5,12 +5,9 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Modal,
-  FlatList,
   ActivityIndicator,
   Alert,
-  Keyboard,
-  TouchableWithoutFeedback,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
@@ -94,6 +91,7 @@ export default function AddressInput({
   const handleChangeText = (text: string) => {
     onChange(text);
     setIsVerified(false);
+    setShowSuggestions(false); // Hide suggestions when typing
 
     // Debounced auto-verify
     if (debounceRef.current) {
@@ -104,12 +102,12 @@ export default function AddressInput({
     if (text.length >= 5) {
       debounceRef.current = setTimeout(() => {
         verifyAddress(text, true); // isAutoVerify = true, don't show errors
-      }, 600);
+      }, 800);
     }
   };
 
   return (
-    <View>
+    <View style={styles.container}>
       <View style={styles.inputContainer}>
         <TextInput
           style={[
@@ -154,68 +152,49 @@ export default function AddressInput({
         <Text style={styles.errorText}>{verificationError}</Text>
       )}
 
-      {/* Suggestions Modal */}
-      <Modal
-        visible={showSuggestions}
-        transparent
-        animationType="slide"
-        onRequestClose={() => {
-          Keyboard.dismiss();
-          setShowSuggestions(false);
-        }}
-      >
-        <TouchableWithoutFeedback onPress={() => {
-          Keyboard.dismiss();
-          setShowSuggestions(false);
-        }}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Select Address</Text>
-                  <TouchableOpacity onPress={() => {
-                    Keyboard.dismiss();
-                    setShowSuggestions(false);
-                  }}>
-                    <Ionicons name="close" size={24} color="#64748b" />
-                  </TouchableOpacity>
-                </View>
-
-                <FlatList
-                  data={suggestions}
-                  keyExtractor={(item, index) => index.toString()}
-                  keyboardShouldPersistTaps="handled"
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.suggestionItem}
-                      onPress={() => {
-                        Keyboard.dismiss();
-                        selectSuggestion(item);
-                      }}
-                    >
-                      <Ionicons name="location-outline" size={20} color="#2563eb" />
-                      <View style={styles.suggestionText}>
-                        <Text style={styles.suggestionMain}>{item.formattedAddress || 'Address'}</Text>
-                        {item.displayName && item.displayName !== item.formattedAddress && (
-                          <Text style={styles.suggestionSub} numberOfLines={1}>
-                            {item.displayName}
-                          </Text>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                  ItemSeparatorComponent={() => <View style={styles.separator} />}
-                />
-              </View>
-            </TouchableWithoutFeedback>
+      {/* Suggestions Dropdown - Not a Modal, so keyboard stays open */}
+      {showSuggestions && suggestions.length > 0 && (
+        <View style={styles.suggestionsContainer}>
+          <View style={styles.suggestionsHeader}>
+            <Text style={styles.suggestionsTitle}>Select Address</Text>
+            <TouchableOpacity onPress={() => setShowSuggestions(false)}>
+              <Ionicons name="close" size={20} color="#64748b" />
+            </TouchableOpacity>
           </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+          <ScrollView
+            style={styles.suggestionsList}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+          >
+            {suggestions.map((item, index) => (
+              <TouchableOpacity
+                key={index}
+                style={styles.suggestionItem}
+                onPress={() => selectSuggestion(item)}
+              >
+                <Ionicons name="location-outline" size={18} color="#2563eb" />
+                <View style={styles.suggestionText}>
+                  <Text style={styles.suggestionMain}>{item.formattedAddress || 'Address'}</Text>
+                  {item.displayName && item.displayName !== item.formattedAddress && (
+                    <Text style={styles.suggestionSub} numberOfLines={1}>
+                      {item.displayName}
+                    </Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  container: {
+    position: 'relative',
+    zIndex: 1000,
+  },
   inputContainer: {
     position: 'relative',
   },
@@ -280,52 +259,58 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
+  suggestionsContainer: {
+    marginTop: 4,
     backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '70%',
-    paddingBottom: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+    maxHeight: 200,
   },
-  modalHeader: {
+  suggestionsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
   },
-  modalTitle: {
-    fontSize: 18,
+  suggestionsTitle: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#1e293b',
+    color: '#64748b',
+  },
+  suggestionsList: {
+    maxHeight: 160,
   },
   suggestionItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    padding: 16,
-    gap: 12,
+    padding: 12,
+    gap: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
   suggestionText: {
     flex: 1,
   },
   suggestionMain: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '500',
     color: '#1e293b',
-    marginBottom: 4,
   },
   suggestionSub: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748b',
-  },
-  separator: {
-    height: 1,
-    backgroundColor: '#e2e8f0',
+    marginTop: 2,
   },
 });
