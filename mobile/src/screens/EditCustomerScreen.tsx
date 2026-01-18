@@ -584,6 +584,13 @@ export default function EditCustomerScreen() {
               placeholderTextColor="#94a3b8"
               multiline
               numberOfLines={3}
+              scrollEnabled={false}
+              blurOnSubmit={false}
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd(true);
+                }, 300);
+              }}
             />
           </View>
 
