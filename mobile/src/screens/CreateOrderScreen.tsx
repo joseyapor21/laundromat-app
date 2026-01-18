@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -57,6 +57,7 @@ interface Bag {
 
 export default function CreateOrderScreen() {
   const navigation = useNavigation();
+  const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -644,6 +645,7 @@ export default function CreateOrderScreen() {
 
   return (
     <KeyboardAwareScrollView
+      ref={scrollViewRef}
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       enableOnAndroid={true}
@@ -1460,6 +1462,11 @@ export default function CreateOrderScreen() {
                     value={quickAddAddress}
                     onChange={setQuickAddAddress}
                     placeholder="Delivery address"
+                    onFocusApartment={() => {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollToEnd(true);
+                      }, 100);
+                    }}
                   />
                 </View>
                 <View style={styles.quickAddInputRow}>

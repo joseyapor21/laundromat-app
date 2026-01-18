@@ -32,13 +32,16 @@ interface AddressInputProps {
   value: string;
   onChange: (address: string) => void;
   placeholder?: string;
+  onFocusApartment?: () => void; // Called when apartment field is focused
 }
 
 export default function AddressInput({
   value,
   onChange,
   placeholder = 'Enter address...',
+  onFocusApartment,
 }: AddressInputProps) {
+  const apartmentRef = useRef<View>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isVerified, setIsVerified] = useState(false);
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
@@ -268,7 +271,7 @@ export default function AddressInput({
 
       {/* Address details - shows after address is verified */}
       {showApartmentInput && isVerified && (
-        <View style={styles.verifiedAddressContainer}>
+        <View ref={apartmentRef} style={styles.verifiedAddressContainer} collapsable={false}>
           {/* Apartment input */}
           <View style={styles.apartmentRow}>
             <View style={styles.fieldContainer}>
@@ -279,6 +282,7 @@ export default function AddressInput({
                 onChangeText={handleApartmentChange}
                 placeholder="2D"
                 placeholderTextColor="#94a3b8"
+                onFocus={onFocusApartment}
               />
             </View>
             <TouchableOpacity style={styles.clearButton} onPress={clearAddress}>
@@ -404,8 +408,7 @@ export default function AddressInput({
 
 const styles = StyleSheet.create({
   container: {
-    position: 'relative',
-    zIndex: 1000,
+    // No zIndex needed since we use Modal for suggestions
   },
   inputContainer: {
     position: 'relative',

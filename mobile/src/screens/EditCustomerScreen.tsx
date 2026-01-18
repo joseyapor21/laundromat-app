@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -21,6 +21,7 @@ import type { Customer, CreditTransaction, Order, StatusHistoryEntry } from '../
 export default function EditCustomerScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
@@ -259,6 +260,7 @@ export default function EditCustomerScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAwareScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         enableOnAndroid={true}
         extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
@@ -550,6 +552,11 @@ export default function EditCustomerScreen() {
                   value={address}
                   onChange={setAddress}
                   placeholder="Delivery address"
+                  onFocusApartment={() => {
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd(true);
+                    }, 100);
+                  }}
                 />
               </View>
               <View style={styles.inputGroup}>

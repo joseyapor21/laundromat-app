@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import AddressInput from '../components/AddressInput';
 
 export default function CreateCustomerScreen() {
   const navigation = useNavigation<any>();
+  const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
   const [saving, setSaving] = useState(false);
 
   // Form state
@@ -64,6 +65,7 @@ export default function CreateCustomerScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAwareScrollView
+        ref={scrollViewRef}
         style={styles.scrollView}
         enableOnAndroid={true}
         extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
@@ -126,6 +128,12 @@ export default function CreateCustomerScreen() {
                   value={address}
                   onChange={setAddress}
                   placeholder="Delivery address"
+                  onFocusApartment={() => {
+                    // Scroll down to make apartment field visible
+                    setTimeout(() => {
+                      scrollViewRef.current?.scrollToEnd(true);
+                    }, 100);
+                  }}
                 />
               </View>
               <View style={styles.inputRow}>
