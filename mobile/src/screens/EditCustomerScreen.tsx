@@ -261,8 +261,10 @@ export default function EditCustomerScreen() {
       <KeyboardAwareScrollView
         style={styles.scrollView}
         enableOnAndroid={true}
-        extraScrollHeight={Platform.OS === 'ios' ? 20 : 0}
+        extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
+        extraHeight={120}
         keyboardShouldPersistTaps="handled"
+        enableAutomaticScroll={true}
       >
           {/* Header */}
           <View style={styles.header}>

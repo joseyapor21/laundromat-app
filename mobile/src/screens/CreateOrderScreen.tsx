@@ -647,8 +647,10 @@ export default function CreateOrderScreen() {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       enableOnAndroid={true}
-      extraScrollHeight={Platform.OS === 'ios' ? 20 : 0}
+      extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
+      extraHeight={120}
       keyboardShouldPersistTaps="handled"
+      enableAutomaticScroll={true}
     >
       {/* Customer Selection */}
       <View style={styles.section}>
