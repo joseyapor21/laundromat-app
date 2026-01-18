@@ -45,16 +45,20 @@ export default function AddressInput({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState(value);
+  const [modalInputValue, setModalInputValue] = useState(value);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput>(null);
 
-  // Sync external value changes (but don't reset verification - that's handled in handleChangeText)
+  // Sync external value changes only when modal is closed
   useEffect(() => {
-    setInputValue(value);
-  }, [value]);
+    if (!showSuggestions) {
+      setInputValue(value);
+      setModalInputValue(value);
+    }
+  }, [value, showSuggestions]);
 
   const verifyAddress = async (addressToVerify?: string, isAutoVerify = false) => {
-    const address = addressToVerify || inputValue;
+    const address = addressToVerify || modalInputValue;
     if (!address || address.trim().length < 3) {
       if (!isAutoVerify) {
         Alert.alert('Error', 'Please enter a complete address');
@@ -131,10 +135,14 @@ export default function AddressInput({
   };
 
   const handleChangeText = (text: string) => {
-    setInputValue(text);
-    onChange(text);
+    // Only update modal input value while typing - don't update parent until selection
+    setModalInputValue(text);
     setIsVerified(false);
-    // Don't hide suggestions while typing - keep them visible
+
+    // Clear previous suggestions when text changes significantly
+    if (text.length < 3) {
+      setSuggestions([]);
+    }
 
     // Debounced auto-verify
     if (debounceRef.current) {
@@ -146,11 +154,8 @@ export default function AddressInput({
       debounceRef.current = setTimeout(() => {
         verifyAddress(text, true); // isAutoVerify = true, don't show errors
       }, 500); // Faster response
-    } else {
-      // Hide suggestions if text is too short
-      setShowSuggestions(false);
-      setSuggestions([]);
     }
+    // Don't close modal when text is short - keep it open so user can keep typing
   };
 
   const handleClose = () => {
@@ -159,6 +164,7 @@ export default function AddressInput({
   };
 
   const openModal = () => {
+    setModalInputValue(inputValue); // Initialize modal input with current value
     setShowSuggestions(true);
     // If there's already text, trigger a search
     if (inputValue.length >= 3) {
@@ -222,27 +228,37 @@ export default function AddressInput({
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContainer}
         >
-          <TouchableOpacity
-            style={styles.modalBackdrop}
-            activeOpacity={1}
-            onPress={handleClose}
-          >
-            <View style={styles.suggestionsPopup}>
+          <View style={styles.modalBackdrop}>
+            <TouchableOpacity
+              style={styles.backdropTouchable}
+              activeOpacity={1}
+              onPress={handleClose}
+            />
+            <TouchableOpacity
+              style={styles.suggestionsPopup}
+              activeOpacity={1}
+              onPress={() => {}} // Prevent touches from reaching backdrop
+            >
               {/* Search input inside modal */}
-              <View style={styles.modalInputContainer}>
+              <TouchableOpacity
+                style={styles.modalInputContainer}
+                activeOpacity={1}
+                onPress={() => {}}
+              >
                 <Ionicons name="search" size={20} color="#64748b" style={styles.searchIcon} />
                 <TextInput
                   style={styles.modalInput}
-                  value={inputValue}
+                  value={modalInputValue}
                   onChangeText={handleChangeText}
                   placeholder="Search address..."
                   placeholderTextColor="#94a3b8"
                   autoFocus
+                  blurOnSubmit={false}
                 />
                 {isVerifying && (
                   <ActivityIndicator size="small" color="#2563eb" style={styles.inputLoader} />
                 )}
-              </View>
+              </TouchableOpacity>
 
               {/* Suggestions list */}
               <ScrollView
@@ -275,7 +291,7 @@ export default function AddressInput({
                   <View style={styles.emptyState}>
                     <Ionicons name="search" size={32} color="#cbd5e1" />
                     <Text style={styles.emptyStateText}>
-                      {inputValue.length < 3
+                      {modalInputValue.length < 3
                         ? 'Type an address to search'
                         : isVerifying
                           ? 'Searching...'
@@ -289,8 +305,8 @@ export default function AddressInput({
               <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
                 <Text style={styles.closeButtonText}>Cancel</Text>
               </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </View>
@@ -384,7 +400,9 @@ const styles = StyleSheet.create({
   modalBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+  },
+  backdropTouchable: {
+    flex: 1,
   },
   suggestionsPopup: {
     backgroundColor: '#fff',
