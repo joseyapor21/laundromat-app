@@ -45,6 +45,9 @@ export default function AddressInput({
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
   const [inputValue, setInputValue] = useState(value);
+  const [baseAddress, setBaseAddress] = useState(''); // Address without apartment
+  const [apartment, setApartment] = useState(''); // Apartment/unit number
+  const [showApartmentInput, setShowApartmentInput] = useState(false);
   const [modalInputValue, setModalInputValue] = useState(value);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput>(null);
@@ -96,42 +99,56 @@ export default function AddressInput({
   };
 
   const selectSuggestion = async (suggestion: AddressSuggestion) => {
+    let finalAddress = suggestion.formattedAddress;
+
     // If we have a placeId, fetch full details to get the complete address
     if (suggestion.placeId) {
       setIsVerifying(true);
       try {
         const details = await api.getPlaceDetails(suggestion.placeId);
         if (details.verified && details.bestMatch) {
-          const newValue = details.bestMatch.formattedAddress;
-          setInputValue(newValue);
-          onChange(newValue);
-          setIsVerified(true);
-        } else {
-          // Fall back to the suggestion's formatted address
-          setInputValue(suggestion.formattedAddress);
-          onChange(suggestion.formattedAddress);
-          setIsVerified(true);
+          finalAddress = details.bestMatch.formattedAddress;
         }
       } catch (error) {
         console.error('Error fetching place details:', error);
-        // Fall back to the suggestion's formatted address
-        setInputValue(suggestion.formattedAddress);
-        onChange(suggestion.formattedAddress);
-        setIsVerified(true);
       } finally {
         setIsVerifying(false);
       }
-    } else {
-      const newValue = suggestion.formattedAddress;
-      setInputValue(newValue);
-      onChange(newValue);
-      setIsVerified(true);
     }
 
+    // Save the base address and show apartment input
+    setBaseAddress(finalAddress);
+    setApartment('');
+    setInputValue(finalAddress);
+    onChange(finalAddress);
+    setIsVerified(true);
     setShowSuggestions(false);
     setSuggestions([]);
     setVerificationError(null);
+    setShowApartmentInput(true); // Show apartment field
     Keyboard.dismiss();
+  };
+
+  const handleApartmentChange = (apt: string) => {
+    setApartment(apt);
+    // Combine base address with apartment
+    if (apt.trim()) {
+      const fullAddress = `${baseAddress}, Apt ${apt.trim()}`;
+      setInputValue(fullAddress);
+      onChange(fullAddress);
+    } else {
+      setInputValue(baseAddress);
+      onChange(baseAddress);
+    }
+  };
+
+  const clearAddress = () => {
+    setBaseAddress('');
+    setApartment('');
+    setInputValue('');
+    onChange('');
+    setIsVerified(false);
+    setShowApartmentInput(false);
   };
 
   const handleChangeText = (text: string) => {
@@ -215,6 +232,25 @@ export default function AddressInput({
 
       {verificationError && (
         <Text style={styles.errorText}>{verificationError}</Text>
+      )}
+
+      {/* Apartment/Unit input - shows after address is verified */}
+      {showApartmentInput && isVerified && (
+        <View style={styles.apartmentContainer}>
+          <View style={styles.apartmentInputWrapper}>
+            <Ionicons name="home-outline" size={18} color="#64748b" style={styles.apartmentIcon} />
+            <TextInput
+              style={styles.apartmentInput}
+              value={apartment}
+              onChangeText={handleApartmentChange}
+              placeholder="Apt, Suite, Unit (optional)"
+              placeholderTextColor="#94a3b8"
+            />
+          </View>
+          <TouchableOpacity style={styles.clearButton} onPress={clearAddress}>
+            <Ionicons name="close-circle" size={20} color="#94a3b8" />
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Suggestions Modal - Opens when tapping address field */}
@@ -391,6 +427,36 @@ const styles = StyleSheet.create({
   errorText: {
     color: '#ef4444',
     fontSize: 12,
+    marginTop: 4,
+  },
+  // Apartment input styles
+  apartmentContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 8,
+  },
+  apartmentInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+  },
+  apartmentIcon: {
+    marginRight: 8,
+  },
+  apartmentInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1e293b',
+    paddingVertical: 12,
+  },
+  clearButton: {
+    padding: 8,
     marginTop: 4,
   },
   // Modal styles
