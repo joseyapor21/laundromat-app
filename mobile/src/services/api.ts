@@ -179,7 +179,7 @@ class ApiService {
     });
   }
 
-  // Address verification
+  // Address verification / autocomplete
   async verifyAddress(address: string): Promise<{
     verified: boolean;
     error?: string;
@@ -188,17 +188,45 @@ class ApiService {
       formattedAddress: string;
       latitude: number;
       longitude: number;
+      placeId?: string;
     };
     suggestions: Array<{
       displayName: string;
       formattedAddress: string;
       latitude: number;
       longitude: number;
+      placeId?: string;
+      secondaryText?: string;
     }>;
   }> {
     return this.request('/address/verify', {
       method: 'POST',
       body: JSON.stringify({ address }),
+    });
+  }
+
+  // Get place details by placeId
+  async getPlaceDetails(placeId: string): Promise<{
+    verified: boolean;
+    error?: string;
+    bestMatch?: {
+      displayName: string;
+      formattedAddress: string;
+      latitude: number;
+      longitude: number;
+      placeId: string;
+    };
+    suggestions: Array<{
+      displayName: string;
+      formattedAddress: string;
+      latitude: number;
+      longitude: number;
+      placeId: string;
+    }>;
+  }> {
+    return this.request('/address/verify', {
+      method: 'POST',
+      body: JSON.stringify({ placeId }),
     });
   }
 

@@ -24,6 +24,8 @@ interface AddressSuggestion {
   formattedAddress: string;
   latitude: number;
   longitude: number;
+  placeId?: string;
+  secondaryText?: string;
 }
 
 interface AddressInputProps {
@@ -89,11 +91,39 @@ export default function AddressInput({
     }
   };
 
-  const selectSuggestion = (suggestion: AddressSuggestion) => {
-    const newValue = suggestion.formattedAddress;
-    setInputValue(newValue);
-    onChange(newValue);
-    setIsVerified(true);
+  const selectSuggestion = async (suggestion: AddressSuggestion) => {
+    // If we have a placeId, fetch full details to get the complete address
+    if (suggestion.placeId) {
+      setIsVerifying(true);
+      try {
+        const details = await api.getPlaceDetails(suggestion.placeId);
+        if (details.verified && details.bestMatch) {
+          const newValue = details.bestMatch.formattedAddress;
+          setInputValue(newValue);
+          onChange(newValue);
+          setIsVerified(true);
+        } else {
+          // Fall back to the suggestion's formatted address
+          setInputValue(suggestion.formattedAddress);
+          onChange(suggestion.formattedAddress);
+          setIsVerified(true);
+        }
+      } catch (error) {
+        console.error('Error fetching place details:', error);
+        // Fall back to the suggestion's formatted address
+        setInputValue(suggestion.formattedAddress);
+        onChange(suggestion.formattedAddress);
+        setIsVerified(true);
+      } finally {
+        setIsVerifying(false);
+      }
+    } else {
+      const newValue = suggestion.formattedAddress;
+      setInputValue(newValue);
+      onChange(newValue);
+      setIsVerified(true);
+    }
+
     setShowSuggestions(false);
     setSuggestions([]);
     setVerificationError(null);
@@ -229,12 +259,12 @@ export default function AddressInput({
                     >
                       <Ionicons name="location-outline" size={20} color="#2563eb" />
                       <View style={styles.suggestionText}>
-                        <Text style={styles.suggestionMain} numberOfLines={2}>
-                          {item.formattedAddress || 'Address'}
+                        <Text style={styles.suggestionMain} numberOfLines={1}>
+                          {item.displayName || item.formattedAddress}
                         </Text>
-                        {item.displayName && item.displayName !== item.formattedAddress && (
+                        {item.secondaryText && (
                           <Text style={styles.suggestionSub} numberOfLines={1}>
-                            {item.displayName}
+                            {item.secondaryText}
                           </Text>
                         )}
                       </View>

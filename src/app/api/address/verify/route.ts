@@ -1,75 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth/server';
 
-interface GoogleAddressComponent {
-  componentName: {
-    text: string;
-    languageCode: string;
+interface PlacePrediction {
+  description: string;
+  place_id: string;
+  structured_formatting: {
+    main_text: string;
+    secondary_text: string;
   };
-  componentType: string;
-  confirmationLevel: string;
+  types: string[];
 }
 
-interface GoogleValidationResult {
+interface PlaceAutocompleteResponse {
+  predictions: PlacePrediction[];
+  status: string;
+  error_message?: string;
+}
+
+interface PlaceDetailsResponse {
   result: {
-    verdict: {
-      inputGranularity: string;
-      validationGranularity: string;
-      geocodeGranularity: string;
-      addressComplete: boolean;
-      hasUnconfirmedComponents: boolean;
-      hasInferredComponents: boolean;
-      hasReplacedComponents: boolean;
-    };
-    address: {
-      formattedAddress: string;
-      postalAddress: {
-        regionCode: string;
-        languageCode: string;
-        postalCode: string;
-        administrativeArea: string;
-        locality: string;
-        addressLines: string[];
-      };
-      addressComponents: GoogleAddressComponent[];
-    };
-    geocode: {
+    formatted_address: string;
+    geometry: {
       location: {
-        latitude: number;
-        longitude: number;
-      };
-      plusCode: {
-        globalCode: string;
+        lat: number;
+        lng: number;
       };
     };
-    uspsData?: {
-      standardizedAddress: {
-        firstAddressLine: string;
-        cityStateZipAddressLine: string;
-        city: string;
-        state: string;
-        zipCode: string;
-        zipCodeExtension: string;
-      };
-      deliveryPointCode: string;
-      deliveryPointCheckDigit: string;
-      dpvConfirmation: string;
-      dpvFootnote: string;
-      dpvCmra: string;
-      dpvVacant: string;
-      dpvNoStat: string;
-      carrierRoute: string;
-      carrierRouteIndicator: string;
-      postOfficeCity: string;
-      postOfficeState: string;
-      fipsCountyCode: string;
-      county: string;
-      elotNumber: string;
-      elotFlag: string;
-      addressRecordType: string;
-    };
+    address_components: {
+      long_name: string;
+      short_name: string;
+      types: string[];
+    }[];
+    name?: string;
   };
-  responseId: string;
+  status: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -83,14 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { address } = await request.json();
-
-    if (!address || address.trim().length < 5) {
-      return NextResponse.json(
-        { error: 'Address too short', verified: false },
-        { status: 400 }
-      );
-    }
+    const { address, placeId } = await request.json();
 
     const apiKey = process.env.GOOGLE_MAPS_API_KEY;
 
@@ -103,93 +60,120 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Use Google Address Validation API
-    const response = await fetch(
-      `https://addressvalidation.googleapis.com/v1:validateAddress?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          address: {
-            regionCode: 'US',
-            addressLines: [address],
-          },
-          enableUspsCass: true, // Enable USPS validation for US addresses
-        }),
+    // If placeId provided, get details for that specific place
+    if (placeId) {
+      const detailsResponse = await fetch(
+        `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId)}&fields=formatted_address,geometry,address_components,name&key=${apiKey}`
+      );
+
+      if (!detailsResponse.ok) {
+        return NextResponse.json({
+          verified: false,
+          error: 'Failed to get address details',
+          suggestions: [],
+        });
       }
-    );
+
+      const detailsData: PlaceDetailsResponse = await detailsResponse.json();
+
+      if (detailsData.status !== 'OK' || !detailsData.result) {
+        return NextResponse.json({
+          verified: false,
+          error: 'Address not found',
+          suggestions: [],
+        });
+      }
+
+      const result = detailsData.result;
+      const getComponent = (type: string, useShort = false) => {
+        const comp = result.address_components?.find(c => c.types.includes(type));
+        return useShort ? comp?.short_name || '' : comp?.long_name || '';
+      };
+
+      const suggestion = {
+        displayName: result.name || result.formatted_address,
+        formattedAddress: result.formatted_address,
+        latitude: result.geometry?.location?.lat || 0,
+        longitude: result.geometry?.location?.lng || 0,
+        placeId,
+        components: {
+          streetNumber: getComponent('street_number'),
+          street: getComponent('route'),
+          subpremise: getComponent('subpremise'), // Apartment/unit number
+          city: getComponent('locality') || getComponent('sublocality'),
+          state: getComponent('administrative_area_level_1', true),
+          zipCode: getComponent('postal_code'),
+          country: getComponent('country'),
+        },
+      };
+
+      return NextResponse.json({
+        verified: true,
+        isValid: true,
+        bestMatch: suggestion,
+        suggestions: [suggestion],
+      });
+    }
+
+    // Otherwise, get autocomplete suggestions
+    if (!address || address.trim().length < 3) {
+      return NextResponse.json({
+        verified: false,
+        error: 'Address too short',
+        suggestions: [],
+      });
+    }
+
+    // Use Google Places Autocomplete API
+    const autocompleteUrl = new URL('https://maps.googleapis.com/maps/api/place/autocomplete/json');
+    autocompleteUrl.searchParams.set('input', address);
+    autocompleteUrl.searchParams.set('types', 'address');
+    autocompleteUrl.searchParams.set('components', 'country:us');
+    autocompleteUrl.searchParams.set('key', apiKey);
+
+    const response = await fetch(autocompleteUrl.toString());
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Google Address Validation API error:', response.status, errorData);
+      console.error('Google Places Autocomplete API error:', response.status);
       return NextResponse.json({
         verified: false,
-        error: 'Address verification service error',
+        error: 'Address search service error',
         suggestions: [],
       });
     }
 
-    const data: GoogleValidationResult = await response.json();
-    const result = data.result;
+    const data: PlaceAutocompleteResponse = await response.json();
 
-    if (!result?.address?.formattedAddress) {
+    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+      console.error('Google Places API status:', data.status, data.error_message);
       return NextResponse.json({
         verified: false,
-        error: 'Address not found. Please check and try again.',
+        error: data.error_message || 'Address search failed',
         suggestions: [],
       });
     }
 
-    // Extract address components
-    const components = result.address.addressComponents || [];
-    const getComponent = (type: string) => {
-      const comp = components.find(c => c.componentType === type);
-      return comp?.componentName?.text || '';
-    };
-
-    // Get USPS standardized address if available (most accurate for US)
-    let formattedAddress = result.address.formattedAddress;
-    const usps = result.uspsData?.standardizedAddress;
-    // Only use USPS data if all required fields are present
-    if (usps?.firstAddressLine && usps?.city && usps?.state && usps?.zipCode) {
-      formattedAddress = `${usps.firstAddressLine}, ${usps.city}, ${usps.state} ${usps.zipCode}`;
-      if (usps.zipCodeExtension) {
-        formattedAddress += `-${usps.zipCodeExtension}`;
-      }
+    if (!data.predictions || data.predictions.length === 0) {
+      return NextResponse.json({
+        verified: false,
+        error: 'No addresses found',
+        suggestions: [],
+      });
     }
 
-    const suggestion = {
-      displayName: result.address.formattedAddress,
-      formattedAddress,
-      latitude: result.geocode?.location?.latitude || 0,
-      longitude: result.geocode?.location?.longitude || 0,
-      components: {
-        streetNumber: getComponent('street_number'),
-        street: getComponent('route'),
-        city: usps?.city || getComponent('locality'),
-        state: usps?.state || getComponent('administrative_area_level_1'),
-        zipCode: usps?.zipCode || getComponent('postal_code'),
-        country: getComponent('country') || 'United States',
-      },
-      // Additional quality info
-      isComplete: result.verdict?.addressComplete || false,
-      hasUnconfirmedComponents: result.verdict?.hasUnconfirmedComponents || false,
-      dpvConfirmation: result.uspsData?.dpvConfirmation || '', // Y=confirmed, N=not confirmed, S=secondary address, D=vacant
-    };
-
-    // Check address quality
-    const isValid = result.verdict?.addressComplete &&
-                    !result.verdict?.hasUnconfirmedComponents &&
-                    result.uspsData?.dpvConfirmation === 'Y';
+    // Convert predictions to suggestions
+    const suggestions = data.predictions.map(prediction => ({
+      displayName: prediction.structured_formatting.main_text,
+      formattedAddress: prediction.description,
+      placeId: prediction.place_id,
+      secondaryText: prediction.structured_formatting.secondary_text,
+      latitude: 0, // Will be fetched when user selects
+      longitude: 0,
+    }));
 
     return NextResponse.json({
       verified: true,
-      isValid,
-      bestMatch: suggestion,
-      suggestions: [suggestion],
-      verdict: result.verdict,
+      suggestions,
     });
   } catch (error) {
     console.error('Address verification error:', error);
