@@ -1093,7 +1093,7 @@ export default function EditOrderScreen() {
             </View>
           </View>
 
-          <View style={{ height: 40 }} />
+          <View style={{ height: 200 }} />
         </ScrollView>
       </KeyboardAvoidingView>
 

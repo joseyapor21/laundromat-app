@@ -1536,7 +1536,7 @@ export default function CreateOrderScreen() {
               </View>
             </View>
 
-            <View style={{ height: 40 }} />
+            <View style={{ height: 200 }} />
           </ScrollView>
         </View>
       </Modal>

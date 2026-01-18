@@ -173,6 +173,8 @@ export default function CreateCustomerScreen() {
               placeholderTextColor="#94a3b8"
               multiline
               numberOfLines={3}
+              scrollEnabled={false}
+              blurOnSubmit={false}
             />
           </View>
 
@@ -203,7 +205,7 @@ export default function CreateCustomerScreen() {
             </View>
           </View>
 
-          <View style={{ height: 40 }} />
+          <View style={{ height: 200 }} />
       </KeyboardAwareScrollView>
     </SafeAreaView>
   );
