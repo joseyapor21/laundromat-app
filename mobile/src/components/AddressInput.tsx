@@ -134,23 +134,31 @@ export default function AddressInput({
     Keyboard.dismiss();
   };
 
+  const openModal = () => {
+    setShowSuggestions(true);
+    // If there's already text, trigger a search
+    if (inputValue.length >= 3) {
+      verifyAddress(inputValue, true);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.inputContainer}>
-        <TextInput
-          ref={inputRef}
+        {/* Tappable display that opens the modal */}
+        <TouchableOpacity
           style={[
             styles.input,
             isVerified && styles.inputVerified,
             verificationError && styles.inputError,
           ]}
-          value={inputValue}
-          onChangeText={handleChangeText}
-          placeholder={placeholder}
-          placeholderTextColor="#94a3b8"
-          multiline
-          numberOfLines={2}
-        />
+          onPress={openModal}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.inputText, !inputValue && styles.placeholderText]}>
+            {inputValue || placeholder}
+          </Text>
+        </TouchableOpacity>
 
         <View style={styles.buttonContainer}>
           {isVerifying ? (
@@ -179,11 +187,11 @@ export default function AddressInput({
         <Text style={styles.errorText}>{verificationError}</Text>
       )}
 
-      {/* Suggestions Modal - Appears as popup while keyboard stays open */}
+      {/* Suggestions Modal - Opens when tapping address field */}
       <Modal
-        visible={showSuggestions && suggestions.length > 0}
+        visible={showSuggestions}
         transparent
-        animationType="fade"
+        animationType="slide"
         onRequestClose={handleClose}
       >
         <KeyboardAvoidingView
@@ -218,26 +226,39 @@ export default function AddressInput({
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={true}
               >
-                {suggestions.map((item, index) => (
-                  <TouchableOpacity
-                    key={index}
-                    style={styles.suggestionItem}
-                    onPress={() => selectSuggestion(item)}
-                  >
-                    <Ionicons name="location-outline" size={20} color="#2563eb" />
-                    <View style={styles.suggestionText}>
-                      <Text style={styles.suggestionMain} numberOfLines={2}>
-                        {item.formattedAddress || 'Address'}
-                      </Text>
-                      {item.displayName && item.displayName !== item.formattedAddress && (
-                        <Text style={styles.suggestionSub} numberOfLines={1}>
-                          {item.displayName}
+                {suggestions.length > 0 ? (
+                  suggestions.map((item, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.suggestionItem}
+                      onPress={() => selectSuggestion(item)}
+                    >
+                      <Ionicons name="location-outline" size={20} color="#2563eb" />
+                      <View style={styles.suggestionText}>
+                        <Text style={styles.suggestionMain} numberOfLines={2}>
+                          {item.formattedAddress || 'Address'}
                         </Text>
-                      )}
-                    </View>
-                    <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-                  </TouchableOpacity>
-                ))}
+                        {item.displayName && item.displayName !== item.formattedAddress && (
+                          <Text style={styles.suggestionSub} numberOfLines={1}>
+                            {item.displayName}
+                          </Text>
+                        )}
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="search" size={32} color="#cbd5e1" />
+                    <Text style={styles.emptyStateText}>
+                      {inputValue.length < 3
+                        ? 'Type an address to search'
+                        : isVerifying
+                          ? 'Searching...'
+                          : 'No addresses found'}
+                    </Text>
+                  </View>
+                )}
               </ScrollView>
 
               {/* Close button */}
@@ -267,10 +288,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 12,
     paddingRight: 90,
+    minHeight: 80,
+    justifyContent: 'flex-start',
+  },
+  inputText: {
     fontSize: 16,
     color: '#1e293b',
-    minHeight: 80,
-    textAlignVertical: 'top',
+  },
+  placeholderText: {
+    color: '#94a3b8',
   },
   inputVerified: {
     borderColor: '#10b981',
@@ -400,5 +426,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#64748b',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyStateText: {
+    marginTop: 12,
+    fontSize: 15,
+    color: '#94a3b8',
+    textAlign: 'center',
   },
 });
