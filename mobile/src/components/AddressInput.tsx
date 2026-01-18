@@ -11,11 +11,13 @@ import {
   Keyboard,
   Platform,
   Dimensions,
+  Modal,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
 
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const { height: SCREEN_HEIGHT, width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface AddressSuggestion {
   displayName: string;
@@ -40,7 +42,14 @@ export default function AddressInput({
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [verificationError, setVerificationError] = useState<string | null>(null);
+  const [inputValue, setInputValue] = useState(value);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const inputRef = useRef<TextInput>(null);
+
+  // Sync external value changes
+  useEffect(() => {
+    setInputValue(value);
+  }, [value]);
 
   // Reset verification when value changes
   useEffect(() => {
@@ -49,8 +58,8 @@ export default function AddressInput({
   }, [value]);
 
   const verifyAddress = async (addressToVerify?: string, isAutoVerify = false) => {
-    const address = addressToVerify || value;
-    if (!address || address.trim().length < 5) {
+    const address = addressToVerify || inputValue;
+    if (!address || address.trim().length < 3) {
       if (!isAutoVerify) {
         Alert.alert('Error', 'Please enter a complete address');
       }
@@ -69,8 +78,7 @@ export default function AddressInput({
         setSuggestions(result.suggestions);
         setShowSuggestions(true);
         setVerificationError(null);
-        // Dismiss keyboard so user can see and select suggestions
-        Keyboard.dismiss();
+        // Don't dismiss keyboard - let user keep typing
       } else if (!isAutoVerify) {
         // Only show error on manual verify, not auto-verify while typing
         setVerificationError(result.error || 'Address not found');
@@ -88,17 +96,21 @@ export default function AddressInput({
   };
 
   const selectSuggestion = (suggestion: AddressSuggestion) => {
-    onChange(suggestion.formattedAddress);
+    const newValue = suggestion.formattedAddress;
+    setInputValue(newValue);
+    onChange(newValue);
     setIsVerified(true);
     setShowSuggestions(false);
     setSuggestions([]);
     setVerificationError(null);
+    Keyboard.dismiss();
   };
 
   const handleChangeText = (text: string) => {
+    setInputValue(text);
     onChange(text);
     setIsVerified(false);
-    setShowSuggestions(false); // Hide suggestions when typing
+    // Don't hide suggestions while typing - keep them visible
 
     // Debounced auto-verify
     if (debounceRef.current) {
@@ -106,23 +118,33 @@ export default function AddressInput({
     }
 
     // Auto-verify after user stops typing (shorter delay for faster feedback)
-    if (text.length >= 5) {
+    if (text.length >= 3) {
       debounceRef.current = setTimeout(() => {
         verifyAddress(text, true); // isAutoVerify = true, don't show errors
-      }, 800);
+      }, 500); // Faster response
+    } else {
+      // Hide suggestions if text is too short
+      setShowSuggestions(false);
+      setSuggestions([]);
     }
+  };
+
+  const handleClose = () => {
+    setShowSuggestions(false);
+    Keyboard.dismiss();
   };
 
   return (
     <View style={styles.container}>
       <View style={styles.inputContainer}>
         <TextInput
+          ref={inputRef}
           style={[
             styles.input,
             isVerified && styles.inputVerified,
             verificationError && styles.inputError,
           ]}
-          value={value}
+          value={inputValue}
           onChangeText={handleChangeText}
           placeholder={placeholder}
           placeholderTextColor="#94a3b8"
@@ -131,25 +153,23 @@ export default function AddressInput({
         />
 
         <View style={styles.buttonContainer}>
-          {isVerified ? (
+          {isVerifying ? (
+            <View style={styles.loadingBadge}>
+              <ActivityIndicator size="small" color="#2563eb" />
+            </View>
+          ) : isVerified ? (
             <View style={styles.verifiedBadge}>
               <Ionicons name="checkmark-circle" size={16} color="#10b981" />
               <Text style={styles.verifiedText}>Verified</Text>
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles.verifyButton, isVerifying && styles.verifyButtonDisabled]}
+              style={[styles.verifyButton, (!inputValue || inputValue.length < 3) && styles.verifyButtonDisabled]}
               onPress={() => verifyAddress()}
-              disabled={isVerifying || !value || value.length < 5}
+              disabled={isVerifying || !inputValue || inputValue.length < 3}
             >
-              {isVerifying ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="location" size={14} color="#fff" />
-                  <Text style={styles.verifyButtonText}>Verify</Text>
-                </>
-              )}
+              <Ionicons name="location" size={14} color="#fff" />
+              <Text style={styles.verifyButtonText}>Verify</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -159,40 +179,75 @@ export default function AddressInput({
         <Text style={styles.errorText}>{verificationError}</Text>
       )}
 
-      {/* Suggestions Dropdown - Not a Modal, so keyboard stays open */}
-      {showSuggestions && suggestions.length > 0 && (
-        <View style={styles.suggestionsContainer}>
-          <View style={styles.suggestionsHeader}>
-            <Text style={styles.suggestionsTitle}>Select Address</Text>
-            <TouchableOpacity onPress={() => setShowSuggestions(false)}>
-              <Ionicons name="close" size={20} color="#64748b" />
-            </TouchableOpacity>
-          </View>
-          <ScrollView
-            style={styles.suggestionsList}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
+      {/* Suggestions Modal - Appears as popup while keyboard stays open */}
+      <Modal
+        visible={showSuggestions && suggestions.length > 0}
+        transparent
+        animationType="fade"
+        onRequestClose={handleClose}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}
+        >
+          <TouchableOpacity
+            style={styles.modalBackdrop}
+            activeOpacity={1}
+            onPress={handleClose}
           >
-            {suggestions.map((item, index) => (
-              <TouchableOpacity
-                key={index}
-                style={styles.suggestionItem}
-                onPress={() => selectSuggestion(item)}
+            <View style={styles.suggestionsPopup}>
+              {/* Search input inside modal */}
+              <View style={styles.modalInputContainer}>
+                <Ionicons name="search" size={20} color="#64748b" style={styles.searchIcon} />
+                <TextInput
+                  style={styles.modalInput}
+                  value={inputValue}
+                  onChangeText={handleChangeText}
+                  placeholder="Search address..."
+                  placeholderTextColor="#94a3b8"
+                  autoFocus
+                />
+                {isVerifying && (
+                  <ActivityIndicator size="small" color="#2563eb" style={styles.inputLoader} />
+                )}
+              </View>
+
+              {/* Suggestions list */}
+              <ScrollView
+                style={styles.suggestionsList}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={true}
               >
-                <Ionicons name="location-outline" size={18} color="#2563eb" />
-                <View style={styles.suggestionText}>
-                  <Text style={styles.suggestionMain}>{item.formattedAddress || 'Address'}</Text>
-                  {item.displayName && item.displayName !== item.formattedAddress && (
-                    <Text style={styles.suggestionSub} numberOfLines={1}>
-                      {item.displayName}
-                    </Text>
-                  )}
-                </View>
+                {suggestions.map((item, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.suggestionItem}
+                    onPress={() => selectSuggestion(item)}
+                  >
+                    <Ionicons name="location-outline" size={20} color="#2563eb" />
+                    <View style={styles.suggestionText}>
+                      <Text style={styles.suggestionMain} numberOfLines={2}>
+                        {item.formattedAddress || 'Address'}
+                      </Text>
+                      {item.displayName && item.displayName !== item.formattedAddress && (
+                        <Text style={styles.suggestionSub} numberOfLines={1}>
+                          {item.displayName}
+                        </Text>
+                      )}
+                    </View>
+                    <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Close button */}
+              <TouchableOpacity style={styles.closeButton} onPress={handleClose}>
+                <Text style={styles.closeButtonText}>Cancel</Text>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+            </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -247,6 +302,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  loadingBadge: {
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
   verifiedBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -266,44 +327,52 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  suggestionsContainer: {
-    marginTop: 4,
+  // Modal styles
+  modalContainer: {
+    flex: 1,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  suggestionsPopup: {
     backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-    maxHeight: 200,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: SCREEN_HEIGHT * 0.7,
+    paddingTop: 12,
   },
-  suggestionsHeader: {
+  modalInputContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    backgroundColor: '#f8fafc',
-    borderTopLeftRadius: 8,
-    borderTopRightRadius: 8,
   },
-  suggestionsTitle: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748b',
+  searchIcon: {
+    marginRight: 8,
+  },
+  modalInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1e293b',
+    paddingVertical: 14,
+  },
+  inputLoader: {
+    marginLeft: 8,
   },
   suggestionsList: {
-    maxHeight: 160,
+    maxHeight: SCREEN_HEIGHT * 0.4,
   },
   suggestionItem: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    padding: 12,
-    gap: 10,
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
@@ -311,13 +380,25 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   suggestionMain: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
     color: '#1e293b',
   },
   suggestionSub: {
-    fontSize: 11,
+    fontSize: 12,
     color: '#64748b',
     marginTop: 2,
+  },
+  closeButton: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    marginTop: 8,
+  },
+  closeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
   },
 });
