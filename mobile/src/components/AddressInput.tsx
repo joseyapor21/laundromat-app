@@ -8,9 +8,14 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  Keyboard,
+  Platform,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
+
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 interface AddressSuggestion {
   displayName: string;
@@ -64,6 +69,8 @@ export default function AddressInput({
         setSuggestions(result.suggestions);
         setShowSuggestions(true);
         setVerificationError(null);
+        // Dismiss keyboard so user can see and select suggestions
+        Keyboard.dismiss();
       } else if (!isAutoVerify) {
         // Only show error on manual verify, not auto-verify while typing
         setVerificationError(result.error || 'Address not found');
