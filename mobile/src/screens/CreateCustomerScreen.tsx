@@ -8,8 +8,9 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  KeyboardAvoidingView,
+  ScrollView,
 } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -18,7 +19,7 @@ import AddressInput from '../components/AddressInput';
 
 export default function CreateCustomerScreen() {
   const navigation = useNavigation<any>();
-  const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
   const [saving, setSaving] = useState(false);
 
   // Form state
@@ -64,15 +65,18 @@ export default function CreateCustomerScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <KeyboardAwareScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        enableOnAndroid={true}
-        extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
-        extraHeight={120}
-        keyboardShouldPersistTaps="handled"
-        enableAutomaticScroll={true}
+      <KeyboardAvoidingView
+        style={styles.keyboardAvoid}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
+        <ScrollView
+          ref={scrollViewRef}
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={true}
+        >
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>New Customer</Text>
@@ -131,7 +135,7 @@ export default function CreateCustomerScreen() {
                   onFocusApartment={() => {
                     // Scroll down to make apartment field visible
                     setTimeout(() => {
-                      scrollViewRef.current?.scrollToEnd(true);
+                      scrollViewRef.current?.scrollToEnd({ animated: true });
                     }, 100);
                   }}
                 />
@@ -177,7 +181,7 @@ export default function CreateCustomerScreen() {
               blurOnSubmit={false}
               onFocus={() => {
                 setTimeout(() => {
-                  scrollViewRef.current?.scrollToEnd(true);
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
                 }, 300);
               }}
             />
@@ -211,7 +215,8 @@ export default function CreateCustomerScreen() {
           </View>
 
           <View style={{ height: 200 }} />
-      </KeyboardAwareScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -221,8 +226,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f1f5f9',
   },
+  keyboardAvoid: {
+    flex: 1,
+  },
   scrollView: {
     flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
   header: {
     backgroundColor: '#1e293b',
