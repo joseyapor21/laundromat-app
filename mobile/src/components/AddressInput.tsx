@@ -46,15 +46,9 @@ export default function AddressInput({
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput>(null);
 
-  // Sync external value changes
+  // Sync external value changes (but don't reset verification - that's handled in handleChangeText)
   useEffect(() => {
     setInputValue(value);
-  }, [value]);
-
-  // Reset verification when value changes
-  useEffect(() => {
-    setIsVerified(false);
-    setVerificationError(null);
   }, [value]);
 
   const verifyAddress = async (addressToVerify?: string, isAutoVerify = false) => {
