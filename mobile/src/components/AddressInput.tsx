@@ -49,6 +49,12 @@ export default function AddressInput({
   const [apartment, setApartment] = useState(''); // Apartment/unit number
   const [showApartmentInput, setShowApartmentInput] = useState(false);
   const [modalInputValue, setModalInputValue] = useState(value);
+  const [addressComponents, setAddressComponents] = useState<{
+    street: string;
+    city: string;
+    state: string;
+    zipCode: string;
+  } | null>(null);
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
   const inputRef = useRef<TextInput>(null);
 
@@ -100,6 +106,7 @@ export default function AddressInput({
 
   const selectSuggestion = async (suggestion: AddressSuggestion) => {
     let finalAddress = suggestion.formattedAddress;
+    let components = null;
 
     // If we have a placeId, fetch full details to get the complete address
     if (suggestion.placeId) {
@@ -108,6 +115,14 @@ export default function AddressInput({
         const details = await api.getPlaceDetails(suggestion.placeId);
         if (details.verified && details.bestMatch) {
           finalAddress = details.bestMatch.formattedAddress;
+          if (details.bestMatch.components) {
+            components = {
+              street: `${details.bestMatch.components.streetNumber} ${details.bestMatch.components.street}`.trim(),
+              city: details.bestMatch.components.city,
+              state: details.bestMatch.components.state,
+              zipCode: details.bestMatch.components.zipCode,
+            };
+          }
         }
       } catch (error) {
         console.error('Error fetching place details:', error);
@@ -116,10 +131,26 @@ export default function AddressInput({
       }
     }
 
+    // Parse components from address if not available from API
+    if (!components) {
+      const parts = finalAddress.split(',').map(p => p.trim());
+      if (parts.length >= 3) {
+        const lastPart = parts[parts.length - 1]; // Usually "State ZIP" or just country
+        const stateZip = parts[parts.length - 2]?.match(/([A-Z]{2})\s*(\d{5}(-\d{4})?)?/);
+        components = {
+          street: parts[0] || '',
+          city: parts.length > 2 ? parts[parts.length - 3] || parts[1] : parts[1] || '',
+          state: stateZip ? stateZip[1] : '',
+          zipCode: stateZip ? stateZip[2] || '' : '',
+        };
+      }
+    }
+
     // Save the base address and show apartment input
     setBaseAddress(finalAddress);
     setApartment('');
     setInputValue(finalAddress);
+    setAddressComponents(components);
     onChange(finalAddress);
     setIsVerified(true);
     setShowSuggestions(false);
@@ -146,6 +177,7 @@ export default function AddressInput({
     setBaseAddress('');
     setApartment('');
     setInputValue('');
+    setAddressComponents(null);
     onChange('');
     setIsVerified(false);
     setShowApartmentInput(false);
@@ -234,22 +266,43 @@ export default function AddressInput({
         <Text style={styles.errorText}>{verificationError}</Text>
       )}
 
-      {/* Apartment/Unit input - shows after address is verified */}
+      {/* Address details - shows after address is verified */}
       {showApartmentInput && isVerified && (
-        <View style={styles.apartmentContainer}>
-          <View style={styles.apartmentInputWrapper}>
-            <Ionicons name="home-outline" size={18} color="#64748b" style={styles.apartmentIcon} />
-            <TextInput
-              style={styles.apartmentInput}
-              value={apartment}
-              onChangeText={handleApartmentChange}
-              placeholder="Apt, Suite, Unit (optional)"
-              placeholderTextColor="#94a3b8"
-            />
+        <View style={styles.verifiedAddressContainer}>
+          {/* Apartment input */}
+          <View style={styles.apartmentRow}>
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Apt/Suite</Text>
+              <TextInput
+                style={styles.fieldInput}
+                value={apartment}
+                onChangeText={handleApartmentChange}
+                placeholder="2D"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            <TouchableOpacity style={styles.clearButton} onPress={clearAddress}>
+              <Ionicons name="close-circle" size={22} color="#94a3b8" />
+            </TouchableOpacity>
           </View>
-          <TouchableOpacity style={styles.clearButton} onPress={clearAddress}>
-            <Ionicons name="close-circle" size={20} color="#94a3b8" />
-          </TouchableOpacity>
+
+          {/* City, State, ZIP row */}
+          {addressComponents && (
+            <View style={styles.componentsRow}>
+              <View style={[styles.fieldContainer, { flex: 2 }]}>
+                <Text style={styles.fieldLabel}>City</Text>
+                <Text style={styles.fieldValue}>{addressComponents.city || '-'}</Text>
+              </View>
+              <View style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>State</Text>
+                <Text style={styles.fieldValue}>{addressComponents.state || '-'}</Text>
+              </View>
+              <View style={styles.fieldContainer}>
+                <Text style={styles.fieldLabel}>ZIP Code</Text>
+                <Text style={styles.fieldValue}>{addressComponents.zipCode || '-'}</Text>
+              </View>
+            </View>
+          )}
         </View>
       )}
 
@@ -429,34 +482,57 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
-  // Apartment input styles
-  apartmentContainer: {
+  // Verified address display styles
+  verifiedAddressContainer: {
+    marginTop: 12,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    padding: 12,
+  },
+  apartmentRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 8,
+    alignItems: 'flex-end',
     gap: 8,
   },
-  apartmentInputWrapper: {
-    flex: 1,
+  componentsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    marginTop: 12,
+    gap: 12,
+  },
+  fieldContainer: {
+    flex: 1,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#64748b',
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  fieldInput: {
     backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-  },
-  apartmentIcon: {
-    marginRight: 8,
-  },
-  apartmentInput: {
-    flex: 1,
-    fontSize: 16,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    fontSize: 15,
     color: '#1e293b',
-    paddingVertical: 12,
+  },
+  fieldValue: {
+    fontSize: 15,
+    color: '#1e293b',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: '#f8fafc',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   clearButton: {
-    padding: 8,
+    padding: 4,
     marginTop: 4,
   },
   // Modal styles

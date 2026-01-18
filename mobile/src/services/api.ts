@@ -215,6 +215,15 @@ class ApiService {
       latitude: number;
       longitude: number;
       placeId: string;
+      components?: {
+        streetNumber: string;
+        street: string;
+        subpremise: string;
+        city: string;
+        state: string;
+        zipCode: string;
+        country: string;
+      };
     };
     suggestions: Array<{
       displayName: string;
