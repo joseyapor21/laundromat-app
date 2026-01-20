@@ -66,7 +66,7 @@ const customerSchema = new mongoose.Schema({
   },
   address: {
     type: String,
-    required: true,
+    default: '',
   },
   buzzerCode: {
     type: String,
