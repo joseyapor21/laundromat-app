@@ -615,6 +615,7 @@ export default function AdminScreen() {
             data={users}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             renderItem={({ item: user }) => (
               <TouchableOpacity style={styles.card} onPress={() => openUserModal(user)}>
@@ -660,6 +661,7 @@ export default function AdminScreen() {
             data={filteredCustomers}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             renderItem={({ item: customer }) => (
               <TouchableOpacity style={styles.card} onPress={() => handleEditCustomer(customer)}>
@@ -699,6 +701,7 @@ export default function AdminScreen() {
             data={extraItems}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             renderItem={({ item }) => {
               const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
@@ -996,6 +999,7 @@ export default function AdminScreen() {
             data={filteredMachines}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             renderItem={({ item: machine }) => (
               <View style={[
@@ -1095,6 +1099,7 @@ export default function AdminScreen() {
             data={activityLogs}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             renderItem={({ item: log }) => (
               <View style={styles.activityCard}>

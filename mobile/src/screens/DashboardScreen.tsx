@@ -456,6 +456,9 @@ export default function DashboardScreen() {
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.ordersList}
             keyboardDismissMode="on-drag"
+            maintainVisibleContentPosition={{
+              minIndexForVisible: 0,
+            }}
             refreshControl={
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
             }

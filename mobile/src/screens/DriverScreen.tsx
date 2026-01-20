@@ -743,6 +743,9 @@ export default function DriverScreen() {
         renderItem={renderOrderCard}
         keyExtractor={(item) => item._id}
         contentContainerStyle={styles.list}
+        maintainVisibleContentPosition={{
+          minIndexForVisible: 0,
+        }}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
