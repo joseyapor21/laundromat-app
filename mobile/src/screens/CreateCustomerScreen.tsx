@@ -10,7 +10,6 @@ import {
   Platform,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
@@ -63,18 +62,17 @@ export default function CreateCustomerScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <KeyboardAwareScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.contentContainer}
-        enableOnAndroid={true}
-        extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
-        extraHeight={120}
-        keyboardShouldPersistTaps="handled"
-        enableAutomaticScroll={true}
-      >
-          {/* Header */}
+    <KeyboardAwareScrollView
+      ref={scrollViewRef}
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      enableOnAndroid={true}
+      extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
+      extraHeight={120}
+      keyboardShouldPersistTaps="handled"
+      enableAutomaticScroll={true}
+    >
+        {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>New Customer</Text>
           </View>
@@ -211,9 +209,8 @@ export default function CreateCustomerScreen() {
             </View>
           </View>
 
-          <View style={{ height: 200 }} />
-      </KeyboardAwareScrollView>
-    </SafeAreaView>
+        <View style={{ height: 200 }} />
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -221,9 +218,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f1f5f9',
-  },
-  scrollView: {
-    flex: 1,
   },
   contentContainer: {
     flexGrow: 1,
