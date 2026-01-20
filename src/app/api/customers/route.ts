@@ -81,8 +81,9 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
   } catch (error) {
     console.error('Create customer error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An error occurred';
     return NextResponse.json(
-      { error: 'An error occurred' },
+      { error: errorMessage },
       { status: 500 }
     );
   }

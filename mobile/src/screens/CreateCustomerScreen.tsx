@@ -47,14 +47,17 @@ export default function CreateCustomerScreen() {
 
     setSaving(true);
     try {
-      await api.createCustomer({
+      const customerData: Record<string, string> = {
         name: name.trim(),
         phoneNumber: phoneNumber.trim(),
         address: address.trim(),
-        email: email.trim() || undefined,
         deliveryFee: deliveryFee ? `$${parseFloat(deliveryFee).toFixed(2)}` : '$0.00',
-        notes: notes.trim() || undefined,
-      });
+      };
+      if (email.trim()) customerData.email = email.trim();
+      if (notes.trim()) customerData.notes = notes.trim();
+      if (buzzerCode.trim()) customerData.buzzerCode = buzzerCode.trim();
+
+      await api.createCustomer(customerData);
 
       Alert.alert('Success', 'Customer created successfully', [
         { text: 'OK', onPress: () => navigation.goBack() }
