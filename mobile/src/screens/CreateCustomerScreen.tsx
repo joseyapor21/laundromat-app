@@ -209,7 +209,6 @@ export default function CreateCustomerScreen() {
             </View>
           </View>
 
-        <View style={{ height: 200 }} />
     </KeyboardAwareScrollView>
   );
 }

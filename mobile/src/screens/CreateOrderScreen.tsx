@@ -1407,10 +1407,14 @@ export default function CreateOrderScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView
+          <KeyboardAwareScrollView
             style={styles.quickAddScrollView}
+            contentContainerStyle={styles.contentContainer}
+            enableOnAndroid={true}
+            extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
+            extraHeight={120}
             keyboardShouldPersistTaps="handled"
-            onScrollBeginDrag={() => Keyboard.dismiss()}
+            enableAutomaticScroll={true}
           >
             {/* Basic Information Section */}
             <View style={styles.quickAddSection}>
@@ -1543,8 +1547,7 @@ export default function CreateOrderScreen() {
               </View>
             </View>
 
-            <View style={{ height: 200 }} />
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
       </Modal>
     </KeyboardAwareScrollView>
