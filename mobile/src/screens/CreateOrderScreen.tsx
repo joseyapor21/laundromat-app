@@ -233,25 +233,16 @@ export default function CreateOrderScreen() {
     }
   }
 
-  // Open quick add with phone pre-filled from search
+  // Navigate to CreateCustomerScreen with search pre-filled
   function openQuickAddCustomer() {
     const searchText = customerSearch.trim();
     // Check if search looks like a phone number
     const isPhone = /^\d+$/.test(searchText.replace(/\D/g, '')) && searchText.replace(/\D/g, '').length >= 3;
 
-    if (isPhone) {
-      setQuickAddPhone(searchText);
-      setQuickAddName('');
-    } else {
-      setQuickAddName(searchText);
-      setQuickAddPhone('');
-    }
-    setQuickAddEmail('');
-    setQuickAddAddress('');
-    setQuickAddDeliveryFee('');
-    setQuickAddBuzzerCode('');
-    setQuickAddNotes('');
-    setShowQuickAddCustomer(true);
+    navigation.navigate('CreateCustomer', {
+      prefillName: isPhone ? '' : searchText,
+      prefillPhone: isPhone ? searchText : '',
+    });
   }
 
   // Update customer phone number

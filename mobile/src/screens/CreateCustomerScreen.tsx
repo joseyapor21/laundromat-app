@@ -11,18 +11,24 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { api } from '../services/api';
 import AddressInput from '../components/AddressInput';
 
+type CreateCustomerParams = {
+  prefillName?: string;
+  prefillPhone?: string;
+};
+
 export default function CreateCustomerScreen() {
   const navigation = useNavigation<any>();
+  const route = useRoute<RouteProp<{ params: CreateCustomerParams }, 'params'>>();
   const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
   const [saving, setSaving] = useState(false);
 
-  // Form state
-  const [name, setName] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
+  // Form state - use route params for pre-filling if available
+  const [name, setName] = useState(route.params?.prefillName || '');
+  const [phoneNumber, setPhoneNumber] = useState(route.params?.prefillPhone || '');
   const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('');
