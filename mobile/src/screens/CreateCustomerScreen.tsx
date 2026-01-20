@@ -73,8 +73,7 @@ export default function CreateCustomerScreen() {
       style={styles.container}
       contentContainerStyle={styles.contentContainer}
       enableOnAndroid={true}
-      extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
-      extraHeight={120}
+      extraScrollHeight={Platform.OS === 'ios' ? 20 : 20}
       keyboardShouldPersistTaps="handled"
       enableAutomaticScroll={true}
     >
