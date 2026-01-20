@@ -316,15 +316,15 @@ export default function DashboardScreen() {
           <Text style={styles.boardColumnCountText}>{columnOrders.length}</Text>
         </View>
       </View>
-      <ScrollView
+      <FlatList
+        data={columnOrders}
+        keyExtractor={(item) => item._id}
+        renderItem={({ item }) => renderBoardCard(item)}
         style={styles.boardColumnContent}
         showsVerticalScrollIndicator={false}
-      >
-        {columnOrders.map(renderBoardCard)}
-        {columnOrders.length === 0 && (
-          <Text style={styles.boardEmptyText}>No orders</Text>
-        )}
-      </ScrollView>
+        maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+        ListEmptyComponent={<Text style={styles.boardEmptyText}>No orders</Text>}
+      />
     </View>
   );
 
