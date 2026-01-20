@@ -89,11 +89,33 @@ export default function DashboardScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [manualOrderInput, setManualOrderInput] = useState('');
   const hasScannedRef = useRef(false);
+  const ordersRef = useRef<Order[]>([]);
+
+  // Helper to check if orders data has changed
+  const hasOrdersChanged = useCallback((newOrders: Order[], oldOrders: Order[]) => {
+    if (newOrders.length !== oldOrders.length) return true;
+    for (let i = 0; i < newOrders.length; i++) {
+      const newOrder = newOrders[i];
+      const oldOrder = oldOrders.find(o => o._id === newOrder._id);
+      if (!oldOrder) return true;
+      // Check if status, isPaid, or updatedAt changed
+      if (oldOrder.status !== newOrder.status ||
+          oldOrder.isPaid !== newOrder.isPaid ||
+          oldOrder.updatedAt !== newOrder.updatedAt) {
+        return true;
+      }
+    }
+    return false;
+  }, []);
 
   const loadOrders = useCallback(async () => {
     try {
       const data = await api.getOrders();
-      setOrders(data);
+      // Only update state if data has actually changed
+      if (hasOrdersChanged(data, ordersRef.current)) {
+        ordersRef.current = data;
+        setOrders(data);
+      }
     } catch (error) {
       console.error('Failed to load orders:', error);
       Alert.alert('Error', 'Failed to load orders');
@@ -101,7 +123,7 @@ export default function DashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [hasOrdersChanged]);
 
   useEffect(() => {
     loadOrders();

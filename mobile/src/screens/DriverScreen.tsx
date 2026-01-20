@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -88,6 +88,26 @@ export default function DriverScreen() {
     isDateMatch(order.estimatedPickupDate, deliveryDateFilter)
   );
 
+  // Refs to track previous data for change detection
+  const pickupOrdersRef = useRef<Order[]>([]);
+  const deliveryOrdersRef = useRef<Order[]>([]);
+
+  // Helper to check if orders data has changed
+  const hasOrdersChanged = useCallback((newOrders: Order[], oldOrders: Order[]) => {
+    if (newOrders.length !== oldOrders.length) return true;
+    for (let i = 0; i < newOrders.length; i++) {
+      const newOrder = newOrders[i];
+      const oldOrder = oldOrders.find(o => o._id === newOrder._id);
+      if (!oldOrder) return true;
+      if (oldOrder.status !== newOrder.status ||
+          oldOrder.isPaid !== newOrder.isPaid ||
+          oldOrder.updatedAt !== newOrder.updatedAt) {
+        return true;
+      }
+    }
+    return false;
+  }, []);
+
   const loadOrders = useCallback(async () => {
     try {
       const allOrders = await api.getOrders();
@@ -104,15 +124,22 @@ export default function DriverScreen() {
         order.status === 'ready_for_delivery'
       );
 
-      setPickupOrders(pickups);
-      setDeliveryOrders(deliveries);
+      // Only update state if data has actually changed
+      if (hasOrdersChanged(pickups, pickupOrdersRef.current)) {
+        pickupOrdersRef.current = pickups;
+        setPickupOrders(pickups);
+      }
+      if (hasOrdersChanged(deliveries, deliveryOrdersRef.current)) {
+        deliveryOrdersRef.current = deliveries;
+        setDeliveryOrders(deliveries);
+      }
     } catch (error) {
       Alert.alert('Error', 'Failed to load orders');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [hasOrdersChanged]);
 
   useEffect(() => {
     loadOrders();
