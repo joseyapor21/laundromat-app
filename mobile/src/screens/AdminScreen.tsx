@@ -1352,7 +1352,7 @@ export default function AdminScreen() {
             <KeyboardAwareScrollView
               style={styles.modalBody}
               enableOnAndroid={true}
-              extraScrollHeight={Platform.OS === 'ios' ? 100 : 50}
+              extraScrollHeight={0}
               keyboardShouldPersistTaps="handled"
             >
               <View style={styles.inputGroup}>
