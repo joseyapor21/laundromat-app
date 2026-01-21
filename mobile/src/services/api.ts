@@ -297,6 +297,13 @@ class ApiService {
     return this.request<Machine[]>('/machines');
   }
 
+  async createMachine(data: { name: string; type: string; qrCode: string }): Promise<Machine> {
+    return this.request<Machine>('/machines', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
   async updateMachine(id: string, updates: Partial<Machine>): Promise<Machine> {
     return this.request<Machine>(`/machines/${id}`, {
       method: 'PUT',

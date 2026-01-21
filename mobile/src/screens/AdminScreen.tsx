@@ -414,13 +414,18 @@ export default function AdminScreen() {
         await api.updateMachine(editingMachine._id, machineForm);
         Alert.alert('Success', 'Machine updated');
       } else {
-        // Note: You may need to add createMachine to the API
-        Alert.alert('Info', 'Machine creation requires backend support');
+        await api.createMachine({
+          name: machineForm.name,
+          type: machineForm.type,
+          qrCode: machineForm.qrCode,
+        });
+        Alert.alert('Success', 'Machine created');
       }
       setShowMachineModal(false);
       loadData();
     } catch (error) {
-      Alert.alert('Error', 'Failed to save machine');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save machine';
+      Alert.alert('Error', errorMessage);
     } finally {
       setSaving(false);
     }
