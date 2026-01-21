@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -60,6 +60,7 @@ export default function AdminScreen() {
 
   // Machine filter
   const [machineTypeFilter, setMachineTypeFilter] = useState<'all' | 'washer' | 'dryer'>('all');
+  const machinesListRef = useRef<FlatList>(null);
 
   // Modals
   const [showUserModal, setShowUserModal] = useState(false);
@@ -978,7 +979,10 @@ export default function AdminScreen() {
                   filter === 'washer' && machineTypeFilter === filter && { backgroundColor: '#06b6d4' },
                   filter === 'dryer' && machineTypeFilter === filter && { backgroundColor: '#f97316' },
                 ]}
-                onPress={() => setMachineTypeFilter(filter)}
+                onPress={() => {
+                  setMachineTypeFilter(filter);
+                  machinesListRef.current?.scrollToOffset({ offset: 0, animated: false });
+                }}
               >
                 <Ionicons
                   name={filter === 'washer' ? 'water' : filter === 'dryer' ? 'flame' : 'grid'}
@@ -996,10 +1000,10 @@ export default function AdminScreen() {
           </View>
 
           <FlatList
+            ref={machinesListRef}
             data={filteredMachines}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
-            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             renderItem={({ item: machine }) => (
               <View style={[
