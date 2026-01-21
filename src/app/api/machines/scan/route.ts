@@ -43,6 +43,53 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if machine is already in use by another order
+    // First check via machine status
+    const currentMachineOrderId = machine.currentOrderId?.toString();
+    console.log('Machine status check:', {
+      machineName: machine.name,
+      status: machine.status,
+      currentOrderId: currentMachineOrderId,
+      requestedOrderId: orderId
+    });
+
+    if (machine.status === 'in_use' && currentMachineOrderId && currentMachineOrderId !== orderId) {
+      const currentOrder = await Order.findById(machine.currentOrderId);
+      const orderInfo = currentOrder ? `Order #${currentOrder.orderId} (${currentOrder.customerName})` : 'another order';
+      console.log('Scan error: Machine already in use (via status):', machine.name, 'by', orderInfo);
+      return NextResponse.json(
+        { error: `${machine.name} is already in use by ${orderInfo}` },
+        { status: 400 }
+      );
+    }
+
+    // Also check by looking at active machine assignments in orders (backup check)
+    const orderWithMachine = await Order.findOne({
+      _id: { $ne: orderId },
+      'machineAssignments': {
+        $elemMatch: {
+          machineId: machine._id.toString(),
+          removedAt: { $exists: false }
+        }
+      }
+    });
+
+    if (orderWithMachine) {
+      const orderInfo = `Order #${orderWithMachine.orderId} (${orderWithMachine.customerName})`;
+      console.log('Scan error: Machine already in use (via order check):', machine.name, 'by', orderInfo);
+
+      // Also fix the machine status since it's out of sync
+      await Machine.findByIdAndUpdate(machine._id, {
+        status: 'in_use',
+        currentOrderId: orderWithMachine._id.toString(),
+      });
+
+      return NextResponse.json(
+        { error: `${machine.name} is already in use by ${orderInfo}` },
+        { status: 400 }
+      );
+    }
+
     // Find the order
     const order = await Order.findById(orderId);
     if (!order) {

@@ -9,10 +9,10 @@ import {
   Alert,
   ActivityIndicator,
   Switch,
-  KeyboardAvoidingView,
   Platform,
   Modal,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -443,11 +443,15 @@ export default function EditOrderScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <KeyboardAwareScrollView
         style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 20 }}
+        enableOnAndroid={true}
+        extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
+        extraHeight={120}
+        keyboardShouldPersistTaps="handled"
+        enableAutomaticScroll={true}
       >
-        <ScrollView style={styles.scrollView} keyboardShouldPersistTaps="handled" keyboardDismissMode="on-drag">
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Edit Order #{order.orderId}</Text>
@@ -584,9 +588,11 @@ export default function EditOrderScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Schedule</Text>
             <View style={styles.card}>
-              {/* Drop-off Date - automatically set when order is picked up */}
+              {/* Pickup/Drop-off Date - automatically set when order is picked up */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Drop-off Date/Time</Text>
+                <Text style={styles.inputLabel}>
+                  {orderType === 'delivery' ? 'Pickup Date/Time' : 'Drop-off Date/Time'}
+                </Text>
                 <View style={styles.dateTimeRow}>
                   <TouchableOpacity
                     style={[styles.dateButton, styles.dateButtonFlex]}
@@ -675,7 +681,17 @@ export default function EditOrderScreen() {
                     <Text style={styles.datePickerCancel}>Cancel</Text>
                   </TouchableOpacity>
                   <Text style={styles.datePickerTitle}>Select Date</Text>
-                  <TouchableOpacity onPress={() => setShowDatePicker(null)}>
+                  <TouchableOpacity onPress={() => {
+                    // Set the date to current picker value if not already set
+                    if (showDatePicker === 'pickup' && !estimatedPickupDate) {
+                      setEstimatedPickupDate(new Date());
+                    } else if (showDatePicker === 'dropoff' && !dropOffDate) {
+                      setDropOffDate(new Date());
+                    } else if (showDatePicker === 'delivery' && !deliverySchedule) {
+                      setDeliverySchedule(new Date());
+                    }
+                    setShowDatePicker(null);
+                  }}>
                     <Text style={styles.datePickerDone}>Done</Text>
                   </TouchableOpacity>
                 </View>
@@ -696,7 +712,9 @@ export default function EditOrderScreen() {
                         newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
                         setEstimatedPickupDate(newDate);
                       } else if (showDatePicker === 'dropoff') {
-                        setDropOffDate(selectedDate);
+                        const newDate = dropOffDate ? new Date(dropOffDate) : new Date();
+                        newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
+                        setDropOffDate(newDate);
                       } else {
                         const newDate = deliverySchedule ? new Date(deliverySchedule) : new Date();
                         newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
@@ -723,7 +741,17 @@ export default function EditOrderScreen() {
                     <Text style={styles.datePickerCancel}>Cancel</Text>
                   </TouchableOpacity>
                   <Text style={styles.datePickerTitle}>Select Time</Text>
-                  <TouchableOpacity onPress={() => setShowTimePicker(null)}>
+                  <TouchableOpacity onPress={() => {
+                    // Set the time to current picker value if not already set
+                    if (showTimePicker === 'pickup' && !estimatedPickupDate) {
+                      setEstimatedPickupDate(new Date());
+                    } else if (showTimePicker === 'dropoff' && !dropOffDate) {
+                      setDropOffDate(new Date());
+                    } else if (showTimePicker === 'delivery' && !deliverySchedule) {
+                      setDeliverySchedule(new Date());
+                    }
+                    setShowTimePicker(null);
+                  }}>
                     <Text style={styles.datePickerDone}>Done</Text>
                   </TouchableOpacity>
                 </View>
@@ -1093,9 +1121,8 @@ export default function EditOrderScreen() {
             </View>
           </View>
 
-          <View style={{ height: 200 }} />
-        </ScrollView>
-      </KeyboardAvoidingView>
+          <View style={{ height: 100 }} />
+      </KeyboardAwareScrollView>
 
       {/* Extra Items Modal */}
       <Modal
@@ -1301,9 +1328,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f1f5f9',
-  },
-  scrollView: {
-    flex: 1,
   },
   header: {
     backgroundColor: '#1e293b',
