@@ -1009,7 +1009,7 @@ export default function AdminScreen() {
             ref={machinesListRef}
             data={filteredMachines}
             keyExtractor={(item) => item._id}
-            numColumns={2}
+            numColumns={4}
             contentContainerStyle={styles.machineGridContent}
             columnWrapperStyle={styles.machineGridRow}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -1028,7 +1028,7 @@ export default function AdminScreen() {
                 ]}>
                   <Ionicons
                     name={machine.type === 'washer' ? 'water' : 'flame'}
-                    size={32}
+                    size={22}
                     color={machine.type === 'washer' ? '#06b6d4' : '#f97316'}
                   />
                 </View>
@@ -1064,7 +1064,7 @@ export default function AdminScreen() {
                   >
                     <Ionicons
                       name="construct"
-                      size={14}
+                      size={12}
                       color={machine.status === 'maintenance' ? '#fff' : '#64748b'}
                     />
                   </TouchableOpacity>
@@ -2260,10 +2260,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   machineGridItem: {
-    width: '48%',
+    width: '23%',
     backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 10,
+    padding: 10,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
@@ -2283,41 +2283,42 @@ const styles = StyleSheet.create({
     borderColor: '#bfdbfe',
   },
   machineGridIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   machineGridName: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: '600',
     color: '#1e293b',
     marginBottom: 2,
+    textAlign: 'center',
   },
   machineGridQR: {
-    fontSize: 12,
+    fontSize: 10,
     color: '#94a3b8',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   machineGridStatus: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
   machineGridStatusText: {
-    fontSize: 11,
+    fontSize: 9,
     fontWeight: '600',
     textTransform: 'capitalize',
   },
   machineGridMaintenance: {
     position: 'absolute',
-    top: 8,
-    right: 8,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
