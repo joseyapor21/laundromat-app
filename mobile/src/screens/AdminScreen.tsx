@@ -1009,54 +1009,67 @@ export default function AdminScreen() {
             ref={machinesListRef}
             data={filteredMachines}
             keyExtractor={(item) => item._id}
-            contentContainerStyle={styles.listContent}
+            numColumns={2}
+            contentContainerStyle={styles.machineGridContent}
+            columnWrapperStyle={styles.machineGridRow}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             renderItem={({ item: machine }) => (
-              <View style={[
-                styles.card,
-                machine.status === 'maintenance' && styles.machineMaintenanceCard,
-              ]}>
-                <TouchableOpacity
-                  style={styles.cardContent}
-                  onPress={() => openMachineModal(machine)}
-                >
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons
-                      name={machine.type === 'washer' ? 'water' : 'flame'}
-                      size={20}
-                      color={machine.type === 'washer' ? '#06b6d4' : '#f97316'}
-                    />
-                    <Text style={styles.cardTitle}>{machine.name}</Text>
-                  </View>
-                  <Text style={styles.cardSubtitle}>QR: {machine.qrCode}</Text>
-                </TouchableOpacity>
-                <View style={{ alignItems: 'flex-end', gap: 8 }}>
-                  <View style={[
-                    styles.badge,
+              <TouchableOpacity
+                style={[
+                  styles.machineGridItem,
+                  machine.status === 'maintenance' && styles.machineGridItemMaintenance,
+                  machine.status === 'in_use' && styles.machineGridItemInUse,
+                ]}
+                onPress={() => openMachineModal(machine)}
+              >
+                <View style={[
+                  styles.machineGridIcon,
+                  { backgroundColor: machine.type === 'washer' ? '#ecfeff' : '#fff7ed' }
+                ]}>
+                  <Ionicons
+                    name={machine.type === 'washer' ? 'water' : 'flame'}
+                    size={32}
+                    color={machine.type === 'washer' ? '#06b6d4' : '#f97316'}
+                  />
+                </View>
+                <Text style={styles.machineGridName}>{machine.name}</Text>
+                <Text style={styles.machineGridQR}>{machine.qrCode}</Text>
+                <View style={[
+                  styles.machineGridStatus,
+                  {
+                    backgroundColor: machine.status === 'available' ? '#dcfce7' :
+                      machine.status === 'in_use' ? '#dbeafe' : '#fee2e2',
+                  }
+                ]}>
+                  <Text style={[
+                    styles.machineGridStatusText,
                     {
-                      backgroundColor: machine.status === 'available' ? '#10b981' :
-                        machine.status === 'in_use' ? '#3b82f6' : '#ef4444',
+                      color: machine.status === 'available' ? '#166534' :
+                        machine.status === 'in_use' ? '#1e40af' : '#991b1b',
                     }
                   ]}>
-                    <Text style={styles.badgeText}>{machine.status.replace('_', ' ')}</Text>
-                  </View>
-                  {machine.status !== 'in_use' && (
-                    <TouchableOpacity
-                      style={[
-                        styles.maintenanceToggle,
-                        machine.status === 'maintenance' && styles.maintenanceToggleActive,
-                      ]}
-                      onPress={() => handleToggleMaintenance(machine)}
-                    >
-                      <Ionicons
-                        name="construct"
-                        size={14}
-                        color={machine.status === 'maintenance' ? '#fff' : '#64748b'}
-                      />
-                    </TouchableOpacity>
-                  )}
+                    {machine.status.replace('_', ' ')}
+                  </Text>
                 </View>
-              </View>
+                {machine.status !== 'in_use' && (
+                  <TouchableOpacity
+                    style={[
+                      styles.machineGridMaintenance,
+                      machine.status === 'maintenance' && styles.machineGridMaintenanceActive,
+                    ]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      handleToggleMaintenance(machine);
+                    }}
+                  >
+                    <Ionicons
+                      name="construct"
+                      size={14}
+                      color={machine.status === 'maintenance' ? '#fff' : '#64748b'}
+                    />
+                  </TouchableOpacity>
+                )}
+              </TouchableOpacity>
             )}
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
@@ -2237,5 +2250,79 @@ const styles = StyleSheet.create({
   reportDescription: {
     fontSize: 14,
     color: '#64748b',
+  },
+  // Machine Grid Styles
+  machineGridContent: {
+    padding: 16,
+  },
+  machineGridRow: {
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  machineGridItem: {
+    width: '48%',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    position: 'relative',
+  },
+  machineGridItemMaintenance: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  machineGridItemInUse: {
+    backgroundColor: '#eff6ff',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  machineGridIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
+  },
+  machineGridName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 2,
+  },
+  machineGridQR: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginBottom: 8,
+  },
+  machineGridStatus: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  machineGridStatusText: {
+    fontSize: 11,
+    fontWeight: '600',
+    textTransform: 'capitalize',
+  },
+  machineGridMaintenance: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  machineGridMaintenanceActive: {
+    backgroundColor: '#ef4444',
   },
 });
