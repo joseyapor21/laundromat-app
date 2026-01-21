@@ -934,7 +934,7 @@ export default function OrderDetailScreen() {
             )}
             {order.orderType === 'delivery' && order.deliverySchedule && (
               <View style={styles.detailRow}>
-                <Text style={styles.detailLabel}>Delivery</Text>
+                <Text style={styles.detailLabel}>Delivery by</Text>
                 <Text style={styles.detailValue}>
                   {formatDateNice(order.deliverySchedule)}
                 </Text>
