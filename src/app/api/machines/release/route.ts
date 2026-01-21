@@ -39,12 +39,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Mark assignment as removed - try by machineId first, then by _id for corrupted data
+    // Log the data we're working with
+    console.log('Release request:', { machineId, orderId, machineName: machine.name });
+    console.log('Order machineAssignments:', JSON.stringify(order.machineAssignments, null, 2));
+
+    // Mark assignment as removed - use $elemMatch to ensure both conditions on same element
     let updatedOrder = await Order.findOneAndUpdate(
       {
         _id: orderId,
-        'machineAssignments.machineId': machineId,
-        'machineAssignments.removedAt': { $exists: false },
+        machineAssignments: {
+          $elemMatch: {
+            machineId: machineId,
+            removedAt: { $exists: false }
+          }
+        }
       },
       {
         $set: {
@@ -54,6 +62,52 @@ export async function POST(request: NextRequest) {
       },
       { new: true }
     );
+
+    // If not found, try with machineId as string comparison
+    if (!updatedOrder) {
+      console.log('First query failed, trying string comparison...');
+      updatedOrder = await Order.findOneAndUpdate(
+        {
+          _id: orderId,
+          machineAssignments: {
+            $elemMatch: {
+              machineId: machine._id.toString(),
+              removedAt: { $exists: false }
+            }
+          }
+        },
+        {
+          $set: {
+            'machineAssignments.$.removedAt': new Date(),
+            'machineAssignments.$.removedBy': user?.name || 'System',
+          },
+        },
+        { new: true }
+      );
+    }
+
+    // Try matching by machineName if machineId doesn't work
+    if (!updatedOrder) {
+      console.log('MachineId query failed, trying by machineName...');
+      updatedOrder = await Order.findOneAndUpdate(
+        {
+          _id: orderId,
+          machineAssignments: {
+            $elemMatch: {
+              machineName: machine.name,
+              removedAt: { $exists: false }
+            }
+          }
+        },
+        {
+          $set: {
+            'machineAssignments.$.removedAt': new Date(),
+            'machineAssignments.$.removedBy': user?.name || 'System',
+          },
+        },
+        { new: true }
+      );
+    }
 
     // If not found by machineId, try to find corrupted assignment without machineId
     if (!updatedOrder) {
@@ -84,18 +138,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (!updatedOrder) {
-      return NextResponse.json(
-        { error: 'Assignment not found' },
-        { status: 404 }
-      );
-    }
-
-    // Update machine status to available
+    // Always release the machine, even if assignment wasn't found in order
+    // (handles cases where data is out of sync)
     await Machine.findByIdAndUpdate(machineId, {
       status: 'available',
       currentOrderId: null,
     });
+
+    if (!updatedOrder) {
+      console.log('Assignment not found in order, but machine was released');
+      // Still return success since machine is now available
+      return NextResponse.json({
+        message: `${machine.name} has been released`,
+        warning: 'Assignment record was not found in order, but machine is now available',
+      });
+    }
 
     // Log activity
     await ActivityLog.create({
