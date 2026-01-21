@@ -163,7 +163,9 @@ export function generateCustomerReceiptText(order: Order): string {
   if (order.customer?.address) {
     r += `${order.customer.address}\n`;
   }
-  r += `${order.customerPhone || ''}\n`;
+  if (order.orderType !== 'delivery' && order.customerPhone) {
+    r += `${order.customerPhone}\n`;
+  }
 
   // Notes (inverted if present)
   if (order.specialInstructions) {
@@ -343,7 +345,9 @@ export function generateStoreCopyText(order: Order): string {
   if (order.customer?.address) {
     r += `${order.customer.address}\n`;
   }
-  r += `${order.customerPhone || ''}\n`;
+  if (order.orderType !== 'delivery' && order.customerPhone) {
+    r += `${order.customerPhone}\n`;
+  }
 
   // Notes (inverted if present)
   if (order.specialInstructions) {
@@ -497,7 +501,9 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
   r += ESC.DOUBLE_SIZE_ON;
   r += `${order.customerName || 'Customer'}\n`;
   r += ESC.NORMAL_SIZE;
-  r += `${order.customerPhone || ''}\n`;
+  if (!isDelivery && order.customerPhone) {
+    r += `${order.customerPhone}\n`;
+  }
 
   r += '------------------------------------------------\n';
 

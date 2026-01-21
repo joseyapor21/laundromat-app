@@ -506,13 +506,15 @@ export default function OrderDetailScreen() {
           <Text style={styles.sectionTitle}>Customer</Text>
           <View style={styles.card}>
             <Text style={styles.customerName}>{order.customerName}</Text>
-            <TouchableOpacity
-              style={styles.contactRow}
-              onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
-            >
-              <Ionicons name="call" size={20} color="#2563eb" />
-              <Text style={styles.contactText}>{order.customerPhone}</Text>
-            </TouchableOpacity>
+            {order.orderType !== 'delivery' && order.customerPhone && (
+              <TouchableOpacity
+                style={styles.contactRow}
+                onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
+              >
+                <Ionicons name="call" size={20} color="#2563eb" />
+                <Text style={styles.contactText}>{order.customerPhone}</Text>
+              </TouchableOpacity>
+            )}
             {order.customer?.address && (
               <TouchableOpacity
                 style={styles.contactRow}
