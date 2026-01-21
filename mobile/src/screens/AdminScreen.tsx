@@ -15,6 +15,7 @@ import {
   Platform,
   KeyboardAvoidingView,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -1335,7 +1336,10 @@ export default function AdminScreen() {
 
       {/* Machine Modal */}
       <Modal visible={showMachineModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -1345,7 +1349,12 @@ export default function AdminScreen() {
                 <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody}>
+            <KeyboardAwareScrollView
+              style={styles.modalBody}
+              enableOnAndroid={true}
+              extraScrollHeight={Platform.OS === 'ios' ? 100 : 50}
+              keyboardShouldPersistTaps="handled"
+            >
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Name *</Text>
                 <TextInput
@@ -1398,7 +1407,7 @@ export default function AdminScreen() {
                   ))}
                 </View>
               </View>
-            </ScrollView>
+            </KeyboardAwareScrollView>
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowMachineModal(false)}>
                 <Text style={styles.cancelBtnText}>Cancel</Text>
@@ -1416,7 +1425,7 @@ export default function AdminScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Settings Modal */}
