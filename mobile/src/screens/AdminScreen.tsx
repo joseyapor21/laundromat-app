@@ -1449,7 +1449,10 @@ export default function AdminScreen() {
 
       {/* Settings Modal */}
       <Modal visible={showSettingsModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Edit Settings</Text>
@@ -1457,7 +1460,7 @@ export default function AdminScreen() {
                 <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               <Text style={styles.sectionLabel}>Pricing</Text>
               <View style={styles.inputRow}>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
@@ -1606,7 +1609,7 @@ export default function AdminScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
       </View>
     </KeyboardAvoidingView>
