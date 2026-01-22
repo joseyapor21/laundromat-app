@@ -301,6 +301,9 @@ export default function DashboardScreen() {
         <View style={styles.boardHeaderLeft}>
           <Text style={styles.boardOrderNumber}>#{order.orderId}</Text>
           <Text style={styles.boardCustomerName} numberOfLines={1}>{order.customerName}</Text>
+          {order.orderType === 'delivery' && order.customerPhone && (
+            <Text style={styles.boardPhoneNumber}>{order.customerPhone}</Text>
+          )}
           <Text style={[styles.boardStatusLabel, { color: getStatusColor(order.status) }]}>
             {getStatusLabel(order.status)}
           </Text>
@@ -378,7 +381,7 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.orderDetails}>
-          {order.orderType !== 'delivery' && order.customerPhone && (
+          {order.orderType === 'delivery' && order.customerPhone && (
             <View style={styles.detailRow}>
               <Ionicons name="call-outline" size={16} color="#64748b" />
               <Text style={styles.detailText}>{order.customerPhone}</Text>
@@ -744,6 +747,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#64748b',
     marginTop: 1,
+  },
+  boardPhoneNumber: {
+    fontSize: 11,
+    color: '#64748b',
+    marginTop: 2,
   },
   boardStatusLabel: {
     fontSize: 11,
