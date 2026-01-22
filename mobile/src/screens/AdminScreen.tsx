@@ -620,10 +620,6 @@ export default function AdminScreen() {
         <View style={{ flex: 1 }}>
           <View style={styles.actionHeader}>
             <Text style={styles.countText}>{users.length} users</Text>
-            <TouchableOpacity style={styles.addButton} onPress={() => openUserModal()}>
-              <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.addButtonText}>Add User</Text>
-            </TouchableOpacity>
           </View>
           <FlatList
             data={users}
