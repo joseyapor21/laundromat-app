@@ -176,8 +176,10 @@ export default function EODReportScreen() {
         style={styles.scrollView}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         enableOnAndroid={true}
-        extraScrollHeight={20}
+        extraScrollHeight={120}
+        extraHeight={150}
         keyboardShouldPersistTaps="handled"
+        enableAutomaticScroll={true}
       >
         {/* Header */}
         <View style={styles.header}>
