@@ -1,7 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
-import { Customer, ActivityLog, getNextCustomerSequence } from '@/lib/db/models';
+import { Customer, ActivityLog, getNextCustomerSequence, CustomerCounter } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
+
+// Helper to fix counter if out of sync
+async function fixCustomerCounter(): Promise<number> {
+  const maxCustomer = await Customer.findOne().sort({ id: -1 }).lean();
+  const maxId = maxCustomer?.id || 0;
+  const newCounterValue = maxId + 1;
+
+  await CustomerCounter.findByIdAndUpdate(
+    'customerId',
+    { next: newCounterValue },
+    { upsert: true }
+  );
+
+  return newCounterValue;
+}
 
 export async function GET() {
   try {
@@ -49,14 +64,34 @@ export async function POST(request: NextRequest) {
     const customerData = await request.json();
 
     // Generate customer ID
-    const customerId = await getNextCustomerSequence();
+    let customerId = await getNextCustomerSequence();
+    let newCustomer;
+    let retryCount = 0;
+    const maxRetries = 3;
 
-    const newCustomer = new Customer({
-      ...customerData,
-      id: customerId,
-    });
+    while (retryCount < maxRetries) {
+      try {
+        newCustomer = new Customer({
+          ...customerData,
+          id: customerId,
+        });
+        await newCustomer.save();
+        break; // Success, exit loop
+      } catch (saveError: any) {
+        // Check if it's a duplicate key error
+        if (saveError.code === 11000 && saveError.keyPattern?.id) {
+          console.log(`Duplicate key error for customer id ${customerId}, fixing counter...`);
+          customerId = await fixCustomerCounter();
+          retryCount++;
+        } else {
+          throw saveError; // Re-throw if it's a different error
+        }
+      }
+    }
 
-    await newCustomer.save();
+    if (!newCustomer) {
+      throw new Error('Failed to create customer after multiple retries');
+    }
 
     // Log the activity
     try {
