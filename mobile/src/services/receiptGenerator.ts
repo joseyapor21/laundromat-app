@@ -501,6 +501,9 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
   r += ESC.DOUBLE_SIZE_ON;
   r += `${order.customerName || 'Customer'}\n`;
   r += ESC.NORMAL_SIZE;
+  if (order.customerPhone) {
+    r += `${order.customerPhone}\n`;
+  }
 
   r += '------------------------------------------------\n';
 
