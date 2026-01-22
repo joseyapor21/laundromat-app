@@ -392,8 +392,10 @@ export default function OrderDetailScreen() {
       const d = new Date(date);
       if (isNaN(d.getTime())) return '';
       return d.toLocaleString('en-US', {
+        weekday: 'short',
         month: 'short',
         day: 'numeric',
+        year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
@@ -403,7 +405,7 @@ export default function OrderDetailScreen() {
     }
   }
 
-  // Format date like "Tue - Oct 08, 11:45 AM"
+  // Format date like "Tue, Jan 12, 2026, 11:45 AM"
   function formatDateNice(date: Date | string | undefined | null): string {
     if (!date) return 'Not set';
     try {
@@ -413,13 +415,14 @@ export default function OrderDetailScreen() {
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       const dayName = days[d.getDay()];
       const monthName = months[d.getMonth()];
-      const dayNum = d.getDate().toString().padStart(2, '0');
+      const dayNum = d.getDate();
+      const year = d.getFullYear();
       let hours = d.getHours();
       const minutes = d.getMinutes().toString().padStart(2, '0');
       const ampm = hours >= 12 ? 'PM' : 'AM';
       hours = hours % 12;
       hours = hours ? hours : 12;
-      return `${dayName} - ${monthName} ${dayNum}, ${hours}:${minutes} ${ampm}`;
+      return `${dayName}, ${monthName} ${dayNum}, ${year}, ${hours}:${minutes} ${ampm}`;
     } catch {
       return 'Not set';
     }

@@ -24,14 +24,15 @@ import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelTex
 import AddressInput from '../components/AddressInput';
 import type { Customer, Settings, ExtraItem, PaymentMethod } from '../types';
 
-// Format date as "Tue - Oct 08, 11:45 AM"
+// Format date as "Tue, Jan 12, 2026, 11:45 AM"
 function formatPickupDate(date: Date): string {
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   const dayName = days[date.getDay()];
   const monthName = months[date.getMonth()];
-  const dayNum = date.getDate().toString().padStart(2, '0');
+  const dayNum = date.getDate();
+  const year = date.getFullYear();
 
   let hours = date.getHours();
   const minutes = date.getMinutes().toString().padStart(2, '0');
@@ -39,7 +40,7 @@ function formatPickupDate(date: Date): string {
   hours = hours % 12;
   hours = hours ? hours : 12;
 
-  return `${dayName} - ${monthName} ${dayNum}, ${hours}:${minutes} ${ampm}`;
+  return `${dayName}, ${monthName} ${dayNum}, ${year}, ${hours}:${minutes} ${ampm}`;
 }
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [

@@ -612,6 +612,7 @@ export default function EditOrderScreen() {
                             weekday: 'short',
                             month: 'short',
                             day: 'numeric',
+                            year: 'numeric',
                           })
                         : 'Select date'}
                     </Text>
@@ -650,6 +651,7 @@ export default function EditOrderScreen() {
                               weekday: 'short',
                               month: 'short',
                               day: 'numeric',
+                              year: 'numeric',
                             })
                           : 'Select date'}
                       </Text>

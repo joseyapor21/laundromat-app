@@ -27,7 +27,7 @@ import type { Order } from '../types';
 
 type FilterType = 'all' | 'in-store' | 'delivery' | 'new_order' | 'processing' | 'ready' | 'completed';
 
-// Format date as "Tue - Oct 08, 11:45 AM"
+// Format date as "Tue, Jan 12, 2026, 11:45 AM"
 function formatOrderDate(dateStr: string | Date | undefined): string {
   if (!dateStr) return 'Not set';
   const date = new Date(dateStr);
@@ -38,7 +38,8 @@ function formatOrderDate(dateStr: string | Date | undefined): string {
 
   const dayName = days[date.getDay()];
   const monthName = months[date.getMonth()];
-  const dayNum = date.getDate().toString().padStart(2, '0');
+  const dayNum = date.getDate();
+  const year = date.getFullYear();
 
   let hours = date.getHours();
   const minutes = date.getMinutes().toString().padStart(2, '0');
@@ -46,7 +47,7 @@ function formatOrderDate(dateStr: string | Date | undefined): string {
   hours = hours % 12;
   hours = hours ? hours : 12;
 
-  return `${dayName} - ${monthName} ${dayNum}, ${hours}:${minutes} ${ampm}`;
+  return `${dayName}, ${monthName} ${dayNum}, ${year}, ${hours}:${minutes} ${ampm}`;
 }
 
 // Status groups matching web app
