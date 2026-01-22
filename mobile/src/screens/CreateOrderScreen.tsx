@@ -488,14 +488,14 @@ export default function CreateOrderScreen() {
           // Use override total if set
           if (data.overrideTotal !== undefined && data.overrideTotal !== null) {
             breakdown.push({
-              label: `${item.name} (override)`,
+              label: item.name,
               amount: data.overrideTotal,
             });
           } else {
             const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight);
             const itemTotal = roundToNearestQuarter(data.price * proportionalQty);
             breakdown.push({
-              label: `${item.name} (${totalWeight}lbs @ $${data.price}/${item.perWeightUnit}lbs)`,
+              label: item.name,
               amount: itemTotal,
             });
           }
@@ -1421,7 +1421,7 @@ export default function CreateOrderScreen() {
                         <Text style={styles.modalSummaryText}>{item.name} × {displayQty}</Text>
                         {isWeightBased && (
                           <Text style={styles.modalSummaryCalc}>
-                            ({totalWeight} lbs ÷ {item.perWeightUnit} lbs){data.overrideTotal !== undefined ? ' - override' : ''}
+                            ({totalWeight} lbs ÷ {item.perWeightUnit} lbs)
                           </Text>
                         )}
                       </View>
