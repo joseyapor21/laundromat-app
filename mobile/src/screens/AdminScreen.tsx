@@ -1153,7 +1153,10 @@ export default function AdminScreen() {
 
       {/* User Modal */}
       <Modal visible={showUserModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>
@@ -1163,7 +1166,7 @@ export default function AdminScreen() {
                 <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Email *</Text>
                 <TextInput
@@ -1259,7 +1262,7 @@ export default function AdminScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Extra Item Modal */}
