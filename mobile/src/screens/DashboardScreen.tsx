@@ -313,9 +313,6 @@ export default function DashboardScreen() {
         <View style={styles.boardHeaderRightColumn}>
           <View style={styles.boardHeaderRight}>
             <View style={styles.boardAmountContainer}>
-              {order.priceOverride !== undefined && order.priceOverride !== null && (
-                <Ionicons name="pencil" size={12} color="#8b5cf6" style={{ marginRight: 2 }} />
-              )}
               <Text style={[styles.boardAmountHeader, order.priceOverride !== undefined && order.priceOverride !== null && styles.boardAmountOverride]}>
                 ${(order.totalAmount || 0).toFixed(2)}
               </Text>
@@ -399,9 +396,6 @@ export default function DashboardScreen() {
 
         <View style={styles.orderFooter}>
           <View style={styles.orderAmountContainer}>
-            {order.priceOverride !== undefined && order.priceOverride !== null && (
-              <Ionicons name="pencil" size={14} color="#8b5cf6" style={{ marginRight: 4 }} />
-            )}
             <Text style={[styles.orderAmount, order.priceOverride !== undefined && order.priceOverride !== null && styles.orderAmountOverride]}>
               ${(order.totalAmount || 0).toFixed(2)}
             </Text>
@@ -733,7 +727,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   boardAmountOverride: {
-    color: '#8b5cf6',
+    color: '#ef4444',
   },
   boardIconContainer: {
     width: 20,
@@ -956,7 +950,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   orderAmountOverride: {
-    color: '#8b5cf6',
+    color: '#ef4444',
   },
   orderDate: {
     fontSize: 14,
