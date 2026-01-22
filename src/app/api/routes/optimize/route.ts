@@ -80,13 +80,41 @@ export async function POST(request: NextRequest) {
 
     const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(origin)}&destination=${encodeURIComponent(destination)}${waypointsParam}&key=${apiKey}`;
 
+    console.log('Route optimization request:', {
+      origin,
+      destination,
+      waypoints,
+      stopsCount: stops.length,
+    });
+
     const response = await fetch(url);
     const data: GoogleDirectionsResponse = await response.json();
 
+    console.log('Google Directions API response status:', data.status);
+
     if (data.status !== 'OK') {
       console.error('Google Directions API error:', data.status, data.error_message);
+
+      // Provide more helpful error messages
+      let errorMessage = data.error_message || data.status;
+      if (data.status === 'ZERO_RESULTS') {
+        errorMessage = 'No route found. Please check that all addresses are valid and can be reached by car.';
+      } else if (data.status === 'NOT_FOUND') {
+        errorMessage = 'One or more addresses could not be found. Please verify the addresses.';
+      } else if (data.status === 'REQUEST_DENIED') {
+        errorMessage = 'Google API request denied. Please check that Directions API is enabled.';
+      }
+
       return NextResponse.json(
-        { error: `Route optimization failed: ${data.error_message || data.status}` },
+        {
+          error: errorMessage,
+          debug: {
+            origin,
+            destination,
+            waypoints,
+            googleStatus: data.status,
+          }
+        },
         { status: 400 }
       );
     }

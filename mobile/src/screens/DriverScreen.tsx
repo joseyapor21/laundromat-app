@@ -528,7 +528,8 @@ export default function DriverScreen() {
       );
     } catch (error: any) {
       console.error('Route optimization error:', error);
-      Alert.alert('Error', error.message || 'Failed to optimize route');
+      const errorData = error.debug ? `\n\nAddresses:\n${error.debug.waypoints?.join('\n') || 'N/A'}` : '';
+      Alert.alert('Route Optimization Failed', (error.message || 'Failed to optimize route') + errorData);
     } finally {
       setOptimizing(false);
     }
