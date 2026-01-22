@@ -383,12 +383,6 @@ class BluetoothPrinterService {
       await this.printBitmapText(order.customerName, 3);
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      // Only print phone for non-delivery orders
-      if (order.orderType !== 'delivery' && order.customerPhone) {
-        await this.printBitmapText(`PHONE: ${order.customerPhone}`, 2);
-        await new Promise(resolve => setTimeout(resolve, 300));
-      }
-
       // Print address if available
       if (order.address) {
         await this.printBitmapText('ADDRESS:', 2);
@@ -520,10 +514,6 @@ class BluetoothPrinterService {
         const order = orders[i];
         await this.printBitmapText(`${i + 1}. ${order.orderId}`, 2);
         await this.printBitmapText(order.customerName, 2);
-        // Only print phone for non-delivery orders
-        if (order.orderType !== 'delivery' && order.customerPhone) {
-          await this.printBitmapText(order.customerPhone, 1);
-        }
         if (order.address) {
           // Split long addresses
           const addr = order.address.toUpperCase();
