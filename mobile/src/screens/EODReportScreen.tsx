@@ -36,6 +36,7 @@ export default function EODReportScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [cleaningTasks, setCleaningTasks] = useState<CleaningTask[]>(DEFAULT_CLEANING_TASKS);
   const [notes, setNotes] = useState('');
+  const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -167,8 +168,6 @@ export default function EODReportScreen() {
       ) : null}
     </View>
   );
-
-  const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
