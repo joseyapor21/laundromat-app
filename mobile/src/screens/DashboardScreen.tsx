@@ -389,7 +389,10 @@ export default function DashboardScreen() {
         <View style={styles.orderFooter}>
           <Text style={styles.orderAmount}>${(order.totalAmount || 0).toFixed(2)}</Text>
           <Text style={styles.orderDate}>
-            {formatOrderDate(order.estimatedPickupDate || order.deliverySchedule)}
+            <Text style={styles.orderDateLabel}>
+              {order.orderType === 'delivery' ? 'Delivery by ' : 'Ready by '}
+            </Text>
+            {formatOrderDate(order.orderType === 'delivery' ? order.deliverySchedule : order.estimatedPickupDate)}
           </Text>
         </View>
       </TouchableOpacity>
@@ -926,6 +929,10 @@ const styles = StyleSheet.create({
   orderDate: {
     fontSize: 14,
     color: '#94a3b8',
+  },
+  orderDateLabel: {
+    fontWeight: '600',
+    color: '#64748b',
   },
   emptyContainer: {
     alignItems: 'center',
