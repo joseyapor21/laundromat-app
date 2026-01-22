@@ -1237,28 +1237,23 @@ export default function EditOrderScreen() {
                             <View style={styles.modalPriceInputContainer}>
                               <Text style={styles.modalPriceDollar}>$</Text>
                               <TextInput
+                                key={`${item._id}-${data.overrideTotal !== undefined ? 'override' : 'calc'}`}
                                 style={[styles.modalPriceInput, data.overrideTotal !== undefined && styles.modalPriceInputOverride]}
-                                value={data.overrideTotal !== undefined ? data.overrideTotal.toString() : roundToQuarter(customPrice * quantity).toFixed(2)}
-                                onFocus={() => {
-                                  // Set override to calculated value when user starts editing
-                                  if (data.overrideTotal === undefined) {
-                                    const calculatedTotal = roundToQuarter(customPrice * quantity);
-                                    setSelectedExtraItems(prev => ({
-                                      ...prev,
-                                      [item._id]: { ...prev[item._id], overrideTotal: calculatedTotal }
-                                    }));
-                                  }
-                                }}
+                                defaultValue={data.overrideTotal !== undefined ? data.overrideTotal.toString() : roundToQuarter(customPrice * quantity).toFixed(2)}
                                 onChangeText={(text) => {
-                                  // Allow empty string for clearing
-                                  if (text === '' || text === '.') {
+                                  // Clean input - only allow numbers and one decimal
+                                  const cleaned = text.replace(/[^0-9.]/g, '');
+                                  const parts = cleaned.split('.');
+                                  const finalText = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned;
+
+                                  if (finalText === '' || finalText === '.') {
                                     setSelectedExtraItems(prev => ({
                                       ...prev,
                                       [item._id]: { ...prev[item._id], overrideTotal: 0 }
                                     }));
                                     return;
                                   }
-                                  const newTotal = parseFloat(text);
+                                  const newTotal = parseFloat(finalText);
                                   if (!isNaN(newTotal)) {
                                     setSelectedExtraItems(prev => ({
                                       ...prev,
