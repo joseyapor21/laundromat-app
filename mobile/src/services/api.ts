@@ -156,6 +156,13 @@ class ApiService {
     await this.request(`/orders/${id}`, { method: 'DELETE' });
   }
 
+  async markOrderAsPaid(id: string, paymentMethod?: string): Promise<Order> {
+    return this.request<Order>(`/orders/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ isPaid: true, paymentMethod: paymentMethod || 'cash' }),
+    });
+  }
+
   // Customers
   async getCustomers(): Promise<Customer[]> {
     return this.request<Customer[]>('/customers');

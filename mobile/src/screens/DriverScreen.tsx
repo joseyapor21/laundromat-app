@@ -293,6 +293,100 @@ export default function DriverScreen() {
     }
   }
 
+  // Handle delivery completion with payment option
+  async function handleDeliveryComplete(order: Order) {
+    // If order is already paid, just confirm delivery
+    if (order.isPaid) {
+      Alert.alert(
+        'Complete Delivery',
+        `Mark order #${order.orderId} as delivered?\n\nTotal: $${(order.totalAmount || 0).toFixed(2)} (Already Paid)`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Delivered',
+            style: 'default',
+            onPress: async () => {
+              try {
+                await api.updateOrderStatus(order._id, 'completed');
+                await loadOrders();
+                Alert.alert('Success', 'Order marked as delivered');
+              } catch (error) {
+                Alert.alert('Error', 'Failed to update status');
+              }
+            },
+          },
+        ]
+      );
+      return;
+    }
+
+    // Order not paid - show payment options
+    Alert.alert(
+      'Complete Delivery',
+      `Mark order #${order.orderId} as delivered?\n\nTotal: $${(order.totalAmount || 0).toFixed(2)}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delivered (Unpaid)',
+          style: 'default',
+          onPress: async () => {
+            try {
+              await api.updateOrderStatus(order._id, 'completed');
+              await loadOrders();
+              Alert.alert('Success', 'Order marked as delivered');
+            } catch (error) {
+              Alert.alert('Error', 'Failed to update status');
+            }
+          },
+        },
+        {
+          text: 'Delivered & Paid',
+          style: 'default',
+          onPress: () => showPaymentMethodSelection(order),
+        },
+      ]
+    );
+  }
+
+  // Show payment method selection - all 4 options
+  function showPaymentMethodSelection(order: Order) {
+    Alert.alert(
+      'Payment Method',
+      `Select payment method for $${(order.totalAmount || 0).toFixed(2)}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Cash',
+          onPress: () => completeDeliveryWithPayment(order, 'cash'),
+        },
+        {
+          text: 'Check',
+          onPress: () => completeDeliveryWithPayment(order, 'check'),
+        },
+        {
+          text: 'Venmo',
+          onPress: () => completeDeliveryWithPayment(order, 'venmo'),
+        },
+        {
+          text: 'Zelle',
+          onPress: () => completeDeliveryWithPayment(order, 'zelle'),
+        },
+      ]
+    );
+  }
+
+  // Complete delivery and mark as paid with payment method
+  async function completeDeliveryWithPayment(order: Order, paymentMethod: string) {
+    try {
+      await api.updateOrderStatus(order._id, 'completed');
+      await api.markOrderAsPaid(order._id, paymentMethod);
+      await loadOrders();
+      Alert.alert('Success', `Order delivered and paid via ${paymentMethod}`);
+    } catch (error) {
+      Alert.alert('Error', 'Failed to update status');
+    }
+  }
+
   function openNavigation(address: string, mapApp: MapApp = selectedMapApp) {
     const encodedAddress = encodeURIComponent(address);
     let url = '';
@@ -475,9 +569,11 @@ export default function DriverScreen() {
         {/* Customer Info */}
         <View style={styles.customerInfo}>
           <Text style={styles.customerName}>{order.customerName}</Text>
-          <Text style={styles.customerPhone}>{order.customerPhone}</Text>
           {order.customer?.address && (
             <Text style={styles.customerAddress}>{order.customer.address}</Text>
+          )}
+          {order.customer?.buzzerCode && (
+            <Text style={styles.buzzerCode}>Buzzer: {order.customer.buzzerCode}</Text>
           )}
         </View>
 
@@ -528,7 +624,7 @@ export default function DriverScreen() {
           ) : (
             <TouchableOpacity
               style={[styles.actionButton, styles.statusButton]}
-              onPress={() => updateStatus(order._id, 'completed')}
+              onPress={() => handleDeliveryComplete(order)}
             >
               <Ionicons name="checkmark-done" size={20} color="#fff" />
               <Text style={styles.actionButtonText}>Delivered</Text>
@@ -536,21 +632,23 @@ export default function DriverScreen() {
           )}
         </View>
 
-        {/* Print Tag Button */}
-        <TouchableOpacity
-          style={[styles.printTagButton, printingOrderId === order._id && styles.printingButton]}
-          onPress={() => printOrderTag(order)}
-          disabled={printingOrderId === order._id}
-        >
-          {printingOrderId === order._id ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <Ionicons name="pricetag" size={18} color="#fff" />
-          )}
-          <Text style={styles.printTagButtonText}>
-            {printingOrderId === order._id ? 'Printing...' : 'Print Tag'}
-          </Text>
-        </TouchableOpacity>
+        {/* Print Tag Button - only show for pickups */}
+        {isPickup && (
+          <TouchableOpacity
+            style={[styles.printTagButton, printingOrderId === order._id && styles.printingButton]}
+            onPress={() => printOrderTag(order)}
+            disabled={printingOrderId === order._id}
+          >
+            {printingOrderId === order._id ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="pricetag" size={18} color="#fff" />
+            )}
+            <Text style={styles.printTagButtonText}>
+              {printingOrderId === order._id ? 'Printing...' : 'Print Tag'}
+            </Text>
+          </TouchableOpacity>
+        )}
       </View>
     );
   };
@@ -1062,6 +1160,12 @@ const styles = StyleSheet.create({
   customerAddress: {
     fontSize: 14,
     color: '#64748b',
+    marginTop: 4,
+  },
+  buzzerCode: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#f59e0b',
     marginTop: 4,
   },
   orderInfo: {

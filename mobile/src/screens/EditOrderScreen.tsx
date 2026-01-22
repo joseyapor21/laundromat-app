@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
@@ -26,6 +26,7 @@ import type { Order, ExtraItem, Settings, Bag, OrderType, OrderExtraItem } from 
 export default function EditOrderScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
@@ -130,11 +131,11 @@ export default function EditOrderScreen() {
         setSelectedExtraItems(extraItemsMap);
       }
 
-      // Price override
-      if ((orderData as any).priceOverride) {
-        setPriceOverride((orderData as any).priceOverride);
+      // Price override - check if exists (not just truthy, since 0 could be a valid override)
+      if (orderData.priceOverride !== undefined && orderData.priceOverride !== null) {
+        setPriceOverride(orderData.priceOverride);
         setShowPriceOverride(true);
-        setPriceChangeNote((orderData as any).priceChangeNote || '');
+        setPriceChangeNote(orderData.priceChangeNote || '');
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to load order');
@@ -1131,9 +1132,9 @@ export default function EditOrderScreen() {
         onRequestClose={() => setShowExtraItemsModal(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { paddingTop: insets.top + 12 }]}>
             <Text style={styles.modalTitle}>Select Extra Items</Text>
-            <TouchableOpacity onPress={() => setShowExtraItemsModal(false)}>
+            <TouchableOpacity onPress={() => setShowExtraItemsModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={28} color="#1e293b" />
             </TouchableOpacity>
           </View>

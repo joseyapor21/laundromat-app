@@ -119,6 +119,9 @@ export interface Order {
   isPaid?: boolean;
   paidAt?: Date;
   paidBy?: string;
+  // Price override fields
+  priceOverride?: number;
+  priceChangeNote?: string;
   // Folding tracking - who started folding
   foldingStartedBy?: string;
   foldingStartedByInitials?: string;

@@ -357,6 +357,7 @@ class BluetoothPrinterService {
     bagNumber?: number;
     totalBags?: number;
     isSameDay?: boolean;
+    orderType?: string;
   }): Promise<boolean> {
     if (!this.connectedDevice || !this.writeCharacteristicUUID || !this.serviceUUID) {
       Alert.alert('Printer Not Connected', 'Please connect to a printer first');
@@ -382,8 +383,11 @@ class BluetoothPrinterService {
       await this.printBitmapText(order.customerName, 3);
       await new Promise(resolve => setTimeout(resolve, 500));
 
-      await this.printBitmapText(`PHONE: ${order.customerPhone}`, 2);
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Only print phone for non-delivery orders
+      if (order.orderType !== 'delivery' && order.customerPhone) {
+        await this.printBitmapText(`PHONE: ${order.customerPhone}`, 2);
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
 
       // Print address if available
       if (order.address) {
@@ -453,6 +457,7 @@ class BluetoothPrinterService {
     address?: string;
     weight?: number;
     isSameDay?: boolean;
+    orderType?: string;
   }, totalBags: number): Promise<boolean> {
     if (!this.connectedDevice || !this.writeCharacteristicUUID || !this.serviceUUID) {
       Alert.alert('Printer Not Connected', 'Please connect to a printer first');
@@ -490,6 +495,7 @@ class BluetoothPrinterService {
     customerName: string;
     customerPhone: string;
     address?: string;
+    orderType?: string;
   }[]): Promise<boolean> {
     if (!this.connectedDevice || !this.writeCharacteristicUUID || !this.serviceUUID) {
       Alert.alert('Printer Not Connected', 'Please connect to a printer first');
@@ -514,7 +520,10 @@ class BluetoothPrinterService {
         const order = orders[i];
         await this.printBitmapText(`${i + 1}. ${order.orderId}`, 2);
         await this.printBitmapText(order.customerName, 2);
-        await this.printBitmapText(order.customerPhone, 1);
+        // Only print phone for non-delivery orders
+        if (order.orderType !== 'delivery' && order.customerPhone) {
+          await this.printBitmapText(order.customerPhone, 1);
+        }
         if (order.address) {
           // Split long addresses
           const addr = order.address.toUpperCase();

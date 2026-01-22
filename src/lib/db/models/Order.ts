@@ -51,6 +51,9 @@ export interface OrderDoc {
   // Same day service
   isSameDay?: boolean;
   sameDayPricePerPound?: number;
+  // Price override
+  priceOverride?: number;
+  priceChangeNote?: string;
   // Folding tracking - who started folding
   foldingStartedBy?: string;
   foldingStartedByInitials?: string;
@@ -265,6 +268,15 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   },
   sameDayPricePerPound: {
     type: Number,
+    default: null,
+  },
+  // Price override
+  priceOverride: {
+    type: Number,
+    default: null,
+  },
+  priceChangeNote: {
+    type: String,
     default: null,
   },
   // Folding tracking - who started folding

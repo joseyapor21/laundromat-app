@@ -10,7 +10,6 @@ import {
   Platform,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
@@ -35,6 +34,7 @@ export default function EditCustomerScreen() {
   const [address, setAddress] = useState('');
   const [email, setEmail] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('');
+  const [buzzerCode, setBuzzerCode] = useState('');
   const [notes, setNotes] = useState('');
 
   // Credit
@@ -59,6 +59,7 @@ export default function EditCustomerScreen() {
       setAddress(data.address || '');
       setEmail(data.email || '');
       setDeliveryFee(data.deliveryFee?.replace('$', '') || '');
+      setBuzzerCode(data.buzzerCode || '');
       setNotes(data.notes || '');
 
       // Load orders
@@ -105,6 +106,7 @@ export default function EditCustomerScreen() {
         address: address.trim(),
         email: email.trim() || undefined,
         deliveryFee: deliveryFee ? `$${parseFloat(deliveryFee).toFixed(2)}` : '$0.00',
+        buzzerCode: buzzerCode.trim() || undefined,
         notes: notes.trim() || undefined,
       });
 
@@ -258,17 +260,16 @@ export default function EditCustomerScreen() {
   if (!customer) return null;
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom']}>
-      <KeyboardAwareScrollView
-        ref={scrollViewRef}
-        style={styles.scrollView}
-        enableOnAndroid={true}
-        extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
-        extraHeight={120}
-        keyboardShouldPersistTaps="handled"
-        enableAutomaticScroll={true}
-      >
-          {/* Header */}
+    <KeyboardAwareScrollView
+      ref={scrollViewRef}
+      style={styles.container}
+      contentContainerStyle={styles.contentContainer}
+      enableOnAndroid={true}
+      extraScrollHeight={20}
+      keyboardShouldPersistTaps="handled"
+      enableAutomaticScroll={true}
+    >
+        {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Edit Customer</Text>
             <Text style={styles.headerSubtitle}>{customer.name}</Text>
@@ -559,16 +560,28 @@ export default function EditCustomerScreen() {
                   }}
                 />
               </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Delivery Fee ($)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={deliveryFee}
-                  onChangeText={setDeliveryFee}
-                  placeholder="0.00"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="decimal-pad"
-                />
+              <View style={styles.inputRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Delivery Fee ($)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={deliveryFee}
+                    onChangeText={setDeliveryFee}
+                    placeholder="0.00"
+                    placeholderTextColor="#94a3b8"
+                    keyboardType="decimal-pad"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Buzzer Code</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={buzzerCode}
+                    onChangeText={setBuzzerCode}
+                    placeholder="Buzzer code"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
               </View>
             </View>
           </View>
@@ -632,9 +645,7 @@ export default function EditCustomerScreen() {
             </View>
           </View>
 
-          <View style={{ height: 200 }} />
-      </KeyboardAwareScrollView>
-    </SafeAreaView>
+    </KeyboardAwareScrollView>
   );
 }
 
@@ -649,8 +660,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f1f5f9',
   },
-  scrollView: {
-    flex: 1,
+  contentContainer: {
+    flexGrow: 1,
   },
   header: {
     backgroundColor: '#1e293b',

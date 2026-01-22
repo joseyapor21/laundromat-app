@@ -51,9 +51,9 @@ function formatOrderDate(dateStr: string | Date | undefined): string {
 
 // Status groups matching web app
 const STATUS_GROUPS: Record<string, string[]> = {
-  new_order: ['new_order', 'received', 'scheduled_pickup'],
+  new_order: ['new_order', 'received', 'scheduled_pickup', 'picked_up'],
   processing: ['in_washer', 'in_dryer', 'laid_on_cart', 'folding'],
-  ready: ['ready_for_pickup', 'ready_for_delivery', 'picked_up'],
+  ready: ['ready_for_pickup', 'ready_for_delivery'],
 };
 
 export default function DashboardScreen() {
@@ -367,10 +367,12 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.orderDetails}>
-          <View style={styles.detailRow}>
-            <Ionicons name="call-outline" size={16} color="#64748b" />
-            <Text style={styles.detailText}>{order.customerPhone}</Text>
-          </View>
+          {order.orderType !== 'delivery' && order.customerPhone && (
+            <View style={styles.detailRow}>
+              <Ionicons name="call-outline" size={16} color="#64748b" />
+              <Text style={styles.detailText}>{order.customerPhone}</Text>
+            </View>
+          )}
           <View style={styles.detailRow}>
             <Ionicons name="scale-outline" size={16} color="#64748b" />
             <Text style={styles.detailText}>{order.weight || 0} lbs</Text>

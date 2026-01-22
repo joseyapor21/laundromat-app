@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -14,8 +14,9 @@ import {
   Platform,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
@@ -57,6 +58,7 @@ interface Bag {
 
 export default function CreateOrderScreen() {
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -107,6 +109,24 @@ export default function CreateOrderScreen() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Refresh selected customer data when returning from EditCustomerScreen
+  useFocusEffect(
+    useCallback(() => {
+      if (selectedCustomer) {
+        // Re-fetch the customer data to get any updates
+        api.getCustomer(selectedCustomer._id)
+          .then((updatedCustomer) => {
+            if (updatedCustomer) {
+              setSelectedCustomer(updatedCustomer);
+            }
+          })
+          .catch((error) => {
+            console.error('Failed to refresh customer:', error);
+          });
+      }
+    }, [selectedCustomer?._id])
+  );
 
   async function loadData() {
     try {
@@ -202,6 +222,7 @@ export default function CreateOrderScreen() {
         email: quickAddEmail.trim() || undefined,
         address: quickAddAddress.trim() || undefined,
         deliveryFee: quickAddDeliveryFee ? `$${parseFloat(quickAddDeliveryFee).toFixed(2)}` : '$0.00',
+        buzzerCode: quickAddBuzzerCode.trim() || undefined,
         notes: quickAddNotes.trim() || undefined,
       });
 
@@ -227,7 +248,9 @@ export default function CreateOrderScreen() {
 
       Alert.alert('Success', `Customer "${newCustomer.name}" created!`);
     } catch (error) {
-      Alert.alert('Error', 'Failed to create customer');
+      console.error('Failed to create customer:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create customer';
+      Alert.alert('Error', errorMessage);
     } finally {
       setQuickAddCreating(false);
     }
@@ -1192,9 +1215,9 @@ export default function CreateOrderScreen() {
         onRequestClose={() => setShowExtraItemsModal(false)}
       >
         <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { paddingTop: insets.top + 12 }]}>
             <Text style={styles.modalTitle}>Select Extra Items</Text>
-            <TouchableOpacity onPress={() => setShowExtraItemsModal(false)}>
+            <TouchableOpacity onPress={() => setShowExtraItemsModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <Ionicons name="close" size={28} color="#1e293b" />
             </TouchableOpacity>
           </View>

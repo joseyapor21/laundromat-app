@@ -64,7 +64,8 @@ export default function CreateCustomerScreen() {
       ]);
     } catch (error) {
       console.error('Failed to create customer:', error);
-      Alert.alert('Error', 'Failed to create customer');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create customer';
+      Alert.alert('Error', errorMessage);
     } finally {
       setSaving(false);
     }

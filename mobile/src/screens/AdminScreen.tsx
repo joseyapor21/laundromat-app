@@ -17,7 +17,7 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Device } from 'react-native-ble-plx';
 import { api } from '../services/api';
@@ -119,6 +119,13 @@ export default function AdminScreen() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Refresh data when screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   // Only check printer connection when on Printers tab
   useEffect(() => {
@@ -1260,89 +1267,93 @@ export default function AdminScreen() {
       </Modal>
 
       {/* Extra Item Modal */}
-      <Modal visible={showExtraItemModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
-                {editingExtraItem ? 'Edit Extra Item' : 'Add Extra Item'}
+      <Modal visible={showExtraItemModal} animationType="slide">
+        <View style={{ flex: 1, backgroundColor: '#fff' }}>
+          <View style={[styles.modalHeader, { paddingTop: insets.top + 12 }]}>
+            <Text style={styles.modalTitle}>
+              {editingExtraItem ? 'Edit Extra Item' : 'Add Extra Item'}
+            </Text>
+            <TouchableOpacity onPress={() => setShowExtraItemModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          <KeyboardAwareScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: 16 }}
+            enableOnAndroid={true}
+            extraScrollHeight={20}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={extraItemForm.name}
+                onChangeText={(text) => setExtraItemForm({ ...extraItemForm, name: text })}
+                placeholder="Item name"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Description</Text>
+              <TextInput
+                style={styles.input}
+                value={extraItemForm.description}
+                onChangeText={(text) => setExtraItemForm({ ...extraItemForm, description: text })}
+                placeholder="Description"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Price ($) *</Text>
+              <TextInput
+                style={styles.input}
+                value={extraItemForm.price}
+                onChangeText={(text) => setExtraItemForm({ ...extraItemForm, price: text })}
+                placeholder="0.00"
+                placeholderTextColor="#94a3b8"
+                keyboardType="decimal-pad"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Weight-Based Pricing (lbs)</Text>
+              <TextInput
+                style={styles.input}
+                value={extraItemForm.perWeightUnit}
+                onChangeText={(text) => setExtraItemForm({ ...extraItemForm, perWeightUnit: text })}
+                placeholder="Leave empty for fixed price"
+                placeholderTextColor="#94a3b8"
+                keyboardType="decimal-pad"
+              />
+              <Text style={styles.inputHint}>
+                If set, price applies per X lbs (e.g., 15 = $price per 15 lbs)
               </Text>
-              <TouchableOpacity onPress={() => setShowExtraItemModal(false)}>
-                <Ionicons name="close" size={24} color="#64748b" />
-              </TouchableOpacity>
             </View>
-            <ScrollView style={styles.modalBody}>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Name *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={extraItemForm.name}
-                  onChangeText={(text) => setExtraItemForm({ ...extraItemForm, name: text })}
-                  placeholder="Item name"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Description</Text>
-                <TextInput
-                  style={styles.input}
-                  value={extraItemForm.description}
-                  onChangeText={(text) => setExtraItemForm({ ...extraItemForm, description: text })}
-                  placeholder="Description"
-                  placeholderTextColor="#94a3b8"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Price ($) *</Text>
-                <TextInput
-                  style={styles.input}
-                  value={extraItemForm.price}
-                  onChangeText={(text) => setExtraItemForm({ ...extraItemForm, price: text })}
-                  placeholder="0.00"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="decimal-pad"
-                />
-              </View>
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Weight-Based Pricing (lbs)</Text>
-                <TextInput
-                  style={styles.input}
-                  value={extraItemForm.perWeightUnit}
-                  onChangeText={(text) => setExtraItemForm({ ...extraItemForm, perWeightUnit: text })}
-                  placeholder="Leave empty for fixed price"
-                  placeholderTextColor="#94a3b8"
-                  keyboardType="decimal-pad"
-                />
-                <Text style={styles.inputHint}>
-                  If set, price applies per X lbs (e.g., 15 = $price per 15 lbs)
-                </Text>
-              </View>
-              <View style={styles.switchRow}>
-                <Text style={styles.inputLabel}>Active</Text>
-                <Switch
-                  value={extraItemForm.isActive}
-                  onValueChange={(value) => setExtraItemForm({ ...extraItemForm, isActive: value })}
-                  trackColor={{ false: '#e2e8f0', true: '#86efac' }}
-                  thumbColor={extraItemForm.isActive ? '#10b981' : '#fff'}
-                />
-              </View>
-            </ScrollView>
-            <View style={styles.modalFooter}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowExtraItemModal(false)}>
-                <Text style={styles.cancelBtnText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-                onPress={handleSaveExtraItem}
-                disabled={saving}
-              >
-                {saving ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.saveBtnText}>Save</Text>
-                )}
-              </TouchableOpacity>
+            <View style={styles.switchRow}>
+              <Text style={styles.inputLabel}>Active</Text>
+              <Switch
+                value={extraItemForm.isActive}
+                onValueChange={(value) => setExtraItemForm({ ...extraItemForm, isActive: value })}
+                trackColor={{ false: '#e2e8f0', true: '#86efac' }}
+                thumbColor={extraItemForm.isActive ? '#10b981' : '#fff'}
+              />
             </View>
+          </KeyboardAwareScrollView>
+          <View style={styles.modalFooter}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowExtraItemModal(false)}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
+              onPress={handleSaveExtraItem}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveBtnText}>Save</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
