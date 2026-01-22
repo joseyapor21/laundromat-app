@@ -98,10 +98,12 @@ export default function DashboardScreen() {
       const newOrder = newOrders[i];
       const oldOrder = oldOrders.find(o => o._id === newOrder._id);
       if (!oldOrder) return true;
-      // Check if status, isPaid, or updatedAt changed
+      // Check if relevant fields changed
       if (oldOrder.status !== newOrder.status ||
           oldOrder.isPaid !== newOrder.isPaid ||
-          oldOrder.updatedAt !== newOrder.updatedAt) {
+          oldOrder.updatedAt !== newOrder.updatedAt ||
+          oldOrder.totalAmount !== newOrder.totalAmount ||
+          oldOrder.priceOverride !== newOrder.priceOverride) {
         return true;
       }
     }
