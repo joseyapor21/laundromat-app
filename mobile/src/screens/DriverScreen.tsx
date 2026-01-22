@@ -21,7 +21,7 @@ import { Device } from 'react-native-ble-plx';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
-import type { Order } from '../types';
+import type { Order, Settings } from '../types';
 
 type MapApp = 'google' | 'apple' | 'waze';
 
@@ -56,6 +56,9 @@ export default function DriverScreen() {
   const [editingStopIndex, setEditingStopIndex] = useState<number | null>(null);
   const [editAddressText, setEditAddressText] = useState('');
   const [selectedMapApp, setSelectedMapApp] = useState<MapApp>('google');
+  const [optimizing, setOptimizing] = useState(false);
+  const [routeStats, setRouteStats] = useState<{ distance: string; duration: string } | null>(null);
+  const [settings, setSettings] = useState<Settings | null>(null);
 
   // Date filter for deliveries
   const [deliveryDateFilter, setDeliveryDateFilter] = useState<'today' | 'tomorrow' | 'all'>('today');
@@ -144,7 +147,17 @@ export default function DriverScreen() {
   useEffect(() => {
     loadOrders();
     checkPrinterConnection();
+    loadSettings();
   }, [loadOrders]);
+
+  async function loadSettings() {
+    try {
+      const settingsData = await api.getSettings();
+      setSettings(settingsData);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  }
 
   // Check printer connection on mount
   async function checkPrinterConnection() {
@@ -477,6 +490,50 @@ export default function DriverScreen() {
   }
 
   // Start navigation with selected map app
+  async function optimizeRoute() {
+    if (routeStops.length < 2) {
+      Alert.alert('Info', 'Need at least 2 stops to optimize');
+      return;
+    }
+
+    setOptimizing(true);
+    setRouteStats(null);
+
+    try {
+      const stops = routeStops.map(stop => ({
+        address: stop.editedAddress || stop.address,
+        orderId: stop.order._id,
+        customerName: stop.order.customerName,
+      }));
+
+      const storeAddress = settings?.storeAddress || undefined;
+
+      const result = await api.optimizeRoute(stops, storeAddress);
+
+      // Reorder routeStops based on optimized order
+      const newRouteStops = result.optimizedStops.map(optimizedStop => {
+        const originalStop = routeStops.find(s => s.order._id === optimizedStop.orderId);
+        return originalStop!;
+      }).filter(Boolean);
+
+      setRouteStops(newRouteStops);
+      setRouteStats({
+        distance: result.totalDistance.text,
+        duration: result.totalDuration.text,
+      });
+
+      Alert.alert(
+        'Route Optimized',
+        `Total: ${result.totalDistance.text}, ${result.totalDuration.text}`,
+      );
+    } catch (error: any) {
+      console.error('Route optimization error:', error);
+      Alert.alert('Error', error.message || 'Failed to optimize route');
+    } finally {
+      setOptimizing(false);
+    }
+  }
+
   function startNavigation() {
     const addresses = routeStops.map(stop => stop.editedAddress || stop.address);
 
@@ -929,6 +986,36 @@ export default function DriverScreen() {
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Optimize Route Button */}
+          <TouchableOpacity
+            style={[styles.optimizeBtn, optimizing && styles.optimizeBtnDisabled]}
+            onPress={optimizeRoute}
+            disabled={optimizing || routeStops.length < 2}
+          >
+            {optimizing ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Ionicons name="git-branch" size={20} color="#fff" />
+            )}
+            <Text style={styles.optimizeBtnText}>
+              {optimizing ? 'Optimizing...' : 'Optimize Route'}
+            </Text>
+          </TouchableOpacity>
+
+          {/* Route Stats */}
+          {routeStats && (
+            <View style={styles.routeStats}>
+              <View style={styles.routeStatItem}>
+                <Ionicons name="speedometer" size={16} color="#10b981" />
+                <Text style={styles.routeStatText}>{routeStats.distance}</Text>
+              </View>
+              <View style={styles.routeStatItem}>
+                <Ionicons name="time" size={16} color="#3b82f6" />
+                <Text style={styles.routeStatText}>{routeStats.duration}</Text>
+              </View>
+            </View>
+          )}
 
           <Text style={styles.stopsLabel}>Stops ({routeStops.length}) - Drag to reorder:</Text>
 
@@ -1563,6 +1650,45 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: 'bold',
+  },
+  optimizeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#8b5cf6',
+    marginHorizontal: 16,
+    marginTop: 8,
+    padding: 14,
+    borderRadius: 12,
+  },
+  optimizeBtnDisabled: {
+    opacity: 0.6,
+  },
+  optimizeBtnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  routeStats: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 24,
+    marginTop: 12,
+    marginHorizontal: 16,
+    padding: 12,
+    backgroundColor: '#f0fdf4',
+    borderRadius: 10,
+  },
+  routeStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  routeStatText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1e293b',
   },
   // Date filter styles
   dateFilterContainer: {

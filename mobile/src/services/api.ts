@@ -425,6 +425,25 @@ class ApiService {
       body: JSON.stringify({ content }),
     });
   }
+
+  // Route optimization
+  async optimizeRoute(stops: Array<{ address: string; orderId?: string; customerName?: string }>, storeAddress?: string): Promise<{
+    optimizedStops: Array<{
+      address: string;
+      orderId?: string;
+      customerName?: string;
+      originalIndex: number;
+      optimizedIndex: number;
+    }>;
+    totalDistance: { value: number; text: string };
+    totalDuration: { value: number; text: string };
+    legs: Array<{ distance: { value: number; text: string }; duration: { value: number; text: string } }>;
+  }> {
+    return this.request('/routes/optimize', {
+      method: 'POST',
+      body: JSON.stringify({ stops, storeAddress }),
+    });
+  }
 }
 
 export const api = new ApiService();
