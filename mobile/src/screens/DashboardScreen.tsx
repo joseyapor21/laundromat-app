@@ -220,8 +220,9 @@ export default function DashboardScreen() {
     })
     // Sort by closest pickup/delivery time first
     .sort((a, b) => {
-      const dateA = new Date(a.estimatedPickupDate || a.deliverySchedule || 0).getTime();
-      const dateB = new Date(b.estimatedPickupDate || b.deliverySchedule || 0).getTime();
+      // Use deliverySchedule for delivery orders, estimatedPickupDate for pickup orders
+      const dateA = new Date(a.orderType === 'delivery' ? a.deliverySchedule : a.estimatedPickupDate || 0).getTime();
+      const dateB = new Date(b.orderType === 'delivery' ? b.deliverySchedule : b.estimatedPickupDate || 0).getTime();
       // Orders without dates go to the bottom
       if (!dateA && !dateB) return 0;
       if (!dateA) return 1;
@@ -260,8 +261,9 @@ export default function DashboardScreen() {
   // Sort orders by date (closest to now first)
   const sortByDate = (orderList: Order[]) => {
     return [...orderList].sort((a, b) => {
-      const dateA = new Date(a.estimatedPickupDate || a.deliverySchedule || 0).getTime();
-      const dateB = new Date(b.estimatedPickupDate || b.deliverySchedule || 0).getTime();
+      // Use deliverySchedule for delivery orders, estimatedPickupDate for pickup orders
+      const dateA = new Date(a.orderType === 'delivery' ? a.deliverySchedule : a.estimatedPickupDate || 0).getTime();
+      const dateB = new Date(b.orderType === 'delivery' ? b.deliverySchedule : b.estimatedPickupDate || 0).getTime();
       // Orders without dates go to the bottom
       if (!dateA && !dateB) return 0;
       if (!dateA) return 1;
