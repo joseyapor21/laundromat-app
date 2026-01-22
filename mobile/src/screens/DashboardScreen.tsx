@@ -310,7 +310,14 @@ export default function DashboardScreen() {
         </View>
         <View style={styles.boardHeaderRightColumn}>
           <View style={styles.boardHeaderRight}>
-            <Text style={styles.boardAmountHeader}>${(order.totalAmount || 0).toFixed(2)}</Text>
+            <View style={styles.boardAmountContainer}>
+              {order.priceOverride !== undefined && order.priceOverride !== null && (
+                <Ionicons name="pencil" size={12} color="#8b5cf6" style={{ marginRight: 2 }} />
+              )}
+              <Text style={[styles.boardAmountHeader, order.priceOverride !== undefined && order.priceOverride !== null && styles.boardAmountOverride]}>
+                ${(order.totalAmount || 0).toFixed(2)}
+              </Text>
+            </View>
             <View style={styles.boardIconContainer}>
               <Ionicons
                 name={order.orderType === 'delivery' ? 'car' : 'storefront'}
@@ -389,7 +396,14 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.orderFooter}>
-          <Text style={styles.orderAmount}>${(order.totalAmount || 0).toFixed(2)}</Text>
+          <View style={styles.orderAmountContainer}>
+            {order.priceOverride !== undefined && order.priceOverride !== null && (
+              <Ionicons name="pencil" size={14} color="#8b5cf6" style={{ marginRight: 4 }} />
+            )}
+            <Text style={[styles.orderAmount, order.priceOverride !== undefined && order.priceOverride !== null && styles.orderAmountOverride]}>
+              ${(order.totalAmount || 0).toFixed(2)}
+            </Text>
+          </View>
           <Text style={styles.orderDate}>
             <Text style={styles.orderDateLabel}>
               {order.orderType === 'delivery' ? 'Delivery by ' : 'Ready by '}
@@ -712,6 +726,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1e293b',
   },
+  boardAmountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  boardAmountOverride: {
+    color: '#8b5cf6',
+  },
   boardIconContainer: {
     width: 20,
     height: 20,
@@ -927,6 +948,13 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1e293b',
+  },
+  orderAmountContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  orderAmountOverride: {
+    color: '#8b5cf6',
   },
   orderDate: {
     fontSize: 14,
