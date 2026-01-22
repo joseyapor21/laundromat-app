@@ -1329,14 +1329,35 @@ export default function CreateOrderScreen() {
                               <TextInput
                                 style={[styles.modalPriceInput, data.overrideTotal !== undefined && styles.modalPriceInputOverride]}
                                 value={data.overrideTotal !== undefined ? data.overrideTotal.toString() : roundToNearestQuarter(customPrice * quantity).toFixed(2)}
+                                onFocus={() => {
+                                  // Set override to calculated value when user starts editing
+                                  if (data.overrideTotal === undefined) {
+                                    const calculatedTotal = roundToNearestQuarter(customPrice * quantity);
+                                    setSelectedExtras(prev => ({
+                                      ...prev,
+                                      [item._id]: { ...prev[item._id], overrideTotal: calculatedTotal }
+                                    }));
+                                  }
+                                }}
                                 onChangeText={(text) => {
+                                  // Allow empty string for clearing
+                                  if (text === '' || text === '.') {
+                                    setSelectedExtras(prev => ({
+                                      ...prev,
+                                      [item._id]: { ...prev[item._id], overrideTotal: 0 }
+                                    }));
+                                    return;
+                                  }
                                   const newTotal = parseFloat(text);
-                                  setSelectedExtras(prev => ({
-                                    ...prev,
-                                    [item._id]: { ...prev[item._id], overrideTotal: isNaN(newTotal) ? undefined : newTotal }
-                                  }));
+                                  if (!isNaN(newTotal)) {
+                                    setSelectedExtras(prev => ({
+                                      ...prev,
+                                      [item._id]: { ...prev[item._id], overrideTotal: newTotal }
+                                    }));
+                                  }
                                 }}
                                 keyboardType="decimal-pad"
+                                selectTextOnFocus={true}
                                 placeholder={roundToNearestQuarter(customPrice * quantity).toFixed(2)}
                                 placeholderTextColor="#94a3b8"
                               />

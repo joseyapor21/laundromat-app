@@ -1239,14 +1239,35 @@ export default function EditOrderScreen() {
                               <TextInput
                                 style={[styles.modalPriceInput, data.overrideTotal !== undefined && styles.modalPriceInputOverride]}
                                 value={data.overrideTotal !== undefined ? data.overrideTotal.toString() : roundToQuarter(customPrice * quantity).toFixed(2)}
+                                onFocus={() => {
+                                  // Set override to calculated value when user starts editing
+                                  if (data.overrideTotal === undefined) {
+                                    const calculatedTotal = roundToQuarter(customPrice * quantity);
+                                    setSelectedExtraItems(prev => ({
+                                      ...prev,
+                                      [item._id]: { ...prev[item._id], overrideTotal: calculatedTotal }
+                                    }));
+                                  }
+                                }}
                                 onChangeText={(text) => {
+                                  // Allow empty string for clearing
+                                  if (text === '' || text === '.') {
+                                    setSelectedExtraItems(prev => ({
+                                      ...prev,
+                                      [item._id]: { ...prev[item._id], overrideTotal: 0 }
+                                    }));
+                                    return;
+                                  }
                                   const newTotal = parseFloat(text);
-                                  setSelectedExtraItems(prev => ({
-                                    ...prev,
-                                    [item._id]: { ...prev[item._id], overrideTotal: isNaN(newTotal) ? undefined : newTotal }
-                                  }));
+                                  if (!isNaN(newTotal)) {
+                                    setSelectedExtraItems(prev => ({
+                                      ...prev,
+                                      [item._id]: { ...prev[item._id], overrideTotal: newTotal }
+                                    }));
+                                  }
                                 }}
                                 keyboardType="decimal-pad"
+                                selectTextOnFocus={true}
                                 placeholder={roundToQuarter(customPrice * quantity).toFixed(2)}
                                 placeholderTextColor="#94a3b8"
                               />
