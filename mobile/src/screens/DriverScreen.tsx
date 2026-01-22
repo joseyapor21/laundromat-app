@@ -104,7 +104,10 @@ export default function DriverScreen() {
       if (!oldOrder) return true;
       if (oldOrder.status !== newOrder.status ||
           oldOrder.isPaid !== newOrder.isPaid ||
-          oldOrder.updatedAt !== newOrder.updatedAt) {
+          oldOrder.updatedAt !== newOrder.updatedAt ||
+          oldOrder.customer?.address !== newOrder.customer?.address ||
+          oldOrder.customer?.buzzerCode !== newOrder.customer?.buzzerCode ||
+          oldOrder.customer?.notes !== newOrder.customer?.notes) {
         return true;
       }
     }
