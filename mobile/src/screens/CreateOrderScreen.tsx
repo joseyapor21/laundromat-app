@@ -75,7 +75,7 @@ export default function CreateOrderScreen() {
   const [bags, setBags] = useState<Bag[]>([]);
   const [isSameDay, setIsSameDay] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
-  const [selectedExtras, setSelectedExtras] = useState<Record<string, { quantity: number; price: number }>>({});
+  const [selectedExtras, setSelectedExtras] = useState<Record<string, { quantity: number; price: number; overrideTotal?: number }>>({});
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
   const [markAsPaid, setMarkAsPaid] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
@@ -404,10 +404,14 @@ export default function CreateOrderScreen() {
         const item = extraItems.find(e => e._id === itemId);
         const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
         if (isWeightBased) {
-          // Proportional pricing: (weight / perWeightUnit) * price, rounded to nearest quarter
-          const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight);
-          const itemTotal = roundToNearestQuarter(data.price * proportionalQty);
-          extrasTotal += itemTotal;
+          // Use override total if set, otherwise calculate proportionally
+          if (data.overrideTotal !== undefined && data.overrideTotal !== null) {
+            extrasTotal += data.overrideTotal;
+          } else {
+            const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight);
+            const itemTotal = roundToNearestQuarter(data.price * proportionalQty);
+            extrasTotal += itemTotal;
+          }
         } else {
           extrasTotal += data.price * data.quantity;
         }
@@ -481,12 +485,20 @@ export default function CreateOrderScreen() {
       if (item && data.quantity > 0) {
         const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
         if (isWeightBased) {
-          const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight);
-          const itemTotal = roundToNearestQuarter(data.price * proportionalQty);
-          breakdown.push({
-            label: `${item.name} (${totalWeight}lbs @ $${data.price}/${item.perWeightUnit}lbs)`,
-            amount: itemTotal,
-          });
+          // Use override total if set
+          if (data.overrideTotal !== undefined && data.overrideTotal !== null) {
+            breakdown.push({
+              label: `${item.name} (override)`,
+              amount: data.overrideTotal,
+            });
+          } else {
+            const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight);
+            const itemTotal = roundToNearestQuarter(data.price * proportionalQty);
+            breakdown.push({
+              label: `${item.name} (${totalWeight}lbs @ $${data.price}/${item.perWeightUnit}lbs)`,
+              amount: itemTotal,
+            });
+          }
         } else {
           breakdown.push({
             label: `${item.name} × ${data.quantity}`,
@@ -559,6 +571,7 @@ export default function CreateOrderScreen() {
             name: item?.name || '',
             price: data.price,
             quantity: qty,
+            overrideTotal: data.overrideTotal,
           };
         });
 
@@ -1308,27 +1321,61 @@ export default function CreateOrderScreen() {
                     </View>
                     {quantity > 0 && (
                       <View style={styles.modalPriceEditRow}>
-                        <Text style={styles.modalPriceLabel}>
-                          {isWeightBased ? `Price per ${item.perWeightUnit} lbs:` : 'Price per item:'}
-                        </Text>
-                        <View style={styles.modalPriceInputContainer}>
-                          <Text style={styles.modalPriceDollar}>$</Text>
-                          <TextInput
-                            style={styles.modalPriceInput}
-                            value={customPrice.toString()}
-                            onChangeText={(text) => {
-                              const newPrice = parseFloat(text) || 0;
-                              setSelectedExtras(prev => ({
-                                ...prev,
-                                [item._id]: { ...prev[item._id], price: newPrice }
-                              }));
-                            }}
-                            keyboardType="decimal-pad"
-                            placeholder={item.price.toString()}
-                            placeholderTextColor="#94a3b8"
-                          />
-                        </View>
-                        <Text style={styles.modalItemTotal}>= ${(customPrice * quantity).toFixed(2)}</Text>
+                        {isWeightBased ? (
+                          <>
+                            <Text style={styles.modalPriceLabel}>Final price:</Text>
+                            <View style={styles.modalPriceInputContainer}>
+                              <Text style={styles.modalPriceDollar}>$</Text>
+                              <TextInput
+                                style={[styles.modalPriceInput, data.overrideTotal !== undefined && styles.modalPriceInputOverride]}
+                                value={data.overrideTotal !== undefined ? data.overrideTotal.toString() : roundToNearestQuarter(customPrice * quantity).toFixed(2)}
+                                onChangeText={(text) => {
+                                  const newTotal = parseFloat(text);
+                                  setSelectedExtras(prev => ({
+                                    ...prev,
+                                    [item._id]: { ...prev[item._id], overrideTotal: isNaN(newTotal) ? undefined : newTotal }
+                                  }));
+                                }}
+                                keyboardType="decimal-pad"
+                                placeholder={roundToNearestQuarter(customPrice * quantity).toFixed(2)}
+                                placeholderTextColor="#94a3b8"
+                              />
+                            </View>
+                            {data.overrideTotal !== undefined && (
+                              <TouchableOpacity
+                                onPress={() => setSelectedExtras(prev => ({
+                                  ...prev,
+                                  [item._id]: { ...prev[item._id], overrideTotal: undefined }
+                                }))}
+                                style={styles.modalClearOverride}
+                              >
+                                <Ionicons name="close-circle" size={20} color="#ef4444" />
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Text style={styles.modalPriceLabel}>Price per item:</Text>
+                            <View style={styles.modalPriceInputContainer}>
+                              <Text style={styles.modalPriceDollar}>$</Text>
+                              <TextInput
+                                style={styles.modalPriceInput}
+                                value={customPrice.toString()}
+                                onChangeText={(text) => {
+                                  const newPrice = parseFloat(text) || 0;
+                                  setSelectedExtras(prev => ({
+                                    ...prev,
+                                    [item._id]: { ...prev[item._id], price: newPrice }
+                                  }));
+                                }}
+                                keyboardType="decimal-pad"
+                                placeholder={item.price.toString()}
+                                placeholderTextColor="#94a3b8"
+                              />
+                            </View>
+                            <Text style={styles.modalItemTotal}>= ${(customPrice * quantity).toFixed(2)}</Text>
+                          </>
+                        )}
                       </View>
                     )}
                   </View>
@@ -1349,17 +1396,22 @@ export default function CreateOrderScreen() {
                   const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                   const totalWeight = getTotalWeight();
                   const displayQty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
+                  const itemTotal = isWeightBased && data.overrideTotal !== undefined
+                    ? data.overrideTotal
+                    : roundToNearestQuarter(data.price * displayQty);
                   return (
                     <View key={itemId} style={styles.modalSummaryRow}>
                       <View style={{ flex: 1 }}>
                         <Text style={styles.modalSummaryText}>{item.name} × {displayQty}</Text>
                         {isWeightBased && (
                           <Text style={styles.modalSummaryCalc}>
-                            ({totalWeight} lbs ÷ {item.perWeightUnit} lbs)
+                            ({totalWeight} lbs ÷ {item.perWeightUnit} lbs){data.overrideTotal !== undefined ? ' - override' : ''}
                           </Text>
                         )}
                       </View>
-                      <Text style={styles.modalSummaryPrice}>${(data.price * displayQty).toFixed(2)}</Text>
+                      <Text style={[styles.modalSummaryPrice, isWeightBased && data.overrideTotal !== undefined && { color: '#ef4444' }]}>
+                        ${itemTotal.toFixed(2)}
+                      </Text>
                     </View>
                   );
                 })}
@@ -1372,7 +1424,10 @@ export default function CreateOrderScreen() {
                       const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
                       const totalWeight = getTotalWeight();
                       const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
-                      return sum + data.price * qty;
+                      if (isWeightBased && data.overrideTotal !== undefined) {
+                        return sum + data.overrideTotal;
+                      }
+                      return sum + roundToNearestQuarter(data.price * qty);
                     }, 0)
                     .toFixed(2)}
                 </Text>
@@ -2275,6 +2330,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 4,
     minWidth: 60,
+  },
+  modalPriceInputOverride: {
+    color: '#ef4444',
+  },
+  modalClearOverride: {
+    marginLeft: 8,
+    padding: 4,
   },
   modalItemTotal: {
     fontSize: 16,

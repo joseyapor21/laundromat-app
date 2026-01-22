@@ -47,7 +47,7 @@ export default function EditOrderScreen() {
 
   // Extra items
   const [extraItems, setExtraItems] = useState<ExtraItem[]>([]);
-  const [selectedExtraItems, setSelectedExtraItems] = useState<Record<string, { quantity: number; price: number }>>({});
+  const [selectedExtraItems, setSelectedExtraItems] = useState<Record<string, { quantity: number; price: number; overrideTotal?: number }>>({});
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
 
   // Pricing
@@ -118,13 +118,14 @@ export default function EditOrderScreen() {
 
       // Populate extra items
       if (orderData.extraItems) {
-        const extraItemsMap: Record<string, { quantity: number; price: number }> = {};
+        const extraItemsMap: Record<string, { quantity: number; price: number; overrideTotal?: number }> = {};
         orderData.extraItems.forEach((item: any) => {
           const itemId = item.item?._id || item.itemId;
           if (itemId) {
             extraItemsMap[itemId] = {
               quantity: item.quantity,
-              price: item.price || item.item?.price || 0
+              price: item.price || item.item?.price || 0,
+              overrideTotal: item.overrideTotal
             };
           }
         });
@@ -232,6 +233,10 @@ export default function EditOrderScreen() {
       const item = extraItems.find(e => e._id === itemId);
       const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
       if (isWeightBased) {
+        // Use override total if set
+        if (data.overrideTotal !== undefined && data.overrideTotal !== null) {
+          return total + data.overrideTotal;
+        }
         // Proportional pricing: (weight / perWeightUnit) * price, rounded to nearest quarter
         const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, weight);
         const itemTotal = roundToQuarter(data.price * proportionalQty);
@@ -294,7 +299,8 @@ export default function EditOrderScreen() {
             itemId,
             name: item?.name || '',
             quantity: qty,
-            price: data.price
+            price: data.price,
+            overrideTotal: data.overrideTotal
           };
         });
 
@@ -1225,27 +1231,61 @@ export default function EditOrderScreen() {
                     </View>
                     {quantity > 0 && (
                       <View style={styles.modalPriceEditRow}>
-                        <Text style={styles.modalPriceLabel}>
-                          {isWeightBased ? `Price per ${item.perWeightUnit} lbs:` : 'Price per item:'}
-                        </Text>
-                        <View style={styles.modalPriceInputContainer}>
-                          <Text style={styles.modalPriceDollar}>$</Text>
-                          <TextInput
-                            style={styles.modalPriceInput}
-                            value={customPrice.toString()}
-                            onChangeText={(text) => {
-                              const newPrice = parseFloat(text) || 0;
-                              setSelectedExtraItems(prev => ({
-                                ...prev,
-                                [item._id]: { ...prev[item._id], price: newPrice }
-                              }));
-                            }}
-                            keyboardType="decimal-pad"
-                            placeholder={item.price.toString()}
-                            placeholderTextColor="#94a3b8"
-                          />
-                        </View>
-                        <Text style={styles.modalItemTotal}>= ${(customPrice * quantity).toFixed(2)}</Text>
+                        {isWeightBased ? (
+                          <>
+                            <Text style={styles.modalPriceLabel}>Final price:</Text>
+                            <View style={styles.modalPriceInputContainer}>
+                              <Text style={styles.modalPriceDollar}>$</Text>
+                              <TextInput
+                                style={[styles.modalPriceInput, data.overrideTotal !== undefined && styles.modalPriceInputOverride]}
+                                value={data.overrideTotal !== undefined ? data.overrideTotal.toString() : roundToQuarter(customPrice * quantity).toFixed(2)}
+                                onChangeText={(text) => {
+                                  const newTotal = parseFloat(text);
+                                  setSelectedExtraItems(prev => ({
+                                    ...prev,
+                                    [item._id]: { ...prev[item._id], overrideTotal: isNaN(newTotal) ? undefined : newTotal }
+                                  }));
+                                }}
+                                keyboardType="decimal-pad"
+                                placeholder={roundToQuarter(customPrice * quantity).toFixed(2)}
+                                placeholderTextColor="#94a3b8"
+                              />
+                            </View>
+                            {data.overrideTotal !== undefined && (
+                              <TouchableOpacity
+                                onPress={() => setSelectedExtraItems(prev => ({
+                                  ...prev,
+                                  [item._id]: { ...prev[item._id], overrideTotal: undefined }
+                                }))}
+                                style={styles.modalClearOverride}
+                              >
+                                <Ionicons name="close-circle" size={20} color="#ef4444" />
+                              </TouchableOpacity>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <Text style={styles.modalPriceLabel}>Price per item:</Text>
+                            <View style={styles.modalPriceInputContainer}>
+                              <Text style={styles.modalPriceDollar}>$</Text>
+                              <TextInput
+                                style={styles.modalPriceInput}
+                                value={customPrice.toString()}
+                                onChangeText={(text) => {
+                                  const newPrice = parseFloat(text) || 0;
+                                  setSelectedExtraItems(prev => ({
+                                    ...prev,
+                                    [item._id]: { ...prev[item._id], price: newPrice }
+                                  }));
+                                }}
+                                keyboardType="decimal-pad"
+                                placeholder={item.price.toString()}
+                                placeholderTextColor="#94a3b8"
+                              />
+                            </View>
+                            <Text style={styles.modalItemTotal}>= ${(customPrice * quantity).toFixed(2)}</Text>
+                          </>
+                        )}
                       </View>
                     )}
                   </View>
@@ -2072,6 +2112,13 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: '#1e293b',
     padding: 0,
+  },
+  modalPriceInputOverride: {
+    color: '#ef4444',
+  },
+  modalClearOverride: {
+    marginLeft: 8,
+    padding: 4,
   },
   modalItemTotal: {
     fontSize: 14,
