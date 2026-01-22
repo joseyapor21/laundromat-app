@@ -24,6 +24,44 @@ interface GoogleDirectionsResponse {
   error_message?: string;
 }
 
+interface GeocodeResponse {
+  results: Array<{
+    formatted_address: string;
+    geometry: { location: { lat: number; lng: number } };
+  }>;
+  status: string;
+}
+
+interface InvalidAddress {
+  address: string;
+  customerName?: string;
+  orderId?: string;
+  reason: string;
+}
+
+// Validate a single address using Google Geocoding API
+async function validateAddress(address: string, apiKey: string): Promise<{ valid: boolean; reason?: string }> {
+  if (!address || address.trim().length < 5) {
+    return { valid: false, reason: 'Address is too short or empty' };
+  }
+
+  try {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${apiKey}`;
+    const response = await fetch(url);
+    const data: GeocodeResponse = await response.json();
+
+    if (data.status === 'OK' && data.results.length > 0) {
+      return { valid: true };
+    } else if (data.status === 'ZERO_RESULTS') {
+      return { valid: false, reason: 'Address not found' };
+    } else {
+      return { valid: false, reason: `Geocoding failed: ${data.status}` };
+    }
+  } catch (error) {
+    return { valid: false, reason: 'Failed to validate address' };
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const currentUser = await getCurrentUser();
@@ -50,6 +88,45 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Google Maps API key not configured' },
         { status: 500 }
+      );
+    }
+
+    // Validate all addresses first
+    const invalidAddresses: InvalidAddress[] = [];
+
+    // Validate store address if provided
+    if (storeAddress) {
+      const storeValidation = await validateAddress(storeAddress, apiKey);
+      if (!storeValidation.valid) {
+        invalidAddresses.push({
+          address: storeAddress,
+          customerName: 'Store',
+          reason: storeValidation.reason || 'Invalid address',
+        });
+      }
+    }
+
+    // Validate all stop addresses
+    for (const stop of stops) {
+      const validation = await validateAddress(stop.address, apiKey);
+      if (!validation.valid) {
+        invalidAddresses.push({
+          address: stop.address,
+          customerName: stop.customerName,
+          orderId: stop.orderId,
+          reason: validation.reason || 'Invalid address',
+        });
+      }
+    }
+
+    // If any addresses are invalid, return error with details
+    if (invalidAddresses.length > 0) {
+      return NextResponse.json(
+        {
+          error: 'Some addresses need to be fixed before optimizing',
+          invalidAddresses,
+        },
+        { status: 400 }
       );
     }
 

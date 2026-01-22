@@ -528,8 +528,21 @@ export default function DriverScreen() {
       );
     } catch (error: any) {
       console.error('Route optimization error:', error);
-      const errorData = error.debug ? `\n\nAddresses:\n${error.debug.waypoints?.join('\n') || 'N/A'}` : '';
-      Alert.alert('Route Optimization Failed', (error.message || 'Failed to optimize route') + errorData);
+
+      // Check if there are invalid addresses to fix
+      if (error.invalidAddresses && error.invalidAddresses.length > 0) {
+        const addressList = error.invalidAddresses
+          .map((addr: any) => `• ${addr.customerName || 'Unknown'}: "${addr.address}" - ${addr.reason}`)
+          .join('\n');
+
+        Alert.alert(
+          'Fix Addresses Required',
+          `The following addresses need to be corrected:\n\n${addressList}\n\nPlease update the customer addresses and try again.`,
+          [{ text: 'OK' }]
+        );
+      } else {
+        Alert.alert('Route Optimization Failed', error.message || 'Failed to optimize route');
+      }
     } finally {
       setOptimizing(false);
     }

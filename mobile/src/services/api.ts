@@ -53,7 +53,11 @@ class ApiService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
         console.log('API Error:', response.status, errorData);
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+        // Create error with additional data attached
+        const error = new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`) as any;
+        error.invalidAddresses = errorData.invalidAddresses;
+        error.debug = errorData.debug;
+        throw error;
       }
 
       return response.json();
