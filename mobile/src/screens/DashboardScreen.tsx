@@ -321,7 +321,10 @@ export default function DashboardScreen() {
           <Text style={styles.boardBagsLabel}>{order.bags?.length || 0} bags</Text>
           {(order.estimatedPickupDate || order.deliverySchedule) && (
             <Text style={styles.boardDateLabelRight}>
-              {formatShortDate(order.estimatedPickupDate || order.deliverySchedule)}
+              <Text style={styles.boardDateTypeLabel}>
+                {order.orderType === 'delivery' ? 'Del: ' : 'Pick: '}
+              </Text>
+              {formatShortDate(order.orderType === 'delivery' ? order.deliverySchedule : order.estimatedPickupDate)}
             </Text>
           )}
         </View>
@@ -741,6 +744,10 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: 1,
     textAlign: 'right',
+  },
+  boardDateTypeLabel: {
+    fontWeight: '600',
+    color: '#64748b',
   },
   boardCardFooter: {
     flexDirection: 'row',
