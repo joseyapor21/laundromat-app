@@ -322,7 +322,7 @@ export default function DashboardScreen() {
           {(order.estimatedPickupDate || order.deliverySchedule) && (
             <Text style={styles.boardDateLabelRight}>
               <Text style={styles.boardDateTypeLabel}>
-                {order.orderType === 'delivery' ? 'Del: ' : 'Pick: '}
+                {order.orderType === 'delivery' ? 'Delivery by ' : 'Ready by '}
               </Text>
               {formatShortDate(order.orderType === 'delivery' ? order.deliverySchedule : order.estimatedPickupDate)}
             </Text>
