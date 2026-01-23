@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, isAdmin, verifyToken } from '@/lib/auth/server';
+import { getCurrentUser, isAdmin } from '@/lib/auth/server';
+import { verifyToken } from '@/lib/auth/jwt';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -18,7 +19,15 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
 
     // If no user from header, try query token
     if (!currentUser && queryToken) {
-      currentUser = await verifyToken(queryToken);
+      const tokenPayload = await verifyToken(queryToken);
+      if (tokenPayload) {
+        currentUser = {
+          userId: tokenPayload.userId,
+          email: tokenPayload.email,
+          role: tokenPayload.role as any,
+          name: `${tokenPayload.firstName} ${tokenPayload.lastName}`,
+        };
+      }
     }
 
     if (!currentUser) {
