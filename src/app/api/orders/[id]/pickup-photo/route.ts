@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
 import Order from '@/lib/db/models/Order';
-import { verifyToken } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth/server';
 import fs from 'fs';
 import path from 'path';
 
@@ -12,17 +12,10 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const authHeader = request.headers.get('authorization');
+    const currentUser = await getCurrentUser();
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!currentUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
-
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     await connectDB();
@@ -67,8 +60,8 @@ export async function POST(
     order.pickupPhotos.push({
       photoPath,
       capturedAt: now,
-      capturedBy: decoded.userId,
-      capturedByName: `${decoded.firstName} ${decoded.lastName}`,
+      capturedBy: currentUser._id.toString(),
+      capturedByName: `${currentUser.firstName} ${currentUser.lastName}`,
     });
 
     await order.save();
@@ -95,17 +88,10 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const authHeader = request.headers.get('authorization');
+    const currentUser = await getCurrentUser();
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!currentUser) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.split(' ')[1];
-    const decoded = verifyToken(token);
-
-    if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
     await connectDB();
