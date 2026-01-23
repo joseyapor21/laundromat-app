@@ -18,7 +18,7 @@ interface TimeClockContextType {
     notes?: string;
   }) => Promise<TimeEntry>;
   clockOut: (data: {
-    photo: string;
+    photo?: string;
     location: { latitude: number; longitude: number; accuracy?: number };
     notes?: string;
   }) => Promise<TimeEntry>;
@@ -92,7 +92,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   const clockOut = useCallback(async (data: {
-    photo: string;
+    photo?: string;
     location: { latitude: number; longitude: number; accuracy?: number };
     notes?: string;
   }): Promise<TimeEntry> => {

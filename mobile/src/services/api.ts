@@ -467,7 +467,7 @@ class ApiService {
   }
 
   async clockOut(data: {
-    photo: string;
+    photo?: string;
     location: { latitude: number; longitude: number; accuracy?: number };
     notes?: string;
     deviceInfo?: string;
