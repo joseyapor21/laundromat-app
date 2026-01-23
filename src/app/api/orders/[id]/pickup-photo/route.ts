@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db/connection';
+import { connectDB } from '@/lib/db/connection';
 import Order from '@/lib/db/models/Order';
 import { verifyToken } from '@/lib/auth';
 import fs from 'fs';
@@ -25,7 +25,7 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    await connectToDatabase();
+    await connectDB();
 
     const order = await Order.findById(id);
     if (!order) {
@@ -108,7 +108,7 @@ export async function GET(
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
 
-    await connectToDatabase();
+    await connectDB();
 
     const order = await Order.findById(id);
     if (!order) {
