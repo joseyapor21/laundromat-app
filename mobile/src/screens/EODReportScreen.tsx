@@ -85,12 +85,12 @@ export default function EODReportScreen() {
 
   // Format today's date
   const formatDate = () => {
-    return new Date().toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'long',
-      day: 'numeric',
-      year: 'numeric',
-    });
+    const date = new Date();
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+    const month = date.toLocaleDateString('en-US', { month: 'short' });
+    const day = date.getDate();
+    const year = date.getFullYear();
+    return `${weekday}, ${month} ${day}, ${year}`;
   };
 
   // Share report

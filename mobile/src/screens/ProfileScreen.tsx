@@ -16,7 +16,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useTimeClock } from '../contexts/TimeClockContext';
 import { api } from '../services/api';
+import ClockInScreen from './ClockInScreen';
 
 // Dynamically import push notifications
 let pushNotificationService: {
@@ -33,6 +35,10 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { user, logout, refreshUser } = useAuth();
+  const { isClockedIn, lastClockIn, isLoading: isClockLoading } = useTimeClock();
+
+  // Clock out modal
+  const [showClockOutModal, setShowClockOutModal] = useState(false);
 
   // Edit profile modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -330,6 +336,52 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Time Clock Section */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Time Clock</Text>
+
+        <View style={styles.card}>
+          <View style={styles.cardRow}>
+            <View style={[styles.cardIcon, { backgroundColor: isClockedIn ? '#dcfce7' : '#fef3c7' }]}>
+              <Ionicons
+                name="time"
+                size={24}
+                color={isClockedIn ? '#22c55e' : '#f59e0b'}
+              />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardValue}>
+                {isClockLoading ? 'Loading...' : isClockedIn ? 'Clocked In' : 'Not Clocked In'}
+              </Text>
+              <Text style={styles.cardLabel}>
+                {isClockedIn && lastClockIn
+                  ? `Since ${new Date(lastClockIn).toLocaleTimeString('en-US', {
+                      hour: 'numeric',
+                      minute: '2-digit',
+                      hour12: true,
+                    })}`
+                  : 'Tap to clock in/out'}
+              </Text>
+            </View>
+            {isClockedIn ? (
+              <View style={styles.clockedInBadge}>
+                <Text style={styles.clockedInBadgeText}>Active</Text>
+              </View>
+            ) : null}
+          </View>
+        </View>
+
+        {isClockedIn && (
+          <TouchableOpacity
+            style={styles.clockOutButton}
+            onPress={() => setShowClockOutModal(true)}
+          >
+            <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+            <Text style={styles.clockOutButtonText}>Clock Out</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
       {/* Logout Button */}
       <View style={styles.section}>
         <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
@@ -464,6 +516,19 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Clock Out Modal */}
+      <Modal
+        visible={showClockOutModal}
+        animationType="slide"
+        presentationStyle="fullScreen"
+      >
+        <ClockInScreen
+          mode="clock_out"
+          onComplete={() => setShowClockOutModal(false)}
+          onDismiss={() => setShowClockOutModal(false)}
+        />
+      </Modal>
     </ScrollView>
   );
 }
@@ -571,6 +636,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: '#1e293b',
+  },
+  clockedInBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  clockedInBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#22c55e',
+  },
+  clockOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    marginTop: 8,
+  },
+  clockOutButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ef4444',
   },
   logoutButton: {
     flexDirection: 'row',

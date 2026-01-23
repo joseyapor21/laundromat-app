@@ -13,6 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
+import { useTimeClock } from './TimeClockContext';
+import ClockInScreen from '../screens/ClockInScreen';
 
 interface ScannerContextType {
   showScanner: boolean;
@@ -140,8 +142,10 @@ export function ScannerProvider({ children }: ScannerProviderProps) {
 // Expandable Floating Action Button Component
 export function FloatingActionButtons() {
   const { openScanner } = useScanner();
+  const { isClockedIn, isLoading: isClockLoading } = useTimeClock();
   const navigation = useNavigation<any>();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showClockInModal, setShowClockInModal] = useState(false);
   const { width, height } = useWindowDimensions();
 
   // Detect landscape mode (tab bar hidden)
@@ -155,6 +159,11 @@ export function FloatingActionButtons() {
   const handleScan = () => {
     setIsExpanded(false);
     openScanner();
+  };
+
+  const handleClockIn = () => {
+    setIsExpanded(false);
+    setShowClockInModal(true);
   };
 
   const toggleExpanded = () => {
@@ -179,6 +188,17 @@ export function FloatingActionButtons() {
         {/* Expandable options */}
         {isExpanded && (
           <View style={styles.fabOptions}>
+            {/* Clock In button - only show when not clocked in */}
+            {!isClockedIn && !isClockLoading && (
+              <TouchableOpacity
+                style={[styles.fabOption, styles.fabOptionClockIn]}
+                onPress={handleClockIn}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="time" size={22} color="#fff" />
+                <Text style={styles.fabOptionLabel}>Clock In</Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.fabOption, styles.fabOptionScan]}
               onPress={handleScan}
@@ -211,6 +231,19 @@ export function FloatingActionButtons() {
           />
         </TouchableOpacity>
       </View>
+
+      {/* Clock In Modal */}
+      <Modal
+        visible={showClockInModal}
+        animationType="slide"
+        presentationStyle="fullScreen"
+      >
+        <ClockInScreen
+          mode="clock_in"
+          onComplete={() => setShowClockInModal(false)}
+          onDismiss={() => setShowClockInModal(false)}
+        />
+      </Modal>
     </>
   );
 }
@@ -305,6 +338,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 4,
     elevation: 5,
+  },
+  fabOptionClockIn: {
+    backgroundColor: '#22c55e',
   },
   fabOptionScan: {
     backgroundColor: '#f59e0b',

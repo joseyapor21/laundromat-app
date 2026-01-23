@@ -608,12 +608,7 @@ export default function EditOrderScreen() {
                     <Ionicons name="calendar-outline" size={20} color="#64748b" />
                     <Text style={styles.dateButtonText}>
                       {dropOffDate
-                        ? dropOffDate.toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            month: 'short',
-                            day: 'numeric',
-                            year: 'numeric',
-                          })
+                        ? `${dropOffDate.toLocaleDateString('en-US', { weekday: 'short' })}, ${dropOffDate.toLocaleDateString('en-US', { month: 'short' })} ${dropOffDate.getDate()}, ${dropOffDate.getFullYear()}`
                         : 'Select date'}
                     </Text>
                   </TouchableOpacity>
@@ -647,12 +642,7 @@ export default function EditOrderScreen() {
                       <Ionicons name="calendar-outline" size={20} color="#64748b" />
                       <Text style={styles.dateButtonText}>
                         {deliverySchedule
-                          ? deliverySchedule.toLocaleDateString('en-US', {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                            })
+                          ? `${deliverySchedule.toLocaleDateString('en-US', { weekday: 'short' })}, ${deliverySchedule.toLocaleDateString('en-US', { month: 'short' })} ${deliverySchedule.getDate()}, ${deliverySchedule.getFullYear()}`
                           : 'Select date'}
                       </Text>
                     </TouchableOpacity>
@@ -703,6 +693,18 @@ export default function EditOrderScreen() {
                   }}>
                     <Text style={styles.datePickerDone}>Done</Text>
                   </TouchableOpacity>
+                </View>
+                <View style={styles.datePickerSelectedDisplay}>
+                  <Text style={styles.datePickerSelectedText}>
+                    {(() => {
+                      const date = showDatePicker === 'pickup'
+                        ? estimatedPickupDate || new Date()
+                        : showDatePicker === 'dropoff'
+                        ? dropOffDate || new Date()
+                        : deliverySchedule || new Date();
+                      return `${date.toLocaleDateString('en-US', { weekday: 'short' })}, ${date.toLocaleDateString('en-US', { month: 'short' })} ${date.getDate()}, ${date.getFullYear()}`;
+                    })()}
+                  </Text>
                 </View>
                 <DateTimePicker
                   value={
@@ -763,6 +765,18 @@ export default function EditOrderScreen() {
                   }}>
                     <Text style={styles.datePickerDone}>Done</Text>
                   </TouchableOpacity>
+                </View>
+                <View style={styles.datePickerSelectedDisplay}>
+                  <Text style={styles.datePickerSelectedText}>
+                    {(() => {
+                      const date = showTimePicker === 'pickup'
+                        ? estimatedPickupDate || new Date()
+                        : showTimePicker === 'dropoff'
+                        ? dropOffDate || new Date()
+                        : deliverySchedule || new Date();
+                      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                    })()}
+                  </Text>
                 </View>
                 <DateTimePicker
                   value={
@@ -2011,6 +2025,19 @@ const styles = StyleSheet.create({
   },
   datePickerSpinner: {
     height: 200,
+  },
+  datePickerSelectedDisplay: {
+    backgroundColor: '#eff6ff',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    alignItems: 'center',
+  },
+  datePickerSelectedText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1e293b',
   },
   actionsSection: {
     marginHorizontal: 16,

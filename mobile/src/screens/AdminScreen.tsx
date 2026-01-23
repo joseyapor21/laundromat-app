@@ -24,9 +24,9 @@ import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import { useAuth } from '../contexts/AuthContext';
-import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog } from '../types';
+import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry } from '../types';
 
-type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports';
+type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock';
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
@@ -49,6 +49,8 @@ export default function AdminScreen() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [activityTotal, setActivityTotal] = useState(0);
+  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
+  const [timeEntriesLoading, setTimeEntriesLoading] = useState(false);
 
   // Printer state
   const [printerScanning, setPrinterScanning] = useState(false);
@@ -133,6 +135,25 @@ export default function AdminScreen() {
       checkPrinterConnection();
     }
   }, [activeTab, isAdmin]);
+
+  // Load time entries when on Time Clock tab
+  useEffect(() => {
+    if (activeTab === 'timeclock' && isAdmin) {
+      loadTimeEntries();
+    }
+  }, [activeTab, isAdmin]);
+
+  const loadTimeEntries = async () => {
+    setTimeEntriesLoading(true);
+    try {
+      const entries = await api.getTimeEntries({ limit: 100 });
+      setTimeEntries(entries);
+    } catch (error) {
+      console.error('Failed to load time entries:', error);
+    } finally {
+      setTimeEntriesLoading(false);
+    }
+  };
 
   // Printer functions
   async function checkPrinterConnection() {
@@ -568,6 +589,7 @@ export default function AdminScreen() {
     { key: 'machines', label: 'Machines', icon: 'hardware-chip', adminOnly: true },
     { key: 'printers', label: 'Printers', icon: 'print', adminOnly: true },
     { key: 'reports', label: 'Reports', icon: 'document-text', adminOnly: false },
+    { key: 'timeclock', label: 'Time Clock', icon: 'timer', adminOnly: true },
     { key: 'activity', label: 'Activity', icon: 'time', adminOnly: true },
   ];
 
@@ -1148,6 +1170,100 @@ export default function AdminScreen() {
               </View>
             }
           />
+        </View>
+      )}
+
+      {/* Time Clock Tab */}
+      {activeTab === 'timeclock' && (
+        <View style={{ flex: 1 }}>
+          <View style={styles.actionHeader}>
+            <Text style={styles.countText}>{timeEntries.length} entries</Text>
+          </View>
+          {timeEntriesLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#2563eb" />
+            </View>
+          ) : (
+            <FlatList
+              data={timeEntries}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={styles.listContent}
+              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => {
+                    setRefreshing(true);
+                    loadTimeEntries().then(() => setRefreshing(false));
+                  }}
+                />
+              }
+              renderItem={({ item: entry }) => {
+                const entryDate = new Date(entry.timestamp);
+                const isClockIn = entry.type === 'clock_in';
+                return (
+                  <View style={styles.timeEntryCard}>
+                    <View style={styles.timeEntryHeader}>
+                      <View style={[
+                        styles.timeEntryIcon,
+                        { backgroundColor: isClockIn ? '#dcfce7' : '#fee2e2' }
+                      ]}>
+                        <Ionicons
+                          name={isClockIn ? 'log-in' : 'log-out'}
+                          size={20}
+                          color={isClockIn ? '#16a34a' : '#dc2626'}
+                        />
+                      </View>
+                      <View style={styles.timeEntryInfo}>
+                        <Text style={styles.timeEntryName}>{entry.userName}</Text>
+                        <Text style={styles.timeEntryType}>
+                          {isClockIn ? 'Clock In' : 'Clock Out'}
+                        </Text>
+                      </View>
+                      <View style={styles.timeEntryTimeBox}>
+                        <Text style={styles.timeEntryTime}>
+                          {entryDate.toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          })}
+                        </Text>
+                        <Text style={styles.timeEntryDate}>
+                          {entryDate.toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric'
+                          })}
+                        </Text>
+                      </View>
+                    </View>
+                    {entry.location && (
+                      <View style={styles.timeEntryLocation}>
+                        <Ionicons name="location" size={14} color="#64748b" />
+                        <Text style={styles.timeEntryLocationText} numberOfLines={1}>
+                          {entry.location.address || `${entry.location.latitude.toFixed(4)}, ${entry.location.longitude.toFixed(4)}`}
+                        </Text>
+                      </View>
+                    )}
+                    {entry.photoPath && (
+                      <View style={styles.timeEntryPhotoIndicator}>
+                        <Ionicons name="camera" size={14} color="#64748b" />
+                        <Text style={styles.timeEntryPhotoText}>Photo captured</Text>
+                      </View>
+                    )}
+                  </View>
+                );
+              }}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="timer-outline" size={48} color="#cbd5e1" />
+                  <Text style={styles.emptyText}>No time entries yet</Text>
+                  <Text style={styles.emptySubtext}>
+                    Employee clock-ins will appear here
+                  </Text>
+                </View>
+              }
+            />
+          )}
         </View>
       )}
 
@@ -2338,5 +2454,79 @@ const styles = StyleSheet.create({
   },
   machineGridMaintenanceActive: {
     backgroundColor: '#ef4444',
+  },
+  // Time Clock styles
+  timeEntryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+  },
+  timeEntryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  timeEntryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  timeEntryInfo: {
+    flex: 1,
+  },
+  timeEntryName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  timeEntryType: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  timeEntryTimeBox: {
+    alignItems: 'flex-end',
+  },
+  timeEntryTime: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  timeEntryDate: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  timeEntryLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    gap: 6,
+  },
+  timeEntryLocationText: {
+    flex: 1,
+    fontSize: 12,
+    color: '#64748b',
+  },
+  timeEntryPhotoIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 6,
+  },
+  timeEntryPhotoText: {
+    fontSize: 12,
+    color: '#64748b',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginTop: 4,
   },
 });

@@ -193,13 +193,12 @@ export default function EditCustomerScreen() {
   const formatDate = (date: Date | string): string => {
     try {
       const d = new Date(date);
-      return d.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      });
+      const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const month = d.toLocaleDateString('en-US', { month: 'short' });
+      const day = d.getDate();
+      const year = d.getFullYear();
+      const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      return `${weekday}, ${month} ${day}, ${year}, ${time}`;
     } catch {
       return '';
     }
@@ -208,10 +207,10 @@ export default function EditCustomerScreen() {
   const formatShortDate = (date: Date | string): string => {
     try {
       const d = new Date(date);
-      return d.toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-      });
+      const weekday = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const month = d.toLocaleDateString('en-US', { month: 'short' });
+      const day = d.getDate();
+      return `${weekday}, ${month} ${day}`;
     } catch {
       return '';
     }

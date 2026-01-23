@@ -87,6 +87,13 @@ export interface OrderDoc {
     checkedByInitials?: string;
     isChecked?: boolean;
   }>;
+  // Driver pickup photos
+  pickupPhotos?: Array<{
+    photoPath: string;
+    capturedAt: Date;
+    capturedBy: string;
+    capturedByName: string;
+  }>;
 }
 
 const serviceSchema = new mongoose.Schema({
@@ -344,6 +351,13 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
       type: Boolean,
       default: false,
     },
+  }],
+  // Driver pickup photos
+  pickupPhotos: [{
+    photoPath: String,
+    capturedAt: Date,
+    capturedBy: String,
+    capturedByName: String,
   }],
 }, {
   collection: 'orders',

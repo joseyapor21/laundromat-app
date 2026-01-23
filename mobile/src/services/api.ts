@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog, OrderStatus, PaymentMethod } from '../types';
+import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog, OrderStatus, PaymentMethod, TimeEntry, ClockStatus } from '../types';
 
 const API_BASE_URL = 'https://cloud.homation.us';
 
@@ -447,6 +447,73 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ stops, storeAddress }),
     });
+  }
+
+  // Time Clock
+  async getClockStatus(): Promise<ClockStatus> {
+    return this.request<ClockStatus>('/time-entries/status');
+  }
+
+  async clockIn(data: {
+    photo: string;
+    location: { latitude: number; longitude: number; accuracy?: number };
+    notes?: string;
+    deviceInfo?: string;
+  }): Promise<TimeEntry> {
+    return this.request<TimeEntry>('/time-entries', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'clock_in', ...data }),
+    });
+  }
+
+  async clockOut(data: {
+    photo: string;
+    location: { latitude: number; longitude: number; accuracy?: number };
+    notes?: string;
+    deviceInfo?: string;
+  }): Promise<TimeEntry> {
+    return this.request<TimeEntry>('/time-entries', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'clock_out', ...data }),
+    });
+  }
+
+  async getTimeEntries(params?: {
+    userId?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ entries: TimeEntry[]; total: number }> {
+    const searchParams = new URLSearchParams();
+    if (params?.userId) searchParams.append('userId', params.userId);
+    if (params?.startDate) searchParams.append('startDate', params.startDate);
+    if (params?.endDate) searchParams.append('endDate', params.endDate);
+    if (params?.limit) searchParams.append('limit', params.limit.toString());
+    if (params?.offset) searchParams.append('offset', params.offset.toString());
+
+    const query = searchParams.toString();
+    return this.request<{ entries: TimeEntry[]; total: number }>(`/time-entries${query ? `?${query}` : ''}`);
+  }
+
+  getTimeEntryPhotoUrl(photoPath: string): string {
+    return `${API_BASE_URL}/api/uploads/${photoPath}`;
+  }
+
+  // Pickup Photos
+  async uploadPickupPhoto(orderId: string, photo: string): Promise<{ success: boolean; photoPath: string }> {
+    return this.request<{ success: boolean; photoPath: string }>(`/orders/${orderId}/pickup-photo`, {
+      method: 'POST',
+      body: JSON.stringify({ photo }),
+    });
+  }
+
+  async getPickupPhotos(orderId: string): Promise<{ photos: Array<{ photoPath: string; capturedAt: string; capturedBy: string; capturedByName: string }> }> {
+    return this.request<{ photos: Array<{ photoPath: string; capturedAt: string; capturedBy: string; capturedByName: string }> }>(`/orders/${orderId}/pickup-photo`);
+  }
+
+  getPickupPhotoUrl(photoPath: string): string {
+    return `${API_BASE_URL}/api/uploads/${photoPath}`;
   }
 }
 

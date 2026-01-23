@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, View, Platform, useWindowDimensions } from 'react-native';
+import { ActivityIndicator, View, Platform, useWindowDimensions, Modal } from 'react-native';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { ScannerProvider, FloatingActionButtons } from '../contexts/ScannerContext';
+import { TimeClockProvider, useTimeClock } from '../contexts/TimeClockContext';
 import pushNotificationService from '../services/pushNotifications';
 
 // Navigation ref for use outside of components (e.g., notification handling)
@@ -34,6 +35,7 @@ import DriverScreen from '../screens/DriverScreen';
 import AdminScreen from '../screens/AdminScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import BluetoothPrinterScreen from '../screens/BluetoothPrinterScreen';
+import ClockInScreen from '../screens/ClockInScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -202,12 +204,35 @@ function MainStack() {
   );
 }
 
+function ClockInPrompt() {
+  const { showClockInPrompt, dismissClockInPrompt } = useTimeClock();
+
+  if (!showClockInPrompt) return null;
+
+  return (
+    <Modal
+      visible={showClockInPrompt}
+      animationType="slide"
+      presentationStyle="fullScreen"
+    >
+      <ClockInScreen
+        mode="clock_in"
+        onComplete={dismissClockInPrompt}
+        onDismiss={dismissClockInPrompt}
+      />
+    </Modal>
+  );
+}
+
 function AuthenticatedApp() {
   return (
-    <ScannerProvider>
-      <MainStack />
-      <FloatingActionButtons />
-    </ScannerProvider>
+    <TimeClockProvider>
+      <ScannerProvider>
+        <MainStack />
+        <FloatingActionButtons />
+        <ClockInPrompt />
+      </ScannerProvider>
+    </TimeClockProvider>
   );
 }
 

@@ -20,6 +20,8 @@
     "expo-constants": "~18.0.12",
     "expo-dev-client": "~6.0.20",
     "expo-device": "~8.0.10",
+    "expo-image-manipulator": "^14.0.8",
+    "expo-location": "^19.0.8",
     "expo-navigation-bar": "^5.0.10",
     "expo-notifications": "~0.32.15",
     "expo-secure-store": "^15.0.8",

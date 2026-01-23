@@ -231,3 +231,38 @@ export interface ActivityLog {
   customerId?: string;
   timestamp: Date;
 }
+
+// Time Clock types
+export interface TimeEntry {
+  _id: string;
+  userId: string;
+  userName: string;
+  userInitials: string;
+  type: 'clock_in' | 'clock_out';
+  timestamp: Date;
+  location: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    address?: string;
+  };
+  photoPath: string;
+  deviceInfo?: string;
+  notes?: string;
+  createdAt: Date;
+}
+
+export interface ClockStatus {
+  isClockedIn: boolean;
+  lastClockIn?: Date;
+  lastClockOut?: Date;
+  todayEntries: Array<{
+    _id: string;
+    type: 'clock_in' | 'clock_out';
+    timestamp: Date;
+    location: {
+      latitude: number;
+      longitude: number;
+    };
+  }>;
+}

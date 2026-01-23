@@ -969,6 +969,11 @@ export default function CreateOrderScreen() {
                 <Text style={styles.datePickerDone}>Done</Text>
               </TouchableOpacity>
             </View>
+            <View style={styles.datePickerSelectedDisplay}>
+              <Text style={styles.datePickerSelectedText}>
+                {`${estimatedPickupDate.toLocaleDateString('en-US', { weekday: 'short' })}, ${estimatedPickupDate.toLocaleDateString('en-US', { month: 'short' })} ${estimatedPickupDate.getDate()}, ${estimatedPickupDate.getFullYear()}`}
+              </Text>
+            </View>
             <DateTimePicker
               value={estimatedPickupDate}
               mode="date"
@@ -1002,6 +1007,11 @@ export default function CreateOrderScreen() {
               <TouchableOpacity onPress={() => setShowTimePicker(false)}>
                 <Text style={styles.datePickerDone}>Done</Text>
               </TouchableOpacity>
+            </View>
+            <View style={styles.datePickerSelectedDisplay}>
+              <Text style={styles.datePickerSelectedText}>
+                {estimatedPickupDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+              </Text>
             </View>
             <DateTimePicker
               value={estimatedPickupDate}
@@ -2547,6 +2557,19 @@ const styles = StyleSheet.create({
   },
   datePickerSpinner: {
     height: 200,
+  },
+  datePickerSelectedDisplay: {
+    backgroundColor: '#eff6ff',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    alignItems: 'center',
+  },
+  datePickerSelectedText: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1e293b',
   },
   // Quick Add Customer styles - Full screen like CreateCustomerScreen
   quickAddButton: {

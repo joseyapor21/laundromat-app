@@ -17,6 +17,9 @@ export interface UserDoc {
   pushToken?: string;
   pushTokenPlatform?: 'ios' | 'android';
   pushNotificationsEnabled: boolean;
+  isClockedIn: boolean;
+  lastClockIn?: Date;
+  lastClockOut?: Date;
   comparePassword(password: string): Promise<boolean>;
 }
 
@@ -75,6 +78,18 @@ const userSchema = new mongoose.Schema<UserDoc>({
   pushNotificationsEnabled: {
     type: Boolean,
     default: true,
+  },
+  isClockedIn: {
+    type: Boolean,
+    default: false,
+  },
+  lastClockIn: {
+    type: Date,
+    default: null,
+  },
+  lastClockOut: {
+    type: Date,
+    default: null,
   },
 }, {
   collection: 'users',

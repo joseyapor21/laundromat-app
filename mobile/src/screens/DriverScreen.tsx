@@ -13,11 +13,14 @@ import {
   Modal,
   TextInput,
   Platform,
+  Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Device } from 'react-native-ble-plx';
+import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
@@ -62,6 +65,15 @@ export default function DriverScreen() {
 
   // Date filter for deliveries
   const [deliveryDateFilter, setDeliveryDateFilter] = useState<'today' | 'tomorrow' | 'all'>('today');
+
+  // Camera state for pickup photos
+  const [permission, requestPermission] = useCameraPermissions();
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [photoOrderId, setPhotoOrderId] = useState<string | null>(null);
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const cameraRef = useRef<CameraView>(null);
 
   // Helper to check if date matches filter
   const isDateMatch = (dateStr: string | undefined, filter: 'today' | 'tomorrow' | 'all'): boolean => {
@@ -307,6 +319,104 @@ export default function DriverScreen() {
     } catch (error) {
       Alert.alert('Error', 'Failed to update status');
     }
+  }
+
+  // Pickup photo functions
+  async function openPhotoCapture(orderId: string) {
+    if (!permission?.granted) {
+      const result = await requestPermission();
+      if (!result.granted) {
+        Alert.alert('Permission Required', 'Camera permission is required to take pickup photos');
+        return;
+      }
+    }
+    setPhotoOrderId(orderId);
+    setCapturedPhoto(null);
+    setShowPhotoModal(true);
+  }
+
+  async function takePhoto() {
+    if (!cameraRef.current || isCapturing) return;
+
+    setIsCapturing(true);
+    try {
+      const photo = await cameraRef.current.takePictureAsync({
+        quality: 0.8,
+        base64: false,
+      });
+
+      if (photo?.uri) {
+        // Compress the image
+        const compressed = await ImageManipulator.manipulateAsync(
+          photo.uri,
+          [{ resize: { width: 1024 } }],
+          { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+        );
+        setCapturedPhoto(compressed.base64 || null);
+      }
+    } catch (error) {
+      console.error('Failed to take photo:', error);
+      Alert.alert('Error', 'Failed to capture photo');
+    } finally {
+      setIsCapturing(false);
+    }
+  }
+
+  function retakePhoto() {
+    setCapturedPhoto(null);
+  }
+
+  async function uploadPhotoAndUpdateStatus() {
+    if (!photoOrderId || !capturedPhoto) return;
+
+    setIsUploading(true);
+    try {
+      // Upload the photo
+      await api.uploadPickupPhoto(photoOrderId, capturedPhoto);
+
+      // Update the order status
+      await api.updateOrderStatus(photoOrderId, 'picked_up');
+      await loadOrders();
+
+      // Close modal and reset state
+      setShowPhotoModal(false);
+      setPhotoOrderId(null);
+      setCapturedPhoto(null);
+
+      Alert.alert('Success', 'Photo uploaded and order marked as picked up');
+    } catch (error) {
+      console.error('Failed to upload photo:', error);
+      Alert.alert('Error', 'Failed to upload photo. Please try again.');
+    } finally {
+      setIsUploading(false);
+    }
+  }
+
+  function closePhotoModal() {
+    setShowPhotoModal(false);
+    setPhotoOrderId(null);
+    setCapturedPhoto(null);
+  }
+
+  // Handle pickup with photo option
+  function handlePickupWithPhoto(order: Order) {
+    Alert.alert(
+      'Mark as Picked Up',
+      'Would you like to take a photo of the bags?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Skip Photo',
+          style: 'default',
+          onPress: () => updateStatus(order._id, 'picked_up'),
+        },
+        {
+          text: 'Take Photo',
+          style: 'default',
+          onPress: () => openPhotoCapture(order._id),
+        },
+      ]
+    );
   }
 
   // Handle delivery completion with payment option
@@ -681,7 +791,7 @@ export default function DriverScreen() {
             order.status === 'new_order' || order.status === 'scheduled_pickup' ? (
               <TouchableOpacity
                 style={[styles.actionButton, styles.statusButton]}
-                onPress={() => updateStatus(order._id, 'picked_up')}
+                onPress={() => handlePickupWithPhoto(order)}
               >
                 <Ionicons name="checkmark" size={20} color="#fff" />
                 <Text style={styles.actionButtonText}>Picked Up</Text>
@@ -1099,6 +1209,85 @@ export default function DriverScreen() {
             <Ionicons name="navigate" size={24} color="#fff" />
             <Text style={styles.startNavBtnText}>Start Navigation</Text>
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Pickup Photo Modal */}
+      <Modal
+        visible={showPhotoModal}
+        animationType="slide"
+        onRequestClose={closePhotoModal}
+      >
+        <View style={styles.photoModalContainer}>
+          <View style={styles.photoModalHeader}>
+            <Text style={styles.photoModalTitle}>Pickup Photo</Text>
+            <TouchableOpacity onPress={closePhotoModal} style={styles.photoCloseBtn}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {capturedPhoto ? (
+            // Preview captured photo
+            <View style={styles.photoPreviewContainer}>
+              <Image
+                source={{ uri: `data:image/jpeg;base64,${capturedPhoto}` }}
+                style={styles.photoPreview}
+                resizeMode="contain"
+              />
+              <View style={styles.photoActions}>
+                <TouchableOpacity
+                  style={styles.retakeBtn}
+                  onPress={retakePhoto}
+                  disabled={isUploading}
+                >
+                  <Ionicons name="camera-reverse" size={24} color="#fff" />
+                  <Text style={styles.photoActionText}>Retake</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.confirmBtn, isUploading && styles.confirmBtnDisabled]}
+                  onPress={uploadPhotoAndUpdateStatus}
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="checkmark" size={24} color="#fff" />
+                  )}
+                  <Text style={styles.photoActionText}>
+                    {isUploading ? 'Uploading...' : 'Confirm Pickup'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            // Camera view
+            <View style={styles.cameraContainer}>
+              <CameraView
+                ref={cameraRef}
+                style={styles.camera}
+                facing="back"
+              />
+              <View style={styles.cameraOverlay}>
+                <View style={styles.cameraFrame} />
+                <Text style={styles.cameraHint}>
+                  Take a photo of the bags
+                </Text>
+              </View>
+              <View style={styles.captureContainer}>
+                <TouchableOpacity
+                  style={[styles.captureBtn, isCapturing && styles.captureBtnDisabled]}
+                  onPress={takePhoto}
+                  disabled={isCapturing}
+                >
+                  {isCapturing ? (
+                    <ActivityIndicator size="large" color="#fff" />
+                  ) : (
+                    <Ionicons name="camera" size={40} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
         </View>
       </Modal>
 
@@ -1735,5 +1924,117 @@ const styles = StyleSheet.create({
   },
   dateFilterTextActive: {
     color: '#fff',
+  },
+  // Pickup Photo Modal styles
+  photoModalContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  photoModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 16,
+    backgroundColor: 'rgba(0,0,0,0.8)',
+  },
+  photoModalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  photoCloseBtn: {
+    padding: 8,
+  },
+  cameraContainer: {
+    flex: 1,
+  },
+  camera: {
+    flex: 1,
+  },
+  cameraOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cameraFrame: {
+    width: 280,
+    height: 280,
+    borderWidth: 2,
+    borderColor: '#2563eb',
+    borderRadius: 16,
+    backgroundColor: 'transparent',
+  },
+  cameraHint: {
+    color: '#fff',
+    fontSize: 16,
+    marginTop: 20,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  captureContainer: {
+    position: 'absolute',
+    bottom: 50,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  captureBtn: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#fff',
+  },
+  captureBtnDisabled: {
+    backgroundColor: '#64748b',
+  },
+  photoPreviewContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  photoPreview: {
+    width: '100%',
+    height: '70%',
+    borderRadius: 16,
+  },
+  photoActions: {
+    flexDirection: 'row',
+    gap: 16,
+    marginTop: 24,
+  },
+  retakeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#64748b',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  confirmBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#10b981',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
+  confirmBtnDisabled: {
+    opacity: 0.6,
+  },
+  photoActionText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
