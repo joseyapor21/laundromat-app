@@ -174,8 +174,11 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
     try {
       setIsSubmitting(true);
 
-      const data: { photo?: string; location: typeof location } = {
-        location,
+      const data: { photo?: string; location: { latitude: number; longitude: number; accuracy?: number; address?: string } } = {
+        location: {
+          ...location,
+          address: address || undefined,
+        },
       };
 
       if (capturedPhoto) {

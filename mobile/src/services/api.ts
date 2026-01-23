@@ -479,7 +479,7 @@ class ApiService {
   }
 
   async startBreak(data: {
-    location: { latitude: number; longitude: number; accuracy?: number };
+    location: { latitude: number; longitude: number; accuracy?: number; address?: string };
     notes?: string;
     deviceInfo?: string;
   }): Promise<TimeEntry> {
@@ -490,7 +490,7 @@ class ApiService {
   }
 
   async endBreak(data: {
-    location: { latitude: number; longitude: number; accuracy?: number };
+    location: { latitude: number; longitude: number; accuracy?: number; address?: string };
     notes?: string;
     deviceInfo?: string;
   }): Promise<TimeEntry> {
@@ -519,7 +519,8 @@ class ApiService {
   }
 
   getTimeEntryPhotoUrl(photoPath: string): string {
-    return `${API_BASE_URL}/api/uploads/${photoPath}`;
+    const token = this.getToken();
+    return `${API_BASE_URL}/api/uploads/${photoPath}${token ? `?token=${token}` : ''}`;
   }
 
   // Pickup Photos

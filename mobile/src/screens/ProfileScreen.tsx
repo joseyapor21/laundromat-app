@@ -143,10 +143,31 @@ export default function ProfileScreen() {
         accuracy: Location.Accuracy.High,
       });
 
+      // Get address via reverse geocoding
+      let addressStr: string | undefined;
+      try {
+        const addresses = await Location.reverseGeocodeAsync({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+        if (addresses.length > 0) {
+          const addr = addresses[0];
+          const parts = [];
+          if (addr.streetNumber) parts.push(addr.streetNumber);
+          if (addr.street) parts.push(addr.street);
+          if (addr.city) parts.push(addr.city);
+          if (addr.region) parts.push(addr.region);
+          addressStr = parts.join(', ') || addr.name || undefined;
+        }
+      } catch (geoError) {
+        console.error('Error reverse geocoding:', geoError);
+      }
+
       const location = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
         accuracy: loc.coords.accuracy || undefined,
+        address: addressStr,
       };
 
       if (isOnBreak) {

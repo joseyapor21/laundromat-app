@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getCurrentUser, isAdmin } from '@/lib/auth/server';
+import { getCurrentUser, isAdmin, verifyToken } from '@/lib/auth/server';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -10,7 +10,16 @@ interface RouteParams {
 // GET - Serve uploaded files (protected)
 export async function GET(request: NextRequest, { params }: RouteParams) {
   try {
-    const currentUser = await getCurrentUser();
+    // Check for token in query parameter (for Image component)
+    const { searchParams } = new URL(request.url);
+    const queryToken = searchParams.get('token');
+
+    let currentUser = await getCurrentUser();
+
+    // If no user from header, try query token
+    if (!currentUser && queryToken) {
+      currentUser = await verifyToken(queryToken);
+    }
 
     if (!currentUser) {
       return NextResponse.json(
