@@ -249,9 +249,11 @@ export type ActivityAction =
   | 'price_override'
   | 'assign_washer'
   | 'assign_dryer'
-  | 'release_machine';
+  | 'release_machine'
+  | 'clock_in'
+  | 'clock_out';
 
-export type EntityType = 'order' | 'user' | 'customer' | 'extra_item' | 'settings' | 'machine';
+export type EntityType = 'order' | 'user' | 'customer' | 'extra_item' | 'settings' | 'machine' | 'time_entry';
 
 export interface ActivityLog {
   _id: string;

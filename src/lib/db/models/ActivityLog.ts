@@ -22,11 +22,12 @@ const activityLogSchema = new mongoose.Schema<ActivityLogDocument>({
       'create_extra_item', 'update_extra_item', 'delete_extra_item',
       'update_settings', 'price_override',
       'assign_washer', 'assign_dryer', 'release_machine',
+      'clock_in', 'clock_out',
     ] as ActivityAction[],
   },
   entityType: {
     type: String,
-    enum: ['order', 'user', 'customer', 'extra_item', 'settings', 'machine'] as EntityType[],
+    enum: ['order', 'user', 'customer', 'extra_item', 'settings', 'machine', 'time_entry'] as EntityType[],
     required: false,
   },
   entityId: {
