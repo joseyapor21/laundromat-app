@@ -109,19 +109,22 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
       }
 
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.7,
+        quality: 0.5,
         base64: true,
         exif: false,
+        skipProcessing: true,
       });
 
-      if (photo?.uri) {
-        // Compress and resize the image
+      if (photo?.base64) {
+        // Use the photo directly without extra manipulation for speed
+        setCapturedPhoto(photo.base64);
+      } else if (photo?.uri) {
+        // Fallback: compress the image
         const manipulated = await ImageManipulator.manipulateAsync(
           photo.uri,
-          [{ resize: { width: 800 } }],
-          { compress: 0.6, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+          [{ resize: { width: 640 } }],
+          { compress: 0.5, format: ImageManipulator.SaveFormat.JPEG, base64: true }
         );
-
         setCapturedPhoto(manipulated.base64 || null);
       }
     } catch (error) {
