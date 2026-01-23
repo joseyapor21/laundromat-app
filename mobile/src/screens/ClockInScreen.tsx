@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
   Linking,
+  Image,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -288,15 +289,11 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
 
         <View style={styles.previewContainer}>
           <View style={styles.photoPreview}>
-            <CameraView
+            <Image
+              source={{ uri: `data:image/jpeg;base64,${capturedPhoto}` }}
               style={styles.previewImage}
-              facing="front"
-            >
-              {/* This is a hack - we show the base64 image as an overlay */}
-            </CameraView>
-            <View style={styles.previewOverlay}>
-              <Text style={styles.previewText}>Photo captured!</Text>
-            </View>
+              resizeMode="cover"
+            />
           </View>
 
           <View style={styles.locationInfo}>
