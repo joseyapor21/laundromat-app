@@ -57,10 +57,13 @@ export default function CreateCustomerScreen() {
       if (notes.trim()) customerData.notes = notes.trim();
       if (buzzerCode.trim()) customerData.buzzerCode = buzzerCode.trim();
 
-      await api.createCustomer(customerData);
+      const newCustomer = await api.createCustomer(customerData);
 
       Alert.alert('Success', 'Customer created successfully', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+        { text: 'OK', onPress: () => {
+          // Pass the new customer back to the previous screen
+          navigation.navigate('CreateOrder', { newCustomer });
+        }}
       ]);
     } catch (error) {
       console.error('Failed to create customer:', error);

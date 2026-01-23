@@ -16,7 +16,7 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
@@ -57,8 +57,13 @@ interface Bag {
   description: string;
 }
 
+type CreateOrderParams = {
+  newCustomer?: Customer;
+};
+
 export default function CreateOrderScreen() {
   const navigation = useNavigation();
+  const route = useRoute<RouteProp<{ params: CreateOrderParams }, 'params'>>();
   const insets = useSafeAreaInsets();
   const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
   const [loading, setLoading] = useState(true);
@@ -110,6 +115,26 @@ export default function CreateOrderScreen() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Handle new customer passed back from CreateCustomerScreen
+  useEffect(() => {
+    const newCustomer = route.params?.newCustomer;
+    if (newCustomer) {
+      // Add to customers list if not already there
+      setCustomers(prev => {
+        const exists = prev.some(c => c._id === newCustomer._id);
+        return exists ? prev : [newCustomer, ...prev];
+      });
+      // Select the new customer
+      setSelectedCustomer(newCustomer);
+      setCustomerSearch('');
+      if (newCustomer.notes) {
+        setSpecialInstructions(newCustomer.notes);
+      }
+      // Clear the param to prevent re-processing
+      navigation.setParams({ newCustomer: undefined } as any);
+    }
+  }, [route.params?.newCustomer]);
 
   // Refresh selected customer data when returning from EditCustomerScreen
   useFocusEffect(
