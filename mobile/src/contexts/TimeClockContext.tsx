@@ -5,9 +5,12 @@ import type { ClockStatus, TimeEntry } from '../types';
 
 interface TimeClockContextType {
   isClockedIn: boolean;
+  isOnBreak: boolean;
   isLoading: boolean;
   lastClockIn: Date | null;
   lastClockOut: Date | null;
+  lastBreakStart: Date | null;
+  lastBreakEnd: Date | null;
   todayEntries: ClockStatus['todayEntries'];
   showClockInPrompt: boolean;
   dismissedClockInPrompt: boolean;
@@ -22,6 +25,14 @@ interface TimeClockContextType {
     location: { latitude: number; longitude: number; accuracy?: number };
     notes?: string;
   }) => Promise<TimeEntry>;
+  startBreak: (data: {
+    location: { latitude: number; longitude: number; accuracy?: number };
+    notes?: string;
+  }) => Promise<TimeEntry>;
+  endBreak: (data: {
+    location: { latitude: number; longitude: number; accuracy?: number };
+    notes?: string;
+  }) => Promise<TimeEntry>;
   dismissClockInPrompt: () => void;
   resetDismissed: () => void;
 }
@@ -31,9 +42,12 @@ const TimeClockContext = createContext<TimeClockContextType | undefined>(undefin
 export function TimeClockProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, user } = useAuth();
   const [isClockedIn, setIsClockedIn] = useState(false);
+  const [isOnBreak, setIsOnBreak] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [lastClockIn, setLastClockIn] = useState<Date | null>(null);
   const [lastClockOut, setLastClockOut] = useState<Date | null>(null);
+  const [lastBreakStart, setLastBreakStart] = useState<Date | null>(null);
+  const [lastBreakEnd, setLastBreakEnd] = useState<Date | null>(null);
   const [todayEntries, setTodayEntries] = useState<ClockStatus['todayEntries']>([]);
   const [dismissedClockInPrompt, setDismissedClockInPrompt] = useState(false);
 
@@ -44,8 +58,11 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     } else {
       // Reset state when logged out
       setIsClockedIn(false);
+      setIsOnBreak(false);
       setLastClockIn(null);
       setLastClockOut(null);
+      setLastBreakStart(null);
+      setLastBreakEnd(null);
       setTodayEntries([]);
       setDismissedClockInPrompt(false);
       setIsLoading(false);
@@ -59,8 +76,11 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
       setIsLoading(true);
       const status = await api.getClockStatus();
       setIsClockedIn(status.isClockedIn);
+      setIsOnBreak(status.isOnBreak || false);
       setLastClockIn(status.lastClockIn ? new Date(status.lastClockIn) : null);
       setLastClockOut(status.lastClockOut ? new Date(status.lastClockOut) : null);
+      setLastBreakStart(status.lastBreakStart ? new Date(status.lastBreakStart) : null);
+      setLastBreakEnd(status.lastBreakEnd ? new Date(status.lastBreakEnd) : null);
       setTodayEntries(status.todayEntries || []);
     } catch (error) {
       console.error('Failed to check clock status:', error);
@@ -112,6 +132,46 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     return entry;
   }, [user]);
 
+  const startBreak = useCallback(async (data: {
+    location: { latitude: number; longitude: number; accuracy?: number };
+    notes?: string;
+  }): Promise<TimeEntry> => {
+    const entry = await api.startBreak({
+      ...data,
+      deviceInfo: `${user?.firstName || 'User'}'s device`,
+    });
+
+    // Update state
+    setIsOnBreak(true);
+    setLastBreakStart(new Date(entry.timestamp));
+    setTodayEntries(prev => [
+      { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location },
+      ...prev,
+    ]);
+
+    return entry;
+  }, [user]);
+
+  const endBreak = useCallback(async (data: {
+    location: { latitude: number; longitude: number; accuracy?: number };
+    notes?: string;
+  }): Promise<TimeEntry> => {
+    const entry = await api.endBreak({
+      ...data,
+      deviceInfo: `${user?.firstName || 'User'}'s device`,
+    });
+
+    // Update state
+    setIsOnBreak(false);
+    setLastBreakEnd(new Date(entry.timestamp));
+    setTodayEntries(prev => [
+      { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location },
+      ...prev,
+    ]);
+
+    return entry;
+  }, [user]);
+
   const dismissClockInPrompt = useCallback(() => {
     setDismissedClockInPrompt(true);
   }, []);
@@ -127,15 +187,20 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     <TimeClockContext.Provider
       value={{
         isClockedIn,
+        isOnBreak,
         isLoading,
         lastClockIn,
         lastClockOut,
+        lastBreakStart,
+        lastBreakEnd,
         todayEntries,
         showClockInPrompt,
         dismissedClockInPrompt,
         checkClockStatus,
         clockIn,
         clockOut,
+        startBreak,
+        endBreak,
         dismissClockInPrompt,
         resetDismissed,
       }}

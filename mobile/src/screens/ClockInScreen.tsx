@@ -34,6 +34,7 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [location, setLocation] = useState<{ latitude: number; longitude: number; accuracy?: number } | null>(null);
+  const [address, setAddress] = useState<string | null>(null);
 
   const cameraRef = useRef<CameraView>(null);
 
@@ -56,6 +57,25 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
             longitude: loc.coords.longitude,
             accuracy: loc.coords.accuracy || undefined,
           });
+
+          // Reverse geocode to get address
+          try {
+            const addresses = await Location.reverseGeocodeAsync({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            });
+            if (addresses.length > 0) {
+              const addr = addresses[0];
+              const parts = [];
+              if (addr.streetNumber) parts.push(addr.streetNumber);
+              if (addr.street) parts.push(addr.street);
+              if (addr.city) parts.push(addr.city);
+              if (addr.region) parts.push(addr.region);
+              setAddress(parts.join(', ') || addr.name || null);
+            }
+          } catch (geoError) {
+            console.error('Error reverse geocoding:', geoError);
+          }
         } catch (error) {
           console.error('Error getting location:', error);
         }
@@ -279,7 +299,7 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
           <View style={styles.locationInfo}>
             <Ionicons name="location" size={20} color="#22c55e" />
             <Text style={styles.locationText}>
-              Location: {location?.latitude.toFixed(6)}, {location?.longitude.toFixed(6)}
+              {address || (location ? `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}` : 'Getting location...')}
             </Text>
           </View>
 
@@ -347,9 +367,7 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
           <View style={styles.locationInfo}>
             <Ionicons name="location" size={20} color="#22c55e" />
             <Text style={styles.locationText}>
-              {location
-                ? `Location: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
-                : 'Getting location...'}
+              {address || (location ? `${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}` : 'Getting location...')}
             </Text>
           </View>
 

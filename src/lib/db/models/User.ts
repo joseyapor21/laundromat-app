@@ -20,6 +20,9 @@ export interface UserDoc {
   isClockedIn: boolean;
   lastClockIn?: Date;
   lastClockOut?: Date;
+  isOnBreak: boolean;
+  lastBreakStart?: Date;
+  lastBreakEnd?: Date;
   comparePassword(password: string): Promise<boolean>;
 }
 
@@ -88,6 +91,18 @@ const userSchema = new mongoose.Schema<UserDoc>({
     default: null,
   },
   lastClockOut: {
+    type: Date,
+    default: null,
+  },
+  isOnBreak: {
+    type: Boolean,
+    default: false,
+  },
+  lastBreakStart: {
+    type: Date,
+    default: null,
+  },
+  lastBreakEnd: {
     type: Date,
     default: null,
   },

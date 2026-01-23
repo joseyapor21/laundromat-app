@@ -22,7 +22,7 @@ const activityLogSchema = new mongoose.Schema<ActivityLogDocument>({
       'create_extra_item', 'update_extra_item', 'delete_extra_item',
       'update_settings', 'price_override',
       'assign_washer', 'assign_dryer', 'release_machine',
-      'clock_in', 'clock_out',
+      'clock_in', 'clock_out', 'break_start', 'break_end',
     ] as ActivityAction[],
   },
   entityType: {

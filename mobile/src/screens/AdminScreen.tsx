@@ -14,6 +14,7 @@ import {
   Switch,
   Platform,
   KeyboardAvoidingView,
+  Image,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -51,6 +52,8 @@ export default function AdminScreen() {
   const [activityTotal, setActivityTotal] = useState(0);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [timeEntriesLoading, setTimeEntriesLoading] = useState(false);
+  const [selectedTimeEntry, setSelectedTimeEntry] = useState<TimeEntry | null>(null);
+  const [showTimeEntryPhotoModal, setShowTimeEntryPhotoModal] = useState(false);
 
   // Printer state
   const [printerScanning, setPrinterScanning] = useState(false);
@@ -1201,23 +1204,43 @@ export default function AdminScreen() {
               renderItem={({ item: entry }) => {
                 const entryDate = new Date(entry.timestamp);
                 const isClockIn = entry.type === 'clock_in';
+                const isBreakStart = entry.type === 'break_start';
+                const isBreakEnd = entry.type === 'break_end';
+                const isBreak = isBreakStart || isBreakEnd;
+
+                const getEntryConfig = () => {
+                  if (isClockIn) return { bg: '#dcfce7', color: '#16a34a', icon: 'log-in' as const, label: 'Clock In' };
+                  if (isBreakStart) return { bg: '#fef3c7', color: '#d97706', icon: 'cafe' as const, label: 'Break Start' };
+                  if (isBreakEnd) return { bg: '#dbeafe', color: '#2563eb', icon: 'cafe-outline' as const, label: 'Break End' };
+                  return { bg: '#fee2e2', color: '#dc2626', icon: 'log-out' as const, label: 'Clock Out' };
+                };
+                const config = getEntryConfig();
+
                 return (
-                  <View style={styles.timeEntryCard}>
+                  <TouchableOpacity
+                    style={styles.timeEntryCard}
+                    onPress={() => {
+                      if (entry.photoPath) {
+                        setSelectedTimeEntry(entry);
+                        setShowTimeEntryPhotoModal(true);
+                      }
+                    }}
+                  >
                     <View style={styles.timeEntryHeader}>
                       <View style={[
                         styles.timeEntryIcon,
-                        { backgroundColor: isClockIn ? '#dcfce7' : '#fee2e2' }
+                        { backgroundColor: config.bg }
                       ]}>
                         <Ionicons
-                          name={isClockIn ? 'log-in' : 'log-out'}
+                          name={config.icon}
                           size={20}
-                          color={isClockIn ? '#16a34a' : '#dc2626'}
+                          color={config.color}
                         />
                       </View>
                       <View style={styles.timeEntryInfo}>
                         <Text style={styles.timeEntryName}>{entry.userName}</Text>
-                        <Text style={styles.timeEntryType}>
-                          {isClockIn ? 'Clock In' : 'Clock Out'}
+                        <Text style={[styles.timeEntryType, { color: config.color }]}>
+                          {config.label}
                         </Text>
                       </View>
                       <View style={styles.timeEntryTimeBox}>
@@ -1246,11 +1269,11 @@ export default function AdminScreen() {
                     )}
                     {entry.photoPath && (
                       <View style={styles.timeEntryPhotoIndicator}>
-                        <Ionicons name="camera" size={14} color="#64748b" />
-                        <Text style={styles.timeEntryPhotoText}>Photo captured</Text>
+                        <Ionicons name="camera" size={14} color="#3b82f6" />
+                        <Text style={[styles.timeEntryPhotoText, { color: '#3b82f6' }]}>Tap to view photo</Text>
                       </View>
                     )}
-                  </View>
+                  </TouchableOpacity>
                 );
               }}
               ListEmptyComponent={
@@ -1726,6 +1749,60 @@ export default function AdminScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Time Entry Photo Modal */}
+      <Modal visible={showTimeEntryPhotoModal} animationType="fade" transparent>
+        <View style={styles.photoModalOverlay}>
+          <View style={styles.photoModalContent}>
+            <View style={styles.photoModalHeader}>
+              <Text style={styles.photoModalTitle}>
+                {selectedTimeEntry?.type === 'clock_in' ? 'Clock In' :
+                 selectedTimeEntry?.type === 'clock_out' ? 'Clock Out' :
+                 selectedTimeEntry?.type === 'break_start' ? 'Break Start' : 'Break End'} Photo
+              </Text>
+              <TouchableOpacity
+                style={styles.photoModalCloseBtn}
+                onPress={() => {
+                  setShowTimeEntryPhotoModal(false);
+                  setSelectedTimeEntry(null);
+                }}
+              >
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            {selectedTimeEntry?.photoPath && (
+              <Image
+                source={{ uri: api.getTimeEntryPhotoUrl(selectedTimeEntry.photoPath) }}
+                style={styles.photoModalImage}
+                resizeMode="contain"
+              />
+            )}
+            <View style={styles.photoModalDetails}>
+              <Text style={styles.photoModalName}>{selectedTimeEntry?.userName}</Text>
+              <Text style={styles.photoModalTime}>
+                {selectedTimeEntry && new Date(selectedTimeEntry.timestamp).toLocaleString('en-US', {
+                  weekday: 'short',
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  hour12: true,
+                })}
+              </Text>
+              {selectedTimeEntry?.location && (
+                <View style={styles.photoModalLocation}>
+                  <Ionicons name="location" size={16} color="#64748b" />
+                  <Text style={styles.photoModalLocationText}>
+                    {selectedTimeEntry.location.address ||
+                      `${selectedTimeEntry.location.latitude.toFixed(4)}, ${selectedTimeEntry.location.longitude.toFixed(4)}`}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
       </Modal>
       </View>
     </KeyboardAvoidingView>
@@ -2528,5 +2605,64 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94a3b8',
     marginTop: 4,
+  },
+  // Photo Modal styles
+  photoModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '90%',
+    maxWidth: 400,
+    overflow: 'hidden',
+  },
+  photoModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  photoModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  photoModalCloseBtn: {
+    padding: 4,
+  },
+  photoModalImage: {
+    width: '100%',
+    height: 300,
+    backgroundColor: '#f1f5f9',
+  },
+  photoModalDetails: {
+    padding: 16,
+    gap: 8,
+  },
+  photoModalName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  photoModalTime: {
+    fontSize: 14,
+    color: '#64748b',
+  },
+  photoModalLocation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 4,
+  },
+  photoModalLocationText: {
+    fontSize: 13,
+    color: '#64748b',
+    flex: 1,
   },
 });

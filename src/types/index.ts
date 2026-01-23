@@ -251,7 +251,9 @@ export type ActivityAction =
   | 'assign_dryer'
   | 'release_machine'
   | 'clock_in'
-  | 'clock_out';
+  | 'clock_out'
+  | 'break_start'
+  | 'break_end';
 
 export type EntityType = 'order' | 'user' | 'customer' | 'extra_item' | 'settings' | 'machine' | 'time_entry';
 

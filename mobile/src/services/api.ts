@@ -478,6 +478,28 @@ class ApiService {
     });
   }
 
+  async startBreak(data: {
+    location: { latitude: number; longitude: number; accuracy?: number };
+    notes?: string;
+    deviceInfo?: string;
+  }): Promise<TimeEntry> {
+    return this.request<TimeEntry>('/time-entries', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'break_start', ...data }),
+    });
+  }
+
+  async endBreak(data: {
+    location: { latitude: number; longitude: number; accuracy?: number };
+    notes?: string;
+    deviceInfo?: string;
+  }): Promise<TimeEntry> {
+    return this.request<TimeEntry>('/time-entries', {
+      method: 'POST',
+      body: JSON.stringify({ type: 'break_end', ...data }),
+    });
+  }
+
   async getTimeEntries(params?: {
     userId?: string;
     startDate?: string;

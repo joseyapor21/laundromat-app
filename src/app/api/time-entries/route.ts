@@ -89,14 +89,14 @@ export async function POST(request: NextRequest) {
     const { type, photo, location, notes, deviceInfo } = body;
 
     // Validate required fields
-    if (!type || !['clock_in', 'clock_out'].includes(type)) {
+    if (!type || !['clock_in', 'clock_out', 'break_start', 'break_end'].includes(type)) {
       return NextResponse.json(
-        { error: 'Invalid type. Must be clock_in or clock_out' },
+        { error: 'Invalid type. Must be clock_in, clock_out, break_start, or break_end' },
         { status: 400 }
       );
     }
 
-    // Photo required for clock_in, optional for clock_out
+    // Photo required for clock_in only
     if (type === 'clock_in' && !photo) {
       return NextResponse.json(
         { error: 'Photo is required for clock in' },
@@ -155,30 +155,49 @@ export async function POST(request: NextRequest) {
       notes,
     });
 
-    // Update user's clock status
-    const userUpdate: Record<string, unknown> = {
-      isClockedIn: type === 'clock_in',
-    };
-    if (type === 'clock_in') {
-      userUpdate.lastClockIn = now;
-    } else {
-      userUpdate.lastClockOut = now;
+    // Update user's clock status (only for clock_in/clock_out, not breaks)
+    if (type === 'clock_in' || type === 'clock_out') {
+      const userUpdate: Record<string, unknown> = {
+        isClockedIn: type === 'clock_in',
+      };
+      if (type === 'clock_in') {
+        userUpdate.lastClockIn = now;
+      } else {
+        userUpdate.lastClockOut = now;
+      }
+      await User.findByIdAndUpdate(currentUser.userId, userUpdate);
+    } else if (type === 'break_start' || type === 'break_end') {
+      // Update user's break status
+      await User.findByIdAndUpdate(currentUser.userId, {
+        isOnBreak: type === 'break_start',
+        ...(type === 'break_start' ? { lastBreakStart: now } : { lastBreakEnd: now }),
+      });
     }
 
-    await User.findByIdAndUpdate(currentUser.userId, userUpdate);
-
     // Log activity
+    const actionMap: Record<string, string> = {
+      clock_in: 'clock_in',
+      clock_out: 'clock_out',
+      break_start: 'break_start',
+      break_end: 'break_end',
+    };
+    const detailsMap: Record<string, string> = {
+      clock_in: 'clocked in',
+      clock_out: 'clocked out',
+      break_start: 'started break',
+      break_end: 'ended break',
+    };
     try {
       await ActivityLog.create({
         userId: currentUser.userId,
         userName: currentUser.name,
-        action: type === 'clock_in' ? 'clock_in' : 'clock_out',
+        action: actionMap[type],
         entityType: 'time_entry',
         entityId: timeEntry._id.toString(),
-        details: `${currentUser.name} ${type === 'clock_in' ? 'clocked in' : 'clocked out'}`,
+        details: `${currentUser.name} ${detailsMap[type]}`,
         metadata: {
           location,
-          hasPhoto: true,
+          hasPhoto: !!photo,
         },
         ipAddress: request.headers.get('x-forwarded-for') || '',
         userAgent: request.headers.get('user-agent') || '',

@@ -15,6 +15,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { useAuth } from '../contexts/AuthContext';
 import { useTimeClock } from '../contexts/TimeClockContext';
 import { api } from '../services/api';
@@ -35,10 +36,11 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { user, logout, refreshUser } = useAuth();
-  const { isClockedIn, lastClockIn, isLoading: isClockLoading } = useTimeClock();
+  const { isClockedIn, isOnBreak, lastClockIn, lastBreakStart, startBreak, endBreak, isLoading: isClockLoading } = useTimeClock();
 
   // Clock out modal
   const [showClockOutModal, setShowClockOutModal] = useState(false);
+  const [isBreakLoading, setIsBreakLoading] = useState(false);
 
   // Edit profile modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -127,6 +129,40 @@ export default function ProfileScreen() {
       ]
     );
   }
+
+  const handleBreakToggle = async () => {
+    setIsBreakLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Error', 'Location permission is required for break tracking');
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const location = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        accuracy: loc.coords.accuracy || undefined,
+      };
+
+      if (isOnBreak) {
+        await endBreak({ location });
+        Alert.alert('Break Ended', 'Your break has been recorded.');
+      } else {
+        await startBreak({ location });
+        Alert.alert('Break Started', 'Your break has been recorded.');
+      }
+    } catch (error: any) {
+      console.error('Break error:', error);
+      Alert.alert('Error', error.message || 'Failed to record break');
+    } finally {
+      setIsBreakLoading(false);
+    }
+  };
 
   const getRoleLabel = (role: string) => {
     switch (role) {
@@ -372,13 +408,43 @@ export default function ProfileScreen() {
         </View>
 
         {isClockedIn && (
-          <TouchableOpacity
-            style={styles.clockOutButton}
-            onPress={() => setShowClockOutModal(true)}
-          >
-            <Ionicons name="log-out-outline" size={20} color="#ef4444" />
-            <Text style={styles.clockOutButtonText}>Clock Out</Text>
-          </TouchableOpacity>
+          <View style={styles.clockActionButtons}>
+            <TouchableOpacity
+              style={[styles.breakButton, isOnBreak && styles.breakButtonActive]}
+              onPress={handleBreakToggle}
+              disabled={isBreakLoading}
+            >
+              {isBreakLoading ? (
+                <ActivityIndicator size="small" color={isOnBreak ? '#fff' : '#d97706'} />
+              ) : (
+                <>
+                  <Ionicons
+                    name={isOnBreak ? 'cafe' : 'cafe-outline'}
+                    size={20}
+                    color={isOnBreak ? '#fff' : '#d97706'}
+                  />
+                  <Text style={[styles.breakButtonText, isOnBreak && styles.breakButtonTextActive]}>
+                    {isOnBreak ? 'End Break' : 'Start Break'}
+                  </Text>
+                </>
+              )}
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.clockOutButton}
+              onPress={() => setShowClockOutModal(true)}
+            >
+              <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+              <Text style={styles.clockOutButtonText}>Clock Out</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        {isOnBreak && (
+          <View style={styles.breakStatusBanner}>
+            <Ionicons name="cafe" size={16} color="#d97706" />
+            <Text style={styles.breakStatusText}>
+              On break since {lastBreakStart?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+            </Text>
+          </View>
         )}
       </View>
 
@@ -649,6 +715,7 @@ const styles = StyleSheet.create({
     color: '#22c55e',
   },
   clockOutButton: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
@@ -658,12 +725,54 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#fecaca',
-    marginTop: 8,
   },
   clockOutButtonText: {
     fontSize: 15,
     fontWeight: '600',
     color: '#ef4444',
+  },
+  clockActionButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+  },
+  breakButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#fff',
+    padding: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+  },
+  breakButtonActive: {
+    backgroundColor: '#d97706',
+    borderColor: '#d97706',
+  },
+  breakButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#d97706',
+  },
+  breakButtonTextActive: {
+    color: '#fff',
+  },
+  breakStatusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#fef3c7',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  breakStatusText: {
+    fontSize: 13,
+    color: '#92400e',
+    fontWeight: '500',
   },
   logoutButton: {
     flexDirection: 'row',

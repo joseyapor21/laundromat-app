@@ -233,12 +233,14 @@ export interface ActivityLog {
 }
 
 // Time Clock types
+export type TimeEntryType = 'clock_in' | 'clock_out' | 'break_start' | 'break_end';
+
 export interface TimeEntry {
   _id: string;
   userId: string;
   userName: string;
   userInitials: string;
-  type: 'clock_in' | 'clock_out';
+  type: TimeEntryType;
   timestamp: Date;
   location: {
     latitude: number;
@@ -246,7 +248,7 @@ export interface TimeEntry {
     accuracy?: number;
     address?: string;
   };
-  photoPath: string;
+  photoPath?: string;
   deviceInfo?: string;
   notes?: string;
   createdAt: Date;
@@ -254,11 +256,14 @@ export interface TimeEntry {
 
 export interface ClockStatus {
   isClockedIn: boolean;
+  isOnBreak: boolean;
   lastClockIn?: Date;
   lastClockOut?: Date;
+  lastBreakStart?: Date;
+  lastBreakEnd?: Date;
   todayEntries: Array<{
     _id: string;
-    type: 'clock_in' | 'clock_out';
+    type: TimeEntryType;
     timestamp: Date;
     location: {
       latitude: number;

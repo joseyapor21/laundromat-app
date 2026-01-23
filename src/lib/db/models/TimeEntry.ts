@@ -5,7 +5,7 @@ export interface TimeEntryDoc {
   userId: string;
   userName: string;
   userInitials: string;
-  type: 'clock_in' | 'clock_out';
+  type: 'clock_in' | 'clock_out' | 'break_start' | 'break_end';
   timestamp: Date;
   location: {
     latitude: number;
@@ -35,7 +35,7 @@ const timeEntrySchema = new mongoose.Schema<TimeEntryDoc>({
   type: {
     type: String,
     required: true,
-    enum: ['clock_in', 'clock_out'],
+    enum: ['clock_in', 'clock_out', 'break_start', 'break_end'],
   },
   timestamp: {
     type: Date,

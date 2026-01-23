@@ -42,10 +42,23 @@ export async function GET() {
       isClockedIn = latestEntry.type === 'clock_in';
     }
 
+    // Determine break status from entries
+    let isOnBreak = user?.isOnBreak || false;
+    if (todayEntries.length > 0) {
+      // Find the most recent break entry
+      const latestBreakEntry = todayEntries.find(e => e.type === 'break_start' || e.type === 'break_end');
+      if (latestBreakEntry) {
+        isOnBreak = latestBreakEntry.type === 'break_start';
+      }
+    }
+
     return NextResponse.json({
       isClockedIn,
+      isOnBreak,
       lastClockIn: user?.lastClockIn || null,
       lastClockOut: user?.lastClockOut || null,
+      lastBreakStart: user?.lastBreakStart || null,
+      lastBreakEnd: user?.lastBreakEnd || null,
       todayEntries: todayEntries.map(entry => ({
         _id: entry._id.toString(),
         type: entry.type,
