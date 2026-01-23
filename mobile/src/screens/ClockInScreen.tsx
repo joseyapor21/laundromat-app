@@ -140,7 +140,8 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
   };
 
   const submitClockEntry = async () => {
-    if (!capturedPhoto) {
+    // Photo required for clock in, optional for clock out
+    if (mode === 'clock_in' && !capturedPhoto) {
       Alert.alert('Error', 'Please take a photo first');
       return;
     }
@@ -153,10 +154,13 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
     try {
       setIsSubmitting(true);
 
-      const data = {
-        photo: `data:image/jpeg;base64,${capturedPhoto}`,
+      const data: { photo?: string; location: typeof location } = {
         location,
       };
+
+      if (capturedPhoto) {
+        data.photo = `data:image/jpeg;base64,${capturedPhoto}`;
+      }
 
       if (mode === 'clock_in') {
         await clockIn(data);
@@ -322,16 +326,81 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
     );
   }
 
-  // Camera view
+  // Clock out view - no photo required
+  if (mode === 'clock_out') {
+    return (
+      <View style={[styles.container, { paddingTop: insets.top }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleDismiss} style={styles.headerButton}>
+            <Ionicons name="close" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Clock Out</Text>
+          <View style={styles.headerButton} />
+        </View>
+
+        <View style={styles.clockOutContainer}>
+          <View style={styles.clockOutIcon}>
+            <Ionicons name="log-out" size={64} color="#ef4444" />
+          </View>
+          <Text style={styles.clockOutTitle}>Ready to Clock Out?</Text>
+
+          <View style={styles.locationInfo}>
+            <Ionicons name="location" size={20} color="#22c55e" />
+            <Text style={styles.locationText}>
+              {location
+                ? `Location: ${location.latitude.toFixed(6)}, ${location.longitude.toFixed(6)}`
+                : 'Getting location...'}
+            </Text>
+          </View>
+
+          <View style={styles.timestampInfo}>
+            <Ionicons name="time" size={20} color="#3b82f6" />
+            <Text style={styles.timestampText}>
+              {new Date().toLocaleString('en-US', {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                hour12: true,
+              })}
+            </Text>
+          </View>
+        </View>
+
+        <View style={[styles.bottomActions, { paddingBottom: insets.bottom + 20 }]}>
+          <TouchableOpacity style={styles.dismissTextButton} onPress={handleDismiss}>
+            <Text style={styles.dismissTextButtonText}>Cancel</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.clockOutButton, isSubmitting && styles.submitButtonDisabled]}
+            onPress={submitClockEntry}
+            disabled={isSubmitting || !location}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="log-out" size={24} color="#fff" />
+                <Text style={styles.submitButtonText}>Clock Out</Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Camera view for clock in
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={handleDismiss} style={styles.headerButton}>
           <Ionicons name="close" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>
-          {mode === 'clock_in' ? 'Clock In' : 'Clock Out'}
-        </Text>
+        <Text style={styles.headerTitle}>Clock In</Text>
         <View style={styles.headerButton} />
       </View>
 
@@ -621,5 +690,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  // Clock out styles
+  clockOutContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 32,
+  },
+  clockOutIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+  },
+  clockOutTitle: {
+    fontSize: 24,
+    fontWeight: '600',
+    color: '#fff',
+    marginBottom: 32,
+  },
+  clockOutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    backgroundColor: '#ef4444',
+    borderRadius: 12,
   },
 });

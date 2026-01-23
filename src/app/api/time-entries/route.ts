@@ -96,9 +96,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!photo) {
+    // Photo required for clock_in, optional for clock_out
+    if (type === 'clock_in' && !photo) {
       return NextResponse.json(
-        { error: 'Photo is required' },
+        { error: 'Photo is required for clock in' },
         { status: 400 }
       );
     }
@@ -116,21 +117,25 @@ export async function POST(request: NextRequest) {
       ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
       : currentUser.name.substring(0, 2).toUpperCase();
 
-    // Save photo to file system
     const now = new Date();
-    const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const timestamp = now.getTime();
-    const fileName = `${currentUser.userId}_${timestamp}_${type}.jpg`;
-    const relativePath = `time-entries/${yearMonth}/${fileName}`;
+    let relativePath: string | undefined;
 
-    // Create directory if it doesn't exist
-    const uploadDir = path.join(process.cwd(), 'uploads', 'time-entries', yearMonth);
-    await fs.mkdir(uploadDir, { recursive: true });
+    // Save photo to file system (if provided)
+    if (photo) {
+      const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const timestamp = now.getTime();
+      const fileName = `${currentUser.userId}_${timestamp}_${type}.jpg`;
+      relativePath = `time-entries/${yearMonth}/${fileName}`;
 
-    // Save the photo (base64 to file)
-    const photoBuffer = Buffer.from(photo.replace(/^data:image\/\w+;base64,/, ''), 'base64');
-    const filePath = path.join(uploadDir, fileName);
-    await fs.writeFile(filePath, photoBuffer);
+      // Create directory if it doesn't exist
+      const uploadDir = path.join(process.cwd(), 'uploads', 'time-entries', yearMonth);
+      await fs.mkdir(uploadDir, { recursive: true });
+
+      // Save the photo (base64 to file)
+      const photoBuffer = Buffer.from(photo.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+      const filePath = path.join(uploadDir, fileName);
+      await fs.writeFile(filePath, photoBuffer);
+    }
 
     // Create time entry
     const timeEntry = await TimeEntry.create({
@@ -145,7 +150,7 @@ export async function POST(request: NextRequest) {
         accuracy: location.accuracy,
         address: location.address,
       },
-      photoPath: relativePath,
+      ...(relativePath && { photoPath: relativePath }),
       deviceInfo,
       notes,
     });
