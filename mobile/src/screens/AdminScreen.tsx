@@ -54,6 +54,7 @@ export default function AdminScreen() {
   const [timeEntriesLoading, setTimeEntriesLoading] = useState(false);
   const [selectedTimeEntry, setSelectedTimeEntry] = useState<TimeEntry | null>(null);
   const [showTimeEntryPhotoModal, setShowTimeEntryPhotoModal] = useState(false);
+  const [timeClockUserFilter, setTimeClockUserFilter] = useState<string>('all');
 
   // Printer state
   const [printerScanning, setPrinterScanning] = useState(false);
@@ -1179,19 +1180,40 @@ export default function AdminScreen() {
       {/* Time Clock Tab */}
       {activeTab === 'timeclock' && (
         <View style={{ flex: 1 }}>
-          <View style={styles.actionHeader}>
-            <Text style={styles.countText}>{timeEntries.length} entries</Text>
+          {/* User Filter */}
+          <View style={styles.timeClockFilterBar}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.filterChip, timeClockUserFilter === 'all' && styles.filterChipActive]}
+                onPress={() => setTimeClockUserFilter('all')}
+              >
+                <Text style={[styles.filterChipText, timeClockUserFilter === 'all' && styles.filterChipTextActive]}>
+                  All Users
+                </Text>
+              </TouchableOpacity>
+              {Array.from(new Set(timeEntries.map(e => e.userId))).map(userId => {
+                const userName = timeEntries.find(e => e.userId === userId)?.userName || userId;
+                return (
+                  <TouchableOpacity
+                    key={userId}
+                    style={[styles.filterChip, timeClockUserFilter === userId && styles.filterChipActive]}
+                    onPress={() => setTimeClockUserFilter(userId)}
+                  >
+                    <Text style={[styles.filterChipText, timeClockUserFilter === userId && styles.filterChipTextActive]}>
+                      {userName}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
           {timeEntriesLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#2563eb" />
             </View>
           ) : (
-            <FlatList
-              data={timeEntries}
-              keyExtractor={(item) => item._id}
+            <ScrollView
               contentContainerStyle={styles.listContent}
-              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
               refreshControl={
                 <RefreshControl
                   refreshing={refreshing}
@@ -1201,91 +1223,177 @@ export default function AdminScreen() {
                   }}
                 />
               }
-              renderItem={({ item: entry }) => {
-                const entryDate = new Date(entry.timestamp);
-                const isClockIn = entry.type === 'clock_in';
-                const isBreakStart = entry.type === 'break_start';
-                const isBreakEnd = entry.type === 'break_end';
-                const isBreak = isBreakStart || isBreakEnd;
+            >
+              {(() => {
+                // Filter entries by selected user
+                const filteredEntries = timeClockUserFilter === 'all'
+                  ? timeEntries
+                  : timeEntries.filter(e => e.userId === timeClockUserFilter);
 
-                const getEntryConfig = () => {
-                  if (isClockIn) return { bg: '#dcfce7', color: '#16a34a', icon: 'log-in' as const, label: 'Clock In' };
-                  if (isBreakStart) return { bg: '#fef3c7', color: '#d97706', icon: 'cafe' as const, label: 'Break Start' };
-                  if (isBreakEnd) return { bg: '#dbeafe', color: '#2563eb', icon: 'cafe-outline' as const, label: 'Break End' };
-                  return { bg: '#fee2e2', color: '#dc2626', icon: 'log-out' as const, label: 'Clock Out' };
-                };
-                const config = getEntryConfig();
+                // Group entries by user and date
+                const groupedByUserDate: Record<string, TimeEntry[]> = {};
+                filteredEntries.forEach(entry => {
+                  const date = new Date(entry.timestamp).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  });
+                  const key = `${entry.userId}_${date}`;
+                  if (!groupedByUserDate[key]) {
+                    groupedByUserDate[key] = [];
+                  }
+                  groupedByUserDate[key].push(entry);
+                });
 
-                return (
-                  <TouchableOpacity
-                    style={styles.timeEntryCard}
-                    onPress={() => {
-                      if (entry.photoPath) {
-                        setSelectedTimeEntry(entry);
-                        setShowTimeEntryPhotoModal(true);
-                      }
-                    }}
-                  >
-                    <View style={styles.timeEntryHeader}>
-                      <View style={[
-                        styles.timeEntryIcon,
-                        { backgroundColor: config.bg }
-                      ]}>
-                        <Ionicons
-                          name={config.icon}
-                          size={20}
-                          color={config.color}
-                        />
-                      </View>
-                      <View style={styles.timeEntryInfo}>
-                        <Text style={styles.timeEntryName}>{entry.userName}</Text>
-                        <Text style={[styles.timeEntryType, { color: config.color }]}>
-                          {config.label}
-                        </Text>
-                      </View>
-                      <View style={styles.timeEntryTimeBox}>
-                        <Text style={styles.timeEntryTime}>
-                          {entryDate.toLocaleTimeString('en-US', {
-                            hour: 'numeric',
-                            minute: '2-digit',
-                            hour12: true
-                          })}
-                        </Text>
-                        <Text style={styles.timeEntryDate}>
-                          {entryDate.toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </Text>
-                      </View>
+                // Sort groups by date (most recent first)
+                const sortedGroups = Object.entries(groupedByUserDate).sort((a, b) => {
+                  const dateA = new Date(a[1][0].timestamp);
+                  const dateB = new Date(b[1][0].timestamp);
+                  return dateB.getTime() - dateA.getTime();
+                });
+
+                if (sortedGroups.length === 0) {
+                  return (
+                    <View style={styles.emptyContainer}>
+                      <Ionicons name="timer-outline" size={48} color="#cbd5e1" />
+                      <Text style={styles.emptyText}>No time entries yet</Text>
+                      <Text style={styles.emptySubtext}>
+                        Employee clock-ins will appear here
+                      </Text>
                     </View>
-                    {entry.location && (
-                      <View style={styles.timeEntryLocation}>
-                        <Ionicons name="location" size={14} color="#64748b" />
-                        <Text style={styles.timeEntryLocationText} numberOfLines={1}>
-                          {entry.location.address || `${entry.location.latitude.toFixed(4)}, ${entry.location.longitude.toFixed(4)}`}
-                        </Text>
+                  );
+                }
+
+                return sortedGroups.map(([groupKey, entries]) => {
+                  // Sort entries by time (oldest first for proper calculation)
+                  const sortedEntries = [...entries].sort((a, b) =>
+                    new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+                  );
+
+                  const userName = sortedEntries[0].userName;
+                  const date = new Date(sortedEntries[0].timestamp).toLocaleDateString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                  });
+
+                  // Calculate times
+                  let totalBreakMs = 0;
+                  let breakStartTime: Date | null = null;
+
+                  const clockIn = sortedEntries.find(e => e.type === 'clock_in');
+                  const clockOut = sortedEntries.find(e => e.type === 'clock_out');
+
+                  // Calculate break time
+                  sortedEntries.forEach(entry => {
+                    if (entry.type === 'break_start') {
+                      breakStartTime = new Date(entry.timestamp);
+                    } else if (entry.type === 'break_end' && breakStartTime) {
+                      totalBreakMs += new Date(entry.timestamp).getTime() - breakStartTime.getTime();
+                      breakStartTime = null;
+                    }
+                  });
+
+                  // If still on break, calculate up to now
+                  if (breakStartTime) {
+                    totalBreakMs += Date.now() - breakStartTime.getTime();
+                  }
+
+                  // Calculate work time
+                  let totalWorkMs = 0;
+                  if (clockIn) {
+                    const endTime = clockOut ? new Date(clockOut.timestamp) : new Date();
+                    totalWorkMs = endTime.getTime() - new Date(clockIn.timestamp).getTime() - totalBreakMs;
+                  }
+
+                  const formatDuration = (ms: number) => {
+                    const hours = Math.floor(ms / (1000 * 60 * 60));
+                    const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+                    if (hours > 0) {
+                      return `${hours}h ${minutes}m`;
+                    }
+                    return `${minutes}m`;
+                  };
+
+                  return (
+                    <View key={groupKey} style={styles.timeEntryGroup}>
+                      {/* Group Header */}
+                      <View style={styles.timeEntryGroupHeader}>
+                        <View style={styles.timeEntryGroupHeaderLeft}>
+                          <Text style={styles.timeEntryGroupName}>{userName}</Text>
+                          <Text style={styles.timeEntryGroupDate}>{date}</Text>
+                        </View>
+                        <View style={styles.timeEntryGroupStats}>
+                          {totalWorkMs > 0 && (
+                            <View style={styles.timeEntryStat}>
+                              <Ionicons name="time" size={14} color="#16a34a" />
+                              <Text style={[styles.timeEntryStatText, { color: '#16a34a' }]}>
+                                {formatDuration(totalWorkMs)}
+                              </Text>
+                            </View>
+                          )}
+                          {totalBreakMs > 0 && (
+                            <View style={styles.timeEntryStat}>
+                              <Ionicons name="cafe" size={14} color="#d97706" />
+                              <Text style={[styles.timeEntryStatText, { color: '#d97706' }]}>
+                                {formatDuration(totalBreakMs)}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
-                    )}
-                    {entry.photoPath && (
-                      <View style={styles.timeEntryPhotoIndicator}>
-                        <Ionicons name="camera" size={14} color="#3b82f6" />
-                        <Text style={[styles.timeEntryPhotoText, { color: '#3b82f6' }]}>Tap to view photo</Text>
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                );
-              }}
-              ListEmptyComponent={
-                <View style={styles.emptyContainer}>
-                  <Ionicons name="timer-outline" size={48} color="#cbd5e1" />
-                  <Text style={styles.emptyText}>No time entries yet</Text>
-                  <Text style={styles.emptySubtext}>
-                    Employee clock-ins will appear here
-                  </Text>
-                </View>
-              }
-            />
+
+                      {/* Entries (reverse for display - most recent first) */}
+                      {[...sortedEntries].reverse().map(entry => {
+                        const entryDate = new Date(entry.timestamp);
+                        const getEntryConfig = () => {
+                          if (entry.type === 'clock_in') return { bg: '#dcfce7', color: '#16a34a', icon: 'log-in' as const, label: 'Clock In' };
+                          if (entry.type === 'break_start') return { bg: '#fef3c7', color: '#d97706', icon: 'cafe' as const, label: 'Break Start' };
+                          if (entry.type === 'break_end') return { bg: '#dbeafe', color: '#2563eb', icon: 'cafe-outline' as const, label: 'Break End' };
+                          return { bg: '#fee2e2', color: '#dc2626', icon: 'log-out' as const, label: 'Clock Out' };
+                        };
+                        const config = getEntryConfig();
+
+                        return (
+                          <TouchableOpacity
+                            key={entry._id}
+                            style={styles.timeEntryItem}
+                            onPress={() => {
+                              if (entry.photoPath) {
+                                setSelectedTimeEntry(entry);
+                                setShowTimeEntryPhotoModal(true);
+                              }
+                            }}
+                          >
+                            <View style={[styles.timeEntryItemDot, { backgroundColor: config.color }]} />
+                            <View style={styles.timeEntryItemContent}>
+                              <Text style={[styles.timeEntryItemLabel, { color: config.color }]}>
+                                {config.label}
+                              </Text>
+                              <Text style={styles.timeEntryItemTime}>
+                                {entryDate.toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })}
+                              </Text>
+                            </View>
+                            {entry.location?.address && (
+                              <Text style={styles.timeEntryItemLocation} numberOfLines={1}>
+                                {entry.location.address}
+                              </Text>
+                            )}
+                            {entry.photoPath && (
+                              <Ionicons name="camera" size={16} color="#3b82f6" style={{ marginLeft: 8 }} />
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  );
+                });
+              })()}
+            </ScrollView>
           )}
         </View>
       )}
@@ -2605,6 +2713,109 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#94a3b8',
     marginTop: 4,
+  },
+  // Time Clock Filter and Group styles
+  timeClockFilterBar: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filterChipActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  timeEntryGroup: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginBottom: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  timeEntryGroupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  timeEntryGroupHeaderLeft: {
+    flex: 1,
+  },
+  timeEntryGroupName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  timeEntryGroupDate: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  timeEntryGroupStats: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  timeEntryStat: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  timeEntryStatText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  timeEntryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  timeEntryItemDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 10,
+  },
+  timeEntryItemContent: {
+    flex: 1,
+  },
+  timeEntryItemLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  timeEntryItemTime: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 1,
+  },
+  timeEntryItemLocation: {
+    fontSize: 11,
+    color: '#94a3b8',
+    maxWidth: 120,
+    marginLeft: 8,
   },
   // Photo Modal styles
   photoModalOverlay: {
