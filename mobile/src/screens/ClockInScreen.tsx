@@ -7,6 +7,7 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  Linking,
 } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -41,22 +42,36 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
   }, []);
 
   const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    setLocationPermission(status === 'granted');
+    try {
+      const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
+      setLocationPermission(status === 'granted');
 
-    if (status === 'granted') {
-      try {
-        const loc = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.High,
-        });
-        setLocation({
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-          accuracy: loc.coords.accuracy || undefined,
-        });
-      } catch (error) {
-        console.error('Error getting location:', error);
+      if (status === 'granted') {
+        try {
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          setLocation({
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            accuracy: loc.coords.accuracy || undefined,
+          });
+        } catch (error) {
+          console.error('Error getting location:', error);
+        }
+      } else if (!canAskAgain) {
+        // Permission was denied and can't ask again - need to go to Settings
+        Alert.alert(
+          'Location Permission Required',
+          'Please enable location permission in your device Settings to use this feature.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
       }
+    } catch (error) {
+      console.error('Error requesting location permission:', error);
     }
   };
 
