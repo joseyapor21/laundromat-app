@@ -60,8 +60,8 @@ export async function POST(
     order.pickupPhotos.push({
       photoPath,
       capturedAt: now,
-      capturedBy: currentUser._id.toString(),
-      capturedByName: `${currentUser.firstName} ${currentUser.lastName}`,
+      capturedBy: currentUser.userId,
+      capturedByName: currentUser.name,
     });
 
     await order.save();
