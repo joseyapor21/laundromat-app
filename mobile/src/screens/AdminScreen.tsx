@@ -146,8 +146,8 @@ export default function AdminScreen() {
   const loadTimeEntries = async () => {
     setTimeEntriesLoading(true);
     try {
-      const entries = await api.getTimeEntries({ limit: 100 });
-      setTimeEntries(entries);
+      const response = await api.getTimeEntries({ limit: 100 });
+      setTimeEntries(response.entries);
     } catch (error) {
       console.error('Failed to load time entries:', error);
     } finally {
