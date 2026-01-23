@@ -13,7 +13,7 @@ export interface TimeEntryDoc {
     accuracy?: number;
     address?: string;
   };
-  photoPath: string;
+  photoPath?: string;
   deviceInfo?: string;
   notes?: string;
   createdAt: Date;
@@ -50,7 +50,7 @@ const timeEntrySchema = new mongoose.Schema<TimeEntryDoc>({
   },
   photoPath: {
     type: String,
-    required: true,
+    required: false,
   },
   deviceInfo: {
     type: String,
