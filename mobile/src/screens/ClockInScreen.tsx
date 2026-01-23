@@ -291,7 +291,7 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
           <View style={styles.photoPreview}>
             <Image
               source={{ uri: `data:image/jpeg;base64,${capturedPhoto}` }}
-              style={styles.previewImage}
+              style={[styles.previewImage, { transform: [{ scaleX: -1 }] }]}
               resizeMode="cover"
             />
           </View>
