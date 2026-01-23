@@ -1191,20 +1191,17 @@ export default function AdminScreen() {
                   All Users
                 </Text>
               </TouchableOpacity>
-              {Array.from(new Set(timeEntries.map(e => e.userId))).map(userId => {
-                const userName = timeEntries.find(e => e.userId === userId)?.userName || userId;
-                return (
-                  <TouchableOpacity
-                    key={userId}
-                    style={[styles.filterChip, timeClockUserFilter === userId && styles.filterChipActive]}
-                    onPress={() => setTimeClockUserFilter(userId)}
-                  >
-                    <Text style={[styles.filterChipText, timeClockUserFilter === userId && styles.filterChipTextActive]}>
-                      {userName}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+              {users.filter(u => u.isActive).map(user => (
+                <TouchableOpacity
+                  key={user._id}
+                  style={[styles.filterChip, timeClockUserFilter === user._id && styles.filterChipActive]}
+                  onPress={() => setTimeClockUserFilter(user._id)}
+                >
+                  <Text style={[styles.filterChipText, timeClockUserFilter === user._id && styles.filterChipTextActive]}>
+                    {user.firstName} {user.lastName}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </ScrollView>
           </View>
           {timeEntriesLoading ? (
