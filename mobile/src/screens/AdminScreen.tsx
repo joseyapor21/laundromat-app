@@ -55,6 +55,7 @@ export default function AdminScreen() {
   const [selectedTimeEntry, setSelectedTimeEntry] = useState<TimeEntry | null>(null);
   const [showTimeEntryPhotoModal, setShowTimeEntryPhotoModal] = useState(false);
   const [timeClockUserFilter, setTimeClockUserFilter] = useState<string>('all');
+  const [showUserFilterModal, setShowUserFilterModal] = useState(false);
 
   // Printer state
   const [printerScanning, setPrinterScanning] = useState(false);
@@ -1180,29 +1181,22 @@ export default function AdminScreen() {
       {/* Time Clock Tab */}
       {activeTab === 'timeclock' && (
         <View style={{ flex: 1 }}>
-          {/* User Filter */}
+          {/* User Filter Dropdown */}
           <View style={styles.timeClockFilterBar}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-              <TouchableOpacity
-                style={[styles.filterChip, timeClockUserFilter === 'all' && styles.filterChipActive]}
-                onPress={() => setTimeClockUserFilter('all')}
-              >
-                <Text style={[styles.filterChipText, timeClockUserFilter === 'all' && styles.filterChipTextActive]}>
-                  All Users
-                </Text>
-              </TouchableOpacity>
-              {users.filter(u => u.isActive).map(user => (
-                <TouchableOpacity
-                  key={user._id}
-                  style={[styles.filterChip, timeClockUserFilter === user._id && styles.filterChipActive]}
-                  onPress={() => setTimeClockUserFilter(user._id)}
-                >
-                  <Text style={[styles.filterChipText, timeClockUserFilter === user._id && styles.filterChipTextActive]}>
-                    {user.firstName} {user.lastName}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <TouchableOpacity
+              style={styles.userDropdown}
+              onPress={() => setShowUserFilterModal(true)}
+            >
+              <Ionicons name="person" size={18} color="#64748b" />
+              <Text style={styles.userDropdownText}>
+                {timeClockUserFilter === 'all'
+                  ? 'All Users'
+                  : users.find(u => u._id === timeClockUserFilter)
+                    ? `${users.find(u => u._id === timeClockUserFilter)?.firstName} ${users.find(u => u._id === timeClockUserFilter)?.lastName}`
+                    : 'Select User'}
+              </Text>
+              <Ionicons name="chevron-down" size={18} color="#64748b" />
+            </TouchableOpacity>
           </View>
           {timeEntriesLoading ? (
             <View style={styles.loadingContainer}>
@@ -1854,6 +1848,75 @@ export default function AdminScreen() {
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* User Filter Modal */}
+      <Modal visible={showUserFilterModal} animationType="fade" transparent>
+        <TouchableOpacity
+          style={styles.userFilterModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowUserFilterModal(false)}
+        >
+          <View style={styles.userFilterModalContent}>
+            <View style={styles.userFilterModalHeader}>
+              <Text style={styles.userFilterModalTitle}>Select Employee</Text>
+              <TouchableOpacity onPress={() => setShowUserFilterModal(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={styles.userFilterModalList}>
+              <TouchableOpacity
+                style={[
+                  styles.userFilterModalItem,
+                  timeClockUserFilter === 'all' && styles.userFilterModalItemActive
+                ]}
+                onPress={() => {
+                  setTimeClockUserFilter('all');
+                  setShowUserFilterModal(false);
+                }}
+              >
+                <Ionicons name="people" size={20} color={timeClockUserFilter === 'all' ? '#2563eb' : '#64748b'} />
+                <Text style={[
+                  styles.userFilterModalItemText,
+                  timeClockUserFilter === 'all' && styles.userFilterModalItemTextActive
+                ]}>
+                  All Users
+                </Text>
+                {timeClockUserFilter === 'all' && (
+                  <Ionicons name="checkmark" size={20} color="#2563eb" />
+                )}
+              </TouchableOpacity>
+              {users.filter(u => u.isActive).map(user => (
+                <TouchableOpacity
+                  key={user._id}
+                  style={[
+                    styles.userFilterModalItem,
+                    timeClockUserFilter === user._id && styles.userFilterModalItemActive
+                  ]}
+                  onPress={() => {
+                    setTimeClockUserFilter(user._id);
+                    setShowUserFilterModal(false);
+                  }}
+                >
+                  <View style={styles.userFilterAvatar}>
+                    <Text style={styles.userFilterAvatarText}>
+                      {user.firstName?.[0]}{user.lastName?.[0]}
+                    </Text>
+                  </View>
+                  <Text style={[
+                    styles.userFilterModalItemText,
+                    timeClockUserFilter === user._id && styles.userFilterModalItemTextActive
+                  ]}>
+                    {user.firstName} {user.lastName}
+                  </Text>
+                  {timeClockUserFilter === user._id && (
+                    <Ionicons name="checkmark" size={20} color="#2563eb" />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* Time Entry Photo Modal */}
@@ -2719,25 +2782,85 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
   },
-  filterChip: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
+  userDropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
     borderWidth: 1,
     borderColor: '#e2e8f0',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 10,
   },
-  filterChipActive: {
-    backgroundColor: '#2563eb',
-    borderColor: '#2563eb',
-  },
-  filterChipText: {
-    fontSize: 13,
+  userDropdownText: {
+    flex: 1,
+    fontSize: 15,
     fontWeight: '500',
-    color: '#64748b',
+    color: '#1e293b',
   },
-  filterChipTextActive: {
-    color: '#fff',
+  userFilterModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  userFilterModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '100%',
+    maxHeight: '70%',
+    overflow: 'hidden',
+  },
+  userFilterModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  userFilterModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  userFilterModalList: {
+    maxHeight: 400,
+  },
+  userFilterModalItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  userFilterModalItemActive: {
+    backgroundColor: '#eff6ff',
+  },
+  userFilterModalItemText: {
+    flex: 1,
+    fontSize: 15,
+    color: '#1e293b',
+  },
+  userFilterModalItemTextActive: {
+    color: '#2563eb',
+    fontWeight: '600',
+  },
+  userFilterAvatar: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  userFilterAvatarText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
   },
   timeEntryGroup: {
     backgroundColor: '#fff',
