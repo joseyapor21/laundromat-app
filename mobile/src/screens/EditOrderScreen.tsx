@@ -11,6 +11,8 @@ import {
   Switch,
   Platform,
   Modal,
+  Image,
+  Dimensions,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -70,6 +72,10 @@ export default function EditOrderScreen() {
   const [showDatePicker, setShowDatePicker] = useState<'pickup' | 'dropoff' | 'delivery' | null>(null);
   const [showTimePicker, setShowTimePicker] = useState<'pickup' | 'dropoff' | 'delivery' | null>(null);
 
+  // Pickup photos
+  const [pickupPhotos, setPickupPhotos] = useState<Array<{ photoPath: string; capturedAt: Date; capturedBy: string; capturedByName: string }>>([]);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+
   const loadOrder = useCallback(async () => {
     try {
       const [orderData, settingsData, extraItemsData] = await Promise.all([
@@ -103,6 +109,11 @@ export default function EditOrderScreen() {
       if (orderData.customer?.deliveryFee) {
         const fee = parseFloat(orderData.customer.deliveryFee.replace('$', '')) || 0;
         setDeliveryPrice(fee);
+      }
+
+      // Pickup photos from driver
+      if (orderData.pickupPhotos && orderData.pickupPhotos.length > 0) {
+        setPickupPhotos(orderData.pickupPhotos);
       }
 
       // Date/Time fields
@@ -811,6 +822,49 @@ export default function EditOrderScreen() {
             </View>
           </Modal>
 
+          {/* Pickup Photos from Driver */}
+          {pickupPhotos.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                <Ionicons name="camera" size={14} color="#64748b" /> Driver Pickup Photos ({pickupPhotos.length})
+              </Text>
+              <View style={styles.pickupPhotosContainer}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.pickupPhotosScroll}
+                >
+                  {pickupPhotos.map((photo, index) => (
+                    <TouchableOpacity
+                      key={index}
+                      style={styles.pickupPhotoWrapper}
+                      onPress={() => setSelectedPhotoIndex(index)}
+                    >
+                      <Image
+                        source={{ uri: api.getPickupPhotoUrl(photo.photoPath) }}
+                        style={styles.pickupPhotoThumbnail}
+                        resizeMode="cover"
+                      />
+                      <View style={styles.pickupPhotoInfo}>
+                        <Text style={styles.pickupPhotoBy}>{photo.capturedByName}</Text>
+                        <Text style={styles.pickupPhotoTime}>
+                          {new Date(photo.capturedAt).toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          })}
+                        </Text>
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              <Text style={styles.pickupPhotoHint}>
+                Tap photo to enlarge. These were taken by the driver at pickup.
+              </Text>
+            </View>
+          )}
+
           {/* Bags */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
@@ -1146,6 +1200,68 @@ export default function EditOrderScreen() {
 
           <View style={{ height: 100 }} />
       </KeyboardAwareScrollView>
+
+      {/* Photo Viewer Modal */}
+      <Modal
+        visible={selectedPhotoIndex !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedPhotoIndex(null)}
+      >
+        <View style={styles.photoViewerOverlay}>
+          <TouchableOpacity
+            style={styles.photoViewerClose}
+            onPress={() => setSelectedPhotoIndex(null)}
+          >
+            <Ionicons name="close-circle" size={36} color="#fff" />
+          </TouchableOpacity>
+          {selectedPhotoIndex !== null && pickupPhotos[selectedPhotoIndex] && (
+            <View style={styles.photoViewerContent}>
+              <Image
+                source={{ uri: api.getPickupPhotoUrl(pickupPhotos[selectedPhotoIndex].photoPath) }}
+                style={styles.photoViewerImage}
+                resizeMode="contain"
+              />
+              <View style={styles.photoViewerInfo}>
+                <Text style={styles.photoViewerText}>
+                  Taken by {pickupPhotos[selectedPhotoIndex].capturedByName}
+                </Text>
+                <Text style={styles.photoViewerText}>
+                  {new Date(pickupPhotos[selectedPhotoIndex].capturedAt).toLocaleString('en-US', {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                  })}
+                </Text>
+              </View>
+              {pickupPhotos.length > 1 && (
+                <View style={styles.photoViewerNav}>
+                  <TouchableOpacity
+                    style={[styles.photoNavButton, selectedPhotoIndex === 0 && styles.photoNavButtonDisabled]}
+                    onPress={() => setSelectedPhotoIndex(Math.max(0, selectedPhotoIndex - 1))}
+                    disabled={selectedPhotoIndex === 0}
+                  >
+                    <Ionicons name="chevron-back" size={28} color={selectedPhotoIndex === 0 ? '#64748b' : '#fff'} />
+                  </TouchableOpacity>
+                  <Text style={styles.photoNavText}>
+                    {selectedPhotoIndex + 1} / {pickupPhotos.length}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.photoNavButton, selectedPhotoIndex === pickupPhotos.length - 1 && styles.photoNavButtonDisabled]}
+                    onPress={() => setSelectedPhotoIndex(Math.min(pickupPhotos.length - 1, selectedPhotoIndex + 1))}
+                    disabled={selectedPhotoIndex === pickupPhotos.length - 1}
+                  >
+                    <Ionicons name="chevron-forward" size={28} color={selectedPhotoIndex === pickupPhotos.length - 1 ? '#64748b' : '#fff'} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+        </View>
+      </Modal>
 
       {/* Extra Items Modal */}
       <Modal
@@ -2169,5 +2285,100 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#10b981',
+  },
+  // Pickup photos styles
+  pickupPhotosContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 2,
+    borderColor: '#3b82f6',
+  },
+  pickupPhotosScroll: {
+    paddingRight: 12,
+  },
+  pickupPhotoWrapper: {
+    marginRight: 12,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: '#f1f5f9',
+  },
+  pickupPhotoThumbnail: {
+    width: 120,
+    height: 120,
+    borderRadius: 8,
+  },
+  pickupPhotoInfo: {
+    padding: 6,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  pickupPhotoBy: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  pickupPhotoTime: {
+    fontSize: 10,
+    color: '#e2e8f0',
+  },
+  pickupPhotoHint: {
+    fontSize: 12,
+    color: '#64748b',
+    fontStyle: 'italic',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  // Photo viewer modal styles
+  photoViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoViewerClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+  },
+  photoViewerContent: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  photoViewerImage: {
+    width: Dimensions.get('window').width - 40,
+    height: Dimensions.get('window').height * 0.6,
+  },
+  photoViewerInfo: {
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  photoViewerText: {
+    fontSize: 14,
+    color: '#fff',
+    marginBottom: 4,
+  },
+  photoViewerNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    gap: 20,
+  },
+  photoNavButton: {
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 25,
+  },
+  photoNavButtonDisabled: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  photoNavText: {
+    fontSize: 16,
+    color: '#fff',
+    fontWeight: '600',
   },
 });
