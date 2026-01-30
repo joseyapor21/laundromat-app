@@ -825,7 +825,7 @@ export default function OrderDetailScreen() {
         )}
 
         {/* Process History - Machines, Layering, Folding */}
-        {canShowMachineSection && (allMachineAssignments.length > 0 || order.layeringCheckedBy || order.foldingStartedBy || order.foldedBy || order.foldingCheckedBy) && (
+        {(allMachineAssignments.length > 0 || order.layeringCheckedBy || order.foldingStartedBy || order.foldedBy || order.foldingCheckedBy) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Process History</Text>
             <View style={styles.historyCard}>
@@ -860,11 +860,11 @@ export default function OrderDetailScreen() {
                       </View>
                     </View>
                     <Text style={styles.historyDetail}>
-                      Assigned by {assignment.assignedBy || 'Unknown'} - {formatDate(assignment.assignedAt)}
+                      Assigned by: {assignment.assignedBy || 'Unknown'}{assignment.assignedByInitials ? ` (${assignment.assignedByInitials})` : ''} - {formatDate(assignment.assignedAt)}
                     </Text>
                     {assignment.isChecked && assignment.checkedBy && (
                       <Text style={styles.historyDetail}>
-                        Checked by {assignment.checkedBy} - {formatDate(assignment.checkedAt)}
+                        Checked by: {assignment.checkedBy}{assignment.checkedByInitials ? ` (${assignment.checkedByInitials})` : ''} - {formatDate(assignment.checkedAt)}
                       </Text>
                     )}
                   </View>
@@ -874,51 +874,56 @@ export default function OrderDetailScreen() {
               {order.layeringCheckedBy && (
                 <View style={[styles.historyItem, styles.historyItemChecked]}>
                   <View style={styles.historyHeader}>
-                    <Text style={styles.historyMachine}>📦 Layering Check</Text>
+                    <Text style={styles.historyMachine}>📦 On Cart</Text>
                     <View style={[styles.historyBadge, styles.historyBadgeChecked]}>
                       <Text style={styles.historyBadgeText}>Verified</Text>
                     </View>
                   </View>
+                  {/* Show last dryer person as who put it on cart */}
+                  {(() => {
+                    const lastDryer = allMachineAssignments
+                      .filter((a: MachineAssignment) => a.machineType === 'dryer' && a.removedAt)
+                      .sort((a: MachineAssignment, b: MachineAssignment) =>
+                        new Date(b.removedAt!).getTime() - new Date(a.removedAt!).getTime()
+                      )[0];
+                    return lastDryer ? (
+                      <Text style={styles.historyDetail}>
+                        On cart by: {lastDryer.assignedBy}{lastDryer.assignedByInitials ? ` (${lastDryer.assignedByInitials})` : ''} - {formatDate(lastDryer.removedAt)}
+                      </Text>
+                    ) : null;
+                  })()}
                   <Text style={styles.historyDetail}>
-                    Verified by {order.layeringCheckedBy} ({order.layeringCheckedByInitials}) - {formatDate(order.layeringCheckedAt)}
+                    Checked by: {order.layeringCheckedBy} ({order.layeringCheckedByInitials}) - {formatDate(order.layeringCheckedAt)}
                   </Text>
                 </View>
               )}
 
-              {/* Folding History */}
-              {order.foldingStartedBy && (
-                <View style={[styles.historyItem, styles.historyItemDone]}>
+              {/* Folding History - All grouped together */}
+              {(order.foldingStartedBy || order.foldedBy || order.foldingCheckedBy) && (
+                <View style={[styles.historyItem, order.foldingCheckedBy ? styles.historyItemChecked : styles.historyItemDone]}>
                   <View style={styles.historyHeader}>
-                    <Text style={styles.historyMachine}>👕 Started Folding</Text>
+                    <Text style={styles.historyMachine}>👕 Folding</Text>
+                    {order.foldingCheckedBy && (
+                      <View style={[styles.historyBadge, styles.historyBadgeChecked]}>
+                        <Text style={styles.historyBadgeText}>Verified</Text>
+                      </View>
+                    )}
                   </View>
-                  <Text style={styles.historyDetail}>
-                    By {order.foldingStartedBy} ({order.foldingStartedByInitials}) - {formatDate(order.foldingStartedAt)}
-                  </Text>
-                </View>
-              )}
-
-              {order.foldedBy && (
-                <View style={[styles.historyItem, styles.historyItemDone]}>
-                  <View style={styles.historyHeader}>
-                    <Text style={styles.historyMachine}>✅ Finished Folding</Text>
-                  </View>
-                  <Text style={styles.historyDetail}>
-                    By {order.foldedBy} ({order.foldedByInitials}) - {formatDate(order.foldedAt)}
-                  </Text>
-                </View>
-              )}
-
-              {order.foldingCheckedBy && (
-                <View style={[styles.historyItem, styles.historyItemChecked]}>
-                  <View style={styles.historyHeader}>
-                    <Text style={styles.historyMachine}>🔍 Folding Verified</Text>
-                    <View style={[styles.historyBadge, styles.historyBadgeChecked]}>
-                      <Text style={styles.historyBadgeText}>Verified</Text>
-                    </View>
-                  </View>
-                  <Text style={styles.historyDetail}>
-                    Verified by {order.foldingCheckedBy} ({order.foldingCheckedByInitials}) - {formatDate(order.foldingCheckedAt)}
-                  </Text>
+                  {order.foldingStartedBy && (
+                    <Text style={styles.historyDetail}>
+                      Started by: {order.foldingStartedBy} ({order.foldingStartedByInitials}) - {formatDate(order.foldingStartedAt)}
+                    </Text>
+                  )}
+                  {order.foldedBy && (
+                    <Text style={styles.historyDetail}>
+                      Finished by: {order.foldedBy} ({order.foldedByInitials}) - {formatDate(order.foldedAt)}
+                    </Text>
+                  )}
+                  {order.foldingCheckedBy && (
+                    <Text style={styles.historyDetail}>
+                      Checked by: {order.foldingCheckedBy} ({order.foldingCheckedByInitials}) - {formatDate(order.foldingCheckedAt)}
+                    </Text>
+                  )}
                 </View>
               )}
             </View>
@@ -990,31 +995,6 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Show layering verification info if already verified */}
-        {order.layeringCheckedBy && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Layering Verified</Text>
-            <View style={styles.layeringVerifiedCard}>
-              <View style={styles.layeringVerifiedRow}>
-                <Text style={styles.layeringVerifiedLabel}>Verified by:</Text>
-                <Text style={styles.layeringVerifiedValue}>
-                  {order.layeringCheckedBy} {order.layeringCheckedByInitials && `(${order.layeringCheckedByInitials})`}
-                </Text>
-              </View>
-              {order.layeringCheckedAt && (
-                <Text style={styles.layeringVerifiedTime}>
-                  {new Date(order.layeringCheckedAt).toLocaleString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    hour: 'numeric',
-                    minute: '2-digit',
-                    hour12: true
-                  })}
-                </Text>
-              )}
-            </View>
-          </View>
-        )}
 
         {/* Mark Folding Complete - Show only when status is 'folded' and not yet verified */}
         {order.status === 'folded' && !order.foldingCheckedBy && (
@@ -1049,61 +1029,6 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Folding Progress - Show when order has folding tracking info */}
-        {(order.foldingStartedBy || order.foldedBy) && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Folding Progress</Text>
-            <View style={styles.foldingProgressCard}>
-              {/* Started Folding */}
-              {order.foldingStartedBy && (
-                <View style={styles.foldingStep}>
-                  <View style={[styles.foldingStepIcon, styles.foldingStepIconActive]}>
-                    <Ionicons name="shirt" size={18} color="#ec4899" />
-                  </View>
-                  <View style={styles.foldingStepContent}>
-                    <Text style={styles.foldingStepTitle}>Started Folding</Text>
-                    <Text style={styles.foldingStepBy}>
-                      {order.foldingStartedByInitials || order.foldingStartedBy}
-                      {order.foldingStartedAt && ` - ${formatDate(order.foldingStartedAt)}`}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Finished Folding */}
-              {order.foldedBy && (
-                <View style={styles.foldingStep}>
-                  <View style={[styles.foldingStepIcon, styles.foldingStepIconComplete]}>
-                    <Ionicons name="checkmark-done" size={18} color="#10b981" />
-                  </View>
-                  <View style={styles.foldingStepContent}>
-                    <Text style={styles.foldingStepTitle}>Finished Folding</Text>
-                    <Text style={styles.foldingStepBy}>
-                      {order.foldedByInitials || order.foldedBy}
-                      {order.foldedAt && ` - ${formatDate(order.foldedAt)}`}
-                    </Text>
-                  </View>
-                </View>
-              )}
-
-              {/* Folding Check (verification) */}
-              {order.foldingCheckedBy && (
-                <View style={styles.foldingStep}>
-                  <View style={[styles.foldingStepIcon, styles.foldingStepIconVerified]}>
-                    <Ionicons name="shield-checkmark" size={18} color="#2563eb" />
-                  </View>
-                  <View style={styles.foldingStepContent}>
-                    <Text style={styles.foldingStepTitle}>Verified & Ready</Text>
-                    <Text style={styles.foldingStepBy}>
-                      {order.foldingCheckedByInitials || order.foldingCheckedBy}
-                      {order.foldingCheckedAt && ` - ${formatDate(order.foldingCheckedAt)}`}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
 
         {/* Order Details */}
         <View style={styles.section}>
