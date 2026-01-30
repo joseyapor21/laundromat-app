@@ -831,7 +831,7 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
                       <span className="text-sm font-semibold text-orange-800">Dryer Check Required</span>
                     </div>
                     <p className="text-xs text-orange-700 mb-3">
-                      A different person must verify that all clothes have been properly laid out from the dryer.
+                      A different person must verify that all clothes have been properly laid out from the dryer before folding can begin.
                     </p>
                     <button
                       onClick={() => handleCheckLayering()}

@@ -75,21 +75,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Update layering check info
+    // Update layering check info (status stays at laid_on_cart)
     order.layeringCheckedBy = checkedBy;
     order.layeringCheckedByInitials = checkedByInitials || '';
     order.layeringCheckedAt = new Date();
-
-    // Move to folding status
-    order.status = 'folding';
-
-    // Add to status history
-    order.statusHistory.push({
-      status: 'folding',
-      changedBy: currentUser.name,
-      changedAt: new Date(),
-      notes: `Layering verified by ${checkedBy}, moved to Folding`,
-    });
 
     await order.save();
 
@@ -98,16 +87,14 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       await ActivityLog.create({
         userId: currentUser.userId,
         userName: currentUser.name,
-        action: 'status_change',
+        action: 'update_order',
         entityType: 'order',
         entityId: order._id.toString(),
-        details: `Order #${order.orderId} layering verified by ${checkedBy}, status changed to folding`,
+        details: `Order #${order.orderId} layering verified by ${checkedBy}`,
         metadata: {
           orderId: order.orderId,
           checkedBy,
           checkedByInitials,
-          previousStatus: 'laid_on_cart',
-          newStatus: 'folding',
         },
         ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown',
@@ -118,7 +105,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     return NextResponse.json({
       success: true,
-      message: `Layering verified by ${checkedBy}, order moved to Folding`,
+      message: `Layering verified by ${checkedBy}`,
       order,
     });
   } catch (error) {

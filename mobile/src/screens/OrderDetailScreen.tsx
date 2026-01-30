@@ -922,7 +922,6 @@ export default function OrderDetailScreen() {
               </View>
               <Text style={styles.verifyLayeringText}>
                 A different person must verify that all clothes have been properly laid out from the dryer.
-                This will move the order to Folding.
               </Text>
               <TouchableOpacity
                 style={[styles.verifyLayeringButton, verifyingLayering && styles.buttonDisabled]}
