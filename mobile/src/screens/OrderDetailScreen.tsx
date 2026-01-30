@@ -824,10 +824,10 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Machine History - Only show if there's history and we can show machine section */}
-        {canShowMachineSection && allMachineAssignments.length > 0 && (
+        {/* Process History - Machines, Layering, Folding */}
+        {canShowMachineSection && (allMachineAssignments.length > 0 || order.layeringCheckedBy || order.foldingStartedBy || order.foldedBy || order.foldingCheckedBy) && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Machine History</Text>
+            <Text style={styles.sectionTitle}>Process History</Text>
             <View style={styles.historyCard}>
               {allMachineAssignments
                 .sort((a: MachineAssignment, b: MachineAssignment) =>
@@ -867,13 +867,60 @@ export default function OrderDetailScreen() {
                         Checked by {assignment.checkedBy} - {formatDate(assignment.checkedAt)}
                       </Text>
                     )}
-                    {assignment.removedAt && (
-                      <Text style={styles.historyDetail}>
-                        Removed: {formatDate(assignment.removedAt)}
-                      </Text>
-                    )}
                   </View>
                 ))}
+
+              {/* Layering Verification History */}
+              {order.layeringCheckedBy && (
+                <View style={[styles.historyItem, styles.historyItemChecked]}>
+                  <View style={styles.historyHeader}>
+                    <Text style={styles.historyMachine}>📦 Layering Check</Text>
+                    <View style={[styles.historyBadge, styles.historyBadgeChecked]}>
+                      <Text style={styles.historyBadgeText}>Verified</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.historyDetail}>
+                    Verified by {order.layeringCheckedBy} ({order.layeringCheckedByInitials}) - {formatDate(order.layeringCheckedAt)}
+                  </Text>
+                </View>
+              )}
+
+              {/* Folding History */}
+              {order.foldingStartedBy && (
+                <View style={[styles.historyItem, styles.historyItemDone]}>
+                  <View style={styles.historyHeader}>
+                    <Text style={styles.historyMachine}>👕 Started Folding</Text>
+                  </View>
+                  <Text style={styles.historyDetail}>
+                    By {order.foldingStartedBy} ({order.foldingStartedByInitials}) - {formatDate(order.foldingStartedAt)}
+                  </Text>
+                </View>
+              )}
+
+              {order.foldedBy && (
+                <View style={[styles.historyItem, styles.historyItemDone]}>
+                  <View style={styles.historyHeader}>
+                    <Text style={styles.historyMachine}>✅ Finished Folding</Text>
+                  </View>
+                  <Text style={styles.historyDetail}>
+                    By {order.foldedBy} ({order.foldedByInitials}) - {formatDate(order.foldedAt)}
+                  </Text>
+                </View>
+              )}
+
+              {order.foldingCheckedBy && (
+                <View style={[styles.historyItem, styles.historyItemChecked]}>
+                  <View style={styles.historyHeader}>
+                    <Text style={styles.historyMachine}>🔍 Folding Verified</Text>
+                    <View style={[styles.historyBadge, styles.historyBadgeChecked]}>
+                      <Text style={styles.historyBadgeText}>Verified</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.historyDetail}>
+                    Verified by {order.foldingCheckedBy} ({order.foldingCheckedByInitials}) - {formatDate(order.foldingCheckedAt)}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
         )}
