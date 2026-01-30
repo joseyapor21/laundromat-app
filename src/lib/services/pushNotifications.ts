@@ -3,6 +3,9 @@ import { User } from '@/lib/db/models';
 
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
+// TEMPORARY: Disable all push notifications
+const PUSH_NOTIFICATIONS_DISABLED = true;
+
 interface PushMessage {
   to: string;
   title: string;
@@ -47,6 +50,11 @@ const STATUS_LABELS: Record<string, string> = {
  * Send a push notification via Expo's push notification service
  */
 export async function sendPushNotification(message: PushMessage): Promise<PushResult> {
+  // TEMPORARY: Push notifications disabled
+  if (PUSH_NOTIFICATIONS_DISABLED) {
+    console.log('[DISABLED] Push notification skipped:', message.title);
+    return { success: true, message: 'Push notifications disabled' };
+  }
   try {
     const response = await fetch(EXPO_PUSH_URL, {
       method: 'POST',
@@ -81,6 +89,11 @@ export async function sendPushNotification(message: PushMessage): Promise<PushRe
  * Send push notifications to multiple tokens
  */
 export async function sendPushNotifications(messages: PushMessage[]): Promise<PushResult[]> {
+  // TEMPORARY: Push notifications disabled
+  if (PUSH_NOTIFICATIONS_DISABLED) {
+    console.log(`[DISABLED] ${messages.length} push notifications skipped`);
+    return messages.map(() => ({ success: true, message: 'Push notifications disabled' }));
+  }
   try {
     const response = await fetch(EXPO_PUSH_URL, {
       method: 'POST',
