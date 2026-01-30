@@ -62,6 +62,10 @@ export interface OrderDoc {
   foldedBy?: string;
   foldedByInitials?: string;
   foldedAt?: Date;
+  // Layering check tracking (verification after laid_on_cart before folding)
+  layeringCheckedBy?: string;
+  layeringCheckedByInitials?: string;
+  layeringCheckedAt?: Date;
   // Folding check tracking (verification after folding before ready)
   foldingCheckedBy?: string;
   foldingCheckedByInitials?: string;
@@ -309,6 +313,19 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
     default: null,
   },
   foldedAt: {
+    type: Date,
+    default: null,
+  },
+  // Layering check tracking - verification after laid_on_cart before folding
+  layeringCheckedBy: {
+    type: String,
+    default: null,
+  },
+  layeringCheckedByInitials: {
+    type: String,
+    default: null,
+  },
+  layeringCheckedAt: {
     type: Date,
     default: null,
   },

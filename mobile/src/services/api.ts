@@ -376,6 +376,14 @@ class ApiService {
     });
   }
 
+  // Layering verification (verifies dryer/layering complete and moves to folding status)
+  async verifyLayeringComplete(orderId: string, checkedBy: string, checkedByInitials: string): Promise<{ success: boolean; message: string; order: Order }> {
+    return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/layering-check`, {
+      method: 'POST',
+      body: JSON.stringify({ checkedBy, checkedByInitials }),
+    });
+  }
+
   // Order-level folding verification (verifies folding complete and moves to ready status)
   async verifyFoldingComplete(orderId: string, checkedBy: string, checkedByInitials: string): Promise<{ success: boolean; message: string; order: Order }> {
     return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/fold-check`, {
@@ -536,7 +544,8 @@ class ApiService {
   }
 
   getPickupPhotoUrl(photoPath: string): string {
-    return `${API_BASE_URL}/api/uploads/${photoPath}`;
+    const tokenParam = this.token ? `?token=${encodeURIComponent(this.token)}` : '';
+    return `${API_BASE_URL}/api/uploads/${photoPath}${tokenParam}`;
   }
 }
 

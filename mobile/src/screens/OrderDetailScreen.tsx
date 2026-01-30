@@ -10,6 +10,7 @@ import {
   Linking,
   Modal,
   TextInput,
+  Image,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -61,8 +62,13 @@ export default function OrderDetailScreen() {
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [verifyingFolding, setVerifyingFolding] = useState(false);
+  const [verifyingLayering, setVerifyingLayering] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const isProcessingScan = useRef(false);
+
+  // Pickup photos
+  const [pickupPhotos, setPickupPhotos] = useState<Array<{ photoPath: string; capturedAt: Date; capturedBy: string; capturedByName: string }>>([]);
+  const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
 
   const loadOrder = useCallback(async () => {
     try {
@@ -70,6 +76,12 @@ export default function OrderDetailScreen() {
       setOrder(data);
       if (data.paymentMethod && data.paymentMethod !== 'pending') {
         setSelectedPaymentMethod(data.paymentMethod);
+      }
+      // Load pickup photos
+      if (data.pickupPhotos && data.pickupPhotos.length > 0) {
+        setPickupPhotos(data.pickupPhotos);
+      } else {
+        setPickupPhotos([]);
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to load order');
@@ -369,6 +381,46 @@ export default function OrderDetailScreen() {
     }
   }
 
+  // Layering Verification (order-level) - Verifies dryer/layering and moves to folding status
+  async function handleVerifyLayering() {
+    if (!order || !user) return;
+
+    // Get user name and initials
+    const checkedBy = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown';
+
+    // Get the last dryer assignment to check if same person
+    const lastDryerAssignment = order.machineAssignments
+      ?.filter(a => a.machineType === 'dryer' && !a.removedAt)
+      .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime())[0];
+
+    if (lastDryerAssignment && lastDryerAssignment.assignedBy &&
+        lastDryerAssignment.assignedBy.toLowerCase() === checkedBy.toLowerCase()) {
+      Alert.alert('Not Allowed', 'The person who assigned the dryer cannot verify the layering. A different person must check.');
+      return;
+    }
+
+    let initials = 'XX';
+    const firstInitial = user.firstName?.charAt(0) || '';
+    const lastInitial = user.lastName?.charAt(0) || '';
+    if (firstInitial && lastInitial) {
+      initials = `${firstInitial}${lastInitial}`.toUpperCase();
+    } else if (firstInitial) {
+      initials = user.firstName.substring(0, 2).toUpperCase();
+    }
+
+    setVerifyingLayering(true);
+    try {
+      const result = await api.verifyLayeringComplete(order._id, checkedBy, initials);
+      Alert.alert('Success', result.message);
+      await loadOrder();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to verify layering';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setVerifyingLayering(false);
+    }
+  }
+
   function openScanner() {
     // Reset the scan lock when opening scanner
     isProcessingScan.current = false;
@@ -540,6 +592,49 @@ export default function OrderDetailScreen() {
             </View>
           </View>
         </View>
+
+        {/* Pickup Photos from Driver */}
+        {pickupPhotos.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>
+              Driver Pickup Photos ({pickupPhotos.length})
+            </Text>
+            <View style={styles.pickupPhotosCard}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.pickupPhotosScroll}
+              >
+                {pickupPhotos.map((photo, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.pickupPhotoWrapper}
+                    onPress={() => setSelectedPhotoIndex(index)}
+                  >
+                    <Image
+                      source={{ uri: api.getPickupPhotoUrl(photo.photoPath) }}
+                      style={styles.pickupPhotoThumbnail}
+                      resizeMode="cover"
+                    />
+                    <View style={styles.pickupPhotoInfo}>
+                      <Text style={styles.pickupPhotoBy}>{photo.capturedByName}</Text>
+                      <Text style={styles.pickupPhotoTime}>
+                        {new Date(photo.capturedAt).toLocaleTimeString('en-US', {
+                          hour: 'numeric',
+                          minute: '2-digit',
+                          hour12: true
+                        })}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <Text style={styles.pickupPhotoHint}>
+                Tap photo to enlarge
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Action Required - Add Weights First (for delivery orders) */}
         {needsWeightsFirst && (
@@ -815,6 +910,39 @@ export default function OrderDetailScreen() {
             ))}
           </View>
         </View>
+
+        {/* Verify Layering - Show only when status is 'laid_on_cart' and not yet verified */}
+        {order.status === 'laid_on_cart' && !order.layeringCheckedBy && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Verify Layering</Text>
+            <View style={styles.verifyLayeringCard}>
+              <View style={styles.verifyLayeringHeader}>
+                <Ionicons name="layers" size={24} color="#f97316" />
+                <Text style={styles.verifyLayeringTitle}>Dryer Check Required</Text>
+              </View>
+              <Text style={styles.verifyLayeringText}>
+                A different person must verify that all clothes have been properly laid out from the dryer.
+                This will move the order to Folding.
+              </Text>
+              <TouchableOpacity
+                style={[styles.verifyLayeringButton, verifyingLayering && styles.buttonDisabled]}
+                onPress={handleVerifyLayering}
+                disabled={verifyingLayering || !user}
+              >
+                {verifyingLayering ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-done" size={20} color="#fff" />
+                    <Text style={styles.verifyLayeringButtonText}>
+                      Verify Layering Complete
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* Mark Folding Complete - Show only when status is 'folded' and not yet verified */}
         {order.status === 'folded' && !order.foldingCheckedBy && (
@@ -1202,6 +1330,70 @@ export default function OrderDetailScreen() {
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
+      </Modal>
+
+      {/* Photo Viewer Modal */}
+      <Modal
+        visible={selectedPhotoIndex !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedPhotoIndex(null)}
+      >
+        <View style={styles.photoViewerOverlay}>
+          <TouchableOpacity
+            style={styles.photoViewerClose}
+            onPress={() => setSelectedPhotoIndex(null)}
+          >
+            <Ionicons name="close" size={32} color="#fff" />
+          </TouchableOpacity>
+
+          {selectedPhotoIndex !== null && pickupPhotos[selectedPhotoIndex] && (
+            <>
+              <Image
+                source={{ uri: api.getPickupPhotoUrl(pickupPhotos[selectedPhotoIndex].photoPath) }}
+                style={styles.photoViewerImage}
+                resizeMode="contain"
+              />
+
+              <View style={styles.photoViewerInfo}>
+                <Text style={styles.photoViewerBy}>
+                  Photo by {pickupPhotos[selectedPhotoIndex].capturedByName}
+                </Text>
+                <Text style={styles.photoViewerTime}>
+                  {new Date(pickupPhotos[selectedPhotoIndex].capturedAt).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                  })}
+                </Text>
+              </View>
+
+              {pickupPhotos.length > 1 && (
+                <View style={styles.photoViewerNav}>
+                  <TouchableOpacity
+                    style={[styles.photoNavButton, selectedPhotoIndex === 0 && styles.photoNavButtonDisabled]}
+                    onPress={() => setSelectedPhotoIndex(Math.max(0, selectedPhotoIndex - 1))}
+                    disabled={selectedPhotoIndex === 0}
+                  >
+                    <Ionicons name="chevron-back" size={28} color={selectedPhotoIndex === 0 ? '#64748b' : '#fff'} />
+                  </TouchableOpacity>
+                  <Text style={styles.photoCounter}>
+                    {selectedPhotoIndex + 1} / {pickupPhotos.length}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.photoNavButton, selectedPhotoIndex === pickupPhotos.length - 1 && styles.photoNavButtonDisabled]}
+                    onPress={() => setSelectedPhotoIndex(Math.min(pickupPhotos.length - 1, selectedPhotoIndex + 1))}
+                    disabled={selectedPhotoIndex === pickupPhotos.length - 1}
+                  >
+                    <Ionicons name="chevron-forward" size={28} color={selectedPhotoIndex === pickupPhotos.length - 1 ? '#64748b' : '#fff'} />
+                  </TouchableOpacity>
+                </View>
+              )}
+            </>
+          )}
+        </View>
       </Modal>
 
       </>
@@ -2074,6 +2266,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748b',
   },
+  // Verify layering section (dryer check)
+  verifyLayeringCard: {
+    backgroundColor: '#ffedd5',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#f97316',
+  },
+  verifyLayeringHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  verifyLayeringTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#9a3412',
+  },
+  verifyLayeringText: {
+    fontSize: 14,
+    color: '#c2410c',
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  verifyLayeringButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#f97316',
+    paddingVertical: 14,
+    borderRadius: 10,
+  },
+  verifyLayeringButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
   // Verify folding section (order-level)
   verifyFoldingCard: {
     backgroundColor: '#fce7f3',
@@ -2111,6 +2342,96 @@ const styles = StyleSheet.create({
   verifyFoldingButtonText: {
     color: '#fff',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  // Pickup photos styles
+  pickupPhotosCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  pickupPhotosScroll: {
+    gap: 10,
+  },
+  pickupPhotoWrapper: {
+    alignItems: 'center',
+  },
+  pickupPhotoThumbnail: {
+    width: 100,
+    height: 100,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  pickupPhotoInfo: {
+    marginTop: 6,
+    alignItems: 'center',
+  },
+  pickupPhotoBy: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  pickupPhotoTime: {
+    fontSize: 10,
+    color: '#64748b',
+  },
+  pickupPhotoHint: {
+    fontSize: 11,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 10,
+  },
+  // Photo viewer modal
+  photoViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoViewerClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
+  },
+  photoViewerImage: {
+    width: '100%',
+    height: '60%',
+  },
+  photoViewerInfo: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  photoViewerBy: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  photoViewerTime: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginTop: 4,
+  },
+  photoViewerNav: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 20,
+    gap: 20,
+  },
+  photoNavButton: {
+    padding: 10,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 25,
+  },
+  photoNavButtonDisabled: {
+    opacity: 0.3,
+  },
+  photoCounter: {
+    fontSize: 16,
+    color: '#fff',
     fontWeight: '600',
   },
 });

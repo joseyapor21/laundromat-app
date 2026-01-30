@@ -73,6 +73,7 @@ export default function DriverScreen() {
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadedPhotoCount, setUploadedPhotoCount] = useState(0);
   const cameraRef = useRef<CameraView>(null);
 
   // Helper to check if date matches filter
@@ -366,7 +367,7 @@ export default function DriverScreen() {
     setCapturedPhoto(null);
   }
 
-  async function uploadPhotoAndUpdateStatus() {
+  async function uploadPhotoAndContinue() {
     if (!photoOrderId || !capturedPhoto) return;
 
     setIsUploading(true);
@@ -374,16 +375,9 @@ export default function DriverScreen() {
       // Upload the photo
       await api.uploadPickupPhoto(photoOrderId, capturedPhoto);
 
-      // Update the order status
-      await api.updateOrderStatus(photoOrderId, 'picked_up');
-      await loadOrders();
-
-      // Close modal and reset state
-      setShowPhotoModal(false);
-      setPhotoOrderId(null);
+      // Increment count and reset for next photo
+      setUploadedPhotoCount(prev => prev + 1);
       setCapturedPhoto(null);
-
-      Alert.alert('Success', 'Photo uploaded and order marked as picked up');
     } catch (error) {
       console.error('Failed to upload photo:', error);
       Alert.alert('Error', 'Failed to upload photo. Please try again.');
@@ -392,31 +386,75 @@ export default function DriverScreen() {
     }
   }
 
-  function closePhotoModal() {
-    setShowPhotoModal(false);
-    setPhotoOrderId(null);
-    setCapturedPhoto(null);
+  async function finishPickupWithPhotos() {
+    if (!photoOrderId) return;
+
+    // If there's a captured photo that hasn't been uploaded yet, upload it first
+    if (capturedPhoto) {
+      setIsUploading(true);
+      try {
+        await api.uploadPickupPhoto(photoOrderId, capturedPhoto);
+        setUploadedPhotoCount(prev => prev + 1);
+      } catch (error) {
+        console.error('Failed to upload final photo:', error);
+        Alert.alert('Error', 'Failed to upload photo. Please try again.');
+        setIsUploading(false);
+        return;
+      }
+    }
+
+    try {
+      // Update the order status
+      await api.updateOrderStatus(photoOrderId, 'picked_up');
+      await loadOrders();
+
+      const totalPhotos = uploadedPhotoCount + (capturedPhoto ? 1 : 0);
+
+      // Close modal and reset state
+      setShowPhotoModal(false);
+      setPhotoOrderId(null);
+      setCapturedPhoto(null);
+      setUploadedPhotoCount(0);
+
+      Alert.alert('Success', `${totalPhotos} photo${totalPhotos > 1 ? 's' : ''} uploaded and order marked as picked up`);
+    } catch (error) {
+      console.error('Failed to update status:', error);
+      Alert.alert('Error', 'Failed to mark order as picked up.');
+    } finally {
+      setIsUploading(false);
+    }
   }
 
-  // Handle pickup with photo option
+  function closePhotoModal() {
+    if (uploadedPhotoCount > 0) {
+      Alert.alert(
+        'Discard Photos?',
+        `You have uploaded ${uploadedPhotoCount} photo${uploadedPhotoCount > 1 ? 's' : ''}. Are you sure you want to cancel without completing the pickup?`,
+        [
+          { text: 'Keep Taking Photos', style: 'cancel' },
+          {
+            text: 'Discard & Cancel',
+            style: 'destructive',
+            onPress: () => {
+              setShowPhotoModal(false);
+              setPhotoOrderId(null);
+              setCapturedPhoto(null);
+              setUploadedPhotoCount(0);
+            },
+          },
+        ]
+      );
+    } else {
+      setShowPhotoModal(false);
+      setPhotoOrderId(null);
+      setCapturedPhoto(null);
+      setUploadedPhotoCount(0);
+    }
+  }
+
+  // Handle pickup - always require photo
   function handlePickupWithPhoto(order: Order) {
-    Alert.alert(
-      'Mark as Picked Up',
-      'Would you like to take a photo of the bags?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Skip Photo',
-          style: 'default',
-          onPress: () => updateStatus(order._id, 'picked_up'),
-        },
-        {
-          text: 'Take Photo',
-          style: 'default',
-          onPress: () => openPhotoCapture(order._id),
-        },
-      ]
-    );
+    openPhotoCapture(order._id);
   }
 
   // Handle delivery completion with payment option
@@ -1220,7 +1258,9 @@ export default function DriverScreen() {
       >
         <View style={styles.photoModalContainer}>
           <View style={styles.photoModalHeader}>
-            <Text style={styles.photoModalTitle}>Pickup Photo</Text>
+            <Text style={styles.photoModalTitle}>
+              Pickup Photos {uploadedPhotoCount > 0 && `(${uploadedPhotoCount} saved)`}
+            </Text>
             <TouchableOpacity onPress={closePhotoModal} style={styles.photoCloseBtn}>
               <Ionicons name="close" size={28} color="#fff" />
             </TouchableOpacity>
@@ -1231,7 +1271,7 @@ export default function DriverScreen() {
             <View style={styles.photoPreviewContainer}>
               <Image
                 source={{ uri: `data:image/jpeg;base64,${capturedPhoto}` }}
-                style={styles.photoPreview}
+                style={[styles.photoPreview, { transform: [{ scaleX: -1 }] }]}
                 resizeMode="contain"
               />
               <View style={styles.photoActions}>
@@ -1244,8 +1284,22 @@ export default function DriverScreen() {
                   <Text style={styles.photoActionText}>Retake</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                  style={[styles.addAnotherBtn, isUploading && styles.confirmBtnDisabled]}
+                  onPress={uploadPhotoAndContinue}
+                  disabled={isUploading}
+                >
+                  {isUploading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="add-circle" size={24} color="#fff" />
+                  )}
+                  <Text style={styles.photoActionText}>
+                    {isUploading ? 'Saving...' : 'Add Another'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={[styles.confirmBtn, isUploading && styles.confirmBtnDisabled]}
-                  onPress={uploadPhotoAndUpdateStatus}
+                  onPress={finishPickupWithPhotos}
                   disabled={isUploading}
                 >
                   {isUploading ? (
@@ -1254,7 +1308,7 @@ export default function DriverScreen() {
                     <Ionicons name="checkmark" size={24} color="#fff" />
                   )}
                   <Text style={styles.photoActionText}>
-                    {isUploading ? 'Uploading...' : 'Confirm Pickup'}
+                    {isUploading ? 'Finishing...' : 'Done'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1270,10 +1324,21 @@ export default function DriverScreen() {
               <View style={styles.cameraOverlay}>
                 <View style={styles.cameraFrame} />
                 <Text style={styles.cameraHint}>
-                  Take a photo of the bags
+                  {uploadedPhotoCount === 0
+                    ? 'Take a photo of the bags'
+                    : `${uploadedPhotoCount} photo${uploadedPhotoCount > 1 ? 's' : ''} saved - take another or tap Done`}
                 </Text>
               </View>
               <View style={styles.captureContainer}>
+                {uploadedPhotoCount > 0 && (
+                  <TouchableOpacity
+                    style={styles.doneFloatingBtn}
+                    onPress={finishPickupWithPhotos}
+                  >
+                    <Ionicons name="checkmark-circle" size={24} color="#fff" />
+                    <Text style={styles.doneFloatingText}>Done ({uploadedPhotoCount})</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={[styles.captureBtn, isCapturing && styles.captureBtnDisabled]}
                   onPress={takePhoto}
@@ -2029,10 +2094,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     borderRadius: 12,
   },
+  addAnotherBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#3b82f6',
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+  },
   confirmBtnDisabled: {
     opacity: 0.6,
   },
   photoActionText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  doneFloatingBtn: {
+    position: 'absolute',
+    top: -60,
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#10b981',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 25,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  doneFloatingText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
