@@ -943,6 +943,32 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
+        {/* Show layering verification info if already verified */}
+        {order.layeringCheckedBy && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Layering Verified</Text>
+            <View style={styles.layeringVerifiedCard}>
+              <View style={styles.layeringVerifiedRow}>
+                <Text style={styles.layeringVerifiedLabel}>Verified by:</Text>
+                <Text style={styles.layeringVerifiedValue}>
+                  {order.layeringCheckedBy} {order.layeringCheckedByInitials && `(${order.layeringCheckedByInitials})`}
+                </Text>
+              </View>
+              {order.layeringCheckedAt && (
+                <Text style={styles.layeringVerifiedTime}>
+                  {new Date(order.layeringCheckedAt).toLocaleString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    hour12: true
+                  })}
+                </Text>
+              )}
+            </View>
+          </View>
+        )}
+
         {/* Mark Folding Complete - Show only when status is 'folded' and not yet verified */}
         {order.status === 'folded' && !order.foldingCheckedBy && (
           <View style={styles.section}>
@@ -2303,6 +2329,34 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Layering verified card
+  layeringVerifiedCard: {
+    backgroundColor: '#dcfce7',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#22c55e',
+  },
+  layeringVerifiedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  layeringVerifiedLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#166534',
+  },
+  layeringVerifiedValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#14532d',
+  },
+  layeringVerifiedTime: {
+    fontSize: 12,
+    color: '#16a34a',
+    marginTop: 6,
   },
   // Verify folding section (order-level)
   verifyFoldingCard: {
