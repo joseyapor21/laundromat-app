@@ -72,6 +72,7 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
   const [checkingMachine, setCheckingMachine] = useState<string | null>(null);
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [verifyingLayering, setVerifyingLayering] = useState(false);
 
   // Refresh order data
   const refreshOrder = useCallback(async () => {
@@ -270,6 +271,50 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
       toast.error(error instanceof Error ? error.message : 'Failed to verify folding');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Verify layering (dryer check after laid_on_cart)
+  const handleCheckLayering = async () => {
+    if (!currentUser) {
+      toast.error('You must be logged in');
+      return;
+    }
+
+    // Get the last dryer assignment to check if same person
+    const lastDryerAssignment = currentOrder.machineAssignments
+      ?.filter(a => a.machineType === 'dryer')
+      .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime())[0];
+
+    if (lastDryerAssignment && lastDryerAssignment.assignedBy &&
+        lastDryerAssignment.assignedBy.toLowerCase() === currentUser.name.toLowerCase()) {
+      toast.error('The person who assigned the dryer cannot verify the layering. A different person must check.');
+      return;
+    }
+
+    const initials = getInitials(currentUser.name);
+
+    setVerifyingLayering(true);
+    try {
+      const response = await fetch(`/api/orders/${order._id}/layering-check`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkedBy: currentUser.name,
+          checkedByInitials: initials,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to verify layering');
+
+      toast.success(`Layering verified by ${currentUser.name}`);
+      await refreshOrder();
+      onUpdate();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to verify layering');
+    } finally {
+      setVerifyingLayering(false);
     }
   };
 
@@ -774,6 +819,47 @@ export default function OrderDetailModal({ order, onClose, onUpdate, currentUser
                   </button>
                 ))}
               </div>
+
+              {/* Layering Verification Section (Dryer Check) */}
+              {currentOrder.status === 'laid_on_cart' && !currentOrder.layeringCheckedBy && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                    <div className="flex items-center gap-2 mb-2">
+                      <svg className="w-5 h-5 text-orange-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                      </svg>
+                      <span className="text-sm font-semibold text-orange-800">Dryer Check Required</span>
+                    </div>
+                    <p className="text-xs text-orange-700 mb-3">
+                      A different person must verify that all clothes have been properly laid out from the dryer.
+                    </p>
+                    <button
+                      onClick={() => handleCheckLayering()}
+                      disabled={verifyingLayering}
+                      className="w-full py-2.5 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:opacity-50"
+                    >
+                      {verifyingLayering ? 'Verifying...' : `Verify Layering (as ${currentUser?.name || 'Unknown'})`}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Show layering verification info if already verified */}
+              {currentOrder.layeringCheckedBy && (
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-green-700">Layering verified by:</span>
+                      <span className="text-sm font-semibold text-green-900">
+                        {currentOrder.layeringCheckedBy} {currentOrder.layeringCheckedByInitials && `(${currentOrder.layeringCheckedByInitials})`}
+                      </span>
+                    </div>
+                    {currentOrder.layeringCheckedAt && (
+                      <p className="text-xs text-green-600 mt-1">{formatDate(currentOrder.layeringCheckedAt)}</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Folding Status Section */}
               {(currentOrder.status === 'folding' || currentOrder.status === 'folded') && (

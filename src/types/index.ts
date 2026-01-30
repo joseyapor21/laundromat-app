@@ -177,6 +177,10 @@ export interface Order {
   foldedBy?: string;
   foldedByInitials?: string;
   foldedAt?: Date;
+  // Layering check tracking (verification after laid_on_cart before folding)
+  layeringCheckedBy?: string;
+  layeringCheckedByInitials?: string;
+  layeringCheckedAt?: Date;
   // Folding check tracking (verification after folding before ready)
   foldingCheckedBy?: string;
   foldingCheckedByInitials?: string;
