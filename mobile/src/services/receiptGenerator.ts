@@ -167,12 +167,19 @@ export function generateCustomerReceiptText(order: Order): string {
     r += `${order.customerPhone}\n`;
   }
 
-  // Notes (inverted if present)
+  // Notes (inverted, double size)
   if (order.specialInstructions) {
+    r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` Notes : \n`;
-    r += ` ${order.specialInstructions.substring(0, 20)} \n`;
+    r += ` NOTES: \n`;
+    // Wrap notes at ~20 chars per line for double-size text
+    const notes = order.specialInstructions;
+    const maxLineLen = 20;
+    for (let i = 0; i < notes.length; i += maxLineLen) {
+      r += ` ${notes.substring(i, i + maxLineLen).trim()} \n`;
+    }
     r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
   }
 
   r += '------------------------------------------------\n';
@@ -349,12 +356,19 @@ export function generateStoreCopyText(order: Order): string {
     r += `${order.customerPhone}\n`;
   }
 
-  // Notes (inverted if present)
+  // Notes (inverted, double size)
   if (order.specialInstructions) {
+    r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` Notes : \n`;
-    r += ` ${order.specialInstructions.substring(0, 20)} \n`;
+    r += ` NOTES: \n`;
+    // Wrap notes at ~20 chars per line for double-size text
+    const notes = order.specialInstructions;
+    const maxLineLen = 20;
+    for (let i = 0; i < notes.length; i += maxLineLen) {
+      r += ` ${notes.substring(i, i + maxLineLen).trim()} \n`;
+    }
     r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
   }
 
   r += '------------------------------------------------\n';
@@ -545,12 +559,19 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
     r += ESC.BOLD_OFF;
   }
 
-  // Order notes
+  // Order notes (double size)
   if (order.specialInstructions) {
     r += '\n';
+    r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` Notes: ${order.specialInstructions.substring(0, 25)} \n`;
+    r += ` NOTES: \n`;
+    const orderNotes = order.specialInstructions;
+    const maxLen = 20;
+    for (let i = 0; i < orderNotes.length; i += maxLen) {
+      r += ` ${orderNotes.substring(i, i + maxLen).trim()} \n`;
+    }
     r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
   }
 
   // === QR CODE (Large for easy scanning) ===
