@@ -10,6 +10,7 @@ const publicPaths = [
   '/login',
   '/api/auth/login',
   '/api/health',
+  '/api/orders/*/ticket-preview',
 ];
 
 // API paths that should return JSON errors
@@ -20,6 +21,11 @@ export async function middleware(request: NextRequest) {
 
   // Allow public paths
   if (publicPaths.some(path => pathname.startsWith(path))) {
+    return NextResponse.next();
+  }
+
+  // Allow ticket-preview endpoint (pattern: /api/orders/*/ticket-preview)
+  if (/^\/api\/orders\/[^/]+\/ticket-preview$/.test(pathname)) {
     return NextResponse.next();
   }
 
