@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
-import { Order } from '@/lib/db/models';
+import { Order, Customer } from '@/lib/db/models';
 
 // Format functions
 function formatTimeASCII(date: Date): string {
@@ -197,16 +197,22 @@ export async function GET(
     const { id } = await params;
 
     // Find order - try by orderId first, then by _id
-    let order;
+    let order: any;
     if (/^\d+$/.test(id)) {
-      order = await Order.findOne({ orderId: parseInt(id) }).populate('customer').lean();
+      order = await Order.findOne({ orderId: parseInt(id) }).lean();
     }
     if (!order) {
-      order = await Order.findById(id).populate('customer').lean();
+      order = await Order.findById(id).lean();
     }
 
     if (!order) {
       return new NextResponse('Order not found', { status: 404 });
+    }
+
+    // Fetch customer separately if customerId exists
+    if (order.customerId) {
+      const customer = await Customer.findById(order.customerId).lean();
+      order.customer = customer;
     }
 
     const preview = generatePreview(order);
