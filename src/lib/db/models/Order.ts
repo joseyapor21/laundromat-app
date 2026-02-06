@@ -42,6 +42,9 @@ export interface OrderDoc {
   status: OrderStatus;
   employeeId: string;
   totalAmount: number;
+  subtotal?: number;
+  sameDayFee?: number;
+  deliveryFee?: number;
   orderType: OrderType;
   deliverySchedule?: Date | null;
   paymentMethod?: PaymentMethod | null;
@@ -245,6 +248,18 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   totalAmount: {
     type: Number,
     required: true,
+  },
+  subtotal: {
+    type: Number,
+    default: 0,
+  },
+  sameDayFee: {
+    type: Number,
+    default: 0,
+  },
+  deliveryFee: {
+    type: Number,
+    default: 0,
   },
   orderType: {
     type: String,

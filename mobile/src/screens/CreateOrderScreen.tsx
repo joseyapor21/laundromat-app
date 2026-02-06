@@ -604,6 +604,26 @@ export default function CreateOrderScreen() {
       // Use manual delivery address if customer doesn't have one
       const finalDeliveryAddress = selectedCustomer.address || deliveryAddress.trim();
 
+      // Calculate individual price components
+      const pricePerPound = settings?.pricePerPound || 0;
+      const laundrySubtotal = totalWeight * pricePerPound;
+
+      // Calculate same day fee
+      let sameDayFee = 0;
+      if (isSameDay && settings?.sameDayExtraCentsPerPound) {
+        sameDayFee = totalWeight * (settings.sameDayExtraCentsPerPound / 100);
+      }
+
+      // Calculate delivery fee
+      let orderDeliveryFee = 0;
+      if (orderType === 'delivery' && selectedCustomer) {
+        if (!selectedCustomer.deliveryFee || selectedCustomer.deliveryFee === '$0.00') {
+          orderDeliveryFee = parseFloat(manualDeliveryFee) || 0;
+        } else {
+          orderDeliveryFee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
+        }
+      }
+
       const orderData = {
         customerId: selectedCustomer._id,
         customerName: selectedCustomer.name,
@@ -621,6 +641,9 @@ export default function CreateOrderScreen() {
         specialInstructions,
         items: [],
         extraItems: extraItemsData,
+        subtotal: laundrySubtotal,
+        sameDayFee: sameDayFee,
+        deliveryFee: orderDeliveryFee,
         totalAmount: calculateTotal(),
         dropOffDate: new Date(),
         estimatedPickupDate: estimatedPickupDate,
