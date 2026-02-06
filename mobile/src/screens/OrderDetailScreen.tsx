@@ -1124,10 +1124,15 @@ export default function OrderDetailScreen() {
                 <Text style={styles.extraItemsLabel}>Extra Items</Text>
                 {order.extraItems.map((item: any, index) => {
                   const itemName = item.name || item.item?.name || 'Extra Item';
+                  // Use overrideTotal if set, otherwise calculate
+                  const itemTotal = item.overrideTotal !== undefined && item.overrideTotal !== null
+                    ? item.overrideTotal
+                    : item.price * item.quantity;
+                  const hasOverride = item.overrideTotal !== undefined && item.overrideTotal !== null;
                   return (
                     <View key={`extra-${index}`} style={styles.itemRow}>
-                      <Text style={styles.itemName}>{itemName} x{item.quantity}</Text>
-                      <Text style={styles.itemPrice}>${(item.price * item.quantity).toFixed(2)}</Text>
+                      <Text style={styles.itemName}>{itemName} x{item.quantity.toFixed(2)}</Text>
+                      <Text style={[styles.itemPrice, hasOverride && { color: '#ef4444' }]}>${itemTotal.toFixed(2)}</Text>
                     </View>
                   );
                 })}
