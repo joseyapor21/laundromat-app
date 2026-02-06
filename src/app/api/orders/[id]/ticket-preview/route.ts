@@ -137,16 +137,22 @@ function generatePreview(order: any): string {
   lines.push('────────────────────────────────────────────────');
 
   // Totals
-  lines.push(leftRightAlign('Weight', `${order.weight || 0} LBS`));
-  if (order.subtotal && order.subtotal > 0) {
-    lines.push(leftRightAlign('Subtotal', `$${order.subtotal.toFixed(2)}`));
+  const totalWeight = order.weight || 0;
+  // Show weight with price calculation
+  if (order.subtotal && order.subtotal > 0 && totalWeight > 0) {
+    lines.push(leftRightAlign('Total Weight', `${totalWeight} LBS = $${order.subtotal.toFixed(2)}`));
+  } else {
+    lines.push(leftRightAlign('Total Weight', `${totalWeight} LBS`));
   }
-  // Always show delivery fee for delivery orders
-  if (isDelivery) {
-    const fee = order.deliveryFee || 0;
-    lines.push(leftRightAlign('Delivery Fee', `$${fee.toFixed(2)}`));
+  // Show delivery fee only if > 0
+  if (order.deliveryFee && order.deliveryFee > 0) {
+    lines.push(leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`));
   }
-  if (order.sameDayFee && order.sameDayFee > 0) {
+  // Show same day fee with calculation
+  if (order.sameDayFee && order.sameDayFee > 0 && totalWeight > 0) {
+    const sameDayRate = (order.sameDayFee / totalWeight).toFixed(2);
+    lines.push(leftRightAlign('Same Day Fee', `${totalWeight} LBS * @ ${sameDayRate} = $${order.sameDayFee.toFixed(2)}`));
+  } else if (order.sameDayFee && order.sameDayFee > 0) {
     lines.push(leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`));
   }
   if (order.creditApplied && order.creditApplied > 0) {

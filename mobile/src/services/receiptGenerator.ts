@@ -234,20 +234,23 @@ export function generateCustomerReceiptText(order: Order): string {
   r += ESC.LEFT;
   const totalWeight = order.weight || 0;
 
-  // Show subtotal breakdown (only if > 0)
-  r += leftRightAlign('Weight', `${totalWeight} LBS`) + '\n';
-  if (order.subtotal && order.subtotal > 0) {
-    r += leftRightAlign('Subtotal', `$${order.subtotal.toFixed(2)}`) + '\n';
+  // Show weight with price calculation
+  if (order.subtotal && order.subtotal > 0 && totalWeight > 0) {
+    r += leftRightAlign('Total Weight', `${totalWeight} LBS = $${order.subtotal.toFixed(2)}`) + '\n';
+  } else {
+    r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
   }
 
-  // Show delivery fee for delivery orders (always show)
-  if (isDelivery) {
-    const fee = order.deliveryFee || 0;
-    r += leftRightAlign('Delivery Fee', `$${fee.toFixed(2)}`) + '\n';
+  // Show delivery fee only if > 0
+  if (order.deliveryFee && order.deliveryFee > 0) {
+    r += leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`) + '\n';
   }
 
-  // Show same day fee if applicable
-  if (order.sameDayFee && order.sameDayFee > 0) {
+  // Show same day fee with calculation
+  if (order.sameDayFee && order.sameDayFee > 0 && totalWeight > 0) {
+    const sameDayRate = (order.sameDayFee / totalWeight).toFixed(2);
+    r += leftRightAlign('Same Day Fee', `${totalWeight} LBS * @ ${sameDayRate} = $${order.sameDayFee.toFixed(2)}`) + '\n';
+  } else if (order.sameDayFee && order.sameDayFee > 0) {
     r += leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`) + '\n';
   }
 
@@ -440,20 +443,23 @@ export function generateStoreCopyText(order: Order): string {
   r += ESC.LEFT;
   const totalWeight = order.weight || 0;
 
-  // Show subtotal breakdown (only if > 0)
-  r += leftRightAlign('Weight', `${totalWeight} LBS`) + '\n';
-  if (order.subtotal && order.subtotal > 0) {
-    r += leftRightAlign('Subtotal', `$${order.subtotal.toFixed(2)}`) + '\n';
+  // Show weight with price calculation
+  if (order.subtotal && order.subtotal > 0 && totalWeight > 0) {
+    r += leftRightAlign('Total Weight', `${totalWeight} LBS = $${order.subtotal.toFixed(2)}`) + '\n';
+  } else {
+    r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
   }
 
-  // Show delivery fee for delivery orders (always show)
-  if (isDelivery) {
-    const fee = order.deliveryFee || 0;
-    r += leftRightAlign('Delivery Fee', `$${fee.toFixed(2)}`) + '\n';
+  // Show delivery fee only if > 0
+  if (order.deliveryFee && order.deliveryFee > 0) {
+    r += leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`) + '\n';
   }
 
-  // Show same day fee if applicable
-  if (order.sameDayFee && order.sameDayFee > 0) {
+  // Show same day fee with calculation
+  if (order.sameDayFee && order.sameDayFee > 0 && totalWeight > 0) {
+    const sameDayRate = (order.sameDayFee / totalWeight).toFixed(2);
+    r += leftRightAlign('Same Day Fee', `${totalWeight} LBS * @ ${sameDayRate} = $${order.sameDayFee.toFixed(2)}`) + '\n';
+  } else if (order.sameDayFee && order.sameDayFee > 0) {
     r += leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`) + '\n';
   }
 
