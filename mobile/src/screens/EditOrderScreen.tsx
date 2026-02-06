@@ -11,6 +11,8 @@ import {
   Switch,
   Platform,
   Modal,
+  KeyboardAvoidingView,
+  Keyboard,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -22,6 +24,7 @@ import { localPrinter } from '../services/LocalPrinter';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
 import { useAuth } from '../contexts/AuthContext';
 import type { Order, ExtraItem, Settings, Bag, OrderType, OrderExtraItem } from '../types';
+import { calculateWeightBasedPrice, calculateWeightBasedQuantity, roundToNearestQuarter } from '../utils/pricing';
 
 export default function EditOrderScreen() {
   const route = useRoute<any>();
@@ -163,13 +166,6 @@ export default function EditOrderScreen() {
     return bags.reduce((total, bag) => total + (bag.weight || 0), 0);
   }, [bags]);
 
-  // Calculate quantity for weight-based items (e.g., "per 15 lbs")
-  // Returns exact proportional quantity for pricing calculations
-  const calculateWeightBasedQuantity = (perWeightUnit: number, totalWeight: number): number => {
-    if (perWeightUnit <= 0 || totalWeight <= 0) return 0;
-    return totalWeight / perWeightUnit;
-  };
-
   // Update weight-based extra items when weight changes
   useEffect(() => {
     const totalWeight = calculateTotalWeight();
@@ -180,7 +176,7 @@ export default function EditOrderScreen() {
       Object.keys(updated).forEach(itemId => {
         const item = extraItems.find(e => e._id === itemId);
         if (item?.perWeightUnit && item.perWeightUnit > 0) {
-          const newQty = calculateWeightBasedQuantity(item.perWeightUnit, totalWeight);
+          const newQty = calculateWeightBasedQuantity(totalWeight, item.perWeightUnit);
           if (updated[itemId].quantity !== newQty && updated[itemId].quantity > 0) {
             updated[itemId] = { ...updated[itemId], quantity: newQty };
             hasChanges = true;
@@ -191,11 +187,6 @@ export default function EditOrderScreen() {
       return hasChanges ? updated : prev;
     });
   }, [bags, extraItems, calculateTotalWeight]);
-
-  // Round to nearest quarter
-  const roundToQuarter = (value: number): number => {
-    return Math.round(value * 4) / 4;
-  };
 
   // Calculate same day price per pound (regular + extra)
   const getSameDayPricePerPound = (): number => {
@@ -245,9 +236,8 @@ export default function EditOrderScreen() {
         if (data.overrideTotal !== undefined && data.overrideTotal !== null) {
           return total + data.overrideTotal;
         }
-        // Proportional pricing: (weight / perWeightUnit) * price, rounded to nearest quarter
-        const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, weight);
-        const itemTotal = roundToQuarter(data.price * proportionalQty);
+        // calculateWeightBasedPrice applies minimum and rounds to nearest quarter
+        const itemTotal = calculateWeightBasedPrice(weight, item.perWeightUnit!, data.price);
         return total + itemTotal;
       }
       return total + (data.price * data.quantity);
@@ -306,7 +296,7 @@ export default function EditOrderScreen() {
         .map(([itemId, data]) => {
           const item = extraItems.find(i => i._id === itemId);
           const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
-          const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
+          const qty = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : data.quantity;
           return {
             itemId,
             name: item?.name || '',
@@ -998,20 +988,27 @@ export default function EditOrderScreen() {
                     if (!item) return null;
                     const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                     const totalWeight = calculateTotalWeight();
-                    const displayQty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
+                    const displayQty = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : data.quantity;
+                    // Use overrideTotal if set, otherwise calculate
+                    const displayPrice = data.overrideTotal !== undefined
+                      ? data.overrideTotal
+                      : (isWeightBased
+                        ? calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price)
+                        : data.price * data.quantity);
+                    const hasOverride = data.overrideTotal !== undefined;
                     return (
                       <View key={itemId} style={styles.selectedExtraRow}>
                         <View style={{ flex: 1 }}>
                           <Text style={styles.selectedExtraName}>
-                            {item.name} × {displayQty}
+                            {item.name} × {displayQty.toFixed(2)}
                           </Text>
                           {isWeightBased && (
                             <Text style={styles.selectedExtraHint}>
-                              ({totalWeight} lbs @ ${data.price}/{item.perWeightUnit} lbs)
+                              ({totalWeight} lbs @ ${data.price}/{item.perWeightUnit} lbs{hasOverride ? ', overridden' : `, min $${data.price}`})
                             </Text>
                           )}
                         </View>
-                        <Text style={styles.selectedExtraPrice}>${(data.price * displayQty).toFixed(2)}</Text>
+                        <Text style={[styles.selectedExtraPrice, hasOverride && { color: '#ef4444' }]}>${displayPrice.toFixed(2)}</Text>
                       </View>
                     );
                   })}
@@ -1128,7 +1125,15 @@ export default function EditOrderScreen() {
                     <View style={styles.priceRow}>
                       <Text style={styles.priceLabel}>Extra Items</Text>
                       <Text style={styles.priceValue}>
-                        +${Object.entries(selectedExtraItems).reduce((total, [_, data]) => {
+                        +${Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
+                          const item = extraItems.find(e => e._id === itemId);
+                          const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
+                          if (isWeightBased) {
+                            if (data.overrideTotal !== undefined) {
+                              return total + data.overrideTotal;
+                            }
+                            return total + calculateWeightBasedPrice(calculateTotalWeight(), item.perWeightUnit!, data.price);
+                          }
                           return total + (data.price * data.quantity);
                         }, 0).toFixed(2)}
                       </Text>
@@ -1256,6 +1261,10 @@ export default function EditOrderScreen() {
         animationType="slide"
         onRequestClose={() => setShowExtraItemsModal(false)}
       >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <View style={styles.modalContainer}>
           <View style={[styles.modalHeader, { paddingTop: insets.top + 12 }]}>
             <Text style={styles.modalTitle}>Select Extra Items</Text>
@@ -1271,11 +1280,15 @@ export default function EditOrderScreen() {
               extraItems.map((item) => {
                 const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                 const totalWeight = calculateTotalWeight();
-                const autoQuantity = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : 0;
+                const autoQuantity = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : 0;
                 const data = selectedExtraItems[item._id] || { quantity: 0, price: item.price };
                 const quantity = isWeightBased ? (data.quantity > 0 ? autoQuantity : 0) : data.quantity;
                 const customPrice = data.price;
                 const isEnabled = data.quantity > 0 || (selectedExtraItems[item._id] !== undefined);
+                // Calculate price with minimum applied for weight-based items
+                const calculatedPrice = isWeightBased
+                  ? calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, customPrice)
+                  : 0;
 
                 return (
                   <View key={item._id} style={[styles.modalItemCard, quantity > 0 && styles.modalItemCardSelected]}>
@@ -1356,33 +1369,27 @@ export default function EditOrderScreen() {
                             <View style={styles.modalPriceInputContainer}>
                               <Text style={styles.modalPriceDollar}>$</Text>
                               <TextInput
-                                key={`${item._id}-${data.overrideTotal !== undefined ? 'override' : 'calc'}`}
                                 style={[styles.modalPriceInput, data.overrideTotal !== undefined && styles.modalPriceInputOverride]}
-                                defaultValue={data.overrideTotal !== undefined ? data.overrideTotal.toString() : roundToQuarter(customPrice * quantity).toFixed(2)}
+                                defaultValue={data.overrideTotal !== undefined ? data.overrideTotal.toString() : calculatedPrice.toFixed(2)}
                                 onChangeText={(text) => {
-                                  // Clean input - only allow numbers and one decimal
-                                  const cleaned = text.replace(/[^0-9.]/g, '');
-                                  const parts = cleaned.split('.');
-                                  const finalText = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned;
-
-                                  if (finalText === '' || finalText === '.') {
-                                    setSelectedExtraItems(prev => ({
-                                      ...prev,
-                                      [item._id]: { ...prev[item._id], overrideTotal: 0 }
-                                    }));
-                                    return;
-                                  }
-                                  const newTotal = parseFloat(finalText);
-                                  if (!isNaN(newTotal)) {
+                                  const newTotal = parseFloat(text) || 0;
+                                  if (newTotal !== calculatedPrice) {
                                     setSelectedExtraItems(prev => ({
                                       ...prev,
                                       [item._id]: { ...prev[item._id], overrideTotal: newTotal }
                                     }));
+                                  } else {
+                                    // If they enter the calculated price, remove override
+                                    setSelectedExtraItems(prev => ({
+                                      ...prev,
+                                      [item._id]: { ...prev[item._id], overrideTotal: undefined }
+                                    }));
                                   }
                                 }}
                                 keyboardType="decimal-pad"
+                                returnKeyType="done"
                                 selectTextOnFocus={true}
-                                placeholder={roundToQuarter(customPrice * quantity).toFixed(2)}
+                                placeholder={calculatedPrice.toFixed(2)}
                                 placeholderTextColor="#94a3b8"
                               />
                             </View>
@@ -1440,18 +1447,24 @@ export default function EditOrderScreen() {
                   if (!item) return null;
                   const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                   const totalWeight = calculateTotalWeight();
-                  const displayQty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
+                  const displayQty = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : data.quantity;
+                  // Use calculateWeightBasedPrice for weight-based items (applies minimum)
+                  const itemTotal = isWeightBased
+                    ? (data.overrideTotal !== undefined ? data.overrideTotal : calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price))
+                    : data.price * data.quantity;
                   return (
                     <View key={itemId} style={styles.modalSummaryRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.modalSummaryText}>{item.name} × {displayQty}</Text>
+                        <Text style={styles.modalSummaryText}>{item.name} × {displayQty.toFixed(2)}</Text>
                         {isWeightBased && (
                           <Text style={styles.modalSummaryCalc}>
-                            ({totalWeight} lbs ÷ {item.perWeightUnit} lbs)
+                            ({totalWeight} lbs ÷ {item.perWeightUnit} lbs, min ${data.price})
                           </Text>
                         )}
                       </View>
-                      <Text style={styles.modalSummaryPrice}>${(data.price * displayQty).toFixed(2)}</Text>
+                      <Text style={[styles.modalSummaryPrice, isWeightBased && data.overrideTotal !== undefined && { color: '#ef4444' }]}>
+                        ${itemTotal.toFixed(2)}
+                      </Text>
                     </View>
                   );
                 })}
@@ -1463,8 +1476,13 @@ export default function EditOrderScreen() {
                       const item = extraItems.find(i => i._id === itemId);
                       const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
                       const totalWeight = calculateTotalWeight();
-                      const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
-                      return sum + data.price * qty;
+                      if (isWeightBased) {
+                        if (data.overrideTotal !== undefined) {
+                          return sum + data.overrideTotal;
+                        }
+                        return sum + calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price);
+                      }
+                      return sum + data.price * data.quantity;
                     }, 0)
                     .toFixed(2)}
                 </Text>
@@ -1476,19 +1494,25 @@ export default function EditOrderScreen() {
             <TouchableOpacity
               style={styles.modalClearButton}
               onPress={() => {
+                Keyboard.dismiss();
                 setSelectedExtraItems({});
+                setTimeout(() => setShowExtraItemsModal(false), 100);
               }}
             >
               <Text style={styles.modalClearButtonText}>Clear All</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.modalDoneButton}
-              onPress={() => setShowExtraItemsModal(false)}
+              onPress={() => {
+                Keyboard.dismiss();
+                setTimeout(() => setShowExtraItemsModal(false), 100);
+              }}
             >
               <Text style={styles.modalDoneButtonText}>Done</Text>
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );

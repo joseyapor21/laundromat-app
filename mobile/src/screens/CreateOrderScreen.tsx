@@ -12,6 +12,7 @@ import {
   Keyboard,
   Modal,
   Platform,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,6 +24,7 @@ import { localPrinter } from '../services/LocalPrinter';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
 import AddressInput from '../components/AddressInput';
 import type { Customer, Settings, ExtraItem, PaymentMethod } from '../types';
+import { calculateWeightBasedPrice, calculateWeightBasedQuantity, roundToNearestQuarter } from '../utils/pricing';
 
 // Format date as "Tue, Jan 12, 2026, 11:45 AM"
 function formatPickupDate(date: Date): string {
@@ -359,18 +361,6 @@ export default function CreateOrderScreen() {
     return bags.reduce((sum, bag) => sum + (bag.weight || 0), 0);
   }
 
-  // Calculate quantity for weight-based items (e.g., "per 15 lbs")
-  // Returns the exact proportional quantity (e.g., 20lbs / 15lbs = 1.33)
-  function calculateWeightBasedQuantity(perWeightUnit: number, totalWeight: number): number {
-    if (perWeightUnit <= 0 || totalWeight <= 0) return 0;
-    return totalWeight / perWeightUnit;
-  }
-
-  // Round amount to nearest quarter (0.25)
-  function roundToNearestQuarter(amount: number): number {
-    return Math.round(amount * 4) / 4;
-  }
-
   // Update weight-based extra items when weight changes
   useEffect(() => {
     const totalWeight = getTotalWeight();
@@ -424,19 +414,19 @@ export default function CreateOrderScreen() {
       }
     }
 
-    // Add extras (handle weight-based items with proportional pricing rounded to nearest quarter)
+    // Add extras (handle weight-based items with minimum price and round to nearest quarter)
     let extrasTotal = 0;
     Object.entries(selectedExtras).forEach(([itemId, data]) => {
       if (data.quantity > 0) {
         const item = extraItems.find(e => e._id === itemId);
         const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
         if (isWeightBased) {
-          // Use override total if set, otherwise calculate proportionally
+          // Use override total if set, otherwise calculate with minimum applied
           if (data.overrideTotal !== undefined && data.overrideTotal !== null) {
             extrasTotal += data.overrideTotal;
           } else {
-            const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight);
-            const itemTotal = roundToNearestQuarter(data.price * proportionalQty);
+            // calculateWeightBasedPrice applies minimum (never less than base price) and rounds to quarter
+            const itemTotal = calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price);
             extrasTotal += itemTotal;
           }
         } else {
@@ -510,7 +500,7 @@ export default function CreateOrderScreen() {
       }
     }
 
-    // Extra items (handle weight-based items with proportional pricing)
+    // Extra items (handle weight-based items with minimum price)
     Object.entries(selectedExtras).forEach(([itemId, data]) => {
       const item = extraItems.find(e => e._id === itemId);
       if (item && data.quantity > 0) {
@@ -523,8 +513,8 @@ export default function CreateOrderScreen() {
               amount: data.overrideTotal,
             });
           } else {
-            const proportionalQty = calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight);
-            const itemTotal = roundToNearestQuarter(data.price * proportionalQty);
+            // calculateWeightBasedPrice applies minimum and rounds to quarter
+            const itemTotal = calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price);
             breakdown.push({
               label: item.name,
               amount: itemTotal,
@@ -883,31 +873,82 @@ export default function CreateOrderScreen() {
 
         {/* Delivery Type Options - only show when delivery is selected */}
         {orderType === 'delivery' && (
-          <View style={styles.deliveryTypeContainer}>
-            <Text style={styles.deliveryTypeLabel}>Delivery Service:</Text>
-            <View style={styles.deliveryTypeButtons}>
+          <View style={styles.deliveryTypeSection}>
+            <Text style={styles.deliveryTypeLabel}>Delivery Service Type:</Text>
+            <View style={styles.deliveryTypeContainer}>
               <TouchableOpacity
-                style={[styles.deliveryTypeBtn, deliveryType === 'full' && styles.deliveryTypeBtnActive]}
+                style={[
+                  styles.deliveryTypeButton,
+                  deliveryType === 'full' && styles.deliveryTypeButtonActive
+                ]}
                 onPress={() => setDeliveryType('full')}
               >
-                <Text style={[styles.deliveryTypeBtnText, deliveryType === 'full' && styles.deliveryTypeBtnTextActive]}>
+                <Ionicons
+                  name="swap-horizontal"
+                  size={18}
+                  color={deliveryType === 'full' ? '#fff' : '#64748b'}
+                />
+                <Text style={[
+                  styles.deliveryTypeText,
+                  deliveryType === 'full' && styles.deliveryTypeTextActive
+                ]}>
                   Full Service
                 </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.deliveryTypeBtn, deliveryType === 'pickupOnly' && styles.deliveryTypeBtnActive]}
-                onPress={() => setDeliveryType('pickupOnly')}
-              >
-                <Text style={[styles.deliveryTypeBtnText, deliveryType === 'pickupOnly' && styles.deliveryTypeBtnTextActive]}>
-                  Pickup Only (½)
+                <Text style={[
+                  styles.deliveryTypePrice,
+                  deliveryType === 'full' && styles.deliveryTypePriceActive
+                ]}>
+                  ${(parseFloat(selectedCustomer?.deliveryFee?.replace('$', '') || manualDeliveryFee || '0') || 0).toFixed(2)}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.deliveryTypeBtn, deliveryType === 'deliveryOnly' && styles.deliveryTypeBtnActive]}
+                style={[
+                  styles.deliveryTypeButton,
+                  deliveryType === 'pickupOnly' && styles.deliveryTypeButtonActive
+                ]}
+                onPress={() => setDeliveryType('pickupOnly')}
+              >
+                <Ionicons
+                  name="arrow-up"
+                  size={18}
+                  color={deliveryType === 'pickupOnly' ? '#fff' : '#64748b'}
+                />
+                <Text style={[
+                  styles.deliveryTypeText,
+                  deliveryType === 'pickupOnly' && styles.deliveryTypeTextActive
+                ]}>
+                  Pickup Only
+                </Text>
+                <Text style={[
+                  styles.deliveryTypePrice,
+                  deliveryType === 'pickupOnly' && styles.deliveryTypePriceActive
+                ]}>
+                  ${((parseFloat(selectedCustomer?.deliveryFee?.replace('$', '') || manualDeliveryFee || '0') || 0) / 2).toFixed(2)}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.deliveryTypeButton,
+                  deliveryType === 'deliveryOnly' && styles.deliveryTypeButtonActive
+                ]}
                 onPress={() => setDeliveryType('deliveryOnly')}
               >
-                <Text style={[styles.deliveryTypeBtnText, deliveryType === 'deliveryOnly' && styles.deliveryTypeBtnTextActive]}>
-                  Delivery Only (½)
+                <Ionicons
+                  name="arrow-down"
+                  size={18}
+                  color={deliveryType === 'deliveryOnly' ? '#fff' : '#64748b'}
+                />
+                <Text style={[
+                  styles.deliveryTypeText,
+                  deliveryType === 'deliveryOnly' && styles.deliveryTypeTextActive
+                ]}>
+                  Delivery Only
+                </Text>
+                <Text style={[
+                  styles.deliveryTypePrice,
+                  deliveryType === 'deliveryOnly' && styles.deliveryTypePriceActive
+                ]}>
+                  ${((parseFloat(selectedCustomer?.deliveryFee?.replace('$', '') || manualDeliveryFee || '0') || 0) / 2).toFixed(2)}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1145,20 +1186,27 @@ export default function CreateOrderScreen() {
                 if (!item) return null;
                 const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                 const totalWeight = getTotalWeight();
-                const displayQty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
+                const displayQty = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : data.quantity;
+                // Use overrideTotal if set, otherwise calculate
+                const displayPrice = data.overrideTotal !== undefined
+                  ? data.overrideTotal
+                  : (isWeightBased
+                    ? calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price)
+                    : data.price * data.quantity);
+                const hasOverride = data.overrideTotal !== undefined;
                 return (
                   <View key={itemId} style={styles.selectedExtraRow}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.selectedExtraName}>
-                        {item.name} × {displayQty}
+                        {item.name} × {displayQty.toFixed(2)}
                       </Text>
                       {isWeightBased && (
                         <Text style={styles.selectedExtraHint}>
-                          ({totalWeight} lbs @ ${data.price}/{item.perWeightUnit} lbs)
+                          ({totalWeight} lbs @ ${data.price}/{item.perWeightUnit} lbs{hasOverride ? ', overridden' : `, min $${data.price}`})
                         </Text>
                       )}
                     </View>
-                    <Text style={styles.selectedExtraPrice}>${(data.price * displayQty).toFixed(2)}</Text>
+                    <Text style={[styles.selectedExtraPrice, hasOverride && { color: '#ef4444' }]}>${displayPrice.toFixed(2)}</Text>
                   </View>
                 );
               })}
@@ -1331,6 +1379,10 @@ export default function CreateOrderScreen() {
         animationType="slide"
         onRequestClose={() => setShowExtraItemsModal(false)}
       >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <View style={styles.modalContainer}>
           <View style={[styles.modalHeader, { paddingTop: insets.top + 12 }]}>
             <Text style={styles.modalTitle}>Select Extra Items</Text>
@@ -1346,11 +1398,15 @@ export default function CreateOrderScreen() {
               extraItems.map((item) => {
                 const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                 const totalWeight = getTotalWeight();
-                const autoQuantity = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : 0;
+                const autoQuantity = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : 0;
                 const data = selectedExtras[item._id] || { quantity: 0, price: item.price };
                 const quantity = isWeightBased ? (data.quantity > 0 ? autoQuantity : 0) : data.quantity;
                 const customPrice = data.price;
                 const isEnabled = data.quantity > 0 || (selectedExtras[item._id] !== undefined);
+                // Calculate price with minimum applied for weight-based items
+                const calculatedPrice = isWeightBased
+                  ? calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, customPrice)
+                  : 0;
 
                 return (
                   <View key={item._id} style={[styles.modalItemCard, quantity > 0 && styles.modalItemCardSelected]}>
@@ -1431,33 +1487,27 @@ export default function CreateOrderScreen() {
                             <View style={styles.modalPriceInputContainer}>
                               <Text style={styles.modalPriceDollar}>$</Text>
                               <TextInput
-                                key={`${item._id}-${data.overrideTotal !== undefined ? 'override' : 'calc'}`}
                                 style={[styles.modalPriceInput, data.overrideTotal !== undefined && styles.modalPriceInputOverride]}
-                                defaultValue={data.overrideTotal !== undefined ? data.overrideTotal.toString() : roundToNearestQuarter(customPrice * quantity).toFixed(2)}
+                                defaultValue={data.overrideTotal !== undefined ? data.overrideTotal.toString() : calculatedPrice.toFixed(2)}
                                 onChangeText={(text) => {
-                                  // Clean input - only allow numbers and one decimal
-                                  const cleaned = text.replace(/[^0-9.]/g, '');
-                                  const parts = cleaned.split('.');
-                                  const finalText = parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : cleaned;
-
-                                  if (finalText === '' || finalText === '.') {
-                                    setSelectedExtras(prev => ({
-                                      ...prev,
-                                      [item._id]: { ...prev[item._id], overrideTotal: 0 }
-                                    }));
-                                    return;
-                                  }
-                                  const newTotal = parseFloat(finalText);
-                                  if (!isNaN(newTotal)) {
+                                  const newTotal = parseFloat(text) || 0;
+                                  if (newTotal !== calculatedPrice) {
                                     setSelectedExtras(prev => ({
                                       ...prev,
                                       [item._id]: { ...prev[item._id], overrideTotal: newTotal }
                                     }));
+                                  } else {
+                                    // If they enter the calculated price, remove override
+                                    setSelectedExtras(prev => ({
+                                      ...prev,
+                                      [item._id]: { ...prev[item._id], overrideTotal: undefined }
+                                    }));
                                   }
                                 }}
                                 keyboardType="decimal-pad"
+                                returnKeyType="done"
                                 selectTextOnFocus={true}
-                                placeholder={roundToNearestQuarter(customPrice * quantity).toFixed(2)}
+                                placeholder={calculatedPrice.toFixed(2)}
                                 placeholderTextColor="#94a3b8"
                               />
                             </View>
@@ -1515,17 +1565,18 @@ export default function CreateOrderScreen() {
                   if (!item) return null;
                   const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                   const totalWeight = getTotalWeight();
-                  const displayQty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
-                  const itemTotal = isWeightBased && data.overrideTotal !== undefined
-                    ? data.overrideTotal
-                    : roundToNearestQuarter(data.price * displayQty);
+                  const displayQty = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : data.quantity;
+                  // Use calculateWeightBasedPrice which applies minimum
+                  const itemTotal = isWeightBased
+                    ? (data.overrideTotal !== undefined ? data.overrideTotal : calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price))
+                    : data.price * data.quantity;
                   return (
                     <View key={itemId} style={styles.modalSummaryRow}>
                       <View style={{ flex: 1 }}>
-                        <Text style={styles.modalSummaryText}>{item.name} × {displayQty}</Text>
+                        <Text style={styles.modalSummaryText}>{item.name} × {displayQty.toFixed(2)}</Text>
                         {isWeightBased && (
                           <Text style={styles.modalSummaryCalc}>
-                            ({totalWeight} lbs ÷ {item.perWeightUnit} lbs)
+                            ({totalWeight} lbs ÷ {item.perWeightUnit} lbs, min ${data.price})
                           </Text>
                         )}
                       </View>
@@ -1543,11 +1594,13 @@ export default function CreateOrderScreen() {
                       const item = extraItems.find(i => i._id === itemId);
                       const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
                       const totalWeight = getTotalWeight();
-                      const qty = isWeightBased ? calculateWeightBasedQuantity(item.perWeightUnit!, totalWeight) : data.quantity;
-                      if (isWeightBased && data.overrideTotal !== undefined) {
-                        return sum + data.overrideTotal;
+                      if (isWeightBased) {
+                        if (data.overrideTotal !== undefined) {
+                          return sum + data.overrideTotal;
+                        }
+                        return sum + calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price);
                       }
-                      return sum + roundToNearestQuarter(data.price * qty);
+                      return sum + data.price * data.quantity;
                     }, 0)
                     .toFixed(2)}
                 </Text>
@@ -1559,20 +1612,25 @@ export default function CreateOrderScreen() {
             <TouchableOpacity
               style={styles.modalCancelButton}
               onPress={() => {
+                Keyboard.dismiss();
                 setSelectedExtras({});
-                setShowExtraItemsModal(false);
+                setTimeout(() => setShowExtraItemsModal(false), 100);
               }}
             >
               <Text style={styles.modalCancelButtonText}>Clear All</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.modalDoneButton}
-              onPress={() => setShowExtraItemsModal(false)}
+              onPress={() => {
+                Keyboard.dismiss();
+                setTimeout(() => setShowExtraItemsModal(false), 100);
+              }}
             >
               <Text style={styles.modalDoneButtonText}>Done</Text>
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Quick Add Customer Modal - Full Screen like Admin */}
@@ -1888,11 +1946,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  deliveryTypeContainer: {
+  // Delivery type styles (matching EditOrderScreen)
+  deliveryTypeSection: {
     marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#e2e8f0',
   },
   deliveryTypeLabel: {
     fontSize: 13,
@@ -1900,28 +1956,40 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginBottom: 8,
   },
-  deliveryTypeButtons: {
+  deliveryTypeContainer: {
     flexDirection: 'row',
     gap: 8,
   },
-  deliveryTypeBtn: {
+  deliveryTypeButton: {
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    backgroundColor: '#f1f5f9',
-    borderRadius: 8,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 10,
   },
-  deliveryTypeBtnActive: {
-    backgroundColor: '#2563eb',
+  deliveryTypeButtonActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
   },
-  deliveryTypeBtnText: {
+  deliveryTypeText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#64748b',
-    textAlign: 'center',
+    marginTop: 4,
   },
-  deliveryTypeBtnTextActive: {
+  deliveryTypeTextActive: {
+    color: '#fff',
+  },
+  deliveryTypePrice: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginTop: 2,
+  },
+  deliveryTypePriceActive: {
     color: '#fff',
   },
   typeButton: {
