@@ -240,9 +240,10 @@ export function generateCustomerReceiptText(order: Order): string {
     r += leftRightAlign('Subtotal', `$${order.subtotal.toFixed(2)}`) + '\n';
   }
 
-  // Show delivery fee if applicable
-  if (order.deliveryFee && order.deliveryFee > 0) {
-    r += leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`) + '\n';
+  // Show delivery fee for delivery orders (always show)
+  if (isDelivery) {
+    const fee = order.deliveryFee || 0;
+    r += leftRightAlign('Delivery Fee', `$${fee.toFixed(2)}`) + '\n';
   }
 
   // Show same day fee if applicable
@@ -282,7 +283,7 @@ export function generateCustomerReceiptText(order: Order): string {
   r += ESC.NORMAL_SIZE;
   r += ESC.LEFT;
   r += leftRightAlign(
-    order.isPaid ? `Paid (${order.paymentMethod || 'Cash'})` : 'Cash on Pickup',
+    order.isPaid ? `Paid (${order.paymentMethod || 'Cash'})` : (isDelivery ? 'Pay on Delivery' : 'Pay on Pickup'),
     `$${(order.totalAmount || 0).toFixed(2)}`
   ) + '\n';
 
@@ -445,9 +446,10 @@ export function generateStoreCopyText(order: Order): string {
     r += leftRightAlign('Subtotal', `$${order.subtotal.toFixed(2)}`) + '\n';
   }
 
-  // Show delivery fee if applicable
-  if (order.deliveryFee && order.deliveryFee > 0) {
-    r += leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`) + '\n';
+  // Show delivery fee for delivery orders (always show)
+  if (isDelivery) {
+    const fee = order.deliveryFee || 0;
+    r += leftRightAlign('Delivery Fee', `$${fee.toFixed(2)}`) + '\n';
   }
 
   // Show same day fee if applicable
@@ -487,7 +489,7 @@ export function generateStoreCopyText(order: Order): string {
   r += ESC.NORMAL_SIZE;
   r += ESC.LEFT;
   r += leftRightAlign(
-    order.isPaid ? `Paid (${order.paymentMethod || 'Cash'})` : 'Cash on Pickup',
+    order.isPaid ? `Paid (${order.paymentMethod || 'Cash'})` : (isDelivery ? 'Pay on Delivery' : 'Pay on Pickup'),
     `$${(order.totalAmount || 0).toFixed(2)}`
   ) + '\n';
 

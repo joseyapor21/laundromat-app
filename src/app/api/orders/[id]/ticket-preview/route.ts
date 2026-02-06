@@ -141,8 +141,10 @@ function generatePreview(order: any): string {
   if (order.subtotal && order.subtotal > 0) {
     lines.push(leftRightAlign('Subtotal', `$${order.subtotal.toFixed(2)}`));
   }
-  if (order.deliveryFee && order.deliveryFee > 0) {
-    lines.push(leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`));
+  // Always show delivery fee for delivery orders
+  if (isDelivery) {
+    const fee = order.deliveryFee || 0;
+    lines.push(leftRightAlign('Delivery Fee', `$${fee.toFixed(2)}`));
   }
   if (order.sameDayFee && order.sameDayFee > 0) {
     lines.push(leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`));
@@ -169,7 +171,7 @@ function generatePreview(order: any): string {
   lines.push('');
   lines.push(centerText('▶ TOTAL ◀  [DOUBLE HEIGHT]'));
   lines.push(leftRightAlign(
-    order.isPaid ? `Paid (${order.paymentMethod || 'Cash'})` : 'Cash on Pickup',
+    order.isPaid ? `Paid (${order.paymentMethod || 'Cash'})` : (isDelivery ? 'Pay on Delivery' : 'Pay on Pickup'),
     `$${(order.totalAmount || 0).toFixed(2)}`
   ));
 
