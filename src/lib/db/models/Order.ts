@@ -22,6 +22,7 @@ export interface OrderDoc {
     name: string;
     price: number;
     quantity: number;
+    overrideTotal?: number;
   }>;
   bags: Array<{
     identifier: string;
@@ -172,6 +173,10 @@ const extraItemUsageSchema = new mongoose.Schema({
   name: String,
   price: Number,
   quantity: Number,
+  overrideTotal: {
+    type: Number,
+    default: null,
+  },
 }, { _id: false });
 
 const orderSchema = new mongoose.Schema<OrderDoc>({
