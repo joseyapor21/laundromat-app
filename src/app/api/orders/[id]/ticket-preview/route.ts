@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectToDatabase } from '@/lib/db/connection';
+import { connectDB } from '@/lib/db/connection';
 import { Order } from '@/lib/db/models';
 
 // Format functions
@@ -193,7 +193,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await connectToDatabase();
+    await connectDB();
     const { id } = await params;
 
     // Find order - try by orderId first, then by _id
