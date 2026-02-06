@@ -108,9 +108,10 @@ function generateQRCode(data: string, size: number = 10): string {
 
 // Generate customer receipt
 export function generateCustomerReceiptText(order: Order): string {
-  const now = new Date();
-  const dateStr = formatDateASCII(now);
-  const timeStr = formatTimeASCII(now);
+  // Use order creation date, not current time
+  const createdDate = order.createdAt ? new Date(order.createdAt) : new Date();
+  const dateStr = formatDateASCII(createdDate);
+  const timeStr = formatTimeASCII(createdDate);
 
   const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
   const isDelivery = order.orderType === 'delivery';
@@ -167,13 +168,17 @@ export function generateCustomerReceiptText(order: Order): string {
     r += `${order.customerPhone}\n`;
   }
 
-  // Notes (inverted, double size)
+  // Notes (inverted, double size, ASCII-safe)
   if (order.specialInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` NOTES: \n`;
-    // Wrap notes at ~20 chars per line for double-size text
-    const notes = order.specialInstructions;
+    r += ` Notes : \n`;
+    // Convert to ASCII-safe (replace smart quotes, etc)
+    const notes = order.specialInstructions
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[^\x00-\x7F]/g, '');
     const maxLineLen = 20;
     for (let i = 0; i < notes.length; i += maxLineLen) {
       r += ` ${notes.substring(i, i + maxLineLen).trim()} \n`;
@@ -257,15 +262,17 @@ export function generateCustomerReceiptText(order: Order): string {
   r += `${isDelivery ? 'Service' : 'Pick Up'}\n`;
   r += ESC.NORMAL_SIZE;
 
-  // Pickup date/time (inverted)
+  // Pickup date/time (inverted, double size)
   if (order.estimatedPickupDate) {
     const pickupDate = new Date(order.estimatedPickupDate);
     const pickupDateStr = formatDateWithWeekday(pickupDate);
     const pickupTimeStr = formatTimeASCII(pickupDate);
+    r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` ${pickupDateStr} \n`;
     r += ` ${pickupTimeStr} \n`;
     r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
   }
 
   // === TOTAL ===
@@ -279,6 +286,14 @@ export function generateCustomerReceiptText(order: Order): string {
     `$${(order.totalAmount || 0).toFixed(2)}`
   ) + '\n';
 
+  // Show remaining credit if paid and customer has credit
+  if (order.isPaid && order.customer?.credit && order.customer.credit > 0) {
+    r += ESC.CENTER;
+    r += ESC.BOLD_ON;
+    r += `Remaining Credit: $${order.customer.credit.toFixed(2)}\n`;
+    r += ESC.BOLD_OFF;
+  }
+
   // === QR CODE (Large for easy scanning) ===
   r += generateQRCode(orderNum, 12);
   r += '\n\n';
@@ -290,9 +305,10 @@ export function generateCustomerReceiptText(order: Order): string {
 
 // Generate store copy
 export function generateStoreCopyText(order: Order): string {
-  const now = new Date();
-  const dateStr = formatDateASCII(now);
-  const timeStr = formatTimeASCII(now);
+  // Use order creation date, not current time
+  const createdDate = order.createdAt ? new Date(order.createdAt) : new Date();
+  const dateStr = formatDateASCII(createdDate);
+  const timeStr = formatTimeASCII(createdDate);
 
   const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
   const isDelivery = order.orderType === 'delivery';
@@ -356,13 +372,17 @@ export function generateStoreCopyText(order: Order): string {
     r += `${order.customerPhone}\n`;
   }
 
-  // Notes (inverted, double size)
+  // Notes (inverted, double size, ASCII-safe)
   if (order.specialInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` NOTES: \n`;
-    // Wrap notes at ~20 chars per line for double-size text
-    const notes = order.specialInstructions;
+    r += ` Notes : \n`;
+    // Convert to ASCII-safe (replace smart quotes, etc)
+    const notes = order.specialInstructions
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[^\x00-\x7F]/g, '');
     const maxLineLen = 20;
     for (let i = 0; i < notes.length; i += maxLineLen) {
       r += ` ${notes.substring(i, i + maxLineLen).trim()} \n`;
@@ -447,15 +467,17 @@ export function generateStoreCopyText(order: Order): string {
   r += `${isDelivery ? 'Service' : 'Pick Up'}\n`;
   r += ESC.NORMAL_SIZE;
 
-  // Pickup date/time (inverted)
+  // Pickup date/time (inverted, double size)
   if (order.estimatedPickupDate) {
     const pickupDate = new Date(order.estimatedPickupDate);
     const pickupDateStr = formatDateWithWeekday(pickupDate);
     const pickupTimeStr = formatTimeASCII(pickupDate);
+    r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` ${pickupDateStr} \n`;
     r += ` ${pickupTimeStr} \n`;
     r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
   }
 
   // === TOTAL ===
@@ -468,6 +490,14 @@ export function generateStoreCopyText(order: Order): string {
     order.isPaid ? `Paid (${order.paymentMethod || 'Cash'})` : 'Cash on Pickup',
     `$${(order.totalAmount || 0).toFixed(2)}`
   ) + '\n';
+
+  // Show remaining credit if paid and customer has credit
+  if (order.isPaid && order.customer?.credit && order.customer.credit > 0) {
+    r += ESC.CENTER;
+    r += ESC.BOLD_ON;
+    r += `Remaining Credit: $${order.customer.credit.toFixed(2)}\n`;
+    r += ESC.BOLD_OFF;
+  }
 
   // === QR CODE (Large for easy scanning) ===
   r += generateQRCode(orderNum, 12);
@@ -559,13 +589,17 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
     r += ESC.BOLD_OFF;
   }
 
-  // Order notes (double size)
+  // Order notes (inverted, double size, ASCII-safe)
   if (order.specialInstructions) {
     r += '\n';
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` NOTES: \n`;
-    const orderNotes = order.specialInstructions;
+    r += ` Notes : \n`;
+    const orderNotes = order.specialInstructions
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[^\x00-\x7F]/g, '');
     const maxLen = 20;
     for (let i = 0; i < orderNotes.length; i += maxLen) {
       r += ` ${orderNotes.substring(i, i + maxLen).trim()} \n`;
