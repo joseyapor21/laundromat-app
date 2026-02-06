@@ -107,6 +107,7 @@ export interface Order {
   weight?: number;
   subtotal: number;
   deliveryFee?: number;
+  deliveryType?: 'full' | 'pickupOnly' | 'deliveryOnly';
   sameDayFee?: number;
   totalAmount: number;
   paymentMethod: PaymentMethod;

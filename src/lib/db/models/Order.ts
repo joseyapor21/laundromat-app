@@ -46,6 +46,7 @@ export interface OrderDoc {
   sameDayFee?: number;
   deliveryFee?: number;
   orderType: OrderType;
+  deliveryType?: 'full' | 'pickupOnly' | 'deliveryOnly';
   deliverySchedule?: Date | null;
   paymentMethod?: PaymentMethod | null;
   isPaid: boolean;
@@ -265,6 +266,11 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
     type: String,
     enum: ['storePickup', 'delivery'] as OrderType[],
     required: true,
+  },
+  deliveryType: {
+    type: String,
+    enum: ['full', 'pickupOnly', 'deliveryOnly'],
+    default: null,
   },
   deliverySchedule: {
     type: Date,

@@ -58,6 +58,7 @@ export default function EditOrderScreen() {
 
   // Delivery
   const [deliveryPrice, setDeliveryPrice] = useState(0);
+  const [deliveryType, setDeliveryType] = useState<'full' | 'pickupOnly' | 'deliveryOnly'>('full');
 
   // Customer credit
   const [applyCredit, setApplyCredit] = useState(false);
@@ -99,10 +100,17 @@ export default function EditOrderScreen() {
       setIsSameDay(orderData.isSameDay || false);
       setBags(orderData.bags || []);
 
-      // Delivery price from customer
-      if (orderData.customer?.deliveryFee) {
+      // Delivery price from order first, then customer
+      if (orderData.deliveryFee && orderData.deliveryFee > 0) {
+        setDeliveryPrice(orderData.deliveryFee);
+      } else if (orderData.customer?.deliveryFee) {
         const fee = parseFloat(orderData.customer.deliveryFee.replace('$', '')) || 0;
         setDeliveryPrice(fee);
+      }
+
+      // Delivery type
+      if (orderData.deliveryType) {
+        setDeliveryType(orderData.deliveryType);
       }
 
       // Date/Time fields
@@ -248,6 +256,10 @@ export default function EditOrderScreen() {
     let deliveryFee = 0;
     if (orderType === 'delivery' && deliveryPrice > 0) {
       deliveryFee = deliveryPrice;
+      // Apply half price for one-way delivery
+      if (deliveryType === 'pickupOnly' || deliveryType === 'deliveryOnly') {
+        deliveryFee = deliveryFee / 2;
+      }
     }
 
     return basePrice + sameDayExtra + extraItemsTotal + deliveryFee;
@@ -320,6 +332,9 @@ export default function EditOrderScreen() {
         orderType,
         isSameDay,
         sameDayPricePerPound: isSameDay ? getSameDayPricePerPound() : undefined,
+        // Delivery fields
+        deliveryType: orderType === 'delivery' ? deliveryType : null,
+        deliveryFee: orderType === 'delivery' ? (deliveryType === 'pickupOnly' || deliveryType === 'deliveryOnly' ? deliveryPrice / 2 : deliveryPrice) : 0,
         // Date/Time fields
         estimatedPickupDate: estimatedPickupDate || undefined,
         dropOffDate: dropOffDate || undefined,
@@ -549,6 +564,90 @@ export default function EditOrderScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+
+            {/* Delivery Type Selection - Only shown for delivery orders */}
+            {orderType === 'delivery' && (
+              <View style={styles.deliveryTypeSection}>
+                <Text style={styles.deliveryTypeLabel}>Delivery Service Type:</Text>
+                <View style={styles.deliveryTypeContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.deliveryTypeButton,
+                      deliveryType === 'full' && styles.deliveryTypeButtonActive
+                    ]}
+                    onPress={() => setDeliveryType('full')}
+                  >
+                    <Ionicons
+                      name="swap-horizontal"
+                      size={18}
+                      color={deliveryType === 'full' ? '#fff' : '#64748b'}
+                    />
+                    <Text style={[
+                      styles.deliveryTypeText,
+                      deliveryType === 'full' && styles.deliveryTypeTextActive
+                    ]}>
+                      Full Service
+                    </Text>
+                    <Text style={[
+                      styles.deliveryTypePrice,
+                      deliveryType === 'full' && styles.deliveryTypePriceActive
+                    ]}>
+                      ${deliveryPrice.toFixed(2)}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.deliveryTypeButton,
+                      deliveryType === 'pickupOnly' && styles.deliveryTypeButtonActive
+                    ]}
+                    onPress={() => setDeliveryType('pickupOnly')}
+                  >
+                    <Ionicons
+                      name="arrow-up"
+                      size={18}
+                      color={deliveryType === 'pickupOnly' ? '#fff' : '#64748b'}
+                    />
+                    <Text style={[
+                      styles.deliveryTypeText,
+                      deliveryType === 'pickupOnly' && styles.deliveryTypeTextActive
+                    ]}>
+                      Pickup Only
+                    </Text>
+                    <Text style={[
+                      styles.deliveryTypePrice,
+                      deliveryType === 'pickupOnly' && styles.deliveryTypePriceActive
+                    ]}>
+                      ${(deliveryPrice / 2).toFixed(2)}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.deliveryTypeButton,
+                      deliveryType === 'deliveryOnly' && styles.deliveryTypeButtonActive
+                    ]}
+                    onPress={() => setDeliveryType('deliveryOnly')}
+                  >
+                    <Ionicons
+                      name="arrow-down"
+                      size={18}
+                      color={deliveryType === 'deliveryOnly' ? '#fff' : '#64748b'}
+                    />
+                    <Text style={[
+                      styles.deliveryTypeText,
+                      deliveryType === 'deliveryOnly' && styles.deliveryTypeTextActive
+                    ]}>
+                      Delivery Only
+                    </Text>
+                    <Text style={[
+                      styles.deliveryTypePrice,
+                      deliveryType === 'deliveryOnly' && styles.deliveryTypePriceActive
+                    ]}>
+                      ${(deliveryPrice / 2).toFixed(2)}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </View>
 
           {/* Same Day Service */}
@@ -1037,8 +1136,12 @@ export default function EditOrderScreen() {
                   )}
                   {orderType === 'delivery' && deliveryPrice > 0 && (
                     <View style={styles.priceRow}>
-                      <Text style={styles.priceLabel}>Delivery Fee</Text>
-                      <Text style={styles.priceValue}>+${deliveryPrice.toFixed(2)}</Text>
+                      <Text style={styles.priceLabel}>
+                        Delivery Fee{deliveryType !== 'full' ? ` (${deliveryType === 'pickupOnly' ? 'Pickup Only' : 'Delivery Only'})` : ''}
+                      </Text>
+                      <Text style={styles.priceValue}>
+                        +${(deliveryType === 'pickupOnly' || deliveryType === 'deliveryOnly' ? deliveryPrice / 2 : deliveryPrice).toFixed(2)}
+                      </Text>
                     </View>
                   )}
                 </View>
@@ -1482,6 +1585,52 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   orderTypeTextActive: {
+    color: '#fff',
+  },
+  // Delivery type styles
+  deliveryTypeSection: {
+    marginTop: 12,
+  },
+  deliveryTypeLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  deliveryTypeContainer: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  deliveryTypeButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 10,
+  },
+  deliveryTypeButtonActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  deliveryTypeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    marginTop: 4,
+  },
+  deliveryTypeTextActive: {
+    color: '#fff',
+  },
+  deliveryTypePrice: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginTop: 2,
+  },
+  deliveryTypePriceActive: {
     color: '#fff',
   },
   sameDayCard: {

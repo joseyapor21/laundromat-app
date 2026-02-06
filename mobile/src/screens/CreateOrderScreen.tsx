@@ -76,6 +76,7 @@ export default function CreateOrderScreen() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
   const [orderType, setOrderType] = useState<'storePickup' | 'delivery'>('storePickup');
+  const [deliveryType, setDeliveryType] = useState<'full' | 'pickupOnly' | 'deliveryOnly'>('full');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [manualDeliveryFee, setManualDeliveryFee] = useState('');
   const [bags, setBags] = useState<Bag[]>([]);
@@ -444,7 +445,7 @@ export default function CreateOrderScreen() {
       }
     });
 
-    // Add delivery fee
+    // Add delivery fee (half price for pickup only or delivery only)
     let deliveryFee = 0;
     if (orderType === 'delivery' && selectedCustomer) {
       // Use manual fee if customer doesn't have one set
@@ -452,6 +453,10 @@ export default function CreateOrderScreen() {
         deliveryFee = parseFloat(manualDeliveryFee) || 0;
       } else {
         deliveryFee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
+      }
+      // Half price for one-way (pickup only or delivery only)
+      if (deliveryType === 'pickupOnly' || deliveryType === 'deliveryOnly') {
+        deliveryFee = deliveryFee / 2;
       }
     }
 
@@ -534,7 +539,7 @@ export default function CreateOrderScreen() {
       }
     });
 
-    // Delivery fee
+    // Delivery fee (half price for one-way)
     if (orderType === 'delivery' && selectedCustomer) {
       let fee = 0;
       if (!selectedCustomer.deliveryFee || selectedCustomer.deliveryFee === '$0.00') {
@@ -542,9 +547,15 @@ export default function CreateOrderScreen() {
       } else {
         fee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
       }
+      // Half price for one-way (pickup only or delivery only)
+      if (deliveryType === 'pickupOnly' || deliveryType === 'deliveryOnly') {
+        fee = fee / 2;
+      }
       if (fee > 0) {
+        const label = deliveryType === 'full' ? 'Delivery Fee' :
+                      deliveryType === 'pickupOnly' ? 'Pickup Only (½)' : 'Delivery Only (½)';
         breakdown.push({
-          label: 'Delivery Fee',
+          label,
           amount: fee,
         });
       }
@@ -630,6 +641,7 @@ export default function CreateOrderScreen() {
         customerPhone: selectedCustomer.phoneNumber,
         deliveryAddress: orderType === 'delivery' ? finalDeliveryAddress : undefined,
         orderType,
+        deliveryType: orderType === 'delivery' ? deliveryType : undefined,
         weight: totalWeight,
         bags: bags.filter(bag => bag.weight > 0 || bag.color || bag.description).map(bag => ({
           identifier: bag.identifier,
@@ -868,6 +880,39 @@ export default function CreateOrderScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Delivery Type Options - only show when delivery is selected */}
+        {orderType === 'delivery' && (
+          <View style={styles.deliveryTypeContainer}>
+            <Text style={styles.deliveryTypeLabel}>Delivery Service:</Text>
+            <View style={styles.deliveryTypeButtons}>
+              <TouchableOpacity
+                style={[styles.deliveryTypeBtn, deliveryType === 'full' && styles.deliveryTypeBtnActive]}
+                onPress={() => setDeliveryType('full')}
+              >
+                <Text style={[styles.deliveryTypeBtnText, deliveryType === 'full' && styles.deliveryTypeBtnTextActive]}>
+                  Full Service
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deliveryTypeBtn, deliveryType === 'pickupOnly' && styles.deliveryTypeBtnActive]}
+                onPress={() => setDeliveryType('pickupOnly')}
+              >
+                <Text style={[styles.deliveryTypeBtnText, deliveryType === 'pickupOnly' && styles.deliveryTypeBtnTextActive]}>
+                  Pickup Only (½)
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.deliveryTypeBtn, deliveryType === 'deliveryOnly' && styles.deliveryTypeBtnActive]}
+                onPress={() => setDeliveryType('deliveryOnly')}
+              >
+                <Text style={[styles.deliveryTypeBtnText, deliveryType === 'deliveryOnly' && styles.deliveryTypeBtnTextActive]}>
+                  Delivery Only (½)
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Bags */}
@@ -1842,6 +1887,42 @@ const styles = StyleSheet.create({
   typeButtons: {
     flexDirection: 'row',
     gap: 12,
+  },
+  deliveryTypeContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  deliveryTypeLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  deliveryTypeButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  deliveryTypeBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  deliveryTypeBtnActive: {
+    backgroundColor: '#2563eb',
+  },
+  deliveryTypeBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  deliveryTypeBtnTextActive: {
+    color: '#fff',
   },
   typeButton: {
     flex: 1,

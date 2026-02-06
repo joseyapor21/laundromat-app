@@ -154,6 +154,10 @@ export interface Order {
   employeeId: string;
   totalAmount: number;
   orderType: OrderType;
+  deliveryType?: 'full' | 'pickupOnly' | 'deliveryOnly';
+  subtotal?: number;
+  sameDayFee?: number;
+  deliveryFee?: number;
   deliverySchedule?: Date;
   paymentMethod?: PaymentMethod;
   isPaid: boolean;
