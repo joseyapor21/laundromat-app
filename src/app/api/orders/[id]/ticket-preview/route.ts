@@ -144,9 +144,14 @@ function generatePreview(order: any): string {
   } else {
     lines.push(leftRightAlign('Total Weight', `${totalWeight} LBS`));
   }
-  // Show delivery fee only if > 0
-  if (order.deliveryFee && order.deliveryFee > 0) {
-    lines.push(leftRightAlign('Delivery Fee', `$${order.deliveryFee.toFixed(2)}`));
+  // Show delivery fee (from order or customer record)
+  let deliveryFee = order.deliveryFee || 0;
+  if (!deliveryFee && isDelivery && order.customer?.deliveryFee) {
+    const feeStr = order.customer.deliveryFee.toString().replace('$', '');
+    deliveryFee = parseFloat(feeStr) || 0;
+  }
+  if (deliveryFee > 0) {
+    lines.push(leftRightAlign('Delivery Fee', `$${deliveryFee.toFixed(2)}`));
   }
   // Show same day fee with calculation
   if (order.sameDayFee && order.sameDayFee > 0 && totalWeight > 0) {
