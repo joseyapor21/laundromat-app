@@ -61,8 +61,10 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   }
 
   async function selectLocation(location: Location) {
+    console.log('Selecting location:', location._id, location.name);
     await api.setLocationId(location._id);
     setCurrentLocation(location);
+    console.log('Location set to:', location.name);
   }
 
   async function clearLocation() {

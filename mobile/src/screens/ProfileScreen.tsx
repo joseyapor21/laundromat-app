@@ -260,13 +260,22 @@ export default function ProfileScreen() {
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
   const handleSwitchLocation = async (location: LocationType) => {
+    // Don't do anything if selecting the same location
+    if (currentLocation?._id === location._id) {
+      setShowLocationModal(false);
+      return;
+    }
+
+    console.log('Switching to location:', location._id, location.name);
     await selectLocation(location);
     setShowLocationModal(false);
+
     // Reset navigation to reload all screens with new location data
     navigation.reset({
       index: 0,
-      routes: [{ name: 'Main' as never }],
+      routes: [{ name: 'Dashboard' as never }],
     });
+
     Alert.alert('Location Changed', `You are now managing ${location.name}`);
   };
 

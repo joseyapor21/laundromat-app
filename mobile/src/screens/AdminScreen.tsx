@@ -1476,7 +1476,7 @@ export default function AdminScreen() {
               onPress={() => openLocationModal()}
             >
               <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.addButtonText}>Add</Text>
+              <Text style={styles.addButtonText}>Add Location</Text>
             </TouchableOpacity>
           </View>
           <FlatList
@@ -1484,38 +1484,97 @@ export default function AdminScreen() {
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => (
-              <View style={styles.listItem}>
-                <View style={{ flex: 1 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Text style={styles.itemTitle}>{item.name}</Text>
-                    <View style={[styles.badge, { backgroundColor: item.isActive ? '#dcfce7' : '#fee2e2' }]}>
-                      <Text style={[styles.badgeText, { color: item.isActive ? '#16a34a' : '#dc2626' }]}>
-                        {item.isActive ? 'Active' : 'Inactive'}
-                      </Text>
+              <View style={{
+                backgroundColor: '#fff',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 12,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+                elevation: 2,
+              }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+                      <View style={{
+                        backgroundColor: '#2563eb',
+                        paddingHorizontal: 10,
+                        paddingVertical: 4,
+                        borderRadius: 6,
+                        marginRight: 10,
+                      }}>
+                        <Text style={{ color: '#fff', fontWeight: '700', fontSize: 12 }}>{item.code}</Text>
+                      </View>
+                      <Text style={{ fontSize: 18, fontWeight: '600', color: '#1e293b', flex: 1 }}>{item.name}</Text>
+                      <View style={{
+                        backgroundColor: item.isActive ? '#dcfce7' : '#fee2e2',
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 4,
+                      }}>
+                        <Text style={{ color: item.isActive ? '#16a34a' : '#dc2626', fontSize: 11, fontWeight: '500' }}>
+                          {item.isActive ? 'Active' : 'Inactive'}
+                        </Text>
+                      </View>
                     </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 4 }}>
+                      <Ionicons name="location-outline" size={16} color="#64748b" style={{ marginRight: 6, marginTop: 2 }} />
+                      <Text style={{ fontSize: 14, color: '#64748b', flex: 1 }}>{item.address}</Text>
+                    </View>
+                    {item.phone && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                        <Ionicons name="call-outline" size={16} color="#64748b" style={{ marginRight: 6 }} />
+                        <Text style={{ fontSize: 14, color: '#64748b' }}>{item.phone}</Text>
+                      </View>
+                    )}
+                    {item.email && (
+                      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Ionicons name="mail-outline" size={16} color="#64748b" style={{ marginRight: 6 }} />
+                        <Text style={{ fontSize: 14, color: '#64748b' }}>{item.email}</Text>
+                      </View>
+                    )}
                   </View>
-                  <Text style={styles.itemSubtitle}>Code: {item.code}</Text>
-                  <Text style={styles.itemSubtitle}>{item.address}</Text>
-                  {item.phone && <Text style={styles.itemSubtitle}>Phone: {item.phone}</Text>}
                 </View>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12, gap: 8, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 12 }}>
                   <TouchableOpacity
-                    style={styles.editButton}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#eff6ff',
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                    }}
                     onPress={() => openLocationModal(item)}
                   >
-                    <Ionicons name="pencil" size={18} color="#2563eb" />
+                    <Ionicons name="pencil" size={16} color="#2563eb" />
+                    <Text style={{ color: '#2563eb', marginLeft: 4, fontWeight: '500' }}>Edit</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.deleteButton}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#fef2f2',
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                    }}
                     onPress={() => handleDeleteLocation(item)}
                   >
-                    <Ionicons name="trash" size={18} color="#dc2626" />
+                    <Ionicons name="trash" size={16} color="#dc2626" />
+                    <Text style={{ color: '#dc2626', marginLeft: 4, fontWeight: '500' }}>Delete</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>No locations found</Text>
+              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                <Ionicons name="location-outline" size={48} color="#cbd5e1" />
+                <Text style={{ color: '#94a3b8', fontSize: 16, marginTop: 12 }}>No locations found</Text>
+                <Text style={{ color: '#cbd5e1', fontSize: 14 }}>Tap "Add Location" to create one</Text>
+              </View>
             }
           />
         </View>
