@@ -10,16 +10,19 @@ import {
   TextInput,
   ActivityIndicator,
   Switch,
+  FlatList,
 } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import { useAuth } from '../contexts/AuthContext';
 import { useTimeClock } from '../contexts/TimeClockContext';
+import { useLocation } from '../contexts/LocationContext';
 import { api } from '../services/api';
 import ClockInScreen from './ClockInScreen';
+import type { Location as LocationType } from '../types';
 
 // Dynamically import push notifications
 let pushNotificationService: {
@@ -37,10 +40,14 @@ export default function ProfileScreen() {
   const navigation = useNavigation<any>();
   const { user, logout, refreshUser } = useAuth();
   const { isClockedIn, isOnBreak, lastClockIn, lastBreakStart, startBreak, endBreak, isLoading: isClockLoading } = useTimeClock();
+  const { currentLocation, availableLocations, selectLocation, refreshLocations } = useLocation();
 
   // Clock out modal
   const [showClockOutModal, setShowClockOutModal] = useState(false);
   const [isBreakLoading, setIsBreakLoading] = useState(false);
+
+  // Location picker modal
+  const [showLocationModal, setShowLocationModal] = useState(false);
 
   // Edit profile modal
   const [showEditModal, setShowEditModal] = useState(false);
@@ -252,6 +259,17 @@ export default function ProfileScreen() {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
+  const handleSwitchLocation = async (location: LocationType) => {
+    await selectLocation(location);
+    setShowLocationModal(false);
+    Alert.alert('Location Changed', `You are now managing ${location.name}`);
+  };
+
+  const openLocationModal = async () => {
+    await refreshLocations();
+    setShowLocationModal(true);
+  };
+
   return (
     <ScrollView style={styles.container}>
       {/* Header */}
@@ -331,6 +349,31 @@ export default function ProfileScreen() {
           </View>
         </TouchableOpacity>
       </View>
+
+      {/* Location Section */}
+      {availableLocations.length > 1 && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Location</Text>
+
+          <TouchableOpacity style={styles.card} onPress={openLocationModal}>
+            <View style={styles.cardRow}>
+              <View style={[styles.cardIcon, { backgroundColor: '#dbeafe' }]}>
+                <Ionicons name="business" size={24} color="#2563eb" />
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardValue}>{currentLocation?.name || 'No location selected'}</Text>
+                <Text style={styles.cardLabel}>
+                  {currentLocation?.address || 'Tap to select a location'}
+                </Text>
+              </View>
+              <View style={styles.locationBadge}>
+                <Text style={styles.locationBadgeText}>{currentLocation?.code || '—'}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color="#94a3b8" style={{ marginLeft: 8 }} />
+            </View>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* Settings */}
       <View style={styles.section}>
@@ -616,6 +659,55 @@ export default function ProfileScreen() {
           onDismiss={() => setShowClockOutModal(false)}
         />
       </Modal>
+
+      {/* Location Picker Modal */}
+      <Modal visible={showLocationModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.locationModalContent, { paddingBottom: insets.bottom + 20 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Switch Location</Text>
+              <TouchableOpacity onPress={() => setShowLocationModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={availableLocations}
+              keyExtractor={(item) => item._id}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.locationOption,
+                    currentLocation?._id === item._id && styles.locationOptionActive
+                  ]}
+                  onPress={() => handleSwitchLocation(item)}
+                >
+                  <View style={[
+                    styles.locationOptionIcon,
+                    currentLocation?._id === item._id && styles.locationOptionIconActive
+                  ]}>
+                    <Text style={[
+                      styles.locationOptionCode,
+                      currentLocation?._id === item._id && styles.locationOptionCodeActive
+                    ]}>{item.code}</Text>
+                  </View>
+                  <View style={styles.locationOptionContent}>
+                    <Text style={[
+                      styles.locationOptionName,
+                      currentLocation?._id === item._id && styles.locationOptionNameActive
+                    ]}>{item.name}</Text>
+                    <Text style={styles.locationOptionAddress}>{item.address}</Text>
+                  </View>
+                  {currentLocation?._id === item._id && (
+                    <Ionicons name="checkmark-circle" size={24} color="#2563eb" />
+                  )}
+                </TouchableOpacity>
+              )}
+              contentContainerStyle={{ padding: 16 }}
+              ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
+            />
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -889,5 +981,75 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  // Location styles
+  locationBadge: {
+    backgroundColor: '#dbeafe',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  locationBadgeText: {
+    color: '#2563eb',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  locationModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: '70%',
+  },
+  locationOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  locationOptionActive: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#2563eb',
+  },
+  locationOptionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  locationOptionIconActive: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#2563eb',
+  },
+  locationOptionCode: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#64748b',
+  },
+  locationOptionCodeActive: {
+    color: '#2563eb',
+  },
+  locationOptionContent: {
+    flex: 1,
+  },
+  locationOptionName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  locationOptionNameActive: {
+    color: '#2563eb',
+  },
+  locationOptionAddress: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
   },
 });

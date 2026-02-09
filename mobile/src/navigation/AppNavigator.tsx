@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocation } from '../contexts/LocationContext';
 import { ScannerProvider, FloatingActionButtons } from '../contexts/ScannerContext';
 import { TimeClockProvider, useTimeClock } from '../contexts/TimeClockContext';
 import pushNotificationService from '../services/pushNotifications';
@@ -23,6 +24,7 @@ export function navigate(name: string, params?: object) {
 
 // Screens
 import LoginScreen from '../screens/LoginScreen';
+import LocationSelectionScreen from '../screens/LocationSelectionScreen';
 import DashboardScreen from '../screens/DashboardScreen';
 import OrderDetailScreen from '../screens/OrderDetailScreen';
 import EditOrderScreen from '../screens/EditOrderScreen';
@@ -249,7 +251,21 @@ function handleNotificationResponse(response: any) {
 
 export default function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
+  const { currentLocation, isLoadingLocations, availableLocations, refreshLocations } = useLocation();
   const notificationResponseListener = useRef<any>(null);
+  const hasRefreshedLocations = useRef(false);
+
+  // Refresh locations when user becomes authenticated
+  useEffect(() => {
+    if (isAuthenticated && !isLoading && availableLocations.length === 0 && !hasRefreshedLocations.current) {
+      hasRefreshedLocations.current = true;
+      console.log('Refreshing locations after auth...');
+      refreshLocations();
+    }
+    if (!isAuthenticated) {
+      hasRefreshedLocations.current = false;
+    }
+  }, [isAuthenticated, isLoading, availableLocations.length]);
 
   useEffect(() => {
     // Set up notification response listener (when user taps notification)
@@ -282,7 +298,7 @@ export default function AppNavigator() {
     };
   }, []);
 
-  if (isLoading) {
+  if (isLoading || (isAuthenticated && isLoadingLocations)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f1f5f9' }}>
         <ActivityIndicator size="large" color="#2563eb" />
@@ -290,9 +306,27 @@ export default function AppNavigator() {
     );
   }
 
+  // Determine what to show based on auth and location state
+  const getContent = () => {
+    if (!isAuthenticated) {
+      return <AuthStack />;
+    }
+
+    // If authenticated but no location selected, and there are multiple locations
+    // show the location selection screen
+    if (!currentLocation && availableLocations.length > 1) {
+      return <LocationSelectionScreen />;
+    }
+
+    // If only one location, auto-select it
+    // This is handled in AuthContext after login
+
+    return <AuthenticatedApp />;
+  };
+
   return (
     <NavigationContainer ref={navigationRef}>
-      {isAuthenticated ? <AuthenticatedApp /> : <AuthStack />}
+      {getContent()}
     </NavigationContainer>
   );
 }

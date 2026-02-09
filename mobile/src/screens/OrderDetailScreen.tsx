@@ -1131,7 +1131,7 @@ export default function OrderDetailScreen() {
                   const hasOverride = item.overrideTotal !== undefined && item.overrideTotal !== null;
                   return (
                     <View key={`extra-${index}`} style={styles.itemRow}>
-                      <Text style={styles.itemName}>{itemName} x{item.quantity.toFixed(2)}</Text>
+                      <Text style={styles.itemName}>{itemName}</Text>
                       <Text style={[styles.itemPrice, hasOverride && { color: '#ef4444' }]}>${itemTotal.toFixed(2)}</Text>
                     </View>
                   );

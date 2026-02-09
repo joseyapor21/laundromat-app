@@ -16,7 +16,12 @@ export async function GET() {
 
     await connectDB();
 
-    const extraItems = await ExtraItem.find().sort({ name: 1 }).lean();
+    // Filter by location if specified
+    const query = currentUser.locationId
+      ? { locationId: currentUser.locationId }
+      : {};
+
+    const extraItems = await ExtraItem.find(query).sort({ name: 1 }).lean();
 
     return NextResponse.json(extraItems.map(item => ({
       ...item,
@@ -53,7 +58,10 @@ export async function POST(request: NextRequest) {
 
     const itemData = await request.json();
 
-    const newItem = new ExtraItem(itemData);
+    const newItem = new ExtraItem({
+      ...itemData,
+      ...(currentUser.locationId && { locationId: currentUser.locationId }),
+    });
     await newItem.save();
 
     // Log the activity

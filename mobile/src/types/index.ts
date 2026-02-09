@@ -4,6 +4,19 @@
 
 export type UserRole = 'super_admin' | 'admin' | 'employee' | 'cashier' | 'user';
 
+// Location for multi-location support
+export interface Location {
+  _id: string;
+  name: string;
+  code: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  phone?: string;
+  email?: string;
+  isActive: boolean;
+}
+
 export interface User {
   _id: string;
   email: string;

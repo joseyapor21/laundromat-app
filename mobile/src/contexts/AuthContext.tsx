@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { api } from '../services/api';
-import type { User } from '../types';
+import type { User, Location } from '../types';
 
 // Dynamically import push notifications to avoid crash in Expo Go
 let pushNotificationService: {
@@ -19,7 +19,7 @@ interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<Location[]>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -58,9 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
-  async function login(email: string, password: string) {
-    const { user: loggedInUser } = await api.login(email, password);
+  async function login(email: string, password: string): Promise<Location[]> {
+    const { user: loggedInUser, locations } = await api.login(email, password);
     setUser(loggedInUser);
+
+    // If only one location, auto-select it
+    if (locations.length === 1) {
+      await api.setLocationId(locations[0]._id);
+    }
+
     // Register for push notifications after login
     if (pushNotificationService) {
       try {
@@ -70,6 +76,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log('Push notifications not available');
       }
     }
+
+    return locations;
   }
 
   async function logout() {

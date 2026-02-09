@@ -16,8 +16,12 @@ export async function GET() {
 
     await connectDB();
 
-    // Get settings (should be a single document)
-    let settings = await Settings.findOne().lean();
+    // Get settings for current location (or first settings if no location)
+    const query = currentUser.locationId
+      ? { locationId: currentUser.locationId }
+      : {};
+
+    let settings = await Settings.findOne(query).lean();
 
     // Create default settings if none exist
     if (!settings) {
@@ -27,6 +31,7 @@ export async function GET() {
         pricePerPound: 1.25,
         deliveryFee: 3,
         updatedBy: 'system',
+        ...(currentUser.locationId && { locationId: currentUser.locationId }),
       });
       await defaultSettings.save();
       // Fetch the saved document as lean
@@ -75,14 +80,19 @@ export async function PUT(request: NextRequest) {
 
     const updates = await request.json();
 
-    // Find or create settings
-    let settings = await Settings.findOne();
+    // Find or create settings for current location
+    const query = currentUser.locationId
+      ? { locationId: currentUser.locationId }
+      : {};
+
+    let settings = await Settings.findOne(query);
 
     if (!settings) {
       settings = new Settings({
         ...updates,
         updatedBy: currentUser.userId,
         updatedAt: new Date(),
+        ...(currentUser.locationId && { locationId: currentUser.locationId }),
       });
     } else {
       Object.assign(settings, updates, {

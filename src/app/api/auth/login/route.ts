@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, getAuthDatabase } from '@/lib/db/connection';
-import { User } from '@/lib/db/models';
+import { User, Location } from '@/lib/db/models';
 import { createHash, createHmac, pbkdf2Sync } from 'crypto';
 import { createToken, getTokenExpiry, setAuthCookie } from '@/lib/auth';
 
@@ -155,10 +155,21 @@ export async function POST(request: NextRequest) {
     // Set the auth cookie
     await setAuthCookie(token);
 
+    // Fetch active locations for the user to select
+    const locations = await Location.find({ isActive: true }).sort({ name: 1 }).lean();
+
     return NextResponse.json({
       token,
       expiresAt: getTokenExpiry().toISOString(),
       user: userPayload,
+      locations: locations.map(loc => ({
+        _id: loc._id.toString(),
+        name: loc.name,
+        code: loc.code,
+        address: loc.address,
+        latitude: loc.latitude,
+        longitude: loc.longitude,
+      })),
     });
   } catch (error) {
     console.error('Login error:', error);

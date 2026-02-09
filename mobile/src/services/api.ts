@@ -1,15 +1,18 @@
 import * as SecureStore from 'expo-secure-store';
-import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog, OrderStatus, PaymentMethod, TimeEntry, ClockStatus } from '../types';
+import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog, OrderStatus, PaymentMethod, TimeEntry, ClockStatus, Location } from '../types';
 
 const API_BASE_URL = 'https://cloud.homation.us';
 
 const AUTH_TOKEN_KEY = 'auth_token';
+const LOCATION_ID_KEY = 'location_id';
 
 class ApiService {
   private token: string | null = null;
+  private locationId: string | null = null;
 
   async init() {
     this.token = await SecureStore.getItemAsync(AUTH_TOKEN_KEY);
+    this.locationId = await SecureStore.getItemAsync(LOCATION_ID_KEY);
   }
 
   async setToken(token: string | undefined | null) {
@@ -28,6 +31,25 @@ class ApiService {
     return this.token;
   }
 
+  // Location ID methods
+  async setLocationId(locationId: string | null) {
+    this.locationId = locationId;
+    if (locationId) {
+      await SecureStore.setItemAsync(LOCATION_ID_KEY, locationId);
+    } else {
+      await SecureStore.deleteItemAsync(LOCATION_ID_KEY);
+    }
+  }
+
+  async clearLocationId() {
+    this.locationId = null;
+    await SecureStore.deleteItemAsync(LOCATION_ID_KEY);
+  }
+
+  getLocationId() {
+    return this.locationId;
+  }
+
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -42,6 +64,11 @@ class ApiService {
 
     if (this.token) {
       (headers as Record<string, string>)['Authorization'] = `Bearer ${this.token}`;
+    }
+
+    // Add location header if set
+    if (this.locationId) {
+      (headers as Record<string, string>)['X-Location-Id'] = this.locationId;
     }
 
     try {
@@ -71,7 +98,7 @@ class ApiService {
   }
 
   // Auth
-  async login(email: string, password: string): Promise<{ token: string; user: User }> {
+  async login(email: string, password: string): Promise<{ token: string; user: User; locations: Location[] }> {
     const url = `${API_BASE_URL}/api/auth/login`;
 
     const response = await fetch(url, {
@@ -93,7 +120,12 @@ class ApiService {
       await this.setToken(data.token);
     }
 
-    return { token: data.token, user: data.user };
+    return { token: data.token, user: data.user, locations: data.locations || [] };
+  }
+
+  // Locations
+  async getLocations(): Promise<Location[]> {
+    return this.request<Location[]>('/locations');
   }
 
   async logout(): Promise<void> {
@@ -101,6 +133,7 @@ class ApiService {
       await this.request('/auth/logout', { method: 'POST' });
     } finally {
       await this.clearToken();
+      await this.clearLocationId();
     }
   }
 

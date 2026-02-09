@@ -7,6 +7,7 @@ export { default as ActivityLog } from './ActivityLog';
 export { default as PrintJob } from './PrintJob';
 export { default as Machine } from './Machine';
 export { default as TimeEntry } from './TimeEntry';
+export { default as Location } from './Location';
 export { OrderCounter, CustomerCounter, getNextOrderSequence, getNextCustomerSequence } from './Counter';
 
 export type { UserDocument } from './User';
@@ -17,3 +18,4 @@ export type { ExtraItemDocument } from './ExtraItem';
 export type { ActivityLogDocument } from './ActivityLog';
 export type { PrintJobDocument } from './PrintJob';
 export type { TimeEntryDocument } from './TimeEntry';
+export type { LocationDoc } from './Location';

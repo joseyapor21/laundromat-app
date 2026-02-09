@@ -12,6 +12,7 @@ export interface CreditTransactionDoc {
 export interface CustomerDoc {
   _id: Types.ObjectId;
   id: number;
+  locationId?: Types.ObjectId;
   name: string;
   phoneNumber: string;
   address: string;
@@ -55,6 +56,12 @@ const customerSchema = new mongoose.Schema({
     type: Number,
     unique: true,
     required: true,
+  },
+  locationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    required: false,  // Will be required after migration
+    index: true,
   },
   name: {
     type: String,

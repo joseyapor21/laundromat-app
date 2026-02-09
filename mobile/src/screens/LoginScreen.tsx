@@ -6,14 +6,15 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
-  KeyboardAvoidingView,
-  Platform,
   ActivityIndicator,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocation } from '../contexts/LocationContext';
 
 export default function LoginScreen() {
   const { login } = useAuth();
+  const { setAvailableLocations, selectLocation } = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -26,7 +27,15 @@ export default function LoginScreen() {
 
     setIsLoading(true);
     try {
-      await login(email.trim(), password);
+      const locations = await login(email.trim(), password);
+
+      // Set available locations in LocationContext
+      setAvailableLocations(locations);
+
+      // If only one location, auto-select it
+      if (locations.length === 1) {
+        await selectLocation(locations[0]);
+      }
     } catch (error) {
       Alert.alert(
         'Login Failed',
@@ -38,11 +47,11 @@ export default function LoginScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
+    <KeyboardAwareScrollView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      contentContainerStyle={styles.content}
+      bottomOffset={50}
     >
-      <View style={styles.content}>
         <View style={styles.logoContainer}>
           <View style={styles.logo}>
             <Text style={styles.logoIcon}>🧺</Text>
@@ -92,8 +101,7 @@ export default function LoginScreen() {
         </View>
 
         <Text style={styles.footer}>Laundromat Management System</Text>
-      </View>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScrollView>
   );
 }
 

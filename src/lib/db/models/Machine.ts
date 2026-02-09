@@ -5,6 +5,7 @@ export type MachineStatus = 'available' | 'in_use' | 'maintenance';
 
 export interface MachineDoc {
   _id: Types.ObjectId;
+  locationId?: Types.ObjectId;
   name: string;
   type: MachineType;
   qrCode: string;
@@ -15,6 +16,12 @@ export interface MachineDoc {
 }
 
 const machineSchema = new mongoose.Schema({
+  locationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    required: false,  // Will be required after migration
+    index: true,
+  },
   name: {
     type: String,
     required: true,

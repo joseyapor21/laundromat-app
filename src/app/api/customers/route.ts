@@ -16,7 +16,12 @@ export async function GET() {
 
     await connectDB();
 
-    const customers = await Customer.find().sort({ name: 1 }).lean();
+    // Filter by location if specified
+    const query = currentUser.locationId
+      ? { locationId: currentUser.locationId }
+      : {};
+
+    const customers = await Customer.find(query).sort({ name: 1 }).lean();
 
     return NextResponse.json(customers.map(c => ({
       ...c,
@@ -48,12 +53,13 @@ export async function POST(request: NextRequest) {
 
     const customerData = await request.json();
 
-    // Generate customer ID
-    const customerId = await getNextCustomerSequence();
+    // Generate customer ID (scoped to location if available)
+    const customerId = await getNextCustomerSequence(currentUser.locationId);
 
     const newCustomer = new Customer({
       ...customerData,
       id: customerId,
+      ...(currentUser.locationId && { locationId: currentUser.locationId }),
     });
 
     await newCustomer.save();

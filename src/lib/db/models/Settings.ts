@@ -4,6 +4,13 @@ import type { Settings as ISettings } from '@/types';
 export interface SettingsDocument extends Omit<ISettings, '_id'>, Document {}
 
 const settingsSchema = new mongoose.Schema<SettingsDocument>({
+  locationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    required: false,  // Will be required after migration
+    index: true,
+    unique: true,  // One settings doc per location
+  },
   minimumWeight: {
     type: Number,
     required: true,

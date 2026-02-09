@@ -36,6 +36,11 @@ export async function GET(request: NextRequest) {
     // Build query
     const query: Record<string, unknown> = {};
 
+    // Filter by location if specified
+    if (currentUser.locationId) {
+      query.locationId = currentUser.locationId;
+    }
+
     if (userId) {
       query.userId = userId;
     }
@@ -151,6 +156,7 @@ export async function POST(request: NextRequest) {
         address: location.address,
       },
       ...(relativePath && { photoPath: relativePath }),
+      ...(currentUser.locationId && { locationId: currentUser.locationId }),
       deviceInfo,
       notes,
     });

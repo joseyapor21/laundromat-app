@@ -6,6 +6,7 @@ export interface OrderDoc {
   id: string;
   orderId: number;
   orderNumber?: string;
+  locationId?: Types.ObjectId;
   customerId: string;
   customerName: string;
   customerPhone: string;
@@ -193,6 +194,12 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   orderNumber: {
     type: String,
     required: false,
+  },
+  locationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    required: false,  // Will be required after migration
+    index: true,
   },
   customerId: {
     type: String,

@@ -46,18 +46,21 @@ const OrderCounter: Model<CounterDoc> = mongoose.models.OrderCounter || mongoose
 const CustomerCounter: Model<CounterDoc> = mongoose.models.CustomerCounter || mongoose.model<CounterDoc>('CustomerCounter', customerCounterSchema);
 
 // Helper function to get next sequence number
-export async function getNextOrderSequence(): Promise<number> {
+// If locationId is provided, uses per-location counter; otherwise uses global counter
+export async function getNextOrderSequence(locationId?: string): Promise<number> {
+  const counterId = locationId ? `orderId_${locationId}` : 'orderId';
   const counter = await OrderCounter.findByIdAndUpdate(
-    'orderId',
+    counterId,
     { $inc: { next: 1 } },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );
   return counter!.next;
 }
 
-export async function getNextCustomerSequence(): Promise<number> {
+export async function getNextCustomerSequence(locationId?: string): Promise<number> {
+  const counterId = locationId ? `customerId_${locationId}` : 'customerId';
   const counter = await CustomerCounter.findByIdAndUpdate(
-    'customerId',
+    counterId,
     { $inc: { next: 1 } },
     { new: true, upsert: true, setDefaultsOnInsert: true }
   );

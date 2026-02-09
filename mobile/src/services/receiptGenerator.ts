@@ -223,8 +223,11 @@ export function generateCustomerReceiptText(order: Order): string {
     r += ESC.LEFT;
     order.extraItems.forEach((item: any) => {
       const itemName = item.name || item.item?.name || 'Extra Item';
-      const itemTotal = Number((item.price * item.quantity).toFixed(2));
-      r += leftRightAlign(`${itemName} x${item.quantity}`, `$${itemTotal.toFixed(2)}`) + '\n';
+      // Use overrideTotal if set, otherwise calculate from price * quantity
+      const itemTotal = (item.overrideTotal !== undefined && item.overrideTotal !== null)
+        ? item.overrideTotal
+        : Number((item.price * item.quantity).toFixed(2));
+      r += leftRightAlign(itemName, `$${itemTotal.toFixed(2)}`) + '\n';
     });
   }
 
@@ -236,7 +239,9 @@ export function generateCustomerReceiptText(order: Order): string {
 
   // Show weight with price calculation
   if (order.subtotal && order.subtotal > 0 && totalWeight > 0) {
+    r += ESC.DOUBLE_HEIGHT_ON;
     r += leftRightAlign('Total Weight', `${totalWeight} LBS = $${order.subtotal.toFixed(2)}`) + '\n';
+    r += ESC.NORMAL_SIZE;
   } else {
     r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
   }
@@ -438,8 +443,11 @@ export function generateStoreCopyText(order: Order): string {
     r += ESC.LEFT;
     order.extraItems.forEach((item: any) => {
       const itemName = item.name || item.item?.name || 'Extra Item';
-      const itemTotal = Number((item.price * item.quantity).toFixed(2));
-      r += leftRightAlign(`${itemName} x${item.quantity}`, `$${itemTotal.toFixed(2)}`) + '\n';
+      // Use overrideTotal if set, otherwise calculate from price * quantity
+      const itemTotal = (item.overrideTotal !== undefined && item.overrideTotal !== null)
+        ? item.overrideTotal
+        : Number((item.price * item.quantity).toFixed(2));
+      r += leftRightAlign(itemName, `$${itemTotal.toFixed(2)}`) + '\n';
     });
   }
 
@@ -451,7 +459,9 @@ export function generateStoreCopyText(order: Order): string {
 
   // Show weight with price calculation
   if (order.subtotal && order.subtotal > 0 && totalWeight > 0) {
+    r += ESC.DOUBLE_HEIGHT_ON;
     r += leftRightAlign('Total Weight', `${totalWeight} LBS = $${order.subtotal.toFixed(2)}`) + '\n';
+    r += ESC.NORMAL_SIZE;
   } else {
     r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
   }

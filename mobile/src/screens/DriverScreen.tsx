@@ -16,6 +16,7 @@ import {
   Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { Device } from 'react-native-ble-plx';
@@ -1185,7 +1186,7 @@ export default function DriverScreen() {
           <Text style={styles.stopsLabel}>Stops ({routeStops.length}) - Drag to reorder:</Text>
 
           {/* Stops List */}
-          <ScrollView style={styles.stopsList}>
+          <KeyboardAwareScrollView bottomOffset={50} style={styles.stopsList}>
             {routeStops.map((stop, index) => (
               <View key={stop.order._id} style={styles.stopItem}>
                 <View style={styles.stopNumber}>
@@ -1240,7 +1241,7 @@ export default function DriverScreen() {
                 </View>
               </View>
             ))}
-          </ScrollView>
+          </KeyboardAwareScrollView>
 
           {/* Start Navigation Button */}
           <TouchableOpacity style={styles.startNavBtn} onPress={startNavigation}>

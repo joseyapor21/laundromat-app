@@ -26,6 +26,11 @@ export async function GET(request: NextRequest) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const query: any = {};
 
+    // Filter by location if specified
+    if (currentUser.locationId) {
+      query.locationId = currentUser.locationId;
+    }
+
     if (status && status !== 'all') {
       query.status = status;
     }
@@ -100,15 +105,16 @@ export async function POST(request: NextRequest) {
 
     const orderData = await request.json();
 
-    // Generate order IDs
+    // Generate order IDs (scoped to location if available)
     const timestamp = Date.now().toString();
-    const orderId = await getNextOrderSequence();
+    const orderId = await getNextOrderSequence(currentUser.locationId);
 
     const newOrder = new Order({
       ...orderData,
       id: timestamp,
       orderId,
       status: 'new_order',
+      ...(currentUser.locationId && { locationId: currentUser.locationId }),
       statusHistory: [{
         status: 'new_order',
         changedBy: currentUser.name,

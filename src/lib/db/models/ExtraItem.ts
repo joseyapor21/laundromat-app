@@ -4,6 +4,12 @@ import type { ExtraItem as IExtraItem } from '@/types';
 export interface ExtraItemDocument extends Omit<IExtraItem, '_id'>, Document {}
 
 const extraItemSchema = new mongoose.Schema<ExtraItemDocument>({
+  locationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    required: false,  // Will be required after migration
+    index: true,
+  },
   name: {
     type: String,
     required: true,

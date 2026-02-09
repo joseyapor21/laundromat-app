@@ -2,6 +2,7 @@ import mongoose, { Model, Types } from 'mongoose';
 
 export interface TimeEntryDoc {
   _id: Types.ObjectId;
+  locationId?: Types.ObjectId;
   userId: string;
   userName: string;
   userInitials: string;
@@ -20,6 +21,12 @@ export interface TimeEntryDoc {
 }
 
 const timeEntrySchema = new mongoose.Schema<TimeEntryDoc>({
+  locationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    required: false,  // Will be required after migration
+    index: true,
+  },
   userId: {
     type: String,
     required: true,

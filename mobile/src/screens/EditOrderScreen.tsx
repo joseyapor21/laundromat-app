@@ -14,9 +14,9 @@ import {
   KeyboardAvoidingView,
   Keyboard,
 } from 'react-native';
-import { KeyboardAwareScrollView } from 'react-native-keyboard-aware-scroll-view';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
@@ -229,13 +229,13 @@ export default function EditOrderScreen() {
     const sameDayExtra = getSameDayExtraCharge();
 
     const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
+      // Use override total if set (for any item type)
+      if (data.overrideTotal !== undefined && data.overrideTotal !== null) {
+        return total + data.overrideTotal;
+      }
       const item = extraItems.find(e => e._id === itemId);
       const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
       if (isWeightBased) {
-        // Use override total if set
-        if (data.overrideTotal !== undefined && data.overrideTotal !== null) {
-          return total + data.overrideTotal;
-        }
         // calculateWeightBasedPrice applies minimum and rounds to nearest quarter
         const itemTotal = calculateWeightBasedPrice(weight, item.perWeightUnit!, data.price);
         return total + itemTotal;
@@ -281,6 +281,22 @@ export default function EditOrderScreen() {
     setBags(updatedBags);
   };
 
+  const removeExtraItem = (itemId: string) => {
+    const newExtras = { ...selectedExtraItems };
+    delete newExtras[itemId];
+    setSelectedExtraItems(newExtras);
+  };
+
+  const updateExtraItem = (itemId: string, field: 'quantity' | 'price' | 'overrideTotal', value: number | undefined) => {
+    setSelectedExtraItems(prev => ({
+      ...prev,
+      [itemId]: {
+        ...prev[itemId],
+        [field]: value,
+      },
+    }));
+  };
+
   // Save order
   const handleSave = async () => {
     if (showPriceOverride && !priceChangeNote.trim()) {
@@ -306,6 +322,17 @@ export default function EditOrderScreen() {
           };
         });
 
+      // Calculate laundry subtotal (weight-based pricing only)
+      let laundrySubtotal = 0;
+      if (settings && totalWeight > 0) {
+        if (totalWeight <= settings.minimumWeight) {
+          laundrySubtotal = settings.minimumPrice;
+        } else {
+          const extraPounds = totalWeight - settings.minimumWeight;
+          laundrySubtotal = settings.minimumPrice + (extraPounds * settings.pricePerPound);
+        }
+      }
+
       const finalPrice = getFinalPrice();
       const creditCoversOrder = applyCredit && creditToApply >= finalPrice;
 
@@ -315,6 +342,8 @@ export default function EditOrderScreen() {
         weight: calculateTotalWeight(),
         specialInstructions,
         totalAmount: finalPrice,
+        subtotal: laundrySubtotal,
+        sameDayFee: isSameDay ? getSameDayExtraCharge() : 0,
         priceOverride: showPriceOverride ? priceOverride : null,
         priceChangeNote: showPriceOverride ? priceChangeNote : null,
         extraItems: orderExtraItems,
@@ -456,13 +485,10 @@ export default function EditOrderScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
       <KeyboardAwareScrollView
+        bottomOffset={50}
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingBottom: 20 }}
-        enableOnAndroid={true}
-        extraScrollHeight={Platform.OS === 'ios' ? 120 : 80}
-        extraHeight={120}
         keyboardShouldPersistTaps="handled"
-        enableAutomaticScroll={true}
       >
           {/* Header */}
           <View style={styles.header}>
@@ -975,50 +1001,67 @@ export default function EditOrderScreen() {
                 onPress={() => setShowExtraItemsModal(true)}
               >
                 <Ionicons name="add-circle" size={16} color="#fff" />
-                <Text style={styles.addExtraItemsButtonText}>Add Extra Items</Text>
+                <Text style={styles.addExtraItemsButtonText}>Add Extra Item</Text>
               </TouchableOpacity>
             </View>
-            {/* Show selected extra items summary */}
-            {Object.keys(selectedExtraItems).filter(id => selectedExtraItems[id]?.quantity > 0).length > 0 ? (
-              <View style={styles.selectedExtrasCard}>
-                {Object.entries(selectedExtraItems)
-                  .filter(([_, data]) => data.quantity > 0)
-                  .map(([itemId, data]) => {
-                    const item = extraItems.find(e => e._id === itemId);
-                    if (!item) return null;
-                    const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
-                    const totalWeight = calculateTotalWeight();
-                    const displayQty = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : data.quantity;
-                    // Use overrideTotal if set, otherwise calculate
-                    const displayPrice = data.overrideTotal !== undefined
-                      ? data.overrideTotal
-                      : (isWeightBased
-                        ? calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price)
-                        : data.price * data.quantity);
-                    const hasOverride = data.overrideTotal !== undefined;
-                    return (
-                      <View key={itemId} style={styles.selectedExtraRow}>
-                        <View style={{ flex: 1 }}>
-                          <Text style={styles.selectedExtraName}>
-                            {item.name} × {displayQty.toFixed(2)}
-                          </Text>
-                          {isWeightBased && (
-                            <Text style={styles.selectedExtraHint}>
-                              ({totalWeight} lbs @ ${data.price}/{item.perWeightUnit} lbs{hasOverride ? ', overridden' : `, min $${data.price}`})
-                            </Text>
-                          )}
-                        </View>
-                        <Text style={[styles.selectedExtraPrice, hasOverride && { color: '#ef4444' }]}>${displayPrice.toFixed(2)}</Text>
-                      </View>
-                    );
-                  })}
-              </View>
-            ) : (
+            {Object.keys(selectedExtraItems).filter(id => selectedExtraItems[id]?.quantity > 0).length === 0 && (
               <View style={styles.noExtrasCard}>
-                <Text style={styles.noExtrasText}>No extra items selected</Text>
-                <Text style={styles.noExtrasHint}>Tap "Add Extra Items" to add items</Text>
+                <Text style={styles.noExtrasText}>No extra items added</Text>
+                <Text style={styles.noExtrasHint}>Tap "Add Extra Item" to add items</Text>
               </View>
             )}
+            {Object.entries(selectedExtraItems)
+              .filter(([_, data]) => data.quantity > 0)
+              .map(([itemId, data]) => {
+                const item = extraItems.find(e => e._id === itemId);
+                if (!item) return null;
+                const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
+                const totalWeight = calculateTotalWeight();
+                const displayQty = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : data.quantity;
+                // Use overrideTotal if set, otherwise calculate
+                const calculatedPrice = isWeightBased
+                  ? calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price)
+                  : data.price * data.quantity;
+                const displayPrice = data.overrideTotal !== undefined ? data.overrideTotal : calculatedPrice;
+                const hasOverride = data.overrideTotal !== undefined;
+                return (
+                  <View key={itemId} style={styles.extraItemCard}>
+                    <View style={styles.extraItemHeader}>
+                      <Text style={styles.extraItemTitle}>{item.name}</Text>
+                      <TouchableOpacity
+                        onPress={() => removeExtraItem(itemId)}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                        style={styles.extraItemDeleteButton}
+                      >
+                        <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                    <View style={styles.extraItemRow}>
+                      <View style={styles.extraItemField}>
+                        <Text style={styles.extraItemFieldLabel}>Override Total (optional)</Text>
+                        <TextInput
+                          style={[styles.extraItemInput, hasOverride && styles.extraItemInputOverride]}
+                          defaultValue={hasOverride ? data.overrideTotal?.toString() : ''}
+                          onEndEditing={(e) => {
+                            const v = e.nativeEvent.text;
+                            const val = parseFloat(v);
+                            updateExtraItem(itemId, 'overrideTotal', v === '' ? undefined : (isNaN(val) ? undefined : val));
+                          }}
+                          keyboardType="decimal-pad"
+                          placeholder={`Auto: $${calculatedPrice.toFixed(2)}`}
+                          placeholderTextColor="#94a3b8"
+                        />
+                      </View>
+                      <View style={styles.extraItemTotalBox}>
+                        <Text style={styles.extraItemTotalLabel}>Total</Text>
+                        <Text style={[styles.extraItemTotalValue, hasOverride && { color: '#ef4444' }]}>
+                          ${displayPrice.toFixed(2)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
           </View>
 
           {/* Special Instructions */}
@@ -1126,12 +1169,13 @@ export default function EditOrderScreen() {
                       <Text style={styles.priceLabel}>Extra Items</Text>
                       <Text style={styles.priceValue}>
                         +${Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
+                          // Use override total if set (for any item type)
+                          if (data.overrideTotal !== undefined && data.overrideTotal !== null) {
+                            return total + data.overrideTotal;
+                          }
                           const item = extraItems.find(e => e._id === itemId);
                           const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
                           if (isWeightBased) {
-                            if (data.overrideTotal !== undefined) {
-                              return total + data.overrideTotal;
-                            }
                             return total + calculateWeightBasedPrice(calculateTotalWeight(), item.perWeightUnit!, data.price);
                           }
                           return total + (data.price * data.quantity);
@@ -1454,15 +1498,8 @@ export default function EditOrderScreen() {
                     : data.price * data.quantity;
                   return (
                     <View key={itemId} style={styles.modalSummaryRow}>
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.modalSummaryText}>{item.name} × {displayQty.toFixed(2)}</Text>
-                        {isWeightBased && (
-                          <Text style={styles.modalSummaryCalc}>
-                            ({totalWeight} lbs ÷ {item.perWeightUnit} lbs, min ${data.price})
-                          </Text>
-                        )}
-                      </View>
-                      <Text style={[styles.modalSummaryPrice, isWeightBased && data.overrideTotal !== undefined && { color: '#ef4444' }]}>
+                      <Text style={styles.modalSummaryText}>{item.name}</Text>
+                      <Text style={[styles.modalSummaryPrice, data.overrideTotal !== undefined && { color: '#ef4444' }]}>
                         ${itemTotal.toFixed(2)}
                       </Text>
                     </View>
@@ -1839,6 +1876,94 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#94a3b8',
     marginTop: 4,
+  },
+  // Extra item card styles (like bags)
+  extraItemCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f59e0b',
+  },
+  extraItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  extraItemDeleteButton: {
+    padding: 4,
+  },
+  extraItemTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  extraItemRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 10,
+  },
+  extraItemField: {
+    flex: 1,
+  },
+  extraItemFieldLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  extraItemInput: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 15,
+    color: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  extraItemInputOverride: {
+    borderColor: '#ef4444',
+    backgroundColor: '#fef2f2',
+  },
+  extraItemReadOnly: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  extraItemReadOnlyText: {
+    fontSize: 15,
+    color: '#64748b',
+  },
+  extraItemHint: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 4,
+  },
+  extraItemTotalBox: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  extraItemTotalLabel: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 2,
+  },
+  extraItemTotalValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#8b5cf6',
+  },
+  extraItemMinNote: {
+    fontSize: 11,
+    color: '#94a3b8',
+    fontStyle: 'italic',
   },
   // Modal styles
   modalContainer: {
