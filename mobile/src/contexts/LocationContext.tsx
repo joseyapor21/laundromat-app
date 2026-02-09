@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { api } from '../services/api';
+import { useAuth } from './AuthContext';
 import type { Location } from '../types';
 
 interface LocationContextType {
@@ -15,13 +16,25 @@ interface LocationContextType {
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
 
 export function LocationProvider({ children }: { children: ReactNode }) {
+  const { isAuthenticated } = useAuth();
   const [currentLocation, setCurrentLocation] = useState<Location | null>(null);
   const [availableLocations, setAvailableLocations] = useState<Location[]>([]);
   const [isLoadingLocations, setIsLoadingLocations] = useState(true);
 
+  // Clear location state when user logs out
   useEffect(() => {
-    initLocation();
-  }, []);
+    if (!isAuthenticated) {
+      setCurrentLocation(null);
+      setAvailableLocations([]);
+      setIsLoadingLocations(false);
+    }
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      initLocation();
+    }
+  }, [isAuthenticated]);
 
   async function initLocation() {
     try {

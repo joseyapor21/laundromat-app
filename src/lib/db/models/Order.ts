@@ -189,7 +189,6 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   orderId: {
     type: Number,
     required: true,
-    unique: true,
   },
   orderNumber: {
     type: String,
@@ -413,6 +412,9 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   collection: 'orders',
   timestamps: false,
 });
+
+// Compound unique index: each location can have its own order ID sequence
+orderSchema.index({ locationId: 1, orderId: 1 }, { unique: true });
 
 const Order: Model<OrderDoc> = mongoose.models.Order || mongoose.model<OrderDoc>('Order', orderSchema);
 

@@ -22,6 +22,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as NavigationBar from 'expo-navigation-bar';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocation } from '../contexts/LocationContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import type { Order } from '../types';
 
@@ -61,6 +62,7 @@ export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { user } = useAuth();
+  const { currentLocation } = useLocation();
   const { width, height } = useWindowDimensions();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,7 +132,7 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     loadOrders();
-  }, [loadOrders]);
+  }, [loadOrders, currentLocation?._id]);
 
   // Reload orders when screen comes into focus (e.g., after creating an order)
   useFocusEffect(

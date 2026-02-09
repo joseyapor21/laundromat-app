@@ -54,7 +54,6 @@ const creditTransactionSchema = new mongoose.Schema({
 const customerSchema = new mongoose.Schema({
   id: {
     type: Number,
-    unique: true,
     required: true,
   },
   locationId: {
@@ -99,6 +98,9 @@ const customerSchema = new mongoose.Schema({
   collection: 'customers',
   timestamps: false,
 });
+
+// Compound unique index: each location can have its own customer ID sequence
+customerSchema.index({ locationId: 1, id: 1 }, { unique: true });
 
 const Customer: Model<CustomerDoc> = mongoose.models.Customer || mongoose.model<CustomerDoc>('Customer', customerSchema);
 

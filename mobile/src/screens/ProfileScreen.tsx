@@ -69,6 +69,10 @@ export default function ProfileScreen() {
   useEffect(() => {
     checkPushNotificationStatus();
     loadNotificationPreference();
+    // Load locations if not already loaded
+    if (availableLocations.length === 0) {
+      refreshLocations();
+    }
   }, []);
 
   const loadNotificationPreference = async () => {
@@ -266,21 +270,21 @@ export default function ProfileScreen() {
       return;
     }
 
-    console.log('Switching to location:', location._id, location.name);
-    await selectLocation(location);
     setShowLocationModal(false);
 
-    // Reset navigation to reload all screens with new location data
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Dashboard' as never }],
-    });
+    try {
+      // Save the location - this updates api.locationId and context state
+      await selectLocation(location);
 
-    Alert.alert('Location Changed', `You are now managing ${location.name}`);
+      // Navigate to Dashboard tab - it will auto-refetch with the new location
+      navigation.navigate('Dashboard' as never);
+    } catch (error) {
+      console.error('Error switching location:', error);
+      Alert.alert('Error', 'Failed to switch location');
+    }
   };
 
-  const openLocationModal = async () => {
-    await refreshLocations();
+  const openLocationModal = () => {
     setShowLocationModal(true);
   };
 
