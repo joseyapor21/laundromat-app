@@ -33,6 +33,7 @@ export interface CreditTransaction {
 export interface Customer {
   _id: string;
   id: number;
+  locationId?: string;
   name: string;
   phoneNumber: string;
   address: string;
@@ -138,6 +139,7 @@ export interface OrderExtraItem {
 export interface Order {
   _id: string;
   id: string;
+  locationId?: string;
   orderId: number;
   orderNumber?: string;
   customerId: string;
@@ -196,6 +198,7 @@ export interface Order {
 // Settings types
 export interface Settings {
   _id: string;
+  locationId?: string;
   minimumWeight: number;
   minimumPrice: number;
   pricePerPound: number;
@@ -223,6 +226,7 @@ export interface Settings {
 // Extra Item types
 export interface ExtraItem {
   _id: string;
+  locationId?: string;
   name: string;
   description: string;
   price: number;
@@ -313,6 +317,7 @@ export type MachineStatus = 'available' | 'in_use' | 'maintenance';
 
 export interface Machine {
   _id: string;
+  locationId?: string;
   name: string;
   type: MachineType;
   qrCode: string;
