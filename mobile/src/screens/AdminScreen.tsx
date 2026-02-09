@@ -25,9 +25,9 @@ import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import { useAuth } from '../contexts/AuthContext';
-import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry } from '../types';
+import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location } from '../types';
 
-type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock';
+type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations';
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
@@ -56,6 +56,12 @@ export default function AdminScreen() {
   const [showTimeEntryPhotoModal, setShowTimeEntryPhotoModal] = useState(false);
   const [timeClockUserFilter, setTimeClockUserFilter] = useState<string>('all');
   const [showUserFilterModal, setShowUserFilterModal] = useState(false);
+
+  // Locations
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
+  const [locationForm, setLocationForm] = useState({ name: '', code: '', address: '', phone: '', email: '', isActive: true });
 
   // Printer state
   const [printerScanning, setPrinterScanning] = useState(false);
@@ -100,13 +106,14 @@ export default function AdminScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, customersData, extraItemsData, settingsData, machinesData, activityData] = await Promise.all([
+      const [usersData, customersData, extraItemsData, settingsData, machinesData, activityData, locationsData] = await Promise.all([
         api.getUsers().catch(() => []),
         api.getCustomers(),
         api.getExtraItems().catch(() => []),
         api.getSettings(),
         api.getMachines().catch(() => []),
         api.getActivityLogs({ limit: 50 }).catch(() => ({ logs: [], total: 0 })),
+        api.getLocations().catch(() => []),
       ]);
       setUsers(usersData);
       setCustomers(customersData);
@@ -115,6 +122,7 @@ export default function AdminScreen() {
       setMachines(machinesData);
       setActivityLogs(activityData.logs);
       setActivityTotal(activityData.total);
+      setLocations(locationsData);
     } catch (error) {
       console.error('Failed to load admin data:', error);
     } finally {
@@ -465,6 +473,74 @@ export default function AdminScreen() {
     }
   };
 
+  // Location actions
+  const openLocationModal = (location?: Location) => {
+    if (location) {
+      setEditingLocation(location);
+      setLocationForm({
+        name: location.name,
+        code: location.code,
+        address: location.address,
+        phone: location.phone || '',
+        email: location.email || '',
+        isActive: location.isActive,
+      });
+    } else {
+      setEditingLocation(null);
+      setLocationForm({ name: '', code: '', address: '', phone: '', email: '', isActive: true });
+    }
+    setShowLocationModal(true);
+  };
+
+  const handleSaveLocation = async () => {
+    if (!locationForm.name || !locationForm.code || !locationForm.address) {
+      Alert.alert('Error', 'Please fill in name, code, and address');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingLocation) {
+        await api.updateLocation(editingLocation._id, locationForm);
+        Alert.alert('Success', 'Location updated');
+      } else {
+        await api.createLocation(locationForm);
+        Alert.alert('Success', 'Location created');
+      }
+      setShowLocationModal(false);
+      loadData();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save location';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteLocation = (location: Location) => {
+    Alert.alert(
+      'Delete Location',
+      `Are you sure you want to delete "${location.name}"? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteLocation(location._id);
+              Alert.alert('Success', 'Location deleted');
+              loadData();
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to delete location';
+              Alert.alert('Error', errorMessage);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   // Settings actions
   const openSettingsModal = () => {
     if (settings) {
@@ -596,6 +672,7 @@ export default function AdminScreen() {
     { key: 'reports', label: 'Reports', icon: 'document-text', adminOnly: false },
     { key: 'timeclock', label: 'Time Clock', icon: 'timer', adminOnly: true },
     { key: 'activity', label: 'Activity', icon: 'time', adminOnly: true },
+    { key: 'locations', label: 'Locations', icon: 'location', adminOnly: true },
   ];
 
   // Filter tabs based on role - cashiers only see non-admin tabs
@@ -1389,6 +1466,61 @@ export default function AdminScreen() {
         </View>
       )}
 
+      {/* Locations Tab */}
+      {activeTab === 'locations' && (
+        <View style={{ flex: 1 }}>
+          <View style={styles.actionHeader}>
+            <Text style={styles.sectionTitle}>Locations ({locations.length})</Text>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => openLocationModal()}
+            >
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.addButtonText}>Add</Text>
+            </TouchableOpacity>
+          </View>
+          <FlatList
+            data={locations}
+            keyExtractor={(item) => item._id}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => (
+              <View style={styles.listItem}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={styles.itemTitle}>{item.name}</Text>
+                    <View style={[styles.badge, { backgroundColor: item.isActive ? '#dcfce7' : '#fee2e2' }]}>
+                      <Text style={[styles.badgeText, { color: item.isActive ? '#16a34a' : '#dc2626' }]}>
+                        {item.isActive ? 'Active' : 'Inactive'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.itemSubtitle}>Code: {item.code}</Text>
+                  <Text style={styles.itemSubtitle}>{item.address}</Text>
+                  {item.phone && <Text style={styles.itemSubtitle}>Phone: {item.phone}</Text>}
+                </View>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => openLocationModal(item)}
+                  >
+                    <Ionicons name="pencil" size={18} color="#2563eb" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.deleteButton}
+                    onPress={() => handleDeleteLocation(item)}
+                  >
+                    <Ionicons name="trash" size={18} color="#dc2626" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+            ListEmptyComponent={
+              <Text style={styles.emptyText}>No locations found</Text>
+            }
+          />
+        </View>
+      )}
+
       {/* User Modal */}
       <Modal visible={showUserModal} animationType="slide" transparent>
         <KeyboardAvoidingView
@@ -1673,6 +1805,106 @@ export default function AdminScreen() {
             <TouchableOpacity
               style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
               onPress={handleSaveMachine}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveBtnText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Location Modal */}
+      <Modal visible={showLocationModal} animationType="slide">
+        <View style={{ flex: 1, backgroundColor: '#fff' }}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {editingLocation ? 'Edit Location' : 'Add Location'}
+            </Text>
+            <TouchableOpacity onPress={() => setShowLocationModal(false)}>
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          <KeyboardAwareScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.modalBody}
+            enableOnAndroid={true}
+            extraScrollHeight={20}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={locationForm.name}
+                onChangeText={(text) => setLocationForm({ ...locationForm, name: text })}
+                placeholder="Location name (e.g., Main Store)"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Code *</Text>
+              <TextInput
+                style={styles.input}
+                value={locationForm.code}
+                onChangeText={(text) => setLocationForm({ ...locationForm, code: text.toUpperCase() })}
+                placeholder="Short code (e.g., MAIN)"
+                placeholderTextColor="#94a3b8"
+                autoCapitalize="characters"
+                maxLength={10}
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Address *</Text>
+              <TextInput
+                style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                value={locationForm.address}
+                onChangeText={(text) => setLocationForm({ ...locationForm, address: text })}
+                placeholder="Full address"
+                placeholderTextColor="#94a3b8"
+                multiline
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Phone</Text>
+              <TextInput
+                style={styles.input}
+                value={locationForm.phone}
+                onChangeText={(text) => setLocationForm({ ...locationForm, phone: text })}
+                placeholder="Phone number"
+                placeholderTextColor="#94a3b8"
+                keyboardType="phone-pad"
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Email</Text>
+              <TextInput
+                style={styles.input}
+                value={locationForm.email}
+                onChangeText={(text) => setLocationForm({ ...locationForm, email: text })}
+                placeholder="Email address"
+                placeholderTextColor="#94a3b8"
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+            </View>
+            <View style={[styles.inputGroup, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+              <Text style={styles.inputLabel}>Active</Text>
+              <Switch
+                value={locationForm.isActive}
+                onValueChange={(value) => setLocationForm({ ...locationForm, isActive: value })}
+                trackColor={{ false: '#e2e8f0', true: '#93c5fd' }}
+                thumbColor={locationForm.isActive ? '#2563eb' : '#94a3b8'}
+              />
+            </View>
+          </KeyboardAwareScrollView>
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.saveBtn}
+              onPress={handleSaveLocation}
               disabled={saving}
             >
               {saving ? (

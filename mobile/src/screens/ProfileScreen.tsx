@@ -262,6 +262,11 @@ export default function ProfileScreen() {
   const handleSwitchLocation = async (location: LocationType) => {
     await selectLocation(location);
     setShowLocationModal(false);
+    // Reset navigation to reload all screens with new location data
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'Main' as never }],
+    });
     Alert.alert('Location Changed', `You are now managing ${location.name}`);
   };
 

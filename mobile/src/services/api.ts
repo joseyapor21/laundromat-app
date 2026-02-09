@@ -128,6 +128,24 @@ class ApiService {
     return this.request<Location[]>('/locations');
   }
 
+  async createLocation(data: Partial<Location>): Promise<Location> {
+    return this.request<Location>('/locations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateLocation(id: string, data: Partial<Location>): Promise<Location> {
+    return this.request<Location>(`/locations/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteLocation(id: string): Promise<void> {
+    return this.request(`/locations/${id}`, { method: 'DELETE' });
+  }
+
   async logout(): Promise<void> {
     try {
       await this.request('/auth/logout', { method: 'POST' });
