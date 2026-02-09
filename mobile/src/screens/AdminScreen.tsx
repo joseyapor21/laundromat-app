@@ -1878,12 +1878,15 @@ export default function AdminScreen() {
 
       {/* Location Modal */}
       <Modal visible={showLocationModal} animationType="slide">
-        <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top }}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
               {editingLocation ? 'Edit Location' : 'Add Location'}
             </Text>
-            <TouchableOpacity onPress={() => setShowLocationModal(false)}>
+            <TouchableOpacity
+              onPress={() => setShowLocationModal(false)}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
               <Ionicons name="close" size={24} color="#64748b" />
             </TouchableOpacity>
           </View>

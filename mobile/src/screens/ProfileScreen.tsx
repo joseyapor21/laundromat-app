@@ -678,9 +678,13 @@ export default function ProfileScreen() {
       <Modal visible={showLocationModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.locationModalContent, { paddingBottom: insets.bottom + 20 }]}>
-            <View style={styles.modalHeader}>
+            <View style={[styles.modalHeader, { paddingTop: 20, paddingHorizontal: 20 }]}>
               <Text style={styles.modalTitle}>Switch Location</Text>
-              <TouchableOpacity onPress={() => setShowLocationModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <TouchableOpacity
+                onPress={() => setShowLocationModal(false)}
+                hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+                style={{ padding: 4 }}
+              >
                 <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
