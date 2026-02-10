@@ -1310,14 +1310,14 @@ export default function AdminScreen() {
       {/* Activity Filter Modal */}
       <Modal visible={showActivityFilterModal} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '80%' }]}>
+          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filter Activity Logs</Text>
               <TouchableOpacity onPress={() => setShowActivityFilterModal(false)}>
                 <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ flex: 1 }}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 20 }}>
               {/* User Filter */}
               <Text style={styles.filterLabel}>User</Text>
               <View style={styles.filterOptions}>
@@ -2711,6 +2711,39 @@ const styles = StyleSheet.create({
     padding: 20,
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    backgroundColor: '#fff',
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalButtonPrimary: {
+    backgroundColor: '#2563eb',
+  },
+  modalButtonSecondary: {
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  modalButtonPrimaryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalButtonSecondaryText: {
+    color: '#475569',
+    fontSize: 16,
+    fontWeight: '600',
   },
   inputGroup: {
     marginBottom: 16,
