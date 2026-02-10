@@ -86,7 +86,6 @@ export async function POST(request: NextRequest) {
         name: item.name,
         price: item.price,
         perWeightUnit: item.perWeightUnit,
-        minimumCharge: item.minimumCharge,
         category: item.category,
         locationId: targetLocationId,
       });
