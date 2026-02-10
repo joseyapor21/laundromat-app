@@ -90,6 +90,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Log the activity
     try {
       await ActivityLog.create({
+        locationId: customer.locationId,
         userId: currentUser.userId,
         userName: currentUser.name,
         action: 'update_customer',
@@ -158,6 +159,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     // Log the activity
     try {
       await ActivityLog.create({
+        locationId: customer.locationId,
         userId: currentUser.userId,
         userName: currentUser.name,
         action: 'delete_customer',

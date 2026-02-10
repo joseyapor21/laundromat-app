@@ -67,6 +67,7 @@ export async function POST(request: NextRequest) {
     // Log the activity
     try {
       await ActivityLog.create({
+        locationId: newCustomer.locationId,
         userId: currentUser.userId,
         userName: currentUser.name,
         action: 'create_customer',

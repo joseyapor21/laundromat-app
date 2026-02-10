@@ -97,6 +97,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     // Log activity
     try {
       await ActivityLog.create({
+        locationId: customer.locationId,
         userId: currentUser.userId,
         userName: currentUser.name,
         action: 'update_customer',

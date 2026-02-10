@@ -271,6 +271,7 @@ export type EntityType = 'order' | 'user' | 'customer' | 'extra_item' | 'setting
 
 export interface ActivityLog {
   _id: string;
+  locationId?: string;
   userId: string;
   userName: string;
   action: ActivityAction;

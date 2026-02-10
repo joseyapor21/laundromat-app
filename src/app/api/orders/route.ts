@@ -157,6 +157,7 @@ export async function POST(request: NextRequest) {
     // Log the activity
     try {
       await ActivityLog.create({
+        locationId: newOrder.locationId,
         userId: currentUser.userId,
         userName: currentUser.name,
         action: 'create_order',

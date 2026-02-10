@@ -4,6 +4,11 @@ import type { ActivityLog as IActivityLog, ActivityAction, EntityType } from '@/
 export interface ActivityLogDocument extends Omit<IActivityLog, '_id'>, Document {}
 
 const activityLogSchema = new mongoose.Schema<ActivityLogDocument>({
+  locationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
+    required: false,
+  },
   userId: {
     type: String,
     required: true,
@@ -59,6 +64,7 @@ activityLogSchema.index({ userId: 1, timestamp: -1 });
 activityLogSchema.index({ action: 1, timestamp: -1 });
 activityLogSchema.index({ entityType: 1, entityId: 1, timestamp: -1 });
 activityLogSchema.index({ timestamp: -1 });
+activityLogSchema.index({ locationId: 1, timestamp: -1 });
 
 const ActivityLog: Model<ActivityLogDocument> = mongoose.models.ActivityLog || mongoose.model<ActivityLogDocument>('ActivityLog', activityLogSchema);
 

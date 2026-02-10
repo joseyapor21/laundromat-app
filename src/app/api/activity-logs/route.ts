@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     const action = searchParams.get('action');
     const userId = searchParams.get('userId');
     const entityType = searchParams.get('entityType');
+    const locationId = searchParams.get('locationId');
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
     const limit = parseInt(searchParams.get('limit') || '100');
@@ -35,6 +36,10 @@ export async function GET(request: NextRequest) {
     // Build query
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const query: any = {};
+
+    if (locationId) {
+      query.locationId = locationId;
+    }
 
     if (action && action !== 'all') {
       query.action = action;
