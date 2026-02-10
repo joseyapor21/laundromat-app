@@ -43,23 +43,24 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Fetch customer - build query based on customerId format
-    const customerQuery: { $or: Record<string, unknown>[] } = { $or: [] };
+    // Fetch customer - use ObjectId if valid, otherwise try numeric id with locationId
+    let customer = null;
 
-    // Only include _id query if customerId is a valid ObjectId
     if (mongoose.Types.ObjectId.isValid(order.customerId)) {
-      customerQuery.$or.push({ _id: order.customerId });
+      // Primary lookup by ObjectId - this is unique
+      customer = await Customer.findById(order.customerId).lean();
     }
 
-    // Include numeric id query
-    const numericCustomerId = parseInt(order.customerId);
-    if (!isNaN(numericCustomerId)) {
-      customerQuery.$or.push({ id: numericCustomerId });
+    // Fallback to numeric id lookup only if ObjectId lookup failed
+    // and customerId looks like a pure number (legacy format)
+    if (!customer && /^\d+$/.test(order.customerId)) {
+      const numericCustomerId = parseInt(order.customerId);
+      // Include locationId to ensure we get the correct customer for this order's location
+      customer = await Customer.findOne({
+        id: numericCustomerId,
+        locationId: order.locationId
+      }).lean();
     }
-
-    const customer = customerQuery.$or.length > 0
-      ? await Customer.findOne(customerQuery).lean()
-      : null;
 
     return NextResponse.json({
       ...order,
