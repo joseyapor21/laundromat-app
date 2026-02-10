@@ -38,43 +38,16 @@ const ESC = {
 // Default store configuration (fallback if no location provided)
 const DEFAULT_STORE_CONFIG = {
   name: 'E&F Laundromat',
-  code: 'EF',
   address: '215-23 73rd Ave',
   city: 'Oakland Gardens, NY 11364',
   phone: '(347) 204-1333',
 };
-
-// Text-based logos for each location code
-function getLocationLogo(code: string): string {
-  const logos: Record<string, string> = {
-    'EF': `
- ______   ___   ______
-|  ____| ( _ ) |  ____|
-| |__    / _ \\ | |__
-|  __|  | (_) ||  __|
-| |____  \\___/ | |
-|______|       |_|
-    LAUNDROMAT
-`,
-    'GW': `
-  ____  __        __
- / ___| \\ \\      / /
-| |  _   \\ \\ /\\ / /
-| |_| |   \\ V  V /
- \\____|    \\_/\\_/
-    LAUNDROMAT
-`,
-  };
-
-  return logos[code.toUpperCase()] || '';
-}
 
 // Get store config from location or use default
 function getStoreConfig(location?: Location | null) {
   if (location) {
     return {
       name: location.name || DEFAULT_STORE_CONFIG.name,
-      code: location.code || DEFAULT_STORE_CONFIG.code,
       address: location.address || DEFAULT_STORE_CONFIG.address,
       city: '', // Address should include city
       phone: location.phone ? formatPhoneNumber(location.phone) : DEFAULT_STORE_CONFIG.phone,
@@ -187,14 +160,6 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
   r += ESC.DOUBLE_HEIGHT_ON;
   r += `${dateStr} ${timeStr}\n`;
   r += ESC.NORMAL_SIZE;
-
-  // === LOGO ===
-  const logo = getLocationLogo(storeConfig.code);
-  if (logo) {
-    r += ESC.BOLD_ON;
-    r += logo;
-    r += ESC.BOLD_OFF;
-  }
 
   // === STORE INFO ===
   r += ESC.BOLD_ON;
@@ -417,14 +382,6 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
   r += ESC.DOUBLE_HEIGHT_ON;
   r += `${dateStr} ${timeStr}\n`;
   r += ESC.NORMAL_SIZE;
-
-  // === LOGO ===
-  const logo = getLocationLogo(storeConfig.code);
-  if (logo) {
-    r += ESC.BOLD_ON;
-    r += logo;
-    r += ESC.BOLD_OFF;
-  }
 
   // === STORE INFO ===
   r += ESC.BOLD_ON;
