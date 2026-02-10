@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
+import { useLocation } from '../contexts/LocationContext';
 import type { Order, PaymentMethod, Settings } from '../types';
 
 // ESC/POS commands for thermal printer
@@ -31,13 +32,6 @@ const ESC = {
   FEED_AND_CUT: '\n\n\n\n\n\x1D\x56\x41\x03',
 };
 
-const STORE_CONFIG = {
-  name: 'E&F Laundromat',
-  address: '215-23 73rd Ave',
-  city: 'Oakland Gardens, NY 11364',
-  phone: '(347) 204-1333',
-};
-
 // Display payment methods (credit is counted as cash)
 type DisplayPaymentMethod = 'cash' | 'check' | 'venmo' | 'zelle';
 const PAYMENT_METHODS: { key: DisplayPaymentMethod; label: string; color: string }[] = [
@@ -48,6 +42,7 @@ const PAYMENT_METHODS: { key: DisplayPaymentMethod; label: string; color: string
 ];
 
 export default function CashierReportScreen() {
+  const { currentLocation } = useLocation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [printing, setPrinting] = useState(false);
@@ -153,6 +148,25 @@ export default function CashierReportScreen() {
     );
   };
 
+  // Format time to ASCII-safe string (avoid Unicode AM/PM)
+  const formatTimeASCII = (date: Date): string => {
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const minutesStr = minutes < 10 ? '0' + minutes : minutes.toString();
+    return `${hours}:${minutesStr} ${ampm}`;
+  };
+
+  // Format date and time to ASCII-safe string
+  const formatDateTimeASCII = (date: Date): string => {
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${month}/${day}/${year} ${formatTimeASCII(date)}`;
+  };
+
   // Helper for thermal print alignment
   const leftRightAlign = (left: string, right: string): string => {
     const maxWidth = 48;
@@ -189,11 +203,14 @@ export default function CashierReportScreen() {
 
       // Store Info
       r += ESC.BOLD_ON;
-      r += `${STORE_CONFIG.name}\n`;
+      r += `${currentLocation?.name || 'Store'}\n`;
       r += ESC.BOLD_OFF;
-      r += `${STORE_CONFIG.address}\n`;
-      r += `${STORE_CONFIG.city}\n`;
-      r += `${STORE_CONFIG.phone}\n`;
+      if (currentLocation?.address) {
+        r += `${currentLocation.address}\n`;
+      }
+      if (currentLocation?.phone) {
+        r += `Tel: ${currentLocation.phone}\n`;
+      }
       r += '\n';
 
       // Header
@@ -260,7 +277,7 @@ export default function CashierReportScreen() {
 
       r += '================================================\n';
       r += ESC.CENTER;
-      r += `Printed: ${new Date().toLocaleString()}\n`;
+      r += `Printed: ${formatDateTimeASCII(new Date())}\n`;
       r += '\n';
       r += ESC.FEED_AND_CUT;
 
@@ -284,31 +301,40 @@ export default function CashierReportScreen() {
     let summaryLines = totalsByMethod.map(m => {
       let line = `${m.label}: ${m.count} orders - $${m.total.toFixed(2)}`;
       if (m.creditCount > 0) {
-        line += `\n  └ ${m.creditCount} from credit: $${m.creditTotal.toFixed(2)}`;
+        line += `\n  - ${m.creditCount} from credit: $${m.creditTotal.toFixed(2)}`;
       }
       return line;
     }).join('\n');
 
-    const report = `📊 CASHIER REPORT
-📅 ${formatDate(selectedDate)}
-━━━━━━━━━━━━━━━━━━━━━━
+    // Build store header
+    let storeHeader = '';
+    if (currentLocation) {
+      storeHeader = `${currentLocation.name}\n`;
+      if (currentLocation.address) storeHeader += `${currentLocation.address}\n`;
+      if (currentLocation.phone) storeHeader += `Tel: ${currentLocation.phone}\n`;
+      storeHeader += '----------------------------------------\n';
+    }
 
-💰 PAYMENT SUMMARY
+    const report = `${storeHeader}CASHIER REPORT
+${formatDate(selectedDate)}
+----------------------------------------
+
+PAYMENT SUMMARY
 ${summaryLines}
 
-━━━━━━━━━━━━━━━━━━━━━━
-💵 TOTAL: $${grandTotal.toFixed(2)}
-📦 Orders: ${totalOrderCount}
-━━━━━━━━━━━━━━━━━━━━━━
+----------------------------------------
+TOTAL: $${grandTotal.toFixed(2)}
+Orders: ${totalOrderCount}
+----------------------------------------
 
-📋 ORDER DETAILS
+ORDER DETAILS
 ${paidOrdersToday.map(o => {
   const method = o.paymentMethod === 'credit' ? 'Credit' : (o.paymentMethod?.toUpperCase() || 'CASH');
   return `#${o.orderId} ${o.customerName} - $${o.totalAmount.toFixed(2)} (${method})`;
 }).join('\n')}
 
-━━━━━━━━━━━━━━━━━━━━━━
-Generated: ${new Date().toLocaleString()}`.trim();
+----------------------------------------
+Generated: ${formatDateTimeASCII(new Date())}`.trim();
 
     try {
       await Share.share({
@@ -336,6 +362,9 @@ Generated: ${new Date().toLocaleString()}`.trim();
       >
         {/* Header */}
         <View style={styles.header}>
+          {currentLocation && (
+            <Text style={styles.storeName}>{currentLocation.name}</Text>
+          )}
           <Text style={styles.headerTitle}>Cashier Report</Text>
         </View>
 
@@ -466,6 +495,11 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#1e293b',
     padding: 20,
+  },
+  storeName: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
+    marginBottom: 4,
   },
   headerTitle: {
     fontSize: 24,

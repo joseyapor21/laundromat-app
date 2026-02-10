@@ -1042,21 +1042,29 @@ export default function DriverScreen() {
 
                 {devices.length > 0 && (
                   <View style={styles.devicesList}>
-                    {devices.map((device) => (
-                      <TouchableOpacity
-                        key={device.id}
-                        style={styles.deviceItem}
-                        onPress={() => connectToDevice(device)}
-                        disabled={connecting}
-                      >
-                        <Ionicons name="print-outline" size={20} color="#1e293b" />
-                        <View style={styles.deviceInfo}>
-                          <Text style={styles.deviceName}>{device.name || 'Unknown'}</Text>
-                          <Text style={styles.deviceId}>{device.id}</Text>
-                        </View>
-                        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-                      </TouchableOpacity>
-                    ))}
+                    <ScrollView
+                      nestedScrollEnabled={true}
+                      showsVerticalScrollIndicator={true}
+                      keyboardShouldPersistTaps="handled"
+                      contentContainerStyle={{ paddingBottom: 8 }}
+                    >
+                      {devices.map((device) => (
+                        <TouchableOpacity
+                          key={device.id}
+                          style={styles.deviceItem}
+                          onPress={() => connectToDevice(device)}
+                          disabled={connecting}
+                          activeOpacity={0.7}
+                        >
+                          <Ionicons name="print-outline" size={20} color="#1e293b" />
+                          <View style={styles.deviceInfo}>
+                            <Text style={styles.deviceName}>{device.name || 'Unknown'}</Text>
+                            <Text style={styles.deviceId}>{device.id}</Text>
+                          </View>
+                          <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
                   </View>
                 )}
 
@@ -1733,7 +1741,7 @@ const styles = StyleSheet.create({
   },
   devicesList: {
     marginTop: 12,
-    gap: 8,
+    maxHeight: 250,
   },
   deviceItem: {
     flexDirection: 'row',
@@ -1742,6 +1750,7 @@ const styles = StyleSheet.create({
     padding: 12,
     backgroundColor: '#f8fafc',
     borderRadius: 10,
+    marginBottom: 8,
   },
   deviceInfo: {
     flex: 1,

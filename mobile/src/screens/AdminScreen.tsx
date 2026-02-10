@@ -452,6 +452,56 @@ export default function AdminScreen() {
     ]);
   };
 
+  const handleCopyExtraItems = async () => {
+    try {
+      // Use the existing locations array from state
+      if (locations.length < 2) {
+        Alert.alert('Error', 'Need at least 2 locations to copy items');
+        return;
+      }
+
+      // Find current location and other locations
+      const currentLocId = api.getLocationId();
+      const otherLocations = locations.filter(l => l._id !== currentLocId);
+      const currentLoc = locations.find(l => l._id === currentLocId);
+
+      if (otherLocations.length === 0) {
+        Alert.alert('Error', 'No other locations to copy from');
+        return;
+      }
+
+      // Create alert buttons for each source location
+      const buttons = otherLocations.map(loc => ({
+        text: loc.name,
+        onPress: async () => {
+          try {
+            const result = await api.copyExtraItems(loc._id, currentLocId!);
+            Alert.alert(
+              'Copy Complete',
+              `Copied ${result.copied} items, skipped ${result.skipped} existing items.\n\n` +
+              (result.copiedItems.length > 0 ? `Copied: ${result.copiedItems.join(', ')}` : '')
+            );
+            loadData();
+          } catch (error: any) {
+            const msg = error?.message || 'Failed to copy';
+            Alert.alert('Error', msg);
+          }
+        },
+      }));
+
+      buttons.push({ text: 'Cancel', onPress: () => {} });
+
+      Alert.alert(
+        'Copy Extra Items',
+        `Copy items to ${currentLoc?.name || 'current location'}.\nSelect source location:`,
+        buttons as any
+      );
+    } catch (error: any) {
+      console.error('Copy extra items error:', error);
+      Alert.alert('Error', 'Failed to copy extra items');
+    }
+  };
+
   const handleToggleExtraItem = async (item: ExtraItem) => {
     try {
       await api.updateExtraItem(item._id, { isActive: !item.isActive });
@@ -840,10 +890,19 @@ export default function AdminScreen() {
         <View style={{ flex: 1 }}>
           <View style={styles.actionHeader}>
             <Text style={styles.countText}>{extraItems.length} items</Text>
-            <TouchableOpacity style={styles.addButton} onPress={() => openExtraItemModal()}>
-              <Ionicons name="add" size={20} color="#fff" />
-              <Text style={styles.addButtonText}>Add Item</Text>
-            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.addButton, { backgroundColor: '#8b5cf6' }]}
+                onPress={handleCopyExtraItems}
+              >
+                <Ionicons name="copy-outline" size={18} color="#fff" />
+                <Text style={styles.addButtonText}>Copy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.addButton} onPress={() => openExtraItemModal()}>
+                <Ionicons name="add" size={20} color="#fff" />
+                <Text style={styles.addButtonText}>Add Item</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           <FlatList
             data={extraItems}
@@ -1309,95 +1368,92 @@ export default function AdminScreen() {
 
       {/* Activity Filter Modal */}
       <Modal visible={showActivityFilterModal} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { maxHeight: '85%' }]}>
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 20 }}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filter Activity Logs</Text>
               <TouchableOpacity onPress={() => setShowActivityFilterModal(false)}>
                 <Ionicons name="close" size={24} color="#64748b" />
               </TouchableOpacity>
             </View>
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 20 }}>
-              {/* User Filter */}
-              <Text style={styles.filterLabel}>User</Text>
-              <View style={styles.filterOptions}>
-                <TouchableOpacity
-                  style={[styles.filterOption, activityUserFilter === 'all' && styles.filterOptionActive]}
-                  onPress={() => setActivityUserFilter('all')}
-                >
-                  <Text style={[styles.filterOptionText, activityUserFilter === 'all' && styles.filterOptionTextActive]}>All Users</Text>
-                </TouchableOpacity>
-                {users.map(u => (
-                  <TouchableOpacity
-                    key={u._id}
-                    style={[styles.filterOption, activityUserFilter === u._id && styles.filterOptionActive]}
-                    onPress={() => setActivityUserFilter(u._id)}
-                  >
-                    <Text style={[styles.filterOptionText, activityUserFilter === u._id && styles.filterOptionTextActive]}>
-                      {u.firstName} {u.lastName}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+
+            <View style={{ padding: 16 }}>
+              {/* User Dropdown */}
+              <Text style={[styles.dropdownLabel, { marginTop: 0 }]}>User</Text>
+              <View style={styles.dropdownContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {[{ _id: 'all', label: 'All Users' }, ...users.map(u => ({ _id: u._id, label: `${u.firstName} ${u.lastName}` }))].map(option => (
+                    <TouchableOpacity
+                      key={option._id}
+                      style={[styles.dropdownChip, activityUserFilter === option._id && styles.dropdownChipActive]}
+                      onPress={() => setActivityUserFilter(option._id)}
+                    >
+                      <Text style={[styles.dropdownChipText, activityUserFilter === option._id && styles.dropdownChipTextActive]}>
+                        {option.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
 
-              {/* Action Filter */}
-              <Text style={styles.filterLabel}>Action</Text>
-              <View style={styles.filterOptions}>
-                {['all', 'login', 'logout', 'create_order', 'update_order', 'delete_order', 'status_change',
-                  'payment_update', 'price_override', 'create_customer', 'update_customer', 'delete_customer',
-                  'create_user', 'update_user', 'delete_user', 'create_extra_item', 'update_extra_item',
-                  'update_settings', 'assign_washer', 'assign_dryer', 'release_machine',
-                  'clock_in', 'clock_out', 'break_start', 'break_end'].map(action => (
-                  <TouchableOpacity
-                    key={action}
-                    style={[styles.filterOption, activityActionFilter === action && styles.filterOptionActive]}
-                    onPress={() => setActivityActionFilter(action)}
-                  >
-                    <Text style={[styles.filterOptionText, activityActionFilter === action && styles.filterOptionTextActive]}>
-                      {action === 'all' ? 'All Actions' : formatAction(action)}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              {/* Action Dropdown */}
+              <Text style={styles.dropdownLabel}>Action</Text>
+              <View style={styles.dropdownContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {['all', 'login', 'logout', 'create_order', 'update_order', 'delete_order', 'status_change',
+                    'payment_update', 'price_override', 'create_customer', 'update_customer', 'delete_customer',
+                    'create_user', 'update_user', 'delete_user', 'create_extra_item', 'update_extra_item',
+                    'update_settings', 'assign_washer', 'assign_dryer', 'release_machine',
+                    'clock_in', 'clock_out', 'break_start', 'break_end'].map(action => (
+                    <TouchableOpacity
+                      key={action}
+                      style={[styles.dropdownChip, activityActionFilter === action && styles.dropdownChipActive]}
+                      onPress={() => setActivityActionFilter(action)}
+                    >
+                      <Text style={[styles.dropdownChipText, activityActionFilter === action && styles.dropdownChipTextActive]}>
+                        {action === 'all' ? 'All Actions' : formatAction(action)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
 
-              {/* Entity Type Filter */}
-              <Text style={styles.filterLabel}>Entity Type</Text>
-              <View style={styles.filterOptions}>
-                {['all', 'order', 'customer', 'user', 'extra_item', 'settings', 'machine', 'time_entry'].map(entity => (
-                  <TouchableOpacity
-                    key={entity}
-                    style={[styles.filterOption, activityEntityFilter === entity && styles.filterOptionActive]}
-                    onPress={() => setActivityEntityFilter(entity)}
-                  >
-                    <Text style={[styles.filterOptionText, activityEntityFilter === entity && styles.filterOptionTextActive]}>
-                      {entity === 'all' ? 'All Types' : entity.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              {/* Entity Type Dropdown */}
+              <Text style={styles.dropdownLabel}>Entity Type</Text>
+              <View style={styles.dropdownContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {['all', 'order', 'customer', 'user', 'extra_item', 'settings', 'machine', 'time_entry'].map(entity => (
+                    <TouchableOpacity
+                      key={entity}
+                      style={[styles.dropdownChip, activityEntityFilter === entity && styles.dropdownChipActive]}
+                      onPress={() => setActivityEntityFilter(entity)}
+                    >
+                      <Text style={[styles.dropdownChipText, activityEntityFilter === entity && styles.dropdownChipTextActive]}>
+                        {entity === 'all' ? 'All Types' : entity.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
 
-              {/* Location Filter */}
-              <Text style={styles.filterLabel}>Location</Text>
-              <View style={styles.filterOptions}>
-                <TouchableOpacity
-                  style={[styles.filterOption, activityLocationFilter === 'all' && styles.filterOptionActive]}
-                  onPress={() => setActivityLocationFilter('all')}
-                >
-                  <Text style={[styles.filterOptionText, activityLocationFilter === 'all' && styles.filterOptionTextActive]}>All Locations</Text>
-                </TouchableOpacity>
-                {locations.map(loc => (
-                  <TouchableOpacity
-                    key={loc._id}
-                    style={[styles.filterOption, activityLocationFilter === loc._id && styles.filterOptionActive]}
-                    onPress={() => setActivityLocationFilter(loc._id)}
-                  >
-                    <Text style={[styles.filterOptionText, activityLocationFilter === loc._id && styles.filterOptionTextActive]}>
-                      {loc.name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+              {/* Location Dropdown */}
+              <Text style={styles.dropdownLabel}>Location</Text>
+              <View style={styles.dropdownContainer}>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  {[{ _id: 'all', name: 'All Locations' }, ...locations].map(loc => (
+                    <TouchableOpacity
+                      key={loc._id}
+                      style={[styles.dropdownChip, activityLocationFilter === loc._id && styles.dropdownChipActive]}
+                      onPress={() => setActivityLocationFilter(loc._id)}
+                    >
+                      <Text style={[styles.dropdownChipText, activityLocationFilter === loc._id && styles.dropdownChipTextActive]}>
+                        {loc.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
-            </ScrollView>
+            </View>
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
@@ -2912,6 +2968,42 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   filterOptionTextActive: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  dropdownLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 8,
+    marginTop: 16,
+  },
+  dropdownContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  dropdownChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  dropdownChipActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  dropdownChipText: {
+    fontSize: 13,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  dropdownChipTextActive: {
     color: '#fff',
     fontWeight: '600',
   },

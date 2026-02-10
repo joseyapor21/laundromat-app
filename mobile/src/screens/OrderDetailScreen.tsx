@@ -334,12 +334,39 @@ export default function OrderDetailScreen() {
     if (!order) return;
     setUpdating(true);
     try {
+      // If unpaying an order that used credit, refund the credit
+      const customerIdForRefund = order.customer?._id || order.customerId;
+      // Determine credit amount to refund: use creditApplied if set, or totalAmount if payment was credit
+      const creditToRefund = order.creditApplied && order.creditApplied > 0
+        ? order.creditApplied
+        : (order.paymentMethod === 'credit' ? order.totalAmount : 0);
+
+      if (order.isPaid && creditToRefund > 0 && customerIdForRefund) {
+        try {
+          await api.addCustomerCredit(
+            customerIdForRefund,
+            creditToRefund,
+            `Refund from order #${order.orderId || order._id.slice(-6)} - payment reversed`
+          );
+          console.log(`Refunded $${creditToRefund} credit to customer ${customerIdForRefund}`);
+        } catch (creditError) {
+          console.error('Failed to refund credit:', creditError);
+          Alert.alert('Warning', 'Payment cleared but credit refund failed. Please manually add credit to customer.');
+        }
+      }
+
       const updateData = order.isPaid
-        ? { isPaid: false, paymentMethod: 'pending' as PaymentMethod }
+        ? { isPaid: false, paymentMethod: 'pending' as PaymentMethod, creditApplied: 0 }
         : { isPaid: true, paymentMethod: selectedPaymentMethod };
 
       await api.updateOrder(order._id, updateData);
-      Alert.alert('Success', order.isPaid ? 'Payment status cleared' : `Order marked as paid (${selectedPaymentMethod})`);
+
+      let message = order.isPaid ? 'Payment status cleared' : `Order marked as paid (${selectedPaymentMethod})`;
+      if (order.isPaid && creditToRefund > 0) {
+        message += `. $${creditToRefund.toFixed(2)} credit refunded to customer.`;
+      }
+
+      Alert.alert('Success', message);
       await loadOrder();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to update payment';

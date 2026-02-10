@@ -382,42 +382,60 @@ export default function EditOrderScreen() {
         }
       }
 
-      await api.updateOrder(order!._id, updates);
+      // Check if order was paid and total changed - need to handle payment status
+      const originalTotal = order?.totalAmount || 0;
+      const newTotal = finalPrice;
+      const wasAlreadyPaid = order?.isPaid && !creditCoversOrder;
+      const totalIncreased = newTotal > originalTotal;
+      const totalDecreased = newTotal < originalTotal;
 
-      // Auto-print if bags were added to delivery order
-      const originalBagCount = order?.bags?.length || 0;
-      const newBagCount = bags.length;
-      const bagsWereAdded = newBagCount > originalBagCount;
-
-      if (bagsWereAdded && settings?.thermalPrinterIp) {
-        try {
-          const printerIp = settings.thermalPrinterIp;
-          const printerPort = settings.thermalPrinterPort || 9100;
-
-          // Fetch updated order for printing
-          const updatedOrder = await api.getOrder(order!._id);
-
-          // Print customer receipt
-          const customerReceipt = generateCustomerReceiptText(updatedOrder, currentLocation);
-          await localPrinter.printReceipt(printerIp, customerReceipt, printerPort);
-
-          // Print store copy
-          const storeCopy = generateStoreCopyText(updatedOrder, currentLocation);
-          await localPrinter.printReceipt(printerIp, storeCopy, printerPort);
-
-          // Print bag labels
-          if (updatedOrder.bags && updatedOrder.bags.length > 0) {
-            for (let i = 0; i < updatedOrder.bags.length; i++) {
-              const bag = updatedOrder.bags[i];
-              const bagLabel = generateBagLabelText(updatedOrder, bag, i + 1, updatedOrder.bags.length);
-              await localPrinter.printReceipt(printerIp, bagLabel, printerPort);
-            }
-          }
-        } catch (printError) {
-          console.error('Auto-print failed:', printError);
-          // Don't show error - order was still updated successfully
-        }
+      if (wasAlreadyPaid && totalIncreased) {
+        // Order was paid but total increased - ask user what to do
+        const difference = newTotal - originalTotal;
+        await new Promise<void>((resolve) => {
+          Alert.alert(
+            'Payment Status',
+            `Order total increased by $${difference.toFixed(2)}.\n\nOriginal: $${originalTotal.toFixed(2)}\nNew Total: $${newTotal.toFixed(2)}\n\nWas the additional amount paid?`,
+            [
+              {
+                text: 'Yes - Fully Paid',
+                onPress: async () => {
+                  // Keep as paid
+                  await api.updateOrder(order!._id, updates);
+                  resolve();
+                },
+              },
+              {
+                text: 'No - Mark Unpaid',
+                onPress: async () => {
+                  // Mark as unpaid
+                  await api.updateOrder(order!._id, {
+                    ...updates,
+                    isPaid: false,
+                    paymentMethod: 'pending',
+                  });
+                  resolve();
+                },
+              },
+            ],
+            { cancelable: false }
+          );
+        });
+      } else if (wasAlreadyPaid && totalDecreased) {
+        // Order was paid but total decreased - notify about potential refund
+        const difference = originalTotal - newTotal;
+        await api.updateOrder(order!._id, updates);
+        Alert.alert(
+          'Order Updated',
+          `Total decreased by $${difference.toFixed(2)}.\n\nNew Total: $${newTotal.toFixed(2)}\n\nCustomer may be owed a refund of $${difference.toFixed(2)}.`
+        );
+        navigation.goBack();
+        return; // Skip the normal success alert
+      } else {
+        await api.updateOrder(order!._id, updates);
       }
+
+      // Note: Auto-print is disabled for edits - only print on order creation
 
       // Apply customer credit if selected
       if (applyCredit && creditToApply > 0 && order?.customer) {

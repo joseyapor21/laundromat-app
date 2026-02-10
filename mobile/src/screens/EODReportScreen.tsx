@@ -14,6 +14,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { api } from '../services/api';
+import { useLocation } from '../contexts/LocationContext';
 import type { Order } from '../types';
 
 interface CleaningTask {
@@ -31,6 +32,7 @@ const DEFAULT_CLEANING_TASKS: CleaningTask[] = [
 ];
 
 export default function EODReportScreen() {
+  const { currentLocation, isLoadingLocations } = useLocation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
@@ -50,9 +52,10 @@ export default function EODReportScreen() {
     }
   }, []);
 
+  // Reload orders when location changes
   useEffect(() => {
     loadOrders();
-  }, [loadOrders]);
+  }, [loadOrders, currentLocation?._id]);
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -74,12 +77,23 @@ export default function EODReportScreen() {
     );
   };
 
+  // Format time to ASCII-safe string (avoid Unicode AM/PM)
+  const formatTimeASCII = (date: Date): string => {
+    let hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const minutesStr = minutes < 10 ? '0' + minutes : minutes.toString();
+    return `${hours}:${minutesStr} ${ampm}`;
+  };
+
   // Format pickup time
   const formatPickupTime = (order: Order) => {
     if (!order.estimatedPickupDate) return '';
     const date = new Date(order.estimatedPickupDate);
     const dayName = date.toLocaleDateString('en-US', { weekday: 'short' });
-    const time = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const time = formatTimeASCII(date);
     return `${dayName} ${time}`;
   };
 
@@ -95,7 +109,19 @@ export default function EODReportScreen() {
 
   // Share report
   const handleShare = async () => {
-    let report = `EOD Report\n${formatDate()}\n\n`;
+    // Build store info header
+    let report = '';
+    if (currentLocation) {
+      report += `${currentLocation.name}\n`;
+      if (currentLocation.address) {
+        report += `${currentLocation.address}\n`;
+      }
+      if (currentLocation.phone) {
+        report += `Tel: ${currentLocation.phone}\n`;
+      }
+      report += '----------------------------------------\n';
+    }
+    report += `EOD Report\n${formatDate()}\n\n`;
 
     if (ordersInCart.length > 0) {
       report += 'IN CARTS:\n';
@@ -132,7 +158,7 @@ export default function EODReportScreen() {
 
     report += 'Cleaning Duties:\n';
     cleaningTasks.forEach(task => {
-      report += `- ${task.label} ${task.checked ? '✓' : '○'}\n`;
+      report += `- ${task.label} ${task.checked ? '[X]' : '[ ]'}\n`;
     });
 
     if (notes) {
@@ -183,6 +209,25 @@ export default function EODReportScreen() {
       >
         {/* Header */}
         <View style={styles.header}>
+          {isLoadingLocations ? (
+            <View style={styles.storeInfo}>
+              <Text style={styles.storeName}>Loading store...</Text>
+            </View>
+          ) : currentLocation ? (
+            <View style={styles.storeInfo}>
+              <Text style={styles.storeName}>{currentLocation.name}</Text>
+              {currentLocation.address && (
+                <Text style={styles.storeAddress}>{currentLocation.address}</Text>
+              )}
+              {currentLocation.phone && (
+                <Text style={styles.storePhone}>Tel: {currentLocation.phone}</Text>
+              )}
+            </View>
+          ) : (
+            <View style={styles.storeInfo}>
+              <Text style={styles.storeName}>No store selected</Text>
+            </View>
+          )}
           <Text style={styles.headerTitle}>EOD Report</Text>
           <Text style={styles.headerDate}>{formatDate()}</Text>
         </View>
@@ -332,6 +377,27 @@ const styles = StyleSheet.create({
     padding: 20,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+  },
+  storeInfo: {
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  storeName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#1e293b',
+  },
+  storeAddress: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  storePhone: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 2,
   },
   headerTitle: {
     fontSize: 24,

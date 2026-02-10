@@ -354,6 +354,23 @@ class ApiService {
     await this.request(`/extra-items/${id}`, { method: 'DELETE' });
   }
 
+  async getLocationsForCopy(): Promise<{ locations: { _id: string; name: string; code: string; extraItemCount: number }[] }> {
+    return this.request('/extra-items/copy');
+  }
+
+  async copyExtraItems(sourceLocationId: string, targetLocationId: string): Promise<{
+    message: string;
+    copied: number;
+    skipped: number;
+    copiedItems: string[];
+    skippedItems: string[];
+  }> {
+    return this.request('/extra-items/copy', {
+      method: 'POST',
+      body: JSON.stringify({ sourceLocationId, targetLocationId }),
+    });
+  }
+
   // Machines
   async getMachines(): Promise<Machine[]> {
     return this.request<Machine[]>('/machines');

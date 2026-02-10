@@ -309,14 +309,25 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
 
   // === TOTAL ===
   r += '\n';
-  r += ESC.DOUBLE_HEIGHT_ON;
-  r += 'TOTAL\n';
-  r += ESC.NORMAL_SIZE;
   r += ESC.LEFT;
-  r += leftRightAlign(
-    order.isPaid ? `Paid (${order.paymentMethod || 'Cash'})` : (isDelivery ? 'Pay on Delivery' : 'Pay on Pickup'),
-    `$${(order.totalAmount || 0).toFixed(2)}`
-  ) + '\n';
+
+  // Show order total
+  r += leftRightAlign('Order Total:', `$${(order.totalAmount || 0).toFixed(2)}`) + '\n';
+
+  // Show payment status and balance due
+  r += ESC.DOUBLE_HEIGHT_ON;
+  if (order.isPaid) {
+    r += ESC.INVERT_ON;
+    r += ESC.CENTER;
+    r += ` PAID - ${(order.paymentMethod || 'Cash').toUpperCase()} \n`;
+    r += ESC.INVERT_OFF;
+    r += ESC.LEFT;
+    r += ESC.NORMAL_SIZE;
+    r += leftRightAlign('Balance Due:', '$0.00') + '\n';
+  } else {
+    r += ESC.NORMAL_SIZE;
+    r += leftRightAlign(isDelivery ? 'Pay on Delivery:' : 'Pay on Pickup:', `$${(order.totalAmount || 0).toFixed(2)}`) + '\n';
+  }
 
   // Show remaining credit if paid and customer has credit
   if (order.isPaid && order.customer?.credit && order.customer.credit > 0) {
@@ -532,14 +543,25 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
 
   // === TOTAL ===
   r += '\n';
-  r += ESC.DOUBLE_HEIGHT_ON;
-  r += 'TOTAL\n';
-  r += ESC.NORMAL_SIZE;
   r += ESC.LEFT;
-  r += leftRightAlign(
-    order.isPaid ? `Paid (${order.paymentMethod || 'Cash'})` : (isDelivery ? 'Pay on Delivery' : 'Pay on Pickup'),
-    `$${(order.totalAmount || 0).toFixed(2)}`
-  ) + '\n';
+
+  // Show order total
+  r += leftRightAlign('Order Total:', `$${(order.totalAmount || 0).toFixed(2)}`) + '\n';
+
+  // Show payment status and balance due
+  r += ESC.DOUBLE_HEIGHT_ON;
+  if (order.isPaid) {
+    r += ESC.INVERT_ON;
+    r += ESC.CENTER;
+    r += ` PAID - ${(order.paymentMethod || 'Cash').toUpperCase()} \n`;
+    r += ESC.INVERT_OFF;
+    r += ESC.LEFT;
+    r += ESC.NORMAL_SIZE;
+    r += leftRightAlign('Balance Due:', '$0.00') + '\n';
+  } else {
+    r += ESC.NORMAL_SIZE;
+    r += leftRightAlign(isDelivery ? 'Pay on Delivery:' : 'Pay on Pickup:', `$${(order.totalAmount || 0).toFixed(2)}`) + '\n';
+  }
 
   // Show remaining credit if paid and customer has credit
   if (order.isPaid && order.customer?.credit && order.customer.credit > 0) {
