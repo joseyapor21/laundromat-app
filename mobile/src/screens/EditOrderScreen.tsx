@@ -23,6 +23,7 @@ import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocation } from '../contexts/LocationContext';
 import type { Order, ExtraItem, Settings, Bag, OrderType, OrderExtraItem } from '../types';
 import { calculateWeightBasedPrice, calculateWeightBasedQuantity, roundToNearestQuarter } from '../utils/pricing';
 import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
@@ -32,6 +33,7 @@ export default function EditOrderScreen() {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { currentLocation } = useLocation();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
   const [order, setOrder] = useState<Order | null>(null);
@@ -396,11 +398,11 @@ export default function EditOrderScreen() {
           const updatedOrder = await api.getOrder(order!._id);
 
           // Print customer receipt
-          const customerReceipt = generateCustomerReceiptText(updatedOrder);
+          const customerReceipt = generateCustomerReceiptText(updatedOrder, currentLocation);
           await localPrinter.printReceipt(printerIp, customerReceipt, printerPort);
 
           // Print store copy
-          const storeCopy = generateStoreCopyText(updatedOrder);
+          const storeCopy = generateStoreCopyText(updatedOrder, currentLocation);
           await localPrinter.printReceipt(printerIp, storeCopy, printerPort);
 
           // Print bag labels

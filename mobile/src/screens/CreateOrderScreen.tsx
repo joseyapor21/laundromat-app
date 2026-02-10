@@ -21,6 +21,7 @@ import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navig
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
+import { useLocation } from '../contexts/LocationContext';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
 import AddressInput from '../components/AddressInput';
 import type { Customer, Settings, ExtraItem, PaymentMethod } from '../types';
@@ -68,6 +69,7 @@ export default function CreateOrderScreen() {
   const navigation = useNavigation();
   const route = useRoute<RouteProp<{ params: CreateOrderParams }, 'params'>>();
   const insets = useSafeAreaInsets();
+  const { currentLocation } = useLocation();
   const scrollViewRef = useRef<ScrollView>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -668,10 +670,10 @@ export default function CreateOrderScreen() {
           const printerIp = settings.thermalPrinterIp;
           const printerPort = settings.thermalPrinterPort || 9100;
           // Print customer receipt
-          const customerReceipt = generateCustomerReceiptText(createdOrder);
+          const customerReceipt = generateCustomerReceiptText(createdOrder, currentLocation);
           await localPrinter.printReceipt(printerIp, customerReceipt, printerPort);
           // Print store copy
-          const storeCopy = generateStoreCopyText(createdOrder);
+          const storeCopy = generateStoreCopyText(createdOrder, currentLocation);
           await localPrinter.printReceipt(printerIp, storeCopy, printerPort);
           // Print bag labels
           if (createdOrder.bags && createdOrder.bags.length > 0) {

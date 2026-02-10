@@ -1,4 +1,4 @@
-import type { Order, Bag } from '../types';
+import type { Order, Bag, Location } from '../types';
 import { formatPhoneNumber } from '../utils/phoneFormat';
 
 // ESC/POS commands
@@ -35,13 +35,26 @@ const ESC = {
   QR_PRINT: '\x1D\x28\x6B\x03\x00\x31\x51\x30',         // Print QR code
 };
 
-// Store configuration
-const STORE_CONFIG = {
+// Default store configuration (fallback if no location provided)
+const DEFAULT_STORE_CONFIG = {
   name: 'E&F Laundromat',
   address: '215-23 73rd Ave',
   city: 'Oakland Gardens, NY 11364',
   phone: '(347) 204-1333',
 };
+
+// Get store config from location or use default
+function getStoreConfig(location?: Location | null) {
+  if (location) {
+    return {
+      name: location.name || DEFAULT_STORE_CONFIG.name,
+      address: location.address || DEFAULT_STORE_CONFIG.address,
+      city: '', // Address should include city
+      phone: location.phone ? formatPhoneNumber(location.phone) : DEFAULT_STORE_CONFIG.phone,
+    };
+  }
+  return DEFAULT_STORE_CONFIG;
+}
 
 const cutCommand = ESC.FEED_AND_CUT;
 
@@ -108,7 +121,7 @@ function generateQRCode(data: string, size: number = 10): string {
 }
 
 // Generate customer receipt
-export function generateCustomerReceiptText(order: Order): string {
+export function generateCustomerReceiptText(order: Order, location?: Location | null): string {
   // Use order creation date, not current time
   const createdDate = order.createdAt ? new Date(order.createdAt) : new Date();
   const dateStr = formatDateASCII(createdDate);
@@ -117,6 +130,7 @@ export function generateCustomerReceiptText(order: Order): string {
   const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
   const isDelivery = order.orderType === 'delivery';
   const isSameDay = order.isSameDay;
+  const storeConfig = getStoreConfig(location);
 
   let r = '';
 
@@ -150,12 +164,14 @@ export function generateCustomerReceiptText(order: Order): string {
   // === STORE INFO ===
   r += ESC.BOLD_ON;
   r += ESC.DOUBLE_HEIGHT_ON;
-  r += `${STORE_CONFIG.name}\n`;
+  r += `${storeConfig.name}\n`;
   r += ESC.NORMAL_SIZE;
   r += ESC.BOLD_OFF;
-  r += `${STORE_CONFIG.address}\n`;
-  r += `${STORE_CONFIG.city}\n`;
-  r += `TEL ${STORE_CONFIG.phone}\n`;
+  r += `${storeConfig.address}\n`;
+  if (storeConfig.city) {
+    r += `${storeConfig.city}\n`;
+  }
+  r += `TEL ${storeConfig.phone}\n`;
   r += '------------------------------------------------\n';
 
   // === CUSTOMER INFO ===
@@ -320,7 +336,7 @@ export function generateCustomerReceiptText(order: Order): string {
 }
 
 // Generate store copy
-export function generateStoreCopyText(order: Order): string {
+export function generateStoreCopyText(order: Order, location?: Location | null): string {
   // Use order creation date, not current time
   const createdDate = order.createdAt ? new Date(order.createdAt) : new Date();
   const dateStr = formatDateASCII(createdDate);
@@ -329,6 +345,7 @@ export function generateStoreCopyText(order: Order): string {
   const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
   const isDelivery = order.orderType === 'delivery';
   const isSameDay = order.isSameDay;
+  const storeConfig = getStoreConfig(location);
 
   let r = '';
 
@@ -369,12 +386,14 @@ export function generateStoreCopyText(order: Order): string {
   // === STORE INFO ===
   r += ESC.BOLD_ON;
   r += ESC.DOUBLE_HEIGHT_ON;
-  r += `${STORE_CONFIG.name}\n`;
+  r += `${storeConfig.name}\n`;
   r += ESC.NORMAL_SIZE;
   r += ESC.BOLD_OFF;
-  r += `${STORE_CONFIG.address}\n`;
-  r += `${STORE_CONFIG.city}\n`;
-  r += `TEL ${STORE_CONFIG.phone}\n`;
+  r += `${storeConfig.address}\n`;
+  if (storeConfig.city) {
+    r += `${storeConfig.city}\n`;
+  }
+  r += `TEL ${storeConfig.phone}\n`;
   r += '------------------------------------------------\n';
 
   // === CUSTOMER INFO ===

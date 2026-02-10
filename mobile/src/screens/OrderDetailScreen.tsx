@@ -19,6 +19,7 @@ import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocation } from '../contexts/LocationContext';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
 import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag, Settings } from '../types';
 import { formatPhoneNumber } from '../utils/phoneFormat';
@@ -51,6 +52,7 @@ export default function OrderDetailScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation();
   const { user } = useAuth();
+  const { currentLocation } = useLocation();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -145,10 +147,10 @@ export default function OrderDetailScreen() {
     try {
       const receipts: string[] = [];
       if (type === 'customer' || type === 'both') {
-        receipts.push(generateCustomerReceiptText(order));
+        receipts.push(generateCustomerReceiptText(order, currentLocation));
       }
       if (type === 'store' || type === 'both') {
-        receipts.push(generateStoreCopyText(order));
+        receipts.push(generateStoreCopyText(order, currentLocation));
       }
 
       for (const content of receipts) {
