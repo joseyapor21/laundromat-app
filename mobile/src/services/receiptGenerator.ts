@@ -122,8 +122,8 @@ function generateQRCode(data: string, size: number = 10): string {
 
 // Generate customer receipt
 export function generateCustomerReceiptText(order: Order, location?: Location | null): string {
-  // Use order creation date, not current time
-  const createdDate = order.createdAt ? new Date(order.createdAt) : new Date();
+  // Use order drop-off date (creation date), not current time
+  const createdDate = order.dropOffDate ? new Date(order.dropOffDate) : new Date();
   const dateStr = formatDateASCII(createdDate);
   const timeStr = formatTimeASCII(createdDate);
 
@@ -337,8 +337,8 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
 
 // Generate store copy
 export function generateStoreCopyText(order: Order, location?: Location | null): string {
-  // Use order creation date, not current time
-  const createdDate = order.createdAt ? new Date(order.createdAt) : new Date();
+  // Use order drop-off date (creation date), not current time
+  const createdDate = order.dropOffDate ? new Date(order.dropOffDate) : new Date();
   const dateStr = formatDateASCII(createdDate);
   const timeStr = formatTimeASCII(createdDate);
 
