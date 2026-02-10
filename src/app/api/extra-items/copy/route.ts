@@ -15,8 +15,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Allow both admin and owner roles for POST as well
-    if (!isAdmin(currentUser) && currentUser.role !== 'owner') {
+    // Only allow admin users
+    if (!isAdmin(currentUser)) {
       return NextResponse.json(
         { error: 'Not authorized - admin only' },
         { status: 403 }
@@ -125,8 +125,8 @@ export async function GET() {
       );
     }
 
-    // Allow both admin and owner roles
-    if (!isAdmin(currentUser) && currentUser.role !== 'owner') {
+    // Only allow admin users
+    if (!isAdmin(currentUser)) {
       console.log('User not authorized:', currentUser.role);
       return NextResponse.json(
         { error: 'Not authorized - admin only' },
