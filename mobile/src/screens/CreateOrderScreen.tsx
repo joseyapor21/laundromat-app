@@ -25,6 +25,7 @@ import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelTex
 import AddressInput from '../components/AddressInput';
 import type { Customer, Settings, ExtraItem, PaymentMethod } from '../types';
 import { calculateWeightBasedPrice, calculateWeightBasedQuantity, roundToNearestQuarter } from '../utils/pricing';
+import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
 // Format date as "Tue, Jan 12, 2026, 11:45 AM"
 function formatPickupDate(date: Date): string {
@@ -172,28 +173,6 @@ export default function CreateOrderScreen() {
     } finally {
       setLoading(false);
     }
-  }
-
-  // Format phone number as user types (XXX) XXX-XXXX
-  function formatPhoneNumber(text: string): string {
-    const cleaned = text.replace(/\D/g, '');
-    const match = cleaned.match(/^(\d{0,3})(\d{0,3})(\d{0,4})$/);
-    if (!match) return text;
-
-    let formatted = '';
-    if (match[1]) {
-      formatted = `(${match[1]}`;
-      if (match[1].length === 3) {
-        formatted += ') ';
-        if (match[2]) {
-          formatted += match[2];
-          if (match[2].length === 3 && match[3]) {
-            formatted += `-${match[3]}`;
-          }
-        }
-      }
-    }
-    return formatted || text;
   }
 
   // Check if phone number already exists
@@ -746,7 +725,7 @@ export default function CreateOrderScreen() {
             <View style={styles.selectedCustomer}>
               <View style={styles.selectedCustomerInfo}>
                 <Text style={styles.customerName}>{selectedCustomer.name}</Text>
-                <Text style={styles.customerPhone}>{selectedCustomer.phoneNumber}</Text>
+                <Text style={styles.customerPhone}>{formatPhoneNumber(selectedCustomer.phoneNumber)}</Text>
                 {selectedCustomer.address && (
                   <Text style={styles.customerAddress}>{selectedCustomer.address}</Text>
                 )}
@@ -826,7 +805,7 @@ export default function CreateOrderScreen() {
                     onPress={() => handleSelectCustomerWithPhoneOption(customer)}
                   >
                     <Text style={styles.customerItemName}>{customer.name}</Text>
-                    <Text style={styles.customerItemPhone}>{customer.phoneNumber}</Text>
+                    <Text style={styles.customerItemPhone}>{formatPhoneNumber(customer.phoneNumber)}</Text>
                   </TouchableOpacity>
                 ))}
                 {/* Quick Add Customer Button */}

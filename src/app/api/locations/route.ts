@@ -49,9 +49,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!hasRole(currentUser, ['super_admin'])) {
+    if (!hasRole(currentUser, ['admin', 'super_admin'])) {
       return NextResponse.json(
-        { error: 'Only super admins can create locations' },
+        { error: 'Admin access required to create locations' },
         { status: 403 }
       );
     }

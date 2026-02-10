@@ -26,6 +26,7 @@ import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import { useAuth } from '../contexts/AuthContext';
 import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location } from '../types';
+import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
 type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations';
 
@@ -781,7 +782,7 @@ export default function AdminScreen() {
               <TouchableOpacity style={styles.card} onPress={() => handleEditCustomer(customer)}>
                 <View style={styles.cardContent}>
                   <Text style={styles.cardTitle}>{customer.name}</Text>
-                  <Text style={styles.cardSubtitle}>{customer.phoneNumber}</Text>
+                  <Text style={styles.cardSubtitle}>{formatPhoneNumber(customer.phoneNumber)}</Text>
                   <View style={styles.creditRow}>
                     <Text style={styles.creditLabel}>Credit:</Text>
                     <Text style={[styles.creditValue, { color: (customer.credit || 0) > 0 ? '#10b981' : '#94a3b8' }]}>
@@ -1526,7 +1527,7 @@ export default function AdminScreen() {
                     {item.phone && (
                       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
                         <Ionicons name="call-outline" size={16} color="#64748b" style={{ marginRight: 6 }} />
-                        <Text style={{ fontSize: 14, color: '#64748b' }}>{item.phone}</Text>
+                        <Text style={{ fontSize: 14, color: '#64748b' }}>{formatPhoneNumber(item.phone)}</Text>
                       </View>
                     )}
                     {item.email && (
@@ -1935,8 +1936,8 @@ export default function AdminScreen() {
               <TextInput
                 style={styles.input}
                 value={locationForm.phone}
-                onChangeText={(text) => setLocationForm({ ...locationForm, phone: text })}
-                placeholder="Phone number"
+                onChangeText={(text) => setLocationForm({ ...locationForm, phone: formatPhoneInput(text) })}
+                placeholder="(555) 555-5555"
                 placeholderTextColor="#94a3b8"
                 keyboardType="phone-pad"
               />

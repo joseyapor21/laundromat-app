@@ -13,6 +13,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { api } from '../services/api';
+import { formatPhoneInput, unformatPhone } from '../utils/phoneFormat';
 import AddressInput from '../components/AddressInput';
 
 type CreateCustomerParams = {
@@ -108,8 +109,8 @@ export default function CreateCustomerScreen() {
                 <TextInput
                   style={styles.input}
                   value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  placeholder="Phone number"
+                  onChangeText={(text) => setPhoneNumber(formatPhoneInput(text))}
+                  placeholder="(555) 555-5555"
                   placeholderTextColor="#94a3b8"
                   keyboardType="phone-pad"
                 />

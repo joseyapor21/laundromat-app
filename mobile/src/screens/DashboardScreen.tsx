@@ -24,6 +24,7 @@ import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { formatPhoneNumber } from '../utils/phoneFormat';
 import type { Order } from '../types';
 
 type FilterType = 'all' | 'in-store' | 'delivery' | 'new_order' | 'processing' | 'ready' | 'completed';
@@ -305,7 +306,7 @@ export default function DashboardScreen() {
           <Text style={styles.boardOrderNumber}>#{order.orderId}</Text>
           <Text style={styles.boardCustomerName} numberOfLines={1}>{order.customerName}</Text>
           {order.customerPhone && (
-            <Text style={styles.boardPhoneNumber}>{order.customerPhone}</Text>
+            <Text style={styles.boardPhoneNumber}>{formatPhoneNumber(order.customerPhone)}</Text>
           )}
           <Text style={[styles.boardStatusLabel, { color: getStatusColor(order.status) }]}>
             {getStatusLabel(order.status)}
@@ -387,7 +388,7 @@ export default function DashboardScreen() {
           {order.customerPhone && (
             <View style={styles.detailRow}>
               <Ionicons name="call-outline" size={16} color="#64748b" />
-              <Text style={styles.detailText}>{order.customerPhone}</Text>
+              <Text style={styles.detailText}>{formatPhoneNumber(order.customerPhone)}</Text>
             </View>
           )}
           <View style={styles.detailRow}>

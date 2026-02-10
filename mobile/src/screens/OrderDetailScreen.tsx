@@ -21,6 +21,7 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useAuth } from '../contexts/AuthContext';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
 import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag, Settings } from '../types';
+import { formatPhoneNumber } from '../utils/phoneFormat';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
   { value: 'cash', label: 'Cash' },
@@ -567,7 +568,7 @@ export default function OrderDetailScreen() {
                 onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
               >
                 <Ionicons name="call" size={20} color="#2563eb" />
-                <Text style={styles.contactText}>{order.customerPhone}</Text>
+                <Text style={styles.contactText}>{formatPhoneNumber(order.customerPhone)}</Text>
               </TouchableOpacity>
             )}
             {order.customer?.address && (

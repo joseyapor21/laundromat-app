@@ -1,4 +1,5 @@
 import type { Order, Bag } from '../types';
+import { formatPhoneNumber } from '../utils/phoneFormat';
 
 // ESC/POS commands
 const ESC = {
@@ -165,7 +166,7 @@ export function generateCustomerReceiptText(order: Order): string {
     r += `${order.customer.address}\n`;
   }
   if (order.orderType !== 'delivery' && order.customerPhone) {
-    r += `${order.customerPhone}\n`;
+    r += `${formatPhoneNumber(order.customerPhone)}\n`;
   }
 
   // Notes (inverted, double size, ASCII-safe)
@@ -384,7 +385,7 @@ export function generateStoreCopyText(order: Order): string {
     r += `${order.customer.address}\n`;
   }
   if (order.orderType !== 'delivery' && order.customerPhone) {
-    r += `${order.customerPhone}\n`;
+    r += `${formatPhoneNumber(order.customerPhone)}\n`;
   }
 
   // Notes (inverted, double size, ASCII-safe)
@@ -576,7 +577,7 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
   r += `${order.customerName || 'Customer'}\n`;
   r += ESC.NORMAL_SIZE;
   if (order.customerPhone) {
-    r += `${order.customerPhone}\n`;
+    r += `${formatPhoneNumber(order.customerPhone)}\n`;
   }
 
   r += '------------------------------------------------\n';

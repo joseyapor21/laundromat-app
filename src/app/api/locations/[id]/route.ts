@@ -51,9 +51,9 @@ export async function PUT(
       );
     }
 
-    if (!hasRole(currentUser, ['super_admin'])) {
+    if (!hasRole(currentUser, ['admin', 'super_admin'])) {
       return NextResponse.json(
-        { error: 'Only super admins can update locations' },
+        { error: 'Admin access required to update locations' },
         { status: 403 }
       );
     }
@@ -112,9 +112,9 @@ export async function DELETE(
       );
     }
 
-    if (!hasRole(currentUser, ['super_admin'])) {
+    if (!hasRole(currentUser, ['admin', 'super_admin'])) {
       return NextResponse.json(
-        { error: 'Only super admins can delete locations' },
+        { error: 'Admin access required to delete locations' },
         { status: 403 }
       );
     }

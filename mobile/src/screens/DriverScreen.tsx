@@ -26,6 +26,7 @@ import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import type { Order, Settings } from '../types';
+import { formatPhoneNumber } from '../utils/phoneFormat';
 
 type MapApp = 'google' | 'apple' | 'waze';
 
@@ -276,7 +277,7 @@ export default function DriverScreen() {
             const success = await bluetoothPrinter.printMultipleBagLabels({
               orderId: String(order.orderId),
               customerName: order.customerName,
-              customerPhone: order.customerPhone,
+              customerPhone: formatPhoneNumber(order.customerPhone),
               address: order.customer?.address,
               weight: order.weight,
               isSameDay: order.isSameDay,

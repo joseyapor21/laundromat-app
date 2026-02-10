@@ -25,6 +25,7 @@ import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelTex
 import { useAuth } from '../contexts/AuthContext';
 import type { Order, ExtraItem, Settings, Bag, OrderType, OrderExtraItem } from '../types';
 import { calculateWeightBasedPrice, calculateWeightBasedQuantity, roundToNearestQuarter } from '../utils/pricing';
+import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
 export default function EditOrderScreen() {
   const route = useRoute<any>();
@@ -88,7 +89,7 @@ export default function EditOrderScreen() {
 
       // Populate form with order data
       setCustomerName(orderData.customerName || '');
-      setCustomerPhone(orderData.customerPhone || '');
+      setCustomerPhone(formatPhoneNumber(orderData.customerPhone) || '');
       setCustomerAddress(orderData.customer?.address || '');
 
       // Include customer notes in special instructions if not already present
@@ -514,8 +515,8 @@ export default function EditOrderScreen() {
                 <TextInput
                   style={styles.input}
                   value={customerPhone}
-                  onChangeText={setCustomerPhone}
-                  placeholder="Phone number"
+                  onChangeText={(text) => setCustomerPhone(formatPhoneInput(text))}
+                  placeholder="(555) 555-5555"
                   placeholderTextColor="#94a3b8"
                   keyboardType="phone-pad"
                 />

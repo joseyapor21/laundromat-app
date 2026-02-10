@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { formatPhoneInput, formatPhoneNumber } from '../utils/phoneFormat';
 import AddressInput from '../components/AddressInput';
 import type { Customer, CreditTransaction, Order, StatusHistoryEntry } from '../types';
 
@@ -55,7 +56,7 @@ export default function EditCustomerScreen() {
 
       // Populate form
       setName(data.name || '');
-      setPhoneNumber(data.phoneNumber || '');
+      setPhoneNumber(formatPhoneNumber(data.phoneNumber) || '');
       setAddress(data.address || '');
       setEmail(data.email || '');
       setDeliveryFee(data.deliveryFee?.replace('$', '') || '');
@@ -521,8 +522,8 @@ export default function EditCustomerScreen() {
                 <TextInput
                   style={styles.input}
                   value={phoneNumber}
-                  onChangeText={setPhoneNumber}
-                  placeholder="Phone number"
+                  onChangeText={(text) => setPhoneNumber(formatPhoneInput(text))}
+                  placeholder="(555) 555-5555"
                   placeholderTextColor="#94a3b8"
                   keyboardType="phone-pad"
                 />
