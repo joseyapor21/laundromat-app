@@ -146,7 +146,7 @@ export default function AdminScreen() {
   const loadActivityLogs = useCallback(async () => {
     setActivityLoading(true);
     try {
-      const params: Record<string, string | number> = { limit: 100 };
+      const params: Record<string, string | number> = { limit: 500 };
       if (activityUserFilter !== 'all') params.userId = activityUserFilter;
       if (activityActionFilter !== 'all') params.action = activityActionFilter;
       if (activityEntityFilter !== 'all') params.entityType = activityEntityFilter;
@@ -1343,8 +1343,11 @@ export default function AdminScreen() {
               {/* Action Filter */}
               <Text style={styles.filterLabel}>Action</Text>
               <View style={styles.filterOptions}>
-                {['all', 'create_order', 'update_order', 'delete_order', 'status_change', 'payment_update',
-                  'create_customer', 'update_customer', 'delete_customer', 'clock_in', 'clock_out'].map(action => (
+                {['all', 'login', 'logout', 'create_order', 'update_order', 'delete_order', 'status_change',
+                  'payment_update', 'price_override', 'create_customer', 'update_customer', 'delete_customer',
+                  'create_user', 'update_user', 'delete_user', 'create_extra_item', 'update_extra_item',
+                  'update_settings', 'assign_washer', 'assign_dryer', 'release_machine',
+                  'clock_in', 'clock_out', 'break_start', 'break_end'].map(action => (
                   <TouchableOpacity
                     key={action}
                     style={[styles.filterOption, activityActionFilter === action && styles.filterOptionActive]}
@@ -1360,14 +1363,14 @@ export default function AdminScreen() {
               {/* Entity Type Filter */}
               <Text style={styles.filterLabel}>Entity Type</Text>
               <View style={styles.filterOptions}>
-                {['all', 'order', 'customer', 'user', 'settings', 'machine', 'time_entry'].map(entity => (
+                {['all', 'order', 'customer', 'user', 'extra_item', 'settings', 'machine', 'time_entry'].map(entity => (
                   <TouchableOpacity
                     key={entity}
                     style={[styles.filterOption, activityEntityFilter === entity && styles.filterOptionActive]}
                     onPress={() => setActivityEntityFilter(entity)}
                   >
                     <Text style={[styles.filterOptionText, activityEntityFilter === entity && styles.filterOptionTextActive]}>
-                      {entity === 'all' ? 'All Types' : entity.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                      {entity === 'all' ? 'All Types' : entity.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                     </Text>
                   </TouchableOpacity>
                 ))}
