@@ -51,6 +51,12 @@ export default function AdminScreen() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [activityTotal, setActivityTotal] = useState(0);
+  const [activityLoading, setActivityLoading] = useState(false);
+  const [activityUserFilter, setActivityUserFilter] = useState<string>('all');
+  const [activityActionFilter, setActivityActionFilter] = useState<string>('all');
+  const [activityEntityFilter, setActivityEntityFilter] = useState<string>('all');
+  const [activityLocationFilter, setActivityLocationFilter] = useState<string>('all');
+  const [showActivityFilterModal, setShowActivityFilterModal] = useState(false);
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [timeEntriesLoading, setTimeEntriesLoading] = useState(false);
   const [selectedTimeEntry, setSelectedTimeEntry] = useState<TimeEntry | null>(null);
@@ -135,6 +141,33 @@ export default function AdminScreen() {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load filtered activity logs
+  const loadActivityLogs = useCallback(async () => {
+    setActivityLoading(true);
+    try {
+      const params: Record<string, string | number> = { limit: 100 };
+      if (activityUserFilter !== 'all') params.userId = activityUserFilter;
+      if (activityActionFilter !== 'all') params.action = activityActionFilter;
+      if (activityEntityFilter !== 'all') params.entityType = activityEntityFilter;
+      if (activityLocationFilter !== 'all') params.locationId = activityLocationFilter;
+
+      const data = await api.getActivityLogs(params);
+      setActivityLogs(data.logs);
+      setActivityTotal(data.total);
+    } catch (error) {
+      console.error('Failed to load activity logs:', error);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [activityUserFilter, activityActionFilter, activityEntityFilter, activityLocationFilter]);
+
+  // Reload activity logs when filters change
+  useEffect(() => {
+    if (activeTab === 'activity') {
+      loadActivityLogs();
+    }
+  }, [activeTab, loadActivityLogs]);
 
   // Refresh data when screen is focused
   useFocusEffect(
@@ -1223,15 +1256,33 @@ export default function AdminScreen() {
 
       {activeTab === 'activity' && (
         <View style={{ flex: 1 }}>
-          <View style={styles.actionHeader}>
+          {/* Filter Bar */}
+          <View style={styles.activityFilterBar}>
+            <TouchableOpacity
+              style={styles.activityFilterButton}
+              onPress={() => setShowActivityFilterModal(true)}
+            >
+              <Ionicons name="filter" size={18} color="#2563eb" />
+              <Text style={styles.activityFilterButtonText}>Filters</Text>
+              {(activityUserFilter !== 'all' || activityActionFilter !== 'all' ||
+                activityEntityFilter !== 'all' || activityLocationFilter !== 'all') && (
+                <View style={styles.filterBadge}>
+                  <Text style={styles.filterBadgeText}>
+                    {[activityUserFilter, activityActionFilter, activityEntityFilter, activityLocationFilter]
+                      .filter(f => f !== 'all').length}
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
             <Text style={styles.countText}>{activityTotal} activities</Text>
+            {activityLoading && <ActivityIndicator size="small" color="#2563eb" />}
           </View>
           <FlatList
             data={activityLogs}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
             maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => loadActivityLogs()} />}
             renderItem={({ item: log }) => (
               <View style={styles.activityCard}>
                 <View style={styles.activityHeader}>
@@ -1255,6 +1306,118 @@ export default function AdminScreen() {
           />
         </View>
       )}
+
+      {/* Activity Filter Modal */}
+      <Modal visible={showActivityFilterModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: '80%' }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Filter Activity Logs</Text>
+              <TouchableOpacity onPress={() => setShowActivityFilterModal(false)}>
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView style={{ flex: 1 }}>
+              {/* User Filter */}
+              <Text style={styles.filterLabel}>User</Text>
+              <View style={styles.filterOptions}>
+                <TouchableOpacity
+                  style={[styles.filterOption, activityUserFilter === 'all' && styles.filterOptionActive]}
+                  onPress={() => setActivityUserFilter('all')}
+                >
+                  <Text style={[styles.filterOptionText, activityUserFilter === 'all' && styles.filterOptionTextActive]}>All Users</Text>
+                </TouchableOpacity>
+                {users.map(u => (
+                  <TouchableOpacity
+                    key={u._id}
+                    style={[styles.filterOption, activityUserFilter === u._id && styles.filterOptionActive]}
+                    onPress={() => setActivityUserFilter(u._id)}
+                  >
+                    <Text style={[styles.filterOptionText, activityUserFilter === u._id && styles.filterOptionTextActive]}>
+                      {u.firstName} {u.lastName}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Action Filter */}
+              <Text style={styles.filterLabel}>Action</Text>
+              <View style={styles.filterOptions}>
+                {['all', 'create_order', 'update_order', 'delete_order', 'status_change', 'payment_update',
+                  'create_customer', 'update_customer', 'delete_customer', 'clock_in', 'clock_out'].map(action => (
+                  <TouchableOpacity
+                    key={action}
+                    style={[styles.filterOption, activityActionFilter === action && styles.filterOptionActive]}
+                    onPress={() => setActivityActionFilter(action)}
+                  >
+                    <Text style={[styles.filterOptionText, activityActionFilter === action && styles.filterOptionTextActive]}>
+                      {action === 'all' ? 'All Actions' : formatAction(action)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Entity Type Filter */}
+              <Text style={styles.filterLabel}>Entity Type</Text>
+              <View style={styles.filterOptions}>
+                {['all', 'order', 'customer', 'user', 'settings', 'machine', 'time_entry'].map(entity => (
+                  <TouchableOpacity
+                    key={entity}
+                    style={[styles.filterOption, activityEntityFilter === entity && styles.filterOptionActive]}
+                    onPress={() => setActivityEntityFilter(entity)}
+                  >
+                    <Text style={[styles.filterOptionText, activityEntityFilter === entity && styles.filterOptionTextActive]}>
+                      {entity === 'all' ? 'All Types' : entity.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* Location Filter */}
+              <Text style={styles.filterLabel}>Location</Text>
+              <View style={styles.filterOptions}>
+                <TouchableOpacity
+                  style={[styles.filterOption, activityLocationFilter === 'all' && styles.filterOptionActive]}
+                  onPress={() => setActivityLocationFilter('all')}
+                >
+                  <Text style={[styles.filterOptionText, activityLocationFilter === 'all' && styles.filterOptionTextActive]}>All Locations</Text>
+                </TouchableOpacity>
+                {locations.map(loc => (
+                  <TouchableOpacity
+                    key={loc._id}
+                    style={[styles.filterOption, activityLocationFilter === loc._id && styles.filterOptionActive]}
+                    onPress={() => setActivityLocationFilter(loc._id)}
+                  >
+                    <Text style={[styles.filterOptionText, activityLocationFilter === loc._id && styles.filterOptionTextActive]}>
+                      {loc.name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => {
+                  setActivityUserFilter('all');
+                  setActivityActionFilter('all');
+                  setActivityEntityFilter('all');
+                  setActivityLocationFilter('all');
+                }}
+              >
+                <Text style={styles.modalButtonSecondaryText}>Clear All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={() => setShowActivityFilterModal(false)}
+              >
+                <Text style={styles.modalButtonPrimaryText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Time Clock Tab */}
       {activeTab === 'timeclock' && (
@@ -2640,6 +2803,75 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   // Activity styles
+  activityFilterBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    gap: 12,
+  },
+  activityFilterButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  activityFilterButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#2563eb',
+  },
+  filterBadge: {
+    backgroundColor: '#2563eb',
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    marginLeft: 4,
+  },
+  filterBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  filterLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginTop: 16,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  filterOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  filterOption: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filterOptionActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  filterOptionText: {
+    fontSize: 13,
+    color: '#475569',
+  },
+  filterOptionTextActive: {
+    color: '#fff',
+    fontWeight: '500',
+  },
   activityCard: {
     backgroundColor: '#fff',
     borderRadius: 12,

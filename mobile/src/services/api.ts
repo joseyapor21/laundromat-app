@@ -470,12 +470,16 @@ class ApiService {
     offset?: number;
     action?: string;
     entityType?: string;
+    userId?: string;
+    locationId?: string;
   }): Promise<{ logs: ActivityLog[]; total: number }> {
     const searchParams = new URLSearchParams();
     if (params?.limit) searchParams.append('limit', params.limit.toString());
     if (params?.offset) searchParams.append('offset', params.offset.toString());
     if (params?.action) searchParams.append('action', params.action);
     if (params?.entityType) searchParams.append('entityType', params.entityType);
+    if (params?.userId) searchParams.append('userId', params.userId);
+    if (params?.locationId) searchParams.append('locationId', params.locationId);
 
     const query = searchParams.toString();
     return this.request<{ logs: ActivityLog[]; total: number }>(`/activity-logs${query ? `?${query}` : ''}`);
