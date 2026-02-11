@@ -114,7 +114,9 @@ export async function GET(
   }
 }
 
-// DELETE - Clear maintenance photos (when machine is back to available)
+// DELETE - Delete maintenance photo(s)
+// If photoPath query param is provided, delete that specific photo
+// Otherwise, clear all maintenance photos
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -134,19 +136,59 @@ export async function DELETE(
       return NextResponse.json({ error: 'Machine not found' }, { status: 404 });
     }
 
-    // Clear maintenance photos
-    machine.maintenancePhotos = [];
-    await machine.save();
+    // Check if deleting a specific photo
+    const { searchParams } = new URL(request.url);
+    const photoPath = searchParams.get('photoPath');
 
-    return NextResponse.json({
-      success: true,
-      message: 'Maintenance photos cleared',
-    });
+    if (photoPath) {
+      // Delete specific photo
+      const photoIndex = machine.maintenancePhotos?.findIndex(
+        (p: { photoPath: string }) => p.photoPath === photoPath
+      );
+
+      if (photoIndex === undefined || photoIndex === -1) {
+        return NextResponse.json({ error: 'Photo not found' }, { status: 404 });
+      }
+
+      // Delete file from disk
+      const fullPath = path.join(process.cwd(), 'uploads', photoPath);
+      if (fs.existsSync(fullPath)) {
+        fs.unlinkSync(fullPath);
+      }
+
+      // Remove from array
+      machine.maintenancePhotos?.splice(photoIndex, 1);
+      await machine.save();
+
+      return NextResponse.json({
+        success: true,
+        message: 'Maintenance photo deleted',
+      });
+    } else {
+      // Clear all maintenance photos
+      // Delete files from disk
+      if (machine.maintenancePhotos) {
+        for (const photo of machine.maintenancePhotos) {
+          const fullPath = path.join(process.cwd(), 'uploads', photo.photoPath);
+          if (fs.existsSync(fullPath)) {
+            fs.unlinkSync(fullPath);
+          }
+        }
+      }
+
+      machine.maintenancePhotos = [];
+      await machine.save();
+
+      return NextResponse.json({
+        success: true,
+        message: 'Maintenance photos cleared',
+      });
+    }
 
   } catch (error) {
-    console.error('Error clearing maintenance photos:', error);
+    console.error('Error deleting maintenance photo:', error);
     return NextResponse.json(
-      { error: 'Failed to clear maintenance photos' },
+      { error: 'Failed to delete maintenance photo' },
       { status: 500 }
     );
   }

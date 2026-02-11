@@ -100,10 +100,12 @@ export default function AdminScreen() {
   const [maintenanceMachine, setMaintenanceMachine] = useState<Machine | null>(null);
   const [maintenanceNotes, setMaintenanceNotes] = useState('');
   const [printingMaintenance, setPrintingMaintenance] = useState(false);
-  const [maintenancePhotos, setMaintenancePhotos] = useState<string[]>([]);
+  const [maintenancePhotos, setMaintenancePhotos] = useState<{ url: string; photoPath: string }[]>([]);
   const [showMaintenanceCamera, setShowMaintenanceCamera] = useState(false);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const maintenanceCameraRef = useRef<CameraView>(null);
+  const [expandedPhoto, setExpandedPhoto] = useState<string | null>(null);
+  const [deletingPhoto, setDeletingPhoto] = useState<string | null>(null);
 
   // Form state for modals
   const [userForm, setUserForm] = useState({ email: '', firstName: '', lastName: '', role: 'employee' as UserRole, isDriver: false, password: '' });
@@ -539,12 +541,11 @@ export default function AdminScreen() {
         try {
           const { photos } = await api.getMaintenancePhotos(machine._id);
           console.log('Loaded maintenance photos:', photos);
-          const photoUrls = photos.map(p => {
-            const url = api.getMaintenancePhotoUrl(p.photoPath);
-            console.log('Photo URL:', url);
-            return url;
-          });
-          setMaintenancePhotos(photoUrls);
+          const photoData = photos.map(p => ({
+            url: api.getMaintenancePhotoUrl(p.photoPath),
+            photoPath: p.photoPath,
+          }));
+          setMaintenancePhotos(photoData);
         } catch (error) {
           console.error('Failed to load maintenance photos:', error);
           setMaintenancePhotos([]);
@@ -929,7 +930,7 @@ export default function AdminScreen() {
           if (result.success) {
             const photoUrl = api.getMaintenancePhotoUrl(result.photoPath);
             console.log('Generated photo URL:', photoUrl);
-            setMaintenancePhotos(prev => [...prev, photoUrl]);
+            setMaintenancePhotos(prev => [...prev, { url: photoUrl, photoPath: result.photoPath }]);
           }
         } catch (uploadError) {
           console.error('Failed to upload photo:', uploadError);
@@ -955,10 +956,32 @@ export default function AdminScreen() {
     }, 300);
   };
 
-  const removeMaintenancePhoto = (index: number) => {
-    // Note: This only removes from local state, not from server
-    // For full implementation, would need to track photo IDs and delete from server
-    setMaintenancePhotos(prev => prev.filter((_, i) => i !== index));
+  const removeMaintenancePhoto = async (photoPath: string) => {
+    if (!editingMachine) return;
+
+    Alert.alert(
+      'Delete Photo',
+      'Are you sure you want to delete this photo?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingPhoto(photoPath);
+            try {
+              await api.deleteMaintenancePhoto(editingMachine._id, photoPath);
+              setMaintenancePhotos(prev => prev.filter(p => p.photoPath !== photoPath));
+            } catch (error) {
+              console.error('Failed to delete photo:', error);
+              Alert.alert('Error', 'Failed to delete photo');
+            } finally {
+              setDeletingPhoto(null);
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Activity helpers
@@ -1486,7 +1509,6 @@ export default function AdminScreen() {
                   />
                 </View>
                 <Text style={styles.machineGridName}>{machine.name}</Text>
-                <Text style={styles.machineGridQR}>{machine.qrCode}</Text>
                 <View style={[
                   styles.machineGridStatus,
                   {
@@ -2336,14 +2358,21 @@ export default function AdminScreen() {
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>Photos</Text>
                     <View style={styles.maintenancePhotosContainer}>
-                      {maintenancePhotos.map((uri, index) => (
+                      {maintenancePhotos.map((photo, index) => (
                         <View key={index} style={styles.maintenancePhotoWrapper}>
-                          <Image source={{ uri }} style={styles.maintenancePhoto} />
+                          <TouchableOpacity onPress={() => setExpandedPhoto(photo.url)}>
+                            <Image source={{ uri: photo.url }} style={styles.maintenancePhoto} />
+                          </TouchableOpacity>
                           <TouchableOpacity
                             style={styles.maintenancePhotoRemove}
-                            onPress={() => removeMaintenancePhoto(index)}
+                            onPress={() => removeMaintenancePhoto(photo.photoPath)}
+                            disabled={deletingPhoto === photo.photoPath}
                           >
-                            <Ionicons name="close-circle" size={22} color="#ef4444" />
+                            {deletingPhoto === photo.photoPath ? (
+                              <ActivityIndicator size="small" color="#ef4444" />
+                            ) : (
+                              <Ionicons name="close-circle" size={22} color="#ef4444" />
+                            )}
                           </TouchableOpacity>
                         </View>
                       ))}
@@ -2876,6 +2905,25 @@ export default function AdminScreen() {
               <View style={styles.captureButtonInner} />
             </TouchableOpacity>
           </View>
+        </View>
+      </Modal>
+
+      {/* Expanded Photo Modal */}
+      <Modal visible={!!expandedPhoto} animationType="fade" transparent>
+        <View style={styles.expandedPhotoOverlay}>
+          <TouchableOpacity
+            style={styles.expandedPhotoClose}
+            onPress={() => setExpandedPhoto(null)}
+          >
+            <Ionicons name="close-circle" size={36} color="#fff" />
+          </TouchableOpacity>
+          {expandedPhoto && (
+            <Image
+              source={{ uri: expandedPhoto }}
+              style={styles.expandedPhotoImage}
+              resizeMode="contain"
+            />
+          )}
         </View>
       </Modal>
       </View>
@@ -4176,6 +4224,23 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#64748b',
     marginTop: 4,
+  },
+  // Expanded photo styles
+  expandedPhotoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expandedPhotoClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+  },
+  expandedPhotoImage: {
+    width: '100%',
+    height: '80%',
   },
   // Camera styles
   cameraHeader: {

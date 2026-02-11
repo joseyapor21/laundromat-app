@@ -638,6 +638,12 @@ class ApiService {
     });
   }
 
+  async deleteMaintenancePhoto(machineId: string, photoPath: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/machines/${machineId}/maintenance-photo?photoPath=${encodeURIComponent(photoPath)}`, {
+      method: 'DELETE',
+    });
+  }
+
   getMaintenancePhotoUrl(photoPath: string): string {
     const tokenParam = this.token ? `?token=${encodeURIComponent(this.token)}` : '';
     return `${API_BASE_URL}/api/uploads/${photoPath}${tokenParam}`;
