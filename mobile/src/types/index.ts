@@ -207,12 +207,21 @@ export interface ExtraItem {
 export type MachineType = 'washer' | 'dryer';
 export type MachineStatus = 'available' | 'in_use' | 'maintenance';
 
+export interface MaintenancePhoto {
+  photoPath: string;
+  capturedAt: string;
+  capturedBy: string;
+  capturedByName: string;
+}
+
 export interface Machine {
   _id: string;
   name: string;
   type: MachineType;
   qrCode: string;
   status: MachineStatus;
+  maintenanceNotes?: string;
+  maintenancePhotos?: MaintenancePhoto[];
   currentOrderId?: string;
   lastUsedAt?: Date;
   createdAt: Date;

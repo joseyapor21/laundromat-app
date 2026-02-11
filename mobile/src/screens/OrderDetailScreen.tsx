@@ -355,14 +355,25 @@ export default function OrderDetailScreen() {
         }
       }
 
-      const updateData = order.isPaid
-        ? { isPaid: false, paymentMethod: 'pending' as PaymentMethod, creditApplied: 0 }
-        : { isPaid: true, paymentMethod: selectedPaymentMethod };
+      let updateData;
+      let message;
+
+      if (order.isPaid) {
+        // Unpaying a fully paid order
+        updateData = { isPaid: false, paymentMethod: 'pending' as PaymentMethod, paymentStatus: 'pending', creditApplied: 0, amountPaid: 0 };
+        message = 'Payment status cleared';
+      } else if (order.paymentStatus === 'partial') {
+        // Marking a partially paid order as fully paid
+        updateData = { isPaid: true, paymentMethod: selectedPaymentMethod, paymentStatus: 'paid', amountPaid: order.totalAmount };
+        message = `Order marked as fully paid (${selectedPaymentMethod})`;
+      } else {
+        // Marking an unpaid order as paid
+        updateData = { isPaid: true, paymentMethod: selectedPaymentMethod, paymentStatus: 'paid', amountPaid: order.totalAmount };
+        message = `Order marked as paid (${selectedPaymentMethod})`;
+      }
 
       await api.updateOrder(order._id, updateData);
-
-      let message = order.isPaid ? 'Payment status cleared' : `Order marked as paid (${selectedPaymentMethod})`;
-      if (order.isPaid && creditToRefund > 0) {
+      if (order.isPaid && creditToRefund > 0 && updateData.isPaid === false) {
         message += `. $${creditToRefund.toFixed(2)} credit refunded to customer.`;
       }
 
@@ -1146,7 +1157,7 @@ export default function OrderDetailScreen() {
             {order.items?.map((item, index) => (
               <View key={index} style={styles.itemRow}>
                 <Text style={styles.itemName}>{item.serviceName}</Text>
-                <Text style={styles.itemPrice}>${item.total.toFixed(2)}</Text>
+                <Text style={styles.itemPrice}>${(item.total || 0).toFixed(2)}</Text>
               </View>
             ))}
             {order.extraItems && order.extraItems.length > 0 && (
@@ -1162,7 +1173,7 @@ export default function OrderDetailScreen() {
                   return (
                     <View key={`extra-${index}`} style={styles.itemRow}>
                       <Text style={styles.itemName}>{itemName}</Text>
-                      <Text style={[styles.itemPrice, hasOverride && { color: '#ef4444' }]}>${itemTotal.toFixed(2)}</Text>
+                      <Text style={[styles.itemPrice, hasOverride && { color: '#ef4444' }]}>${(itemTotal || 0).toFixed(2)}</Text>
                     </View>
                   );
                 })}
@@ -1200,7 +1211,7 @@ export default function OrderDetailScreen() {
         {showPaymentSection && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Payment</Text>
-            <View style={[styles.paymentCard, order.isPaid && styles.paymentCardPaid]}>
+            <View style={[styles.paymentCard, order.isPaid && styles.paymentCardPaid, order.paymentStatus === 'partial' && styles.paymentCardPartial]}>
               {order.isPaid ? (
                 <View style={styles.paymentPaid}>
                   <View style={styles.paidBadge}>
@@ -1213,6 +1224,47 @@ export default function OrderDetailScreen() {
                     disabled={updating}
                   >
                     <Text style={styles.unpaidButtonText}>Mark Unpaid</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : order.paymentStatus === 'partial' ? (
+                <View style={styles.paymentPartial}>
+                  <View style={styles.partialBadge}>
+                    <Ionicons name="alert-circle" size={16} color="#fff" />
+                    <Text style={styles.partialBadgeText}>Partially Paid</Text>
+                  </View>
+                  <View style={styles.partialDetails}>
+                    <Text style={styles.partialAmountText}>
+                      Paid: ${(order.amountPaid || 0).toFixed(2)}
+                    </Text>
+                    <Text style={styles.balanceDueText}>
+                      Balance Due: ${((order.totalAmount || 0) - (order.amountPaid || 0)).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={styles.paymentMethodPicker}>
+                    {PAYMENT_METHODS.map(method => (
+                      <TouchableOpacity
+                        key={method.value}
+                        style={[
+                          styles.paymentMethodButton,
+                          selectedPaymentMethod === method.value && styles.paymentMethodButtonActive,
+                        ]}
+                        onPress={() => setSelectedPaymentMethod(method.value)}
+                      >
+                        <Text style={[
+                          styles.paymentMethodText,
+                          selectedPaymentMethod === method.value && styles.paymentMethodTextActive,
+                        ]}>
+                          {method.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.markPaidButton, updating && styles.buttonDisabled]}
+                    onPress={handlePaymentToggle}
+                    disabled={updating}
+                  >
+                    <Text style={styles.markPaidButtonText}>Mark Fully Paid</Text>
                   </TouchableOpacity>
                 </View>
               ) : (
@@ -2027,6 +2079,44 @@ const styles = StyleSheet.create({
   paymentCardPaid: {
     backgroundColor: '#dcfce7',
     borderColor: '#86efac',
+  },
+  paymentCardPartial: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#f59e0b',
+  },
+  paymentPartial: {
+    gap: 12,
+  },
+  partialBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f59e0b',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  partialBadgeText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  partialDetails: {
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 8,
+    gap: 4,
+  },
+  partialAmountText: {
+    fontSize: 14,
+    color: '#10b981',
+    fontWeight: '500',
+  },
+  balanceDueText: {
+    fontSize: 16,
+    color: '#ef4444',
+    fontWeight: '700',
   },
   paymentPaid: {
     flexDirection: 'row',

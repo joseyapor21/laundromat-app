@@ -25,7 +25,7 @@ interface PrintResult {
 
 class LocalPrinterService {
   private defaultPort = 9100;
-  private timeout = 10000; // 10 second timeout
+  private timeout = 15000; // 15 second timeout
 
   /**
    * Check if TCP socket is available (development build vs Expo Go)
@@ -49,6 +49,7 @@ class LocalPrinterService {
         {
           host: printerIp,
           port: port,
+          timeout: this.timeout,
         },
         () => {
           // Connected - send the content

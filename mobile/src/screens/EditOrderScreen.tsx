@@ -392,27 +392,33 @@ export default function EditOrderScreen() {
       if (wasAlreadyPaid && totalIncreased) {
         // Order was paid but total increased - ask user what to do
         const difference = newTotal - originalTotal;
+        const originalAmountPaid = order?.amountPaid || originalTotal;
         await new Promise<void>((resolve) => {
           Alert.alert(
             'Payment Status',
-            `Order total increased by $${difference.toFixed(2)}.\n\nOriginal: $${originalTotal.toFixed(2)}\nNew Total: $${newTotal.toFixed(2)}\n\nWas the additional amount paid?`,
+            `Order total increased by $${difference.toFixed(2)}.\n\nOriginal: $${originalTotal.toFixed(2)}\nNew Total: $${newTotal.toFixed(2)}\n\nWas the additional $${difference.toFixed(2)} paid?`,
             [
               {
                 text: 'Yes - Fully Paid',
                 onPress: async () => {
-                  // Keep as paid
-                  await api.updateOrder(order!._id, updates);
+                  // Keep as paid, update amountPaid to new total
+                  await api.updateOrder(order!._id, {
+                    ...updates,
+                    amountPaid: newTotal,
+                    paymentStatus: 'paid',
+                  });
                   resolve();
                 },
               },
               {
-                text: 'No - Mark Unpaid',
+                text: 'No - Partially Paid',
                 onPress: async () => {
-                  // Mark as unpaid
+                  // Mark as partial - they paid original amount, owe difference
                   await api.updateOrder(order!._id, {
                     ...updates,
                     isPaid: false,
-                    paymentMethod: 'pending',
+                    paymentStatus: 'partial',
+                    amountPaid: originalAmountPaid,
                   });
                   resolve();
                 },
@@ -1041,8 +1047,8 @@ export default function EditOrderScreen() {
                 const displayQty = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : data.quantity;
                 // Use overrideTotal if set, otherwise calculate
                 const calculatedPrice = isWeightBased
-                  ? calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price)
-                  : data.price * data.quantity;
+                  ? calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price || 0)
+                  : (data.price || 0) * (data.quantity || 0);
                 const displayPrice = data.overrideTotal !== undefined ? data.overrideTotal : calculatedPrice;
                 const hasOverride = data.overrideTotal !== undefined;
                 return (
@@ -1069,14 +1075,14 @@ export default function EditOrderScreen() {
                             updateExtraItem(itemId, 'overrideTotal', v === '' ? undefined : (isNaN(val) ? undefined : val));
                           }}
                           keyboardType="decimal-pad"
-                          placeholder={`Auto: $${calculatedPrice.toFixed(2)}`}
+                          placeholder={`Auto: $${(calculatedPrice || 0).toFixed(2)}`}
                           placeholderTextColor="#94a3b8"
                         />
                       </View>
                       <View style={styles.extraItemTotalBox}>
                         <Text style={styles.extraItemTotalLabel}>Total</Text>
                         <Text style={[styles.extraItemTotalValue, hasOverride && { color: '#ef4444' }]}>
-                          ${displayPrice.toFixed(2)}
+                          ${(displayPrice || 0).toFixed(2)}
                         </Text>
                       </View>
                     </View>
@@ -1361,7 +1367,7 @@ export default function EditOrderScreen() {
                       <View style={styles.modalItemInfo}>
                         <Text style={styles.modalItemName}>{item.name}</Text>
                         <Text style={styles.modalItemBasePrice}>
-                          ${item.price.toFixed(2)}{isWeightBased ? ` per ${item.perWeightUnit} lbs` : ''}
+                          ${(item.price || 0).toFixed(2)}{isWeightBased ? ` per ${item.perWeightUnit} lbs` : ''}
                         </Text>
                         {item.description && (
                           <Text style={styles.modalItemDescription}>{item.description}</Text>
@@ -1435,7 +1441,7 @@ export default function EditOrderScreen() {
                               <Text style={styles.modalPriceDollar}>$</Text>
                               <TextInput
                                 style={[styles.modalPriceInput, data.overrideTotal !== undefined && styles.modalPriceInputOverride]}
-                                defaultValue={data.overrideTotal !== undefined ? data.overrideTotal.toString() : calculatedPrice.toFixed(2)}
+                                defaultValue={data.overrideTotal !== undefined && data.overrideTotal !== null ? data.overrideTotal.toString() : (calculatedPrice || 0).toFixed(2)}
                                 onChangeText={(text) => {
                                   const newTotal = parseFloat(text) || 0;
                                   if (newTotal !== calculatedPrice) {
@@ -1454,7 +1460,7 @@ export default function EditOrderScreen() {
                                 keyboardType="decimal-pad"
                                 returnKeyType="done"
                                 selectTextOnFocus={true}
-                                placeholder={calculatedPrice.toFixed(2)}
+                                placeholder={(calculatedPrice || 0).toFixed(2)}
                                 placeholderTextColor="#94a3b8"
                               />
                             </View>
@@ -1486,7 +1492,7 @@ export default function EditOrderScreen() {
                                   }));
                                 }}
                                 keyboardType="decimal-pad"
-                                placeholder={item.price.toString()}
+                                placeholder={(item.price || 0).toString()}
                                 placeholderTextColor="#94a3b8"
                               />
                             </View>
@@ -1521,7 +1527,7 @@ export default function EditOrderScreen() {
                     <View key={itemId} style={styles.modalSummaryRow}>
                       <Text style={styles.modalSummaryText}>{item.name}</Text>
                       <Text style={[styles.modalSummaryPrice, data.overrideTotal !== undefined && { color: '#ef4444' }]}>
-                        ${itemTotal.toFixed(2)}
+                        ${(itemTotal || 0).toFixed(2)}
                       </Text>
                     </View>
                   );

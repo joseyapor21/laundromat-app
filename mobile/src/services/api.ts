@@ -619,6 +619,29 @@ class ApiService {
     const tokenParam = this.token ? `?token=${encodeURIComponent(this.token)}` : '';
     return `${API_BASE_URL}/api/uploads/${photoPath}${tokenParam}`;
   }
+
+  // Maintenance Photos
+  async uploadMaintenancePhoto(machineId: string, photo: string): Promise<{ success: boolean; photoPath: string }> {
+    return this.request<{ success: boolean; photoPath: string }>(`/machines/${machineId}/maintenance-photo`, {
+      method: 'POST',
+      body: JSON.stringify({ photo }),
+    });
+  }
+
+  async getMaintenancePhotos(machineId: string): Promise<{ photos: Array<{ photoPath: string; capturedAt: string; capturedBy: string; capturedByName: string }> }> {
+    return this.request<{ photos: Array<{ photoPath: string; capturedAt: string; capturedBy: string; capturedByName: string }> }>(`/machines/${machineId}/maintenance-photo`);
+  }
+
+  async clearMaintenancePhotos(machineId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/machines/${machineId}/maintenance-photo`, {
+      method: 'DELETE',
+    });
+  }
+
+  getMaintenancePhotoUrl(photoPath: string): string {
+    const tokenParam = this.token ? `?token=${encodeURIComponent(this.token)}` : '';
+    return `${API_BASE_URL}/api/uploads/${photoPath}${tokenParam}`;
+  }
 }
 
 export const api = new ApiService();

@@ -596,14 +596,29 @@ export default function CreateOrderScreen() {
       // Use manual delivery address if customer doesn't have one
       const finalDeliveryAddress = selectedCustomer.address || deliveryAddress.trim();
 
-      // Calculate individual price components
-      const pricePerPound = settings?.pricePerPound || 0;
-      const laundrySubtotal = totalWeight * pricePerPound;
+      // Calculate individual price components with minimums applied
+      let laundrySubtotal = 0;
+      if (settings && totalWeight > 0) {
+        console.log('DEBUG: totalWeight=', totalWeight, 'minimumWeight=', settings.minimumWeight, 'minimumPrice=', settings.minimumPrice);
+        if (totalWeight <= settings.minimumWeight) {
+          laundrySubtotal = settings.minimumPrice;
+          console.log('DEBUG: Using minimum price:', laundrySubtotal);
+        } else {
+          const extraPounds = totalWeight - settings.minimumWeight;
+          laundrySubtotal = settings.minimumPrice + (extraPounds * settings.pricePerPound);
+          console.log('DEBUG: Over minimum, laundrySubtotal=', laundrySubtotal);
+        }
+      } else {
+        console.log('DEBUG: settings or totalWeight missing', { settings: !!settings, totalWeight });
+      }
 
-      // Calculate same day fee
+      // Calculate same day fee with minimum applied
       let sameDayFee = 0;
-      if (isSameDay && settings?.sameDayExtraCentsPerPound) {
-        sameDayFee = totalWeight * (settings.sameDayExtraCentsPerPound / 100);
+      if (isSameDay && settings) {
+        const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
+        const calculatedExtra = totalWeight * extraCentsPerPound;
+        const minimumCharge = settings.sameDayMinimumCharge || 5;
+        sameDayFee = Math.max(calculatedExtra, minimumCharge);
       }
 
       // Calculate delivery fee

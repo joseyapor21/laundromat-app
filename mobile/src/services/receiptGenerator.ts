@@ -254,13 +254,15 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
   r += ESC.LEFT;
   const totalWeight = order.weight || 0;
 
-  // Show weight with price calculation
-  if (order.subtotal && order.subtotal > 0 && totalWeight > 0) {
-    r += ESC.DOUBLE_HEIGHT_ON;
-    r += leftRightAlign('Total Weight', `${totalWeight} LBS = $${order.subtotal.toFixed(2)}`) + '\n';
-    r += ESC.NORMAL_SIZE;
-  } else {
-    r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
+  // Show weight
+  r += ESC.DOUBLE_HEIGHT_ON;
+  r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
+  r += ESC.NORMAL_SIZE;
+
+  // Show laundry subtotal (includes same day fee if applicable)
+  const laundryTotal = (order.subtotal || 0) + (order.sameDayFee || 0);
+  if (laundryTotal > 0) {
+    r += leftRightAlign('Laundry', `$${laundryTotal.toFixed(2)}`) + '\n';
   }
 
   // Show delivery fee (from order or customer record)
@@ -274,13 +276,7 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
     r += leftRightAlign('Delivery Fee', `$${deliveryFee.toFixed(2)}`) + '\n';
   }
 
-  // Show same day fee with calculation
-  if (order.sameDayFee && order.sameDayFee > 0 && totalWeight > 0) {
-    const sameDayRate = (order.sameDayFee / totalWeight).toFixed(2);
-    r += leftRightAlign('Same Day Fee', `${totalWeight} LBS * @ ${sameDayRate} = $${order.sameDayFee.toFixed(2)}`) + '\n';
-  } else if (order.sameDayFee && order.sameDayFee > 0) {
-    r += leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`) + '\n';
-  }
+  // Same day fee is included in total but not shown separately on receipt
 
   // Show credit applied if any
   if (order.creditApplied && order.creditApplied > 0) {
@@ -488,13 +484,15 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
   r += ESC.LEFT;
   const totalWeight = order.weight || 0;
 
-  // Show weight with price calculation
-  if (order.subtotal && order.subtotal > 0 && totalWeight > 0) {
-    r += ESC.DOUBLE_HEIGHT_ON;
-    r += leftRightAlign('Total Weight', `${totalWeight} LBS = $${order.subtotal.toFixed(2)}`) + '\n';
-    r += ESC.NORMAL_SIZE;
-  } else {
-    r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
+  // Show weight
+  r += ESC.DOUBLE_HEIGHT_ON;
+  r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
+  r += ESC.NORMAL_SIZE;
+
+  // Show laundry subtotal (includes same day fee if applicable)
+  const laundryTotal = (order.subtotal || 0) + (order.sameDayFee || 0);
+  if (laundryTotal > 0) {
+    r += leftRightAlign('Laundry', `$${laundryTotal.toFixed(2)}`) + '\n';
   }
 
   // Show delivery fee (from order or customer record)
@@ -508,13 +506,7 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
     r += leftRightAlign('Delivery Fee', `$${deliveryFee.toFixed(2)}`) + '\n';
   }
 
-  // Show same day fee with calculation
-  if (order.sameDayFee && order.sameDayFee > 0 && totalWeight > 0) {
-    const sameDayRate = (order.sameDayFee / totalWeight).toFixed(2);
-    r += leftRightAlign('Same Day Fee', `${totalWeight} LBS * @ ${sameDayRate} = $${order.sameDayFee.toFixed(2)}`) + '\n';
-  } else if (order.sameDayFee && order.sameDayFee > 0) {
-    r += leftRightAlign('Same Day Fee', `$${order.sameDayFee.toFixed(2)}`) + '\n';
-  }
+  // Same day fee is included in total but not shown separately on receipt
 
   // Show credit applied if any
   if (order.creditApplied && order.creditApplied > 0) {
@@ -691,6 +683,98 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
   r += ESC.INVERT_OFF;
   r += ESC.NORMAL_SIZE;
 
+  r += '\n';
+  r += cutCommand;
+
+  return r;
+}
+
+// Generate credit balance receipt for customer
+export function generateCreditBalanceReceipt(customer: { name: string; phoneNumber?: string; credit?: number; creditHistory?: Array<{ amount: number; type: 'add' | 'use'; description: string; createdAt: Date }> }, location?: Location | null): string {
+  const storeConfig = getStoreConfig(location);
+  const now = new Date();
+  const dateStr = now.toLocaleDateString('en-US', {
+    month: '2-digit',
+    day: '2-digit',
+    year: 'numeric',
+  }).replace(/\//g, '-');
+
+  // ASCII-safe time formatting
+  let hours = now.getHours();
+  const minutes = now.getMinutes();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const minutesStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
+  const timeStr = `${hours}:${minutesStr} ${ampm}`;
+
+  let r = '';
+
+  // Initialize printer
+  r += ESC.INIT;
+  r += ESC.CENTER;
+
+  // === HEADER ===
+  r += ESC.DOUBLE_SIZE_ON;
+  r += ESC.INVERT_ON;
+  r += ' CREDIT BALANCE \n';
+  r += ESC.INVERT_OFF;
+  r += ESC.NORMAL_SIZE;
+
+  // === STORE INFO ===
+  r += '\n';
+  r += ESC.BOLD_ON;
+  r += `${storeConfig.name}\n`;
+  r += ESC.BOLD_OFF;
+  r += `${storeConfig.address}\n`;
+  if (storeConfig.city) {
+    r += `${storeConfig.city}\n`;
+  }
+  r += `${storeConfig.phone}\n`;
+  r += '--------------------------------\n';
+
+  // === CUSTOMER INFO ===
+  r += ESC.DOUBLE_HEIGHT_ON;
+  r += ESC.BOLD_ON;
+  r += `${customer.name || 'Customer'}\n`;
+  r += ESC.BOLD_OFF;
+  r += ESC.NORMAL_SIZE;
+  if (customer.phoneNumber) {
+    r += `${formatPhoneNumber(customer.phoneNumber)}\n`;
+  }
+  r += `${dateStr} ${timeStr}\n`;
+  r += '--------------------------------\n';
+
+  // === CREDIT BALANCE ===
+  r += ESC.CENTER;
+  r += ESC.DOUBLE_SIZE_ON;
+  r += ESC.BOLD_ON;
+  r += ESC.INVERT_ON;
+  r += ` $${(customer.credit || 0).toFixed(2)} \n`;
+  r += ESC.INVERT_OFF;
+  r += ESC.BOLD_OFF;
+  r += ESC.NORMAL_SIZE;
+  r += '--------------------------------\n';
+
+  // === RECENT CREDIT HISTORY (last 5 transactions) ===
+  if (customer.creditHistory && customer.creditHistory.length > 0) {
+    r += ESC.LEFT;
+    r += 'Recent Transactions:\n';
+    const recentTransactions = customer.creditHistory.slice(-5).reverse();
+    recentTransactions.forEach(tx => {
+      const txDate = new Date(tx.createdAt).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+      });
+      const amount = tx.type === 'add' ? `+$${tx.amount.toFixed(2)}` : `-$${tx.amount.toFixed(2)}`;
+      r += leftRightAlign(txDate, amount) + '\n';
+    });
+    r += '--------------------------------\n';
+  }
+
+  // === FOOTER ===
+  r += ESC.CENTER;
+  r += 'Thank you for your business!\n';
   r += '\n';
   r += cutCommand;
 

@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Device } from 'react-native-ble-plx';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
@@ -93,6 +94,16 @@ export default function AdminScreen() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [editingExtraItem, setEditingExtraItem] = useState<ExtraItem | null>(null);
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null);
+
+  // Maintenance modal state
+  const [showMaintenanceModal, setShowMaintenanceModal] = useState(false);
+  const [maintenanceMachine, setMaintenanceMachine] = useState<Machine | null>(null);
+  const [maintenanceNotes, setMaintenanceNotes] = useState('');
+  const [printingMaintenance, setPrintingMaintenance] = useState(false);
+  const [maintenancePhotos, setMaintenancePhotos] = useState<string[]>([]);
+  const [showMaintenanceCamera, setShowMaintenanceCamera] = useState(false);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const maintenanceCameraRef = useRef<CameraView>(null);
 
   // Form state for modals
   const [userForm, setUserForm] = useState({ email: '', firstName: '', lastName: '', role: 'employee' as UserRole, isDriver: false, password: '' });
@@ -512,7 +523,7 @@ export default function AdminScreen() {
   };
 
   // Machine actions
-  const openMachineModal = (machine?: Machine) => {
+  const openMachineModal = async (machine?: Machine) => {
     if (machine) {
       setEditingMachine(machine);
       setMachineForm({
@@ -521,14 +532,31 @@ export default function AdminScreen() {
         qrCode: machine.qrCode,
         status: machine.status,
       });
+      // Load existing maintenance notes if machine is in maintenance
+      setMaintenanceNotes(machine.maintenanceNotes || '');
+      // Load existing maintenance photos from server
+      if (machine.status === 'maintenance') {
+        try {
+          const { photos } = await api.getMaintenancePhotos(machine._id);
+          const photoUrls = photos.map(p => api.getMaintenancePhotoUrl(p.photoPath));
+          setMaintenancePhotos(photoUrls);
+        } catch (error) {
+          console.error('Failed to load maintenance photos:', error);
+          setMaintenancePhotos([]);
+        }
+      } else {
+        setMaintenancePhotos([]);
+      }
     } else {
       setEditingMachine(null);
       setMachineForm({ name: '', type: 'washer', qrCode: '', status: 'available' });
+      setMaintenanceNotes('');
+      setMaintenancePhotos([]);
     }
     setShowMachineModal(true);
   };
 
-  const handleSaveMachine = async () => {
+  const handleSaveMachine = async (shouldPrint: boolean = false) => {
     if (!machineForm.name || !machineForm.qrCode) {
       Alert.alert('Error', 'Please fill in name and QR code');
       return;
@@ -536,8 +564,21 @@ export default function AdminScreen() {
 
     setSaving(true);
     try {
+      // Include maintenance notes if setting to maintenance
+      const updateData = machineForm.status === 'maintenance'
+        ? { ...machineForm, maintenanceNotes: maintenanceNotes.trim() }
+        : { ...machineForm, maintenanceNotes: '' };
+
       if (editingMachine) {
-        await api.updateMachine(editingMachine._id, machineForm);
+        await api.updateMachine(editingMachine._id, updateData);
+
+        // Print maintenance label if requested
+        if (shouldPrint && machineForm.status === 'maintenance' && settings?.thermalPrinterIp) {
+          setPrintingMaintenance(true);
+          await printMaintenanceLabel(editingMachine, maintenanceNotes.trim());
+          setPrintingMaintenance(false);
+        }
+
         Alert.alert('Success', 'Machine updated');
       } else {
         await api.createMachine({
@@ -548,12 +589,14 @@ export default function AdminScreen() {
         Alert.alert('Success', 'Machine created');
       }
       setShowMachineModal(false);
+      setMaintenanceNotes('');
       loadData();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to save machine';
       Alert.alert('Error', errorMessage);
     } finally {
       setSaving(false);
+      setPrintingMaintenance(false);
     }
   };
 
@@ -688,15 +731,209 @@ export default function AdminScreen() {
 
   // Quick toggle maintenance
   const handleToggleMaintenance = async (machine: Machine) => {
+    if (machine.status === 'maintenance') {
+      // Remove from maintenance
+      try {
+        await api.updateMachine(machine._id, { ...machine, status: 'available', maintenanceNotes: '' });
+        setMachines(machines.map(m =>
+          m._id === machine._id ? { ...m, status: 'available', maintenanceNotes: '' } : m
+        ));
+      } catch (error) {
+        Alert.alert('Error', 'Failed to update machine status');
+      }
+    } else {
+      // Show modal to enter maintenance notes
+      setMaintenanceMachine(machine);
+      setMaintenanceNotes('');
+      setShowMaintenanceModal(true);
+    }
+  };
+
+  // Confirm maintenance with notes and optional print
+  const handleConfirmMaintenance = async (shouldPrint: boolean) => {
+    if (!maintenanceMachine) return;
+
     try {
-      const newStatus = machine.status === 'maintenance' ? 'available' : 'maintenance';
-      await api.updateMachine(machine._id, { ...machine, status: newStatus });
+      // If we came from the edit modal, include form changes
+      const updateData = editingMachine?._id === maintenanceMachine._id
+        ? { ...machineForm, status: 'maintenance' as MachineStatus, maintenanceNotes: maintenanceNotes.trim() }
+        : { ...maintenanceMachine, status: 'maintenance' as MachineStatus, maintenanceNotes: maintenanceNotes.trim() };
+
+      await api.updateMachine(maintenanceMachine._id, updateData);
       setMachines(machines.map(m =>
-        m._id === machine._id ? { ...m, status: newStatus } : m
+        m._id === maintenanceMachine._id ? { ...m, ...updateData } : m
       ));
+
+      if (shouldPrint && settings?.thermalPrinterIp) {
+        setPrintingMaintenance(true);
+        await printMaintenanceLabel(maintenanceMachine, maintenanceNotes.trim());
+        setPrintingMaintenance(false);
+      }
+
+      setShowMaintenanceModal(false);
+      setMaintenanceMachine(null);
+      setMaintenanceNotes('');
+      setEditingMachine(null);
+      loadData();
     } catch (error) {
       Alert.alert('Error', 'Failed to update machine status');
     }
+  };
+
+  // Print maintenance label to thermal printer
+  const printMaintenanceLabel = async (machine: Machine, notes: string) => {
+    const printerIp = settings?.thermalPrinterIp;
+    const printerPort = settings?.thermalPrinterPort || 9100;
+
+    if (!printerIp) {
+      Alert.alert('Error', 'Thermal printer IP not configured');
+      return;
+    }
+
+    // ESC/POS commands
+    const ESC = {
+      INIT: '\x1B\x40',
+      CENTER: '\x1B\x61\x01',
+      LEFT: '\x1B\x61\x00',
+      BOLD_ON: '\x1B\x45\x01',
+      BOLD_OFF: '\x1B\x45\x00',
+      DOUBLE_SIZE: '\x1B\x21\x30',
+      DOUBLE_HEIGHT: '\x1B\x21\x10',
+      NORMAL: '\x1B\x21\x00',
+      INVERT_ON: '\x1D\x42\x01',
+      INVERT_OFF: '\x1D\x42\x00',
+      CUT: '\n\n\n\x1D\x56\x00',
+    };
+
+    const now = new Date();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const year = now.getFullYear();
+    const dateStr = `${month}/${day}/${year}`;
+
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    const timeStr = `${hours}:${minutes} ${ampm}`;
+
+    let content = '';
+    content += ESC.INIT;
+    content += ESC.CENTER;
+
+    // Header - large inverted
+    content += ESC.DOUBLE_SIZE;
+    content += ESC.INVERT_ON;
+    content += ' OUT OF ORDER \n';
+    content += ESC.INVERT_OFF;
+    content += ESC.NORMAL;
+    content += '\n\n';
+
+    // Machine info - large
+    content += ESC.DOUBLE_SIZE;
+    content += ESC.BOLD_ON;
+    content += `${machine.type.toUpperCase()} ${machine.name}\n`;
+    content += ESC.BOLD_OFF;
+    content += ESC.NORMAL;
+    content += '\n\n';
+
+    // Issue details - double height for readability
+    if (notes) {
+      content += ESC.LEFT;
+      content += ESC.DOUBLE_HEIGHT;
+      content += ESC.BOLD_ON;
+      content += 'Issue:\n';
+      content += ESC.BOLD_OFF;
+      content += ESC.DOUBLE_HEIGHT;
+      // Word wrap notes at shorter length for double height
+      const maxLineLen = 20;
+      for (let i = 0; i < notes.length; i += maxLineLen) {
+        content += notes.substring(i, i + maxLineLen).trim() + '\n';
+      }
+      content += ESC.NORMAL;
+      content += '\n\n';
+    }
+
+    // Date/Time - double height
+    content += ESC.CENTER;
+    content += ESC.DOUBLE_HEIGHT;
+    content += `${dateStr} ${timeStr}\n`;
+    content += ESC.NORMAL;
+    content += '\n\n';
+
+    // Footer - double height
+    content += ESC.DOUBLE_HEIGHT;
+    content += ESC.BOLD_ON;
+    content += 'Please use another machine\n';
+    content += ESC.BOLD_OFF;
+    content += 'Sorry for the inconvenience\n';
+    content += ESC.NORMAL;
+
+    // More space before cut
+    content += '\n\n\n\n';
+    content += ESC.CUT;
+
+    try {
+      const { localPrinter } = require('../services/LocalPrinter');
+      const result = await localPrinter.printReceipt(printerIp, content, printerPort);
+      if (!result.success) {
+        Alert.alert('Print Error', result.error || 'Failed to print');
+      }
+    } catch (error) {
+      console.error('Print error:', error);
+      Alert.alert('Error', 'Failed to print maintenance label');
+    }
+  };
+
+  // Take maintenance photo
+  const openMaintenanceCamera = async () => {
+    if (!cameraPermission?.granted) {
+      const result = await requestCameraPermission();
+      if (!result.granted) {
+        Alert.alert('Permission Required', 'Camera permission is needed to take photos');
+        return;
+      }
+    }
+    setShowMaintenanceCamera(true);
+  };
+
+  const takeMaintenancePhoto = async () => {
+    if (!maintenanceCameraRef.current || !editingMachine) return;
+
+    try {
+      const photo = await maintenanceCameraRef.current.takePictureAsync({
+        quality: 0.7,
+        base64: true,
+      });
+      if (photo?.base64) {
+        setShowMaintenanceCamera(false);
+
+        // Upload to server
+        try {
+          const result = await api.uploadMaintenancePhoto(
+            editingMachine._id,
+            `data:image/jpeg;base64,${photo.base64}`
+          );
+          if (result.success) {
+            const photoUrl = api.getMaintenancePhotoUrl(result.photoPath);
+            setMaintenancePhotos(prev => [...prev, photoUrl]);
+          }
+        } catch (uploadError) {
+          console.error('Failed to upload photo:', uploadError);
+          Alert.alert('Error', 'Failed to upload photo');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to take photo:', error);
+      Alert.alert('Error', 'Failed to take photo');
+    }
+  };
+
+  const removeMaintenancePhoto = (index: number) => {
+    // Note: This only removes from local state, not from server
+    // For full implementation, would need to track photo IDs and delete from server
+    setMaintenancePhotos(prev => prev.filter((_, i) => i !== index));
   };
 
   // Activity helpers
@@ -890,19 +1127,10 @@ export default function AdminScreen() {
         <View style={{ flex: 1 }}>
           <View style={styles.actionHeader}>
             <Text style={styles.countText}>{extraItems.length} items</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <TouchableOpacity
-                style={[styles.addButton, { backgroundColor: '#8b5cf6' }]}
-                onPress={handleCopyExtraItems}
-              >
-                <Ionicons name="copy-outline" size={18} color="#fff" />
-                <Text style={styles.addButtonText}>Copy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.addButton} onPress={() => openExtraItemModal()}>
-                <Ionicons name="add" size={20} color="#fff" />
-                <Text style={styles.addButtonText}>Add Item</Text>
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity style={styles.addButton} onPress={() => openExtraItemModal()}>
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.addButtonText}>Add Item</Text>
+            </TouchableOpacity>
           </View>
           <FlatList
             data={extraItems}
@@ -1251,23 +1479,10 @@ export default function AdminScreen() {
                     {machine.status.replace('_', ' ')}
                   </Text>
                 </View>
-                {machine.status !== 'in_use' && (
-                  <TouchableOpacity
-                    style={[
-                      styles.machineGridMaintenance,
-                      machine.status === 'maintenance' && styles.machineGridMaintenanceActive,
-                    ]}
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      handleToggleMaintenance(machine);
-                    }}
-                  >
-                    <Ionicons
-                      name="construct"
-                      size={12}
-                      color={machine.status === 'maintenance' ? '#fff' : '#64748b'}
-                    />
-                  </TouchableOpacity>
+                {machine.status === 'maintenance' && machine.maintenanceNotes && (
+                  <Text style={styles.machineGridNotes} numberOfLines={2}>
+                    {machine.maintenanceNotes}
+                  </Text>
                 )}
               </TouchableOpacity>
             )}
@@ -2011,7 +2226,7 @@ export default function AdminScreen() {
 
       {/* Machine Modal */}
       <Modal visible={showMachineModal} animationType="slide">
-        <View style={{ flex: 1, backgroundColor: '#fff' }}>
+        <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top }}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>
               {editingMachine ? 'Edit Machine' : 'Add Machine'}
@@ -2079,14 +2294,69 @@ export default function AdminScreen() {
                   ))}
                 </View>
               </View>
+              {machineForm.status === 'maintenance' && (
+                <>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Maintenance Issue</Text>
+                    <TextInput
+                      style={[styles.input, { height: 100, textAlignVertical: 'top' }]}
+                      value={maintenanceNotes}
+                      onChangeText={setMaintenanceNotes}
+                      placeholder="Describe the issue (e.g., Door won't close, water leak...)"
+                      placeholderTextColor="#94a3b8"
+                      multiline
+                      numberOfLines={4}
+                    />
+                  </View>
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Photos</Text>
+                    <View style={styles.maintenancePhotosContainer}>
+                      {maintenancePhotos.map((uri, index) => (
+                        <View key={index} style={styles.maintenancePhotoWrapper}>
+                          <Image source={{ uri }} style={styles.maintenancePhoto} />
+                          <TouchableOpacity
+                            style={styles.maintenancePhotoRemove}
+                            onPress={() => removeMaintenancePhoto(index)}
+                          >
+                            <Ionicons name="close-circle" size={22} color="#ef4444" />
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                      <TouchableOpacity
+                        style={styles.maintenanceAddPhoto}
+                        onPress={openMaintenanceCamera}
+                      >
+                        <Ionicons name="camera" size={28} color="#64748b" />
+                        <Text style={styles.maintenanceAddPhotoText}>Add Photo</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </>
+              )}
           </KeyboardAwareScrollView>
           <View style={styles.modalFooter}>
             <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowMachineModal(false)}>
               <Text style={styles.cancelBtnText}>Cancel</Text>
             </TouchableOpacity>
+            {machineForm.status === 'maintenance' && editingMachine?.status !== 'maintenance' && (
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: '#2563eb', marginRight: 8 }, saving && styles.saveBtnDisabled]}
+                onPress={() => handleSaveMachine(true)}
+                disabled={saving || printingMaintenance}
+              >
+                {printingMaintenance ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Ionicons name="print" size={16} color="#fff" />
+                    <Text style={styles.saveBtnText}>Save & Print</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               style={[styles.saveBtn, saving && styles.saveBtnDisabled]}
-              onPress={handleSaveMachine}
+              onPress={() => handleSaveMachine(false)}
               disabled={saving}
             >
               {saving ? (
@@ -2486,6 +2756,100 @@ export default function AdminScreen() {
                 </View>
               )}
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Maintenance Modal */}
+      <Modal visible={showMaintenanceModal} animationType="fade" transparent>
+        <View style={styles.maintenanceModalOverlay}>
+          <View style={styles.maintenanceModalContent}>
+            <View style={styles.maintenanceModalHeader}>
+              <Text style={styles.maintenanceModalTitle}>Set Machine to Maintenance</Text>
+              <TouchableOpacity
+                style={styles.maintenanceCloseBtn}
+                onPress={() => {
+                  setShowMaintenanceModal(false);
+                  setMaintenanceMachine(null);
+                  setMaintenanceNotes('');
+                }}
+              >
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+            {maintenanceMachine && (
+              <Text style={styles.maintenanceMachineName}>
+                {maintenanceMachine.type.charAt(0).toUpperCase() + maintenanceMachine.type.slice(1)} {maintenanceMachine.name}
+              </Text>
+            )}
+            <Text style={styles.maintenanceLabel}>Describe the issue:</Text>
+            <TextInput
+              style={styles.maintenanceNotesInput}
+              value={maintenanceNotes}
+              onChangeText={setMaintenanceNotes}
+              placeholder="e.g., Door won't close, water leak, coin jammed..."
+              multiline
+              numberOfLines={4}
+              textAlignVertical="top"
+            />
+            <View style={styles.maintenanceButtons}>
+              <TouchableOpacity
+                style={[styles.maintenanceBtn, styles.maintenanceCancelBtn]}
+                onPress={() => {
+                  setShowMaintenanceModal(false);
+                  setMaintenanceMachine(null);
+                  setMaintenanceNotes('');
+                }}
+              >
+                <Text style={styles.maintenanceCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.maintenanceBtn, styles.maintenanceSetBtn]}
+                onPress={() => handleConfirmMaintenance(false)}
+              >
+                <Text style={styles.maintenanceSetText}>Set Only</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.maintenanceBtn, styles.maintenancePrintBtn]}
+                onPress={() => handleConfirmMaintenance(true)}
+                disabled={printingMaintenance}
+              >
+                {printingMaintenance ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="print" size={16} color="#fff" style={{ marginRight: 4 }} />
+                    <Text style={styles.maintenancePrintText}>Set & Print</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Maintenance Camera Modal */}
+      <Modal visible={showMaintenanceCamera} animationType="slide">
+        <View style={{ flex: 1, backgroundColor: '#000' }}>
+          <View style={[styles.cameraHeader, { paddingTop: insets.top + 10 }]}>
+            <TouchableOpacity onPress={() => setShowMaintenanceCamera(false)}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+            <Text style={styles.cameraHeaderTitle}>Take Photo</Text>
+            <View style={{ width: 28 }} />
+          </View>
+          <CameraView
+            ref={maintenanceCameraRef}
+            style={{ flex: 1 }}
+            facing="back"
+          />
+          <View style={[styles.cameraFooter, { paddingBottom: insets.bottom + 20 }]}>
+            <TouchableOpacity
+              style={styles.captureButton}
+              onPress={takeMaintenancePhoto}
+            >
+              <View style={styles.captureButtonInner} />
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -3348,6 +3712,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textTransform: 'capitalize',
   },
+  machineGridNotes: {
+    fontSize: 8,
+    color: '#991b1b',
+    marginTop: 4,
+    textAlign: 'center',
+    paddingHorizontal: 4,
+  },
   machineGridMaintenance: {
     position: 'absolute',
     top: 4,
@@ -3657,5 +4028,162 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748b',
     flex: 1,
+  },
+  // Maintenance Modal styles
+  maintenanceModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  maintenanceModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 400,
+  },
+  maintenanceModalTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    flex: 1,
+  },
+  maintenanceMachineName: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#f59e0b',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  maintenanceLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#475569',
+    marginBottom: 8,
+  },
+  maintenanceNotesInput: {
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    minHeight: 100,
+    marginBottom: 16,
+    backgroundColor: '#f8fafc',
+  },
+  maintenanceButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  maintenanceBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+  },
+  maintenanceCancelBtn: {
+    backgroundColor: '#f1f5f9',
+  },
+  maintenanceCancelText: {
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  maintenanceSetBtn: {
+    backgroundColor: '#f59e0b',
+  },
+  maintenanceSetText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  maintenancePrintBtn: {
+    backgroundColor: '#2563eb',
+  },
+  maintenancePrintText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  maintenanceModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  maintenanceCloseBtn: {
+    padding: 4,
+  },
+  // Maintenance photos styles
+  maintenancePhotosContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  maintenancePhotoWrapper: {
+    position: 'relative',
+  },
+  maintenancePhoto: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  maintenancePhotoRemove: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+  },
+  maintenanceAddPhoto: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  maintenanceAddPhotoText: {
+    fontSize: 10,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  // Camera styles
+  cameraHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    backgroundColor: '#000',
+  },
+  cameraHeaderTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  cameraFooter: {
+    backgroundColor: '#000',
+    paddingTop: 20,
+    alignItems: 'center',
+  },
+  captureButton: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 4,
+    borderColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  captureButtonInner: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: '#fff',
   },
 });

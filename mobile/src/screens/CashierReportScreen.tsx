@@ -75,14 +75,14 @@ export default function CashierReportScreen() {
     loadOrders();
   };
 
-  // Filter orders by selected date and paid status
+  // Filter orders by paidAt date (when payment was collected)
   const paidOrdersToday = orders.filter(order => {
-    if (!order.isPaid) return false;
-    const orderDate = new Date(order.dropOffDate);
+    if (!order.isPaid || !order.paidAt) return false;
+    const paidDate = new Date(order.paidAt);
     return (
-      orderDate.getFullYear() === selectedDate.getFullYear() &&
-      orderDate.getMonth() === selectedDate.getMonth() &&
-      orderDate.getDate() === selectedDate.getDate()
+      paidDate.getFullYear() === selectedDate.getFullYear() &&
+      paidDate.getMonth() === selectedDate.getMonth() &&
+      paidDate.getDate() === selectedDate.getDate()
     );
   });
 

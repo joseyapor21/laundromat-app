@@ -3,6 +3,13 @@ import mongoose, { Model, Types } from 'mongoose';
 export type MachineType = 'washer' | 'dryer';
 export type MachineStatus = 'available' | 'in_use' | 'maintenance';
 
+export interface MaintenancePhoto {
+  photoPath: string;
+  capturedAt: Date;
+  capturedBy: string;
+  capturedByName: string;
+}
+
 export interface MachineDoc {
   _id: Types.ObjectId;
   locationId?: Types.ObjectId;
@@ -10,6 +17,8 @@ export interface MachineDoc {
   type: MachineType;
   qrCode: string;
   status: MachineStatus;
+  maintenanceNotes?: string;
+  maintenancePhotos?: MaintenancePhoto[];
   currentOrderId?: string;
   lastUsedAt?: Date;
   createdAt: Date;
@@ -41,6 +50,16 @@ const machineSchema = new mongoose.Schema({
     enum: ['available', 'in_use', 'maintenance'],
     default: 'available',
   },
+  maintenanceNotes: {
+    type: String,
+    default: '',
+  },
+  maintenancePhotos: [{
+    photoPath: String,
+    capturedAt: Date,
+    capturedBy: String,
+    capturedByName: String,
+  }],
   currentOrderId: {
     type: String,
     default: null,

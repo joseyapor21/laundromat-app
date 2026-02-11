@@ -14,9 +14,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocation } from '../contexts/LocationContext';
 import { formatPhoneInput, formatPhoneNumber } from '../utils/phoneFormat';
+import { localPrinter } from '../services/LocalPrinter';
+import { generateCreditBalanceReceipt } from '../services/receiptGenerator';
 import AddressInput from '../components/AddressInput';
-import type { Customer, CreditTransaction, Order, StatusHistoryEntry } from '../types';
+import type { Customer, CreditTransaction, Order, StatusHistoryEntry, Settings } from '../types';
 
 export default function EditCustomerScreen() {
   const route = useRoute<any>();
@@ -48,6 +51,10 @@ export default function EditCustomerScreen() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+  // Location and settings for printing
+  const { currentLocation } = useLocation();
+  const [settings, setSettings] = useState<Settings | null>(null);
 
   const loadCustomer = useCallback(async () => {
     try {
@@ -88,6 +95,19 @@ export default function EditCustomerScreen() {
   useEffect(() => {
     loadCustomer();
   }, [loadCustomer]);
+
+  // Load settings for thermal printer
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const fetchedSettings = await api.getSettings();
+        setSettings(fetchedSettings);
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+      }
+    };
+    loadSettings();
+  }, []);
 
   const handleSave = async () => {
     if (!name.trim()) {
@@ -150,10 +170,29 @@ export default function EditCustomerScreen() {
   };
 
   const handlePrintBalance = async () => {
+    if (!customer) return;
+
+    const printerIp = settings?.thermalPrinterIp;
+    const printerPort = settings?.thermalPrinterPort || 9100;
+
+    if (!printerIp) {
+      Alert.alert('Error', 'Thermal printer IP not configured. Please set it in Settings.');
+      return;
+    }
+
     setPrinting(true);
     try {
-      await api.printCustomerBalance(customer!._id);
-      Alert.alert('Success', 'Balance receipt printed');
+      // Generate credit balance receipt
+      const receiptContent = generateCreditBalanceReceipt(customer, currentLocation);
+
+      // Print to thermal WiFi printer
+      const result = await localPrinter.printReceipt(printerIp, receiptContent, printerPort);
+
+      if (result.success) {
+        Alert.alert('Success', 'Credit balance printed');
+      } else {
+        Alert.alert('Error', result.error || 'Failed to print');
+      }
     } catch (error) {
       console.error('Failed to print balance:', error);
       Alert.alert('Error', 'Failed to print balance receipt');
