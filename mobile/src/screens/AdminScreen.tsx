@@ -984,6 +984,20 @@ export default function AdminScreen() {
     );
   };
 
+  const openExpandedPhoto = (photoUrl: string) => {
+    setShowMachineModal(false);
+    setTimeout(() => {
+      setExpandedPhoto(photoUrl);
+    }, 300);
+  };
+
+  const closeExpandedPhoto = () => {
+    setExpandedPhoto(null);
+    setTimeout(() => {
+      setShowMachineModal(true);
+    }, 300);
+  };
+
   // Activity helpers
   const getActionColor = (action: string): string => {
     switch (action) {
@@ -2360,7 +2374,7 @@ export default function AdminScreen() {
                     <View style={styles.maintenancePhotosContainer}>
                       {maintenancePhotos.map((photo, index) => (
                         <View key={index} style={styles.maintenancePhotoWrapper}>
-                          <TouchableOpacity onPress={() => setExpandedPhoto(photo.url)}>
+                          <TouchableOpacity onPress={() => openExpandedPhoto(photo.url)}>
                             <Image source={{ uri: photo.url }} style={styles.maintenancePhoto} />
                           </TouchableOpacity>
                           <TouchableOpacity
@@ -2913,7 +2927,7 @@ export default function AdminScreen() {
         <View style={styles.expandedPhotoOverlay}>
           <TouchableOpacity
             style={styles.expandedPhotoClose}
-            onPress={() => setExpandedPhoto(null)}
+            onPress={closeExpandedPhoto}
           >
             <Ionicons name="close-circle" size={36} color="#fff" />
           </TouchableOpacity>
