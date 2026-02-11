@@ -725,15 +725,16 @@ export function generateCustomerTagText(order: Order): string {
   r += ESC.INVERT_OFF;
   r += ESC.NORMAL_SIZE;
 
-  // Pickup date/time (large)
-  if (order.estimatedPickupDate) {
-    const pickupDate = new Date(order.estimatedPickupDate);
-    const pickupDateStr = formatDateWithWeekday(pickupDate);
-    const pickupTimeStr = formatTimeASCII(pickupDate);
+  // Show delivery date for delivery orders, pickup date for store pickups
+  const dateToShow = isDelivery ? order.deliverySchedule : order.estimatedPickupDate;
+  if (dateToShow) {
+    const scheduleDate = new Date(dateToShow);
+    const scheduleDateStr = formatDateWithWeekday(scheduleDate);
+    const scheduleTimeStr = formatTimeASCII(scheduleDate);
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` ${pickupDateStr} \n`;
-    r += ` ${pickupTimeStr} \n`;
+    r += ` ${scheduleDateStr} \n`;
+    r += ` ${scheduleTimeStr} \n`;
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
   }
