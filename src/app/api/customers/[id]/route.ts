@@ -83,6 +83,47 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       );
     }
 
+    // Build location query for duplicate checking
+    const locationQuery = customer.locationId
+      ? { locationId: customer.locationId }
+      : {};
+
+    // Check for duplicate phone number (excluding current customer)
+    if (updates.phoneNumber && updates.phoneNumber !== customer.phoneNumber) {
+      const normalizedPhone = updates.phoneNumber.replace(/\D/g, '');
+      const existingByPhone = await Customer.findOne({
+        ...locationQuery,
+        _id: { $ne: customer._id },
+        $or: [
+          { phoneNumber: updates.phoneNumber },
+          { phoneNumber: { $regex: normalizedPhone.slice(-10) } },
+        ],
+      });
+
+      if (existingByPhone) {
+        return NextResponse.json(
+          { error: `A customer with this phone number already exists: ${existingByPhone.name}` },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Check for duplicate name (excluding current customer)
+    if (updates.name && updates.name.trim().toLowerCase() !== customer.name.toLowerCase()) {
+      const existingByName = await Customer.findOne({
+        ...locationQuery,
+        _id: { $ne: customer._id },
+        name: { $regex: new RegExp(`^${updates.name.trim()}$`, 'i') },
+      });
+
+      if (existingByName) {
+        return NextResponse.json(
+          { error: `A customer with this name already exists. Phone: ${existingByName.phoneNumber}` },
+          { status: 409 }
+        );
+      }
+    }
+
     // Update the customer
     Object.assign(customer, updates);
     await customer.save();

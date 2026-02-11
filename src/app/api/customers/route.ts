@@ -53,6 +53,46 @@ export async function POST(request: NextRequest) {
 
     const customerData = await request.json();
 
+    // Build location query for duplicate checking
+    const locationQuery = currentUser.locationId
+      ? { locationId: currentUser.locationId }
+      : {};
+
+    // Check for duplicate phone number
+    if (customerData.phoneNumber) {
+      // Normalize phone number for comparison (remove all non-digits)
+      const normalizedPhone = customerData.phoneNumber.replace(/\D/g, '');
+      const existingByPhone = await Customer.findOne({
+        ...locationQuery,
+        $or: [
+          { phoneNumber: customerData.phoneNumber },
+          { phoneNumber: { $regex: normalizedPhone.slice(-10) } }, // Match last 10 digits
+        ],
+      });
+
+      if (existingByPhone) {
+        return NextResponse.json(
+          { error: `A customer with this phone number already exists: ${existingByPhone.name}` },
+          { status: 409 }
+        );
+      }
+    }
+
+    // Check for duplicate name (case-insensitive)
+    if (customerData.name) {
+      const existingByName = await Customer.findOne({
+        ...locationQuery,
+        name: { $regex: new RegExp(`^${customerData.name.trim()}$`, 'i') },
+      });
+
+      if (existingByName) {
+        return NextResponse.json(
+          { error: `A customer with this name already exists. Phone: ${existingByName.phoneNumber}` },
+          { status: 409 }
+        );
+      }
+    }
+
     // Generate customer ID (scoped to location if available)
     const customerId = await getNextCustomerSequence(currentUser.locationId);
 
