@@ -51,6 +51,9 @@ export interface OrderDoc {
   deliveryType?: 'full' | 'pickupOnly' | 'deliveryOnly';
   deliverySchedule?: Date | null;
   paymentMethod?: PaymentMethod | null;
+  paymentStatus?: 'pending' | 'partial' | 'paid';
+  amountPaid?: number;
+  creditApplied?: number;
   isPaid: boolean;
   paidAt?: Date | null;
   paidBy?: string;
@@ -291,6 +294,19 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
     type: String,
     enum: ['cash', 'check', 'venmo', 'zelle', 'pending', 'credit', 'credit_card'],
     default: null,
+  },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'partial', 'paid'],
+    default: 'pending',
+  },
+  amountPaid: {
+    type: Number,
+    default: 0,
+  },
+  creditApplied: {
+    type: Number,
+    default: 0,
   },
   isPaid: {
     type: Boolean,

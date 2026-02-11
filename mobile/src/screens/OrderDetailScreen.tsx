@@ -550,7 +550,16 @@ export default function OrderDetailScreen() {
             </View>
           </View>
           <View style={styles.headerBottom}>
-            <Text style={styles.totalAmount}>${(order.totalAmount || 0).toFixed(2)}</Text>
+            <View>
+              <Text style={styles.totalAmount}>${(order.totalAmount || 0).toFixed(2)}</Text>
+              {order.creditApplied && order.creditApplied > 0 && (
+                <View style={styles.headerCreditInfo}>
+                  <Text style={styles.headerCreditText}>
+                    Credit: -${order.creditApplied.toFixed(2)} | Due: ${Math.max(0, (order.totalAmount || 0) - (order.creditApplied || 0)).toFixed(2)}
+                  </Text>
+                </View>
+              )}
+            </View>
             <TouchableOpacity
               style={styles.editButton}
               onPress={() => navigation.navigate('EditOrder' as never, { orderId: order._id } as never)}
@@ -1125,6 +1134,21 @@ export default function OrderDetailScreen() {
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>${(order.totalAmount || 0).toFixed(2)}</Text>
             </View>
+            {/* Show credit applied if any */}
+            {order.creditApplied && order.creditApplied > 0 && (
+              <>
+                <View style={styles.creditAppliedRow}>
+                  <Text style={styles.creditAppliedLabel}>Credit Applied</Text>
+                  <Text style={styles.creditAppliedValue}>-${order.creditApplied.toFixed(2)}</Text>
+                </View>
+                <View style={styles.balanceDueRow}>
+                  <Text style={styles.balanceDueLabel}>Balance Due</Text>
+                  <Text style={styles.balanceDueValue}>
+                    ${Math.max(0, (order.totalAmount || 0) - (order.creditApplied || 0)).toFixed(2)}
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
 
@@ -1468,6 +1492,14 @@ const styles = StyleSheet.create({
     fontSize: 36,
     fontWeight: 'bold',
     color: '#fff',
+  },
+  headerCreditInfo: {
+    marginTop: 4,
+  },
+  headerCreditText: {
+    fontSize: 14,
+    color: '#86efac',
+    fontWeight: '500',
   },
   headerBottom: {
     flexDirection: 'row',
@@ -1984,6 +2016,41 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1e293b',
+  },
+  // Credit applied
+  creditAppliedRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#dcfce7',
+    marginTop: 8,
+  },
+  creditAppliedLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#10b981',
+  },
+  creditAppliedValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#10b981',
+  },
+  balanceDueRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 8,
+    marginTop: 4,
+  },
+  balanceDueLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ef4444',
+  },
+  balanceDueValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ef4444',
   },
   // Notes
   notesCard: {
