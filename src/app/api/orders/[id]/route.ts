@@ -177,17 +177,15 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     await connectDB();
     const { id } = await params;
 
-    // Find and delete the order
-    let order = await Order.findByIdAndDelete(id);
-
+    // First find the order (without deleting) to check for credit refund
+    let order = await Order.findById(id);
     if (!order) {
-      order = await Order.findOneAndDelete({ id });
+      order = await Order.findOne({ id });
     }
-
     if (!order) {
       const numericId = parseInt(id);
       if (!isNaN(numericId)) {
-        order = await Order.findOneAndDelete({ orderId: numericId });
+        order = await Order.findOne({ orderId: numericId });
       }
     }
 
@@ -197,6 +195,49 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         { status: 404 }
       );
     }
+
+    // Refund credit if any was applied to this order
+    if (order.creditApplied && order.creditApplied > 0 && order.customerId) {
+      try {
+        // Find the customer
+        let customer = null;
+        if (mongoose.Types.ObjectId.isValid(order.customerId)) {
+          customer = await Customer.findById(order.customerId);
+        }
+        if (!customer && /^\d+$/.test(order.customerId)) {
+          customer = await Customer.findOne({
+            id: parseInt(order.customerId),
+            locationId: order.locationId
+          });
+        }
+
+        if (customer) {
+          // Add credit back to customer
+          const currentCredit = customer.credit || 0;
+          customer.credit = currentCredit + order.creditApplied;
+
+          // Add to credit history
+          if (!customer.creditHistory) {
+            customer.creditHistory = [];
+          }
+          customer.creditHistory.push({
+            amount: order.creditApplied,
+            reason: `Refund from deleted order #${order.orderId}`,
+            createdAt: new Date(),
+            createdBy: currentUser.name,
+          });
+
+          await customer.save();
+          console.log(`Refunded $${order.creditApplied} credit to customer ${customer.name} from deleted order #${order.orderId}`);
+        }
+      } catch (creditError) {
+        console.error('Failed to refund credit on order delete:', creditError);
+        // Continue with deletion even if credit refund fails
+      }
+    }
+
+    // Now delete the order
+    await Order.findByIdAndDelete(order._id);
 
     // Log the activity
     try {
