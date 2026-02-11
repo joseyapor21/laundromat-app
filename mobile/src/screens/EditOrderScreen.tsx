@@ -206,7 +206,7 @@ export default function EditOrderScreen() {
     return regularPrice + extraCentsPerPound;
   };
 
-  // Calculate same day extra charge, rounded to nearest quarter
+  // Calculate same day extra charge, rounded UP to nearest quarter
   const getSameDayExtraCharge = (): number => {
     const weight = calculateTotalWeight();
     if (!settings || !isSameDay || weight <= 0) return 0;
@@ -215,8 +215,8 @@ export default function EditOrderScreen() {
     const calculatedExtra = weight * extraCentsPerPound;
     const minimumCharge = settings.sameDayMinimumCharge || 5;
     const rawFee = Math.max(calculatedExtra, minimumCharge);
-    // Round to nearest quarter (0.25)
-    return Math.round(rawFee * 4) / 4;
+    // Round UP to nearest quarter (0.25)
+    return Math.ceil(rawFee * 4) / 4;
   };
 
   // Calculate total price using tiered pricing

@@ -386,13 +386,13 @@ export default function CreateOrderScreen() {
         laundrySubtotal = settings.minimumPrice + (extraPounds * pricePerPound);
       }
 
-      // Same day extra: cents per pound with minimum, rounded to nearest quarter
+      // Same day extra: cents per pound with minimum, rounded UP to nearest quarter
       if (isSameDay) {
         const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
         const calculatedExtra = totalWeight * extraCentsPerPound;
         const minimumCharge = settings.sameDayMinimumCharge || 5;
         const rawFee = Math.max(calculatedExtra, minimumCharge);
-        sameDayExtra = Math.round(rawFee * 4) / 4;
+        sameDayExtra = Math.ceil(rawFee * 4) / 4;
       }
     }
 
@@ -465,13 +465,13 @@ export default function CreateOrderScreen() {
         });
       }
 
-      // Same day extra charge, rounded to nearest quarter
+      // Same day extra charge, rounded UP to nearest quarter
       if (isSameDay) {
         const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
         const calculatedExtra = totalWeight * extraCentsPerPound;
         const minimumCharge = settings.sameDayMinimumCharge || 5;
         const rawFee = Math.max(calculatedExtra, minimumCharge);
-        const sameDayCharge = Math.round(rawFee * 4) / 4;
+        const sameDayCharge = Math.ceil(rawFee * 4) / 4;
         const isMinimum = rawFee === minimumCharge && calculatedExtra < minimumCharge;
 
         breakdown.push({
@@ -614,15 +614,15 @@ export default function CreateOrderScreen() {
         console.log('DEBUG: settings or totalWeight missing', { settings: !!settings, totalWeight });
       }
 
-      // Calculate same day fee with minimum applied, rounded to nearest quarter
+      // Calculate same day fee with minimum applied, rounded UP to nearest quarter
       let sameDayFee = 0;
       if (isSameDay && settings) {
         const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
         const calculatedExtra = totalWeight * extraCentsPerPound;
         const minimumCharge = settings.sameDayMinimumCharge || 5;
         const rawFee = Math.max(calculatedExtra, minimumCharge);
-        // Round to nearest quarter (0.25)
-        sameDayFee = Math.round(rawFee * 4) / 4;
+        // Round UP to nearest quarter (0.25)
+        sameDayFee = Math.ceil(rawFee * 4) / 4;
       }
 
       // Calculate delivery fee
