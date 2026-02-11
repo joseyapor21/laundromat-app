@@ -538,7 +538,12 @@ export default function AdminScreen() {
       if (machine.status === 'maintenance') {
         try {
           const { photos } = await api.getMaintenancePhotos(machine._id);
-          const photoUrls = photos.map(p => api.getMaintenancePhotoUrl(p.photoPath));
+          console.log('Loaded maintenance photos:', photos);
+          const photoUrls = photos.map(p => {
+            const url = api.getMaintenancePhotoUrl(p.photoPath);
+            console.log('Photo URL:', url);
+            return url;
+          });
           setMaintenancePhotos(photoUrls);
         } catch (error) {
           console.error('Failed to load maintenance photos:', error);
@@ -895,7 +900,11 @@ export default function AdminScreen() {
         return;
       }
     }
-    setShowMaintenanceCamera(true);
+    // Close machine modal first, then open camera
+    setShowMachineModal(false);
+    setTimeout(() => {
+      setShowMaintenanceCamera(true);
+    }, 300);
   };
 
   const takeMaintenancePhoto = async () => {
@@ -911,23 +920,39 @@ export default function AdminScreen() {
 
         // Upload to server
         try {
+          console.log('Uploading maintenance photo for machine:', editingMachine._id);
           const result = await api.uploadMaintenancePhoto(
             editingMachine._id,
             `data:image/jpeg;base64,${photo.base64}`
           );
+          console.log('Upload result:', result);
           if (result.success) {
             const photoUrl = api.getMaintenancePhotoUrl(result.photoPath);
+            console.log('Generated photo URL:', photoUrl);
             setMaintenancePhotos(prev => [...prev, photoUrl]);
           }
         } catch (uploadError) {
           console.error('Failed to upload photo:', uploadError);
           Alert.alert('Error', 'Failed to upload photo');
         }
+
+        // Reopen machine modal
+        setTimeout(() => {
+          setShowMachineModal(true);
+        }, 300);
       }
     } catch (error) {
       console.error('Failed to take photo:', error);
       Alert.alert('Error', 'Failed to take photo');
     }
+  };
+
+  const closeMaintenanceCamera = () => {
+    setShowMaintenanceCamera(false);
+    // Reopen machine modal
+    setTimeout(() => {
+      setShowMachineModal(true);
+    }, 300);
   };
 
   const removeMaintenancePhoto = (index: number) => {
@@ -2832,7 +2857,7 @@ export default function AdminScreen() {
       <Modal visible={showMaintenanceCamera} animationType="slide">
         <View style={{ flex: 1, backgroundColor: '#000' }}>
           <View style={[styles.cameraHeader, { paddingTop: insets.top + 10 }]}>
-            <TouchableOpacity onPress={() => setShowMaintenanceCamera(false)}>
+            <TouchableOpacity onPress={closeMaintenanceCamera}>
               <Ionicons name="close" size={28} color="#fff" />
             </TouchableOpacity>
             <Text style={styles.cameraHeaderTitle}>Take Photo</Text>
