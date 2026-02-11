@@ -106,12 +106,19 @@ export default function EditOrderScreen() {
       setIsSameDay(orderData.isSameDay || false);
       setBags(orderData.bags || []);
 
-      // Delivery price from order first, then customer
-      if (orderData.deliveryFee && orderData.deliveryFee > 0) {
-        setDeliveryPrice(orderData.deliveryFee);
-      } else if (orderData.customer?.deliveryFee) {
+      // Always use customer's original delivery fee as base price
+      // This prevents the half-price from being halved again when editing
+      if (orderData.customer?.deliveryFee) {
         const fee = parseFloat(orderData.customer.deliveryFee.replace('$', '')) || 0;
         setDeliveryPrice(fee);
+      } else if (orderData.deliveryFee && orderData.deliveryFee > 0) {
+        // Fallback to order's delivery fee if customer fee not available
+        // But if it was half price, we need to restore the full price
+        if (orderData.deliveryType === 'pickupOnly' || orderData.deliveryType === 'deliveryOnly') {
+          setDeliveryPrice(orderData.deliveryFee * 2); // Restore full price from half
+        } else {
+          setDeliveryPrice(orderData.deliveryFee);
+        }
       }
 
       // Delivery type
