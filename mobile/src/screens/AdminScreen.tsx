@@ -851,12 +851,20 @@ export default function AdminScreen() {
       content += ESC.BOLD_ON;
       content += 'Issue:\n';
       content += ESC.BOLD_OFF;
-      content += ESC.DOUBLE_HEIGHT;
-      // Word wrap notes at shorter length for double height
-      const maxLineLen = 20;
-      for (let i = 0; i < notes.length; i += maxLineLen) {
-        content += notes.substring(i, i + maxLineLen).trim() + '\n';
+      content += ESC.NORMAL;
+      // Word wrap notes by words - full width
+      const maxLineLen = 42;
+      const words = notes.split(' ');
+      let currentLine = '';
+      for (const word of words) {
+        if ((currentLine + ' ' + word).trim().length <= maxLineLen) {
+          currentLine = (currentLine + ' ' + word).trim();
+        } else {
+          if (currentLine) content += currentLine + '\n';
+          currentLine = word;
+        }
       }
+      if (currentLine) content += currentLine + '\n';
       content += ESC.NORMAL;
       content += '\n\n';
     }

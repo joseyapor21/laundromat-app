@@ -625,18 +625,19 @@ export default function EditCustomerScreen() {
             </View>
           </View>
 
-          {/* Notes */}
+          {/* Instructions */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notes</Text>
+            <Text style={styles.sectionTitle}>Instructions</Text>
             <TextInput
-              style={[styles.input, styles.textArea, { backgroundColor: '#fff' }]}
+              style={[styles.input, styles.textArea, { backgroundColor: '#fff', minHeight: 100 }]}
               value={notes}
               onChangeText={setNotes}
-              placeholder="Any notes about this customer..."
+              placeholder="Enter each instruction on a new line..."
               placeholderTextColor="#94a3b8"
               multiline
-              numberOfLines={3}
-              scrollEnabled={false}
+              numberOfLines={5}
+              scrollEnabled={true}
+              textAlignVertical="top"
               blurOnSubmit={false}
               onFocus={() => {
                 setTimeout(() => {

@@ -1249,7 +1249,7 @@ export default function CreateOrderScreen() {
           style={[styles.input, styles.textArea]}
           value={specialInstructions}
           onChangeText={setSpecialInstructions}
-          placeholder="Any special notes..."
+          placeholder="Enter each instruction on a new line..."
           placeholderTextColor="#94a3b8"
           multiline={true}
           numberOfLines={3}
@@ -1762,14 +1762,14 @@ export default function CreateOrderScreen() {
               </View>
             </View>
 
-            {/* Notes Section */}
+            {/* Instructions Section */}
             <View style={styles.quickAddSection}>
-              <Text style={styles.quickAddSectionTitle}>Notes</Text>
+              <Text style={styles.quickAddSectionTitle}>Instructions</Text>
               <TextInput
                 style={[styles.quickAddInput, styles.quickAddTextArea, { backgroundColor: '#fff' }]}
                 value={quickAddNotes}
                 onChangeText={setQuickAddNotes}
-                placeholder="Any notes about this customer..."
+                placeholder="Enter each instruction on a new line..."
                 placeholderTextColor="#94a3b8"
                 multiline
                 numberOfLines={3}

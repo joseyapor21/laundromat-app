@@ -4,7 +4,7 @@ import { User } from '@/lib/db/models';
 const EXPO_PUSH_URL = 'https://exp.host/--/api/v2/push/send';
 
 // TEMPORARY: Disable all push notifications
-const PUSH_NOTIFICATIONS_DISABLED = true;
+const PUSH_NOTIFICATIONS_DISABLED = false;
 
 interface PushMessage {
   to: string;

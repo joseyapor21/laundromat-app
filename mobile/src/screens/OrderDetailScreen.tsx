@@ -145,12 +145,17 @@ export default function OrderDetailScreen() {
 
     setPrinting(true);
     try {
+      // Use latest customer instructions for printing
+      const orderForPrint = {
+        ...order,
+        specialInstructions: order.customer?.notes || order.specialInstructions || '',
+      };
       const receipts: string[] = [];
       if (type === 'customer' || type === 'both') {
-        receipts.push(generateCustomerReceiptText(order, currentLocation));
+        receipts.push(generateCustomerReceiptText(orderForPrint, currentLocation));
       }
       if (type === 'store' || type === 'both') {
-        receipts.push(generateStoreCopyText(order, currentLocation));
+        receipts.push(generateStoreCopyText(orderForPrint, currentLocation));
       }
 
       for (const content of receipts) {
@@ -183,7 +188,12 @@ export default function OrderDetailScreen() {
 
     setPrinting(true);
     try {
-      const content = generateCustomerTagText(order);
+      // Use latest customer instructions for printing
+      const orderForPrint = {
+        ...order,
+        specialInstructions: order.customer?.notes || order.specialInstructions || '',
+      };
+      const content = generateCustomerTagText(orderForPrint);
       const response = await localPrinter.printReceipt(printerIp, content, printerPort);
       if (!response.success) {
         throw new Error(response.error || 'Print failed');
@@ -523,8 +533,8 @@ export default function OrderDetailScreen() {
   // Can show machine section only if weights are added OR it's in-store order that's past received
   const canShowMachineSection = !needsWeightsFirst && !isReadyStage;
 
-  // Show payment section only for ready/completed stages or when order is paid
-  const showPaymentSection = isReadyStage || order?.isPaid;
+  // Show payment section for all orders (allow marking paid at any stage)
+  const showPaymentSection = true;
 
   if (loading) {
     return (
@@ -552,13 +562,13 @@ export default function OrderDetailScreen() {
           <View style={styles.headerBottom}>
             <View>
               <Text style={styles.totalAmount}>${(order.totalAmount || 0).toFixed(2)}</Text>
-              {order.creditApplied && order.creditApplied > 0 && (
+              {(order.creditApplied ?? 0) > 0 ? (
                 <View style={styles.headerCreditInfo}>
                   <Text style={styles.headerCreditText}>
                     Credit: -${order.creditApplied.toFixed(2)} | Due: ${Math.max(0, (order.totalAmount || 0) - (order.creditApplied || 0)).toFixed(2)}
                   </Text>
                 </View>
-              )}
+              ) : null}
             </View>
             <TouchableOpacity
               style={styles.editButton}
@@ -1135,7 +1145,7 @@ export default function OrderDetailScreen() {
               <Text style={styles.totalValue}>${(order.totalAmount || 0).toFixed(2)}</Text>
             </View>
             {/* Show credit applied if any */}
-            {order.creditApplied && order.creditApplied > 0 && (
+            {(order.creditApplied ?? 0) > 0 ? (
               <>
                 <View style={styles.creditAppliedRow}>
                   <Text style={styles.creditAppliedLabel}>Credit Applied</Text>
@@ -1143,31 +1153,50 @@ export default function OrderDetailScreen() {
                 </View>
                 <View style={styles.balanceDueRow}>
                   <Text style={styles.balanceDueLabel}>Balance Due</Text>
-                  <Text style={styles.balanceDueValue}>
-                    ${Math.max(0, (order.totalAmount || 0) - (order.creditApplied || 0)).toFixed(2)}
+                  <Text style={[styles.balanceDueValue, order.isPaid && { color: '#10b981' }]}>
+                    ${order.isPaid ? '0.00' : Math.max(0, (order.totalAmount || 0) - (order.creditApplied || 0)).toFixed(2)}
                   </Text>
                 </View>
               </>
-            )}
+            ) : null}
           </View>
         </View>
 
-        {/* Notes - Customer notes and special instructions */}
+        {/* Instructions - Customer notes and special instructions */}
         {(order.specialInstructions || order.customer?.notes) && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Special Instructions</Text>
+            <Text style={styles.sectionTitle}>Instructions</Text>
             <View style={styles.notesCard}>
               {order.customer?.notes && (
-                <View style={styles.customerNotesRow}>
-                  <Ionicons name="person-circle-outline" size={16} color="#8b5cf6" />
-                  <Text style={[styles.notesText, styles.customerNotesText]}>{order.customer.notes}</Text>
+                <View style={styles.customerNotesSection}>
+                  <View style={styles.instructionLabelRow}>
+                    <Ionicons name="person-circle-outline" size={16} color="#8b5cf6" />
+                    <Text style={styles.instructionLabel}>Customer:</Text>
+                  </View>
+                  {order.customer.notes.split('\n').filter(line => line.trim()).map((line, idx) => (
+                    <View key={`cn-${idx}`} style={styles.bulletRow}>
+                      <Text style={styles.bulletPoint}>•</Text>
+                      <Text style={[styles.notesText, styles.customerNotesText]}>{line.trim()}</Text>
+                    </View>
+                  ))}
                 </View>
               )}
               {order.specialInstructions && order.customer?.notes && order.specialInstructions !== order.customer.notes && (
                 <View style={styles.divider} />
               )}
               {order.specialInstructions && order.specialInstructions !== order.customer?.notes && (
-                <Text style={styles.notesText}>{order.specialInstructions}</Text>
+                <View style={styles.orderNotesSection}>
+                  <View style={styles.instructionLabelRow}>
+                    <Ionicons name="document-text-outline" size={16} color="#2563eb" />
+                    <Text style={styles.instructionLabel}>Order:</Text>
+                  </View>
+                  {order.specialInstructions.split('\n').filter(line => line.trim()).map((line, idx) => (
+                    <View key={`si-${idx}`} style={styles.bulletRow}>
+                      <Text style={styles.bulletPoint}>•</Text>
+                      <Text style={styles.notesText}>{line.trim()}</Text>
+                    </View>
+                  ))}
+                </View>
               )}
             </View>
           </View>
@@ -2076,6 +2105,36 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#fcd34d',
     marginVertical: 10,
+  },
+  // Instructions with bullet points
+  customerNotesSection: {
+    marginBottom: 4,
+  },
+  orderNotesSection: {
+    marginTop: 4,
+  },
+  instructionLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  instructionLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#78716c',
+  },
+  bulletRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    paddingLeft: 8,
+    marginBottom: 4,
+  },
+  bulletPoint: {
+    fontSize: 14,
+    color: '#92400e',
+    marginRight: 8,
+    fontWeight: '600',
   },
   // Payment
   paymentCard: {

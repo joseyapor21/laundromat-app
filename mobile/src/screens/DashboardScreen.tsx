@@ -321,8 +321,11 @@ export default function DashboardScreen() {
           <View style={styles.boardHeaderRight}>
             <View style={styles.boardAmountContainer}>
               <Text style={[styles.boardAmountHeader, order.priceOverride !== undefined && order.priceOverride !== null && styles.boardAmountOverride]}>
-                ${(order.totalAmount || 0).toFixed(2)}
+                ${Math.max(0, (order.totalAmount || 0) - (order.creditApplied || 0)).toFixed(2)}
               </Text>
+              {(order.creditApplied ?? 0) > 0 ? (
+                <Text style={styles.boardCreditIndicator}>Credit</Text>
+              ) : null}
             </View>
             <View style={styles.boardIconContainer}>
               <Ionicons
@@ -404,8 +407,11 @@ export default function DashboardScreen() {
         <View style={styles.orderFooter}>
           <View style={styles.orderAmountContainer}>
             <Text style={[styles.orderAmount, order.priceOverride !== undefined && order.priceOverride !== null && styles.orderAmountOverride]}>
-              ${(order.totalAmount || 0).toFixed(2)}
+              ${Math.max(0, (order.totalAmount || 0) - (order.creditApplied || 0)).toFixed(2)}
             </Text>
+            {(order.creditApplied ?? 0) > 0 ? (
+              <Text style={styles.orderCreditIndicator}>Credit</Text>
+            ) : null}
           </View>
           <Text style={styles.orderDate}>
             <Text style={styles.orderDateLabel}>
@@ -736,6 +742,12 @@ const styles = StyleSheet.create({
   boardAmountOverride: {
     color: '#ef4444',
   },
+  boardCreditIndicator: {
+    fontSize: 9,
+    fontWeight: '600',
+    color: '#10b981',
+    marginLeft: 4,
+  },
   boardIconContainer: {
     width: 20,
     height: 20,
@@ -963,6 +975,12 @@ const styles = StyleSheet.create({
   },
   orderAmountOverride: {
     color: '#ef4444',
+  },
+  orderCreditIndicator: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#10b981',
+    marginLeft: 6,
   },
   orderDate: {
     fontSize: 14,

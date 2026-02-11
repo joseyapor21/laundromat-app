@@ -94,11 +94,18 @@ export default function EditOrderScreen() {
       setCustomerPhone(formatPhoneNumber(orderData.customerPhone) || '');
       setCustomerAddress(orderData.customer?.address || '');
 
-      // Include customer notes in special instructions if not already present
-      let instructions = orderData.specialInstructions || '';
+      // Always use latest customer instructions, with any additional order-specific instructions
       const customerNotes = orderData.customer?.notes || '';
-      if (customerNotes && !instructions.includes(customerNotes)) {
-        instructions = customerNotes + (instructions ? '\n' + instructions : '');
+      const orderInstructions = orderData.specialInstructions || '';
+      // If customer has notes, use those as the base (they may have been updated)
+      // Only add order instructions if they contain something not in customer notes
+      let instructions = customerNotes;
+      if (orderInstructions && orderInstructions !== customerNotes && !customerNotes.includes(orderInstructions)) {
+        // There are additional order-specific instructions
+        const additionalInstructions = orderInstructions.replace(customerNotes, '').trim();
+        if (additionalInstructions) {
+          instructions = customerNotes + (customerNotes ? '\n' : '') + additionalInstructions;
+        }
       }
       setSpecialInstructions(instructions);
 
@@ -1108,7 +1115,7 @@ export default function EditOrderScreen() {
               style={[styles.input, styles.textArea, { backgroundColor: '#fff' }]}
               value={specialInstructions}
               onChangeText={setSpecialInstructions}
-              placeholder="Any special instructions..."
+              placeholder="Enter each instruction on a new line..."
               placeholderTextColor="#94a3b8"
               multiline
               numberOfLines={3}
@@ -1246,6 +1253,24 @@ export default function EditOrderScreen() {
                   </Text>
                 </View>
               )}
+
+              {/* Show credit applied if any */}
+              {(applyCredit && creditToApply > 0) || (order?.creditApplied && order.creditApplied > 0) ? (
+                <>
+                  <View style={[styles.totalRow, { marginTop: 8, borderTopWidth: 1, borderTopColor: '#dcfce7', paddingTop: 8 }]}>
+                    <Text style={[styles.totalLabel, { color: '#10b981' }]}>Credit Applied</Text>
+                    <Text style={[styles.totalValue, { color: '#10b981' }]}>
+                      -${(applyCredit ? creditToApply : (order?.creditApplied || 0)).toFixed(2)}
+                    </Text>
+                  </View>
+                  <View style={[styles.totalRow, { marginTop: 4 }]}>
+                    <Text style={[styles.totalLabel, { fontWeight: '700' }]}>Balance Due</Text>
+                    <Text style={[styles.totalValue, { fontWeight: '700', color: '#ef4444' }]}>
+                      ${Math.max(0, (priceOverride !== null ? priceOverride : calculateTotalPrice()) - (applyCredit ? creditToApply : (order?.creditApplied || 0))).toFixed(2)}
+                    </Text>
+                  </View>
+                </>
+              ) : null}
 
               {!showPriceOverride ? (
                 <TouchableOpacity

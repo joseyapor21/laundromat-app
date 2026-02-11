@@ -174,14 +174,14 @@ export default function CreateCustomerScreen() {
             </View>
           </View>
 
-          {/* Notes */}
+          {/* Instructions */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Notes</Text>
+            <Text style={styles.sectionTitle}>Instructions</Text>
             <TextInput
               style={[styles.input, styles.textArea, { backgroundColor: '#fff' }]}
               value={notes}
               onChangeText={setNotes}
-              placeholder="Any notes about this customer..."
+              placeholder="Enter each instruction on a new line..."
               placeholderTextColor="#94a3b8"
               multiline
               numberOfLines={3}

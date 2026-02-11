@@ -35,6 +35,23 @@ const ESC = {
   QR_PRINT: '\x1D\x28\x6B\x03\x00\x31\x51\x30',         // Print QR code
 };
 
+// Word wrap helper - wraps text by words without cutting
+function wordWrap(text: string, maxLen: number): string[] {
+  const words = text.split(' ');
+  const lines: string[] = [];
+  let currentLine = '';
+  for (const word of words) {
+    if ((currentLine + ' ' + word).trim().length <= maxLen) {
+      currentLine = (currentLine + ' ' + word).trim();
+    } else {
+      if (currentLine) lines.push(currentLine);
+      currentLine = word;
+    }
+  }
+  if (currentLine) lines.push(currentLine);
+  return lines;
+}
+
 // Default store configuration (fallback if no location provided)
 const DEFAULT_STORE_CONFIG = {
   name: 'E&F Laundromat',
@@ -189,16 +206,20 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
   if (order.specialInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` Notes : \n`;
+    r += ` Instructions: \n`;
     // Convert to ASCII-safe (replace smart quotes, etc)
     const notes = order.specialInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
       .replace(/[^\x00-\x7F]/g, '');
-    const maxLineLen = 20;
-    for (let i = 0; i < notes.length; i += maxLineLen) {
-      r += ` ${notes.substring(i, i + maxLineLen).trim()} \n`;
+    // Split by newlines or commas to create bullet points
+    const items = notes.split(/[\n,]+/).filter(item => item.trim());
+    for (const item of items) {
+      const wrappedLines = wordWrap(item.trim(), 18);
+      for (let i = 0; i < wrappedLines.length; i++) {
+        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
+      }
     }
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
@@ -422,16 +443,20 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
   if (order.specialInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` Notes : \n`;
+    r += ` Instructions: \n`;
     // Convert to ASCII-safe (replace smart quotes, etc)
     const notes = order.specialInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
       .replace(/[^\x00-\x7F]/g, '');
-    const maxLineLen = 20;
-    for (let i = 0; i < notes.length; i += maxLineLen) {
-      r += ` ${notes.substring(i, i + maxLineLen).trim()} \n`;
+    // Split by newlines or commas to create bullet points
+    const items = notes.split(/[\n,]+/).filter(item => item.trim());
+    for (const item of items) {
+      const wrappedLines = wordWrap(item.trim(), 18);
+      for (let i = 0; i < wrappedLines.length; i++) {
+        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
+      }
     }
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
@@ -662,20 +687,24 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
     r += ESC.BOLD_OFF;
   }
 
-  // Order notes (inverted, double size, ASCII-safe)
+  // Order instructions (inverted, double size, ASCII-safe)
   if (order.specialInstructions) {
     r += '\n';
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` Notes : \n`;
+    r += ` Instructions: \n`;
     const orderNotes = order.specialInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
       .replace(/[^\x00-\x7F]/g, '');
-    const maxLen = 20;
-    for (let i = 0; i < orderNotes.length; i += maxLen) {
-      r += ` ${orderNotes.substring(i, i + maxLen).trim()} \n`;
+    // Split by newlines or commas to create bullet points
+    const items = orderNotes.split(/[\n,]+/).filter(item => item.trim());
+    for (const item of items) {
+      const wrappedLines = wordWrap(item.trim(), 18);
+      for (let i = 0; i < wrappedLines.length; i++) {
+        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
+      }
     }
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
@@ -750,20 +779,24 @@ export function generateCustomerTagText(order: Order): string {
 
   r += '------------------------------------------------\n';
 
-  // Order notes (inverted, double size, ASCII-safe)
+  // Order instructions (inverted, double size, ASCII-safe)
   if (order.specialInstructions) {
     r += '\n';
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` Notes : \n`;
+    r += ` Instructions: \n`;
     const orderNotes = order.specialInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
       .replace(/[^\x00-\x7F]/g, '');
-    const maxLen = 20;
-    for (let i = 0; i < orderNotes.length; i += maxLen) {
-      r += ` ${orderNotes.substring(i, i + maxLen).trim()} \n`;
+    // Split by newlines or commas to create bullet points
+    const items = orderNotes.split(/[\n,]+/).filter(item => item.trim());
+    for (const item of items) {
+      const wrappedLines = wordWrap(item.trim(), 18);
+      for (let i = 0; i < wrappedLines.length; i++) {
+        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
+      }
     }
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
