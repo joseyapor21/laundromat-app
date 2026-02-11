@@ -222,9 +222,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
           }
           customer.creditHistory.push({
             amount: order.creditApplied,
-            reason: `Refund from deleted order #${order.orderId}`,
+            type: 'add',
+            description: `Refund from deleted order #${order.orderId}`,
+            orderId: order._id.toString(),
+            addedBy: currentUser.name,
             createdAt: new Date(),
-            createdBy: currentUser.name,
           });
 
           await customer.save();
