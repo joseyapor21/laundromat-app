@@ -146,7 +146,8 @@ export default function EditOrderScreen() {
             extraItemsMap[itemId] = {
               quantity: item.quantity,
               price: item.price || item.item?.price || 0,
-              overrideTotal: item.overrideTotal
+              // Only set overrideTotal if it's a valid number (not null/undefined)
+              overrideTotal: (item.overrideTotal !== null && item.overrideTotal !== undefined) ? item.overrideTotal : undefined
             };
           }
         });
@@ -1054,12 +1055,12 @@ export default function EditOrderScreen() {
                 const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                 const totalWeight = calculateTotalWeight();
                 const displayQty = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : data.quantity;
-                // Use overrideTotal if set, otherwise calculate
+                // Use overrideTotal if set (not null/undefined), otherwise calculate
                 const calculatedPrice = isWeightBased
                   ? calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price || 0)
                   : (data.price || 0) * (data.quantity || 0);
-                const displayPrice = data.overrideTotal !== undefined ? data.overrideTotal : calculatedPrice;
-                const hasOverride = data.overrideTotal !== undefined;
+                const hasOverride = data.overrideTotal !== undefined && data.overrideTotal !== null;
+                const displayPrice = hasOverride ? data.overrideTotal : calculatedPrice;
                 return (
                   <View key={itemId} style={styles.extraItemCard}>
                     <View style={styles.extraItemHeader}>
