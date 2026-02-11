@@ -290,15 +290,16 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
   r += `${isDelivery ? 'Service' : 'Pick Up'}\n`;
   r += ESC.NORMAL_SIZE;
 
-  // Pickup date/time (inverted, double size)
-  if (order.estimatedPickupDate) {
-    const pickupDate = new Date(order.estimatedPickupDate);
-    const pickupDateStr = formatDateWithWeekday(pickupDate);
-    const pickupTimeStr = formatTimeASCII(pickupDate);
+  // Show delivery date for delivery orders, pickup date for store pickups
+  const receiptDate = isDelivery ? order.deliverySchedule : order.estimatedPickupDate;
+  if (receiptDate) {
+    const scheduleDate = new Date(receiptDate);
+    const scheduleDateStr = formatDateWithWeekday(scheduleDate);
+    const scheduleTimeStr = formatTimeASCII(scheduleDate);
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` ${pickupDateStr} \n`;
-    r += ` ${pickupTimeStr} \n`;
+    r += ` ${scheduleDateStr} \n`;
+    r += ` ${scheduleTimeStr} \n`;
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
   }
@@ -520,15 +521,16 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
   r += `${isDelivery ? 'Service' : 'Pick Up'}\n`;
   r += ESC.NORMAL_SIZE;
 
-  // Pickup date/time (inverted, double size)
-  if (order.estimatedPickupDate) {
-    const pickupDate = new Date(order.estimatedPickupDate);
-    const pickupDateStr = formatDateWithWeekday(pickupDate);
-    const pickupTimeStr = formatTimeASCII(pickupDate);
+  // Show delivery date for delivery orders, pickup date for store pickups
+  const receiptDate = isDelivery ? order.deliverySchedule : order.estimatedPickupDate;
+  if (receiptDate) {
+    const scheduleDate = new Date(receiptDate);
+    const scheduleDateStr = formatDateWithWeekday(scheduleDate);
+    const scheduleTimeStr = formatTimeASCII(scheduleDate);
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` ${pickupDateStr} \n`;
-    r += ` ${pickupTimeStr} \n`;
+    r += ` ${scheduleDateStr} \n`;
+    r += ` ${scheduleTimeStr} \n`;
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
   }
@@ -622,15 +624,16 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
   r += ESC.INVERT_OFF;
   r += ESC.NORMAL_SIZE;
 
-  // Pickup date/time (large)
-  if (order.estimatedPickupDate) {
-    const pickupDate = new Date(order.estimatedPickupDate);
-    const pickupDateStr = formatDateWithWeekday(pickupDate);
-    const pickupTimeStr = formatTimeASCII(pickupDate);
+  // Show delivery date for delivery orders, pickup date for store pickups
+  const bagLabelDate = isDelivery ? order.deliverySchedule : order.estimatedPickupDate;
+  if (bagLabelDate) {
+    const scheduleDate = new Date(bagLabelDate);
+    const scheduleDateStr = formatDateWithWeekday(scheduleDate);
+    const scheduleTimeStr = formatTimeASCII(scheduleDate);
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` ${pickupDateStr} \n`;
-    r += ` ${pickupTimeStr} \n`;
+    r += ` ${scheduleDateStr} \n`;
+    r += ` ${scheduleTimeStr} \n`;
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
   }
