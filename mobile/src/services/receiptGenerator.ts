@@ -311,6 +311,9 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
   // Show order total
   r += leftRightAlign('Order Total:', `$${(order.totalAmount || 0).toFixed(2)}`) + '\n';
 
+  // Calculate balance due after credit
+  const balanceDueCustomer = Math.max(0, (order.totalAmount || 0) - (order.creditApplied || 0));
+
   // Show payment status and balance due
   r += ESC.DOUBLE_HEIGHT_ON;
   if (order.isPaid) {
@@ -323,7 +326,7 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
     r += leftRightAlign('Balance Due:', '$0.00') + '\n';
   } else {
     r += ESC.NORMAL_SIZE;
-    r += leftRightAlign(isDelivery ? 'Pay on Delivery:' : 'Pay on Pickup:', `$${(order.totalAmount || 0).toFixed(2)}`) + '\n';
+    r += leftRightAlign(isDelivery ? 'Pay on Delivery:' : 'Pay on Pickup:', `$${balanceDueCustomer.toFixed(2)}`) + '\n';
   }
 
   // Show remaining credit if paid and customer has credit
@@ -542,6 +545,9 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
   // Show order total
   r += leftRightAlign('Order Total:', `$${(order.totalAmount || 0).toFixed(2)}`) + '\n';
 
+  // Calculate balance due after credit
+  const balanceDueStore = Math.max(0, (order.totalAmount || 0) - (order.creditApplied || 0));
+
   // Show payment status and balance due
   r += ESC.DOUBLE_HEIGHT_ON;
   if (order.isPaid) {
@@ -554,7 +560,7 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
     r += leftRightAlign('Balance Due:', '$0.00') + '\n';
   } else {
     r += ESC.NORMAL_SIZE;
-    r += leftRightAlign(isDelivery ? 'Pay on Delivery:' : 'Pay on Pickup:', `$${(order.totalAmount || 0).toFixed(2)}`) + '\n';
+    r += leftRightAlign(isDelivery ? 'Pay on Delivery:' : 'Pay on Pickup:', `$${balanceDueStore.toFixed(2)}`) + '\n';
   }
 
   // Show remaining credit if paid and customer has credit
