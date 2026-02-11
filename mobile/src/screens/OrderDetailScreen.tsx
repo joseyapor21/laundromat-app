@@ -20,7 +20,7 @@ import { localPrinter } from '../services/LocalPrinter';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
-import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
+import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText, generateCustomerTagText } from '../services/receiptGenerator';
 import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag, Settings } from '../types';
 import { formatPhoneNumber } from '../utils/phoneFormat';
 
@@ -167,9 +167,9 @@ export default function OrderDetailScreen() {
     }
   }
 
-  async function handlePrintBagLabels() {
-    if (!order || !order.bags || order.bags.length === 0) {
-      Alert.alert('No Bags', 'No bags to print labels for');
+  async function handlePrintCustomerTag() {
+    if (!order) {
+      Alert.alert('Error', 'No order to print tag for');
       return;
     }
 
@@ -183,45 +183,12 @@ export default function OrderDetailScreen() {
 
     setPrinting(true);
     try {
-      for (let i = 0; i < order.bags.length; i++) {
-        const bag = order.bags[i];
-        const content = generateBagLabelText(order, bag, i + 1, order.bags.length);
-        const response = await localPrinter.printReceipt(printerIp, content, printerPort);
-        if (!response.success) {
-          throw new Error(response.error || 'Print failed');
-        }
-      }
-      Alert.alert('Success', `Printed ${order.bags.length} bag label(s)`);
-    } catch (error) {
-      Alert.alert('Print Error', error instanceof Error ? error.message : 'Failed to print. Check printer IP in admin settings.');
-    } finally {
-      setPrinting(false);
-    }
-  }
-
-  async function handlePrintSingleBag(bagIndex: number) {
-    if (!order || !order.bags || !order.bags[bagIndex]) {
-      Alert.alert('Error', 'Bag not found');
-      return;
-    }
-
-    const printerIp = settings?.thermalPrinterIp;
-    const printerPort = settings?.thermalPrinterPort || 9100;
-
-    if (!printerIp) {
-      Alert.alert('Printer Not Configured', 'Please set the thermal printer IP in Admin Settings.');
-      return;
-    }
-
-    setPrinting(true);
-    try {
-      const bag = order.bags[bagIndex];
-      const content = generateBagLabelText(order, bag, bagIndex + 1, order.bags.length);
+      const content = generateCustomerTagText(order);
       const response = await localPrinter.printReceipt(printerIp, content, printerPort);
       if (!response.success) {
         throw new Error(response.error || 'Print failed');
       }
-      Alert.alert('Success', `Bag ${bagIndex + 1} label printed`);
+      Alert.alert('Success', 'Customer tag printed');
     } catch (error) {
       Alert.alert('Print Error', error instanceof Error ? error.message : 'Failed to print. Check printer IP in admin settings.');
     } finally {
@@ -556,9 +523,6 @@ export default function OrderDetailScreen() {
   // Can show machine section only if weights are added OR it's in-store order that's past received
   const canShowMachineSection = !needsWeightsFirst && !isReadyStage;
 
-  // Can show print labels only if there are bags with weights
-  const canShowPrintLabels = hasBagWeights;
-
   // Show payment section only for ready/completed stages or when order is paid
   const showPaymentSection = isReadyStage || order?.isPaid;
 
@@ -699,12 +663,12 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Print Actions - Only show bag labels button if weights exist */}
+        {/* Print Actions */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Print</Text>
           <View style={styles.printCard}>
             <TouchableOpacity
-              style={[styles.printButton, printing && styles.buttonDisabled, canShowPrintLabels && { marginBottom: 10 }]}
+              style={[styles.printButton, printing && styles.buttonDisabled, { marginBottom: 10 }]}
               onPress={showPrintMenu}
               disabled={printing}
             >
@@ -712,36 +676,14 @@ export default function OrderDetailScreen() {
               <Text style={styles.printButtonText}>{printing ? 'Printing...' : 'Print Receipt'}</Text>
               <Ionicons name="chevron-down" size={16} color="#fff" />
             </TouchableOpacity>
-            {canShowPrintLabels && (
-              <>
-                <TouchableOpacity
-                  style={[styles.printButton, styles.printButtonPurple, printing && styles.buttonDisabled]}
-                  onPress={handlePrintBagLabels}
-                  disabled={printing}
-                >
-                  <Ionicons name="pricetag" size={20} color="#fff" />
-                  <Text style={styles.printButtonText}>Print All Bag Labels</Text>
-                </TouchableOpacity>
-                <View style={styles.bagButtonsContainer}>
-                  <Text style={styles.bagButtonsLabel}>Print individual bags:</Text>
-                  <View style={styles.bagButtons}>
-                    {order.bags?.map((bag, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={[styles.bagButton, printing && styles.buttonDisabled]}
-                        onPress={() => handlePrintSingleBag(index)}
-                        disabled={printing}
-                      >
-                        <Text style={styles.bagButtonText}>{bag.identifier || `Bag ${index + 1}`}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                </View>
-              </>
-            )}
-            {!canShowPrintLabels && order.bags && order.bags.length > 0 && (
-              <Text style={styles.noBagWeightsText}>Add bag weights to print bag labels</Text>
-            )}
+            <TouchableOpacity
+              style={[styles.printButton, styles.printButtonPurple, printing && styles.buttonDisabled]}
+              onPress={handlePrintCustomerTag}
+              disabled={printing}
+            >
+              <Ionicons name="pricetag" size={20} color="#fff" />
+              <Text style={styles.printButtonText}>Print Customer Tag</Text>
+            </TouchableOpacity>
           </View>
         </View>
 

@@ -689,6 +689,86 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
   return r;
 }
 
+// Generate simple customer tag (no bag details)
+export function generateCustomerTagText(order: Order): string {
+  const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
+  const isDelivery = order.orderType === 'delivery';
+
+  let r = '';
+
+  r += ESC.INIT;
+  r += ESC.CENTER;
+
+  // Order number (large, inverted)
+  r += ESC.DOUBLE_SIZE_ON;
+  r += ESC.INVERT_ON;
+  r += ` #${orderNum} \n`;
+  r += ESC.INVERT_OFF;
+  r += ESC.NORMAL_SIZE;
+
+  r += '\n';
+
+  // === CUSTOMER NAME (large) ===
+  r += ESC.DOUBLE_SIZE_ON;
+  r += `${order.customerName || 'Customer'}\n`;
+  r += ESC.NORMAL_SIZE;
+  if (order.customerPhone) {
+    r += `${formatPhoneNumber(order.customerPhone)}\n`;
+  }
+
+  r += '------------------------------------------------\n';
+
+  // === ORDER TYPE ===
+  r += ESC.DOUBLE_HEIGHT_ON;
+  r += ESC.INVERT_ON;
+  r += ` ${isDelivery ? 'DELIVERY' : 'IN-STORE PICKUP'} \n`;
+  r += ESC.INVERT_OFF;
+  r += ESC.NORMAL_SIZE;
+
+  // Pickup date/time (large)
+  if (order.estimatedPickupDate) {
+    const pickupDate = new Date(order.estimatedPickupDate);
+    const pickupDateStr = formatDateWithWeekday(pickupDate);
+    const pickupTimeStr = formatTimeASCII(pickupDate);
+    r += ESC.DOUBLE_SIZE_ON;
+    r += ESC.INVERT_ON;
+    r += ` ${pickupDateStr} \n`;
+    r += ` ${pickupTimeStr} \n`;
+    r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
+  }
+
+  r += '------------------------------------------------\n';
+
+  // Order notes (inverted, double size, ASCII-safe)
+  if (order.specialInstructions) {
+    r += '\n';
+    r += ESC.DOUBLE_SIZE_ON;
+    r += ESC.INVERT_ON;
+    r += ` Notes : \n`;
+    const orderNotes = order.specialInstructions
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[^\x00-\x7F]/g, '');
+    const maxLen = 20;
+    for (let i = 0; i < orderNotes.length; i += maxLen) {
+      r += ` ${orderNotes.substring(i, i + maxLen).trim()} \n`;
+    }
+    r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
+  }
+
+  // === QR CODE (Large for easy scanning) ===
+  r += generateQRCode(orderNum, 10);
+  r += '\n';
+
+  r += '\n';
+  r += cutCommand;
+
+  return r;
+}
+
 // Generate credit balance receipt for customer
 export function generateCreditBalanceReceipt(customer: { name: string; phoneNumber?: string; credit?: number; creditHistory?: Array<{ amount: number; type: 'add' | 'use'; description: string; createdAt: Date }> }, location?: Location | null): string {
   const storeConfig = getStoreConfig(location);
