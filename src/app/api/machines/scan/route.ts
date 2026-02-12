@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
 
     const { qrCode, orderId } = body;
 
-    console.log('Scan request:', { qrCode, orderId, user: user?.name });
+    console.log('Scan request:', { qrCode, orderId, user: user?.name, locationId: user?.locationId });
 
     if (!qrCode || !orderId) {
       console.log('Scan error: Missing qrCode or orderId');
@@ -24,8 +24,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find machine by QR code
-    const machine = await Machine.findOne({ qrCode });
+    // Find machine by QR code, filtered by location if user has one
+    const machineQuery: { qrCode: string; locationId?: string } = { qrCode };
+    if (user?.locationId) {
+      machineQuery.locationId = user.locationId;
+    }
+    const machine = await Machine.findOne(machineQuery);
     if (!machine) {
       console.log('Scan error: Machine not found for QR code:', qrCode);
       return NextResponse.json(
@@ -64,7 +68,12 @@ export async function POST(request: NextRequest) {
     }
 
     // Also check by looking at active machine assignments in orders (backup check)
-    const orderWithMachine = await Order.findOne({
+    // Filter by location to avoid cross-location conflicts
+    const orderCheckQuery: {
+      _id: { $ne: string };
+      machineAssignments: { $elemMatch: { machineId: string; removedAt: { $exists: boolean } } };
+      locationId?: string;
+    } = {
       _id: { $ne: orderId },
       'machineAssignments': {
         $elemMatch: {
@@ -72,7 +81,11 @@ export async function POST(request: NextRequest) {
           removedAt: { $exists: false }
         }
       }
-    });
+    };
+    if (user?.locationId) {
+      orderCheckQuery.locationId = user.locationId;
+    }
+    const orderWithMachine = await Order.findOne(orderCheckQuery);
 
     if (orderWithMachine) {
       const orderInfo = `Order #${orderWithMachine.orderId} (${orderWithMachine.customerName})`;
@@ -171,6 +184,7 @@ export async function POST(request: NextRequest) {
 
     // Log activity
     await ActivityLog.create({
+      locationId: user?.locationId,
       userId: user?.userId || 'system',
       userName: user?.name || 'System',
       action: machine.type === 'washer' ? 'assign_washer' : 'assign_dryer',
