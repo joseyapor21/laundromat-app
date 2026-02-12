@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
-import { Customer, ActivityLog } from '@/lib/db/models';
+import { Customer, ActivityLog, Order } from '@/lib/db/models';
 import { getCurrentUser, isAdmin } from '@/lib/auth/server';
 
 interface RouteParams {
@@ -127,6 +127,27 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // Update the customer
     Object.assign(customer, updates);
     await customer.save();
+
+    // Sync changes to pending orders (not completed)
+    // This ensures printing uses latest customer info
+    const orderUpdates: Record<string, unknown> = {};
+    if (updates.name) orderUpdates.customerName = updates.name;
+    if (updates.phoneNumber) orderUpdates.customerPhone = updates.phoneNumber;
+    if (updates.notes !== undefined) orderUpdates.specialInstructions = updates.notes;
+
+    if (Object.keys(orderUpdates).length > 0) {
+      try {
+        await Order.updateMany(
+          {
+            customerId: customer._id.toString(),
+            status: { $nin: ['completed', 'cancelled'] },
+          },
+          { $set: orderUpdates }
+        );
+      } catch (syncError) {
+        console.error('Failed to sync customer changes to orders:', syncError);
+      }
+    }
 
     // Log the activity
     try {

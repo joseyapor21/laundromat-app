@@ -206,6 +206,52 @@ export default function OrderDetailScreen() {
     }
   }
 
+  // Print individual bag labels (one per bag)
+  async function handlePrintBagLabels() {
+    if (!order) {
+      Alert.alert('Error', 'No order to print bag labels for');
+      return;
+    }
+
+    if (!order.bags || order.bags.length === 0) {
+      Alert.alert('No Bags', 'This order has no bags to print labels for.');
+      return;
+    }
+
+    const printerIp = settings?.thermalPrinterIp;
+    const printerPort = settings?.thermalPrinterPort || 9100;
+
+    if (!printerIp) {
+      Alert.alert('Printer Not Configured', 'Please set the thermal printer IP in Admin Settings.');
+      return;
+    }
+
+    setPrinting(true);
+    try {
+      // Use latest customer instructions for printing
+      const orderForPrint = {
+        ...order,
+        specialInstructions: order.customer?.notes || order.specialInstructions || '',
+      };
+
+      // Print a label for each bag
+      const totalBags = order.bags.length;
+      for (let i = 0; i < totalBags; i++) {
+        const bag = order.bags[i];
+        const content = generateBagLabelText(orderForPrint, bag, i + 1, totalBags);
+        const response = await localPrinter.printReceipt(printerIp, content, printerPort);
+        if (!response.success) {
+          throw new Error(response.error || `Failed to print bag ${i + 1}`);
+        }
+      }
+      Alert.alert('Success', `Printed ${totalBags} bag label(s)`);
+    } catch (error) {
+      Alert.alert('Print Error', error instanceof Error ? error.message : 'Failed to print bag labels.');
+    } finally {
+      setPrinting(false);
+    }
+  }
+
   // Handle QR scan for machine assignment
   async function handleMachineScan(qrCode: string) {
     // Prevent duplicate scans - the camera fires multiple times quickly
@@ -696,12 +742,20 @@ export default function OrderDetailScreen() {
               <Ionicons name="chevron-down" size={16} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.printButton, styles.printButtonPurple, printing && styles.buttonDisabled]}
+              style={[styles.printButton, styles.printButtonPurple, printing && styles.buttonDisabled, { marginBottom: 10 }]}
               onPress={handlePrintCustomerTag}
               disabled={printing}
             >
               <Ionicons name="pricetag" size={20} color="#fff" />
               <Text style={styles.printButtonText}>Print Customer Tag</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.printButton, styles.printButtonOrange, printing && styles.buttonDisabled]}
+              onPress={handlePrintBagLabels}
+              disabled={printing || !order?.bags || order.bags.length === 0}
+            >
+              <Ionicons name="cube" size={20} color="#fff" />
+              <Text style={styles.printButtonText}>Print Bag Labels ({order?.bags?.length || 0})</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1668,6 +1722,9 @@ const styles = StyleSheet.create({
   },
   printButtonPurple: {
     backgroundColor: '#8b5cf6',
+  },
+  printButtonOrange: {
+    backgroundColor: '#f97316',
   },
   noBagWeightsText: {
     fontSize: 13,
