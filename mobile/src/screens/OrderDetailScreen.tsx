@@ -335,15 +335,20 @@ export default function OrderDetailScreen() {
       const result = await api.checkMachine(order._id, assignment.machineId, initials, forceSamePerson);
       Alert.alert('Success', result.message);
       await loadOrder();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to check machine';
+    } catch (error: any) {
+      setCheckingMachine(null);
+      const errorMessage = error?.message || 'Failed to check machine';
       // Check if this is a same-person warning that can be bypassed
-      if (errorMessage.includes('Ideally another person')) {
+      const isSamePersonError = error?.requireConfirmation ||
+        errorMessage.includes('Ideally another person') ||
+        errorMessage.includes('cannot check your own');
+
+      if (isSamePersonError) {
         Alert.alert(
           'Same Person Check',
           'You assigned this machine. Ideally another person should verify.\n\nDo you want to check it anyway?',
           [
-            { text: 'Cancel', style: 'cancel', onPress: () => setCheckingMachine(null) },
+            { text: 'Cancel', style: 'cancel' },
             {
               text: 'Check Anyway',
               onPress: () => handleCheckMachine(assignment, true),
@@ -353,8 +358,6 @@ export default function OrderDetailScreen() {
         return;
       }
       Alert.alert('Error', errorMessage);
-    } finally {
-      setCheckingMachine(null);
     }
   }
 

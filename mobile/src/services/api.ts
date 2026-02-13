@@ -84,6 +84,7 @@ class ApiService {
         const error = new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`) as any;
         error.invalidAddresses = errorData.invalidAddresses;
         error.debug = errorData.debug;
+        error.requireConfirmation = errorData.requireConfirmation;
         throw error;
       }
 
