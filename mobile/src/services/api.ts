@@ -460,6 +460,29 @@ class ApiService {
     });
   }
 
+  // Transfer order from washer to dryer
+  async transferOrder(orderId: string): Promise<{ success: boolean; message: string; order: Order }> {
+    return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/transfer`, {
+      method: 'POST',
+    });
+  }
+
+  // Verify transfer (different person check)
+  async verifyTransfer(orderId: string, forceSamePerson?: boolean): Promise<{ success: boolean; message: string; order: Order; requireConfirmation?: boolean }> {
+    return this.request<{ success: boolean; message: string; order: Order; requireConfirmation?: boolean }>(`/orders/${orderId}/transfer-check`, {
+      method: 'POST',
+      body: JSON.stringify({ forceSamePerson }),
+    });
+  }
+
+  // Final check before marking ready (with optional re-weigh)
+  async finalCheck(orderId: string, finalWeight?: number, forceSamePerson?: boolean): Promise<{ success: boolean; message: string; order: Order; requireConfirmation?: boolean }> {
+    return this.request<{ success: boolean; message: string; order: Order; requireConfirmation?: boolean }>(`/orders/${orderId}/final-check`, {
+      method: 'POST',
+      body: JSON.stringify({ finalWeight, forceSamePerson }),
+    });
+  }
+
   // Print customer balance
   async printCustomerBalance(customerId: string): Promise<{ success: boolean; message: string }> {
     return this.request<{ success: boolean; message: string }>(`/customers/${customerId}/print-balance`, {

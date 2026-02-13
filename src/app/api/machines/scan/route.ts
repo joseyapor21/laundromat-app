@@ -164,7 +164,12 @@ export async function POST(request: NextRequest) {
     if (machine.type === 'washer' && order.status !== 'in_washer') {
       newStatus = 'in_washer';
     } else if (machine.type === 'dryer' && order.status !== 'in_dryer') {
-      newStatus = 'in_dryer';
+      // Allow dryer assignment from transfer_checked or transferred status
+      if (order.status === 'transfer_checked' || order.status === 'transferred' || order.status === 'in_washer') {
+        newStatus = 'in_dryer';
+      } else if (order.status !== 'in_dryer') {
+        newStatus = 'in_dryer';
+      }
     }
 
     // Update order status if changed

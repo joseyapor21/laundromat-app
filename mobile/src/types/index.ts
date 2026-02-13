@@ -60,8 +60,11 @@ export type OrderStatus =
   | 'picked_up'
   | 'received'
   | 'in_washer'
+  | 'transferred'        // NEW: clothes moved from washer to dryer
+  | 'transfer_checked'   // NEW: transfer verified by checker
   | 'in_dryer'
-  | 'laid_on_cart'
+  | 'laid_on_cart'       // Keep for backwards compatibility
+  | 'on_cart'            // NEW: preferred status after unloading dryers
   | 'folding'
   | 'folded'
   | 'ready_for_pickup'
@@ -152,6 +155,19 @@ export interface Order {
   foldingCheckedBy?: string;
   foldingCheckedByInitials?: string;
   foldingCheckedAt?: Date;
+  // Transfer tracking - who moved clothes from washer to dryer
+  transferredBy?: string;
+  transferredByInitials?: string;
+  transferredAt?: Date;
+  // Transfer check tracking - verification after transfer
+  transferCheckedBy?: string;
+  transferCheckedByInitials?: string;
+  transferCheckedAt?: Date;
+  // Final check tracking - verification before marking ready
+  finalCheckedBy?: string;
+  finalCheckedByInitials?: string;
+  finalCheckedAt?: Date;
+  finalWeight?: number;
   dropOffDate: Date;
   scheduledPickupTime?: Date;
   estimatedPickupDate?: Date;

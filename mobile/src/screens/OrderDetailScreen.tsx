@@ -39,8 +39,11 @@ const STATUS_OPTIONS: { value: OrderStatus; label: string; color: string; orderT
   { value: 'scheduled_pickup', label: 'Scheduled Pickup', color: '#8b5cf6', orderTypes: ['delivery'] },
   { value: 'picked_up', label: 'Picked Up', color: '#a78bfa', orderTypes: ['delivery'] },
   { value: 'in_washer', label: 'In Washer', color: '#06b6d4' },
+  { value: 'transferred', label: 'Transferred', color: '#0ea5e9' },
+  { value: 'transfer_checked', label: 'Transfer Checked', color: '#14b8a6' },
   { value: 'in_dryer', label: 'In Dryer', color: '#f97316' },
-  { value: 'laid_on_cart', label: 'On Cart', color: '#eab308' },
+  { value: 'on_cart', label: 'On Cart', color: '#eab308' },
+  { value: 'laid_on_cart', label: 'On Cart', color: '#eab308' }, // Legacy, same as on_cart
   { value: 'folding', label: 'Folding', color: '#ec4899' },
   { value: 'folded', label: 'Folded', color: '#f43f5e' },
   { value: 'ready_for_pickup', label: 'Ready for Pickup', color: '#10b981', orderTypes: ['storePickup'] },
@@ -66,6 +69,9 @@ export default function OrderDetailScreen() {
   const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [verifyingFolding, setVerifyingFolding] = useState(false);
   const [verifyingLayering, setVerifyingLayering] = useState(false);
+  const [transferring, setTransferring] = useState(false);
+  const [verifyingTransfer, setVerifyingTransfer] = useState(false);
+  const [doingFinalCheck, setDoingFinalCheck] = useState(false);
   const [settings, setSettings] = useState<Settings | null>(null);
   const isProcessingScan = useRef(false);
 
@@ -482,6 +488,126 @@ export default function OrderDetailScreen() {
       Alert.alert('Error', errorMessage);
     } finally {
       setVerifyingLayering(false);
+    }
+  }
+
+  // Transfer order from washer to dryer
+  async function handleTransfer() {
+    if (!order) return;
+
+    setTransferring(true);
+    try {
+      const result = await api.transferOrder(order._id);
+      Alert.alert('Success', result.message || 'Order transferred to dryer');
+      await loadOrder();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to transfer order';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setTransferring(false);
+    }
+  }
+
+  // Verify transfer (different person check with confirmation popup)
+  async function handleVerifyTransfer(forceSamePerson = false) {
+    if (!order) return;
+
+    setVerifyingTransfer(true);
+    try {
+      const result = await api.verifyTransfer(order._id, forceSamePerson);
+
+      // Check if we need confirmation (same person)
+      if (result.requireConfirmation) {
+        setVerifyingTransfer(false);
+        Alert.alert(
+          'Same Person Warning',
+          result.message || 'You transferred this order. Are you sure you want to verify your own work?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Yes, Verify',
+              onPress: () => handleVerifyTransfer(true),
+            },
+          ]
+        );
+        return;
+      }
+
+      Alert.alert('Success', result.message || 'Transfer verified');
+      await loadOrder();
+    } catch (error: unknown) {
+      // Handle the same-person warning from API
+      const err = error as { message?: string; requireConfirmation?: boolean };
+      if (err.message === 'Same person warning') {
+        Alert.alert(
+          'Same Person Warning',
+          'You transferred this order. Are you sure you want to verify your own work?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Yes, Verify',
+              onPress: () => handleVerifyTransfer(true),
+            },
+          ]
+        );
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to verify transfer';
+        Alert.alert('Error', errorMessage);
+      }
+    } finally {
+      setVerifyingTransfer(false);
+    }
+  }
+
+  // Final check before marking ready
+  async function handleFinalCheck(forceSamePerson = false) {
+    if (!order) return;
+
+    setDoingFinalCheck(true);
+    try {
+      // For now, we don't prompt for weight - can be added later
+      const result = await api.finalCheck(order._id, undefined, forceSamePerson);
+
+      // Check if we need confirmation (same person)
+      if (result.requireConfirmation) {
+        setDoingFinalCheck(false);
+        Alert.alert(
+          'Same Person Warning',
+          result.message || 'You marked this order as folded. Are you sure you want to verify your own work?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Yes, Mark Ready',
+              onPress: () => handleFinalCheck(true),
+            },
+          ]
+        );
+        return;
+      }
+
+      Alert.alert('Success', result.message || 'Order is now ready');
+      await loadOrder();
+    } catch (error: unknown) {
+      // Handle the same-person warning from API
+      const err = error as { message?: string; requireConfirmation?: boolean };
+      if (err.message === 'Same person warning') {
+        Alert.alert(
+          'Same Person Warning',
+          'You marked this order as folded. Are you sure you want to verify your own work?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Yes, Mark Ready',
+              onPress: () => handleFinalCheck(true),
+            },
+          ]
+        );
+      } else {
+        const errorMessage = error instanceof Error ? error.message : 'Failed to complete final check';
+        Alert.alert('Error', errorMessage);
+      }
+    } finally {
+      setDoingFinalCheck(false);
     }
   }
 
@@ -1019,8 +1145,72 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
-        {/* Verify Layering - Show only when status is 'laid_on_cart' and not yet verified */}
-        {order.status === 'laid_on_cart' && !order.layeringCheckedBy && (
+        {/* Transfer to Dryers - Show when status is 'in_washer' */}
+        {order.status === 'in_washer' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Next Step: Transfer</Text>
+            <View style={styles.verifyLayeringCard}>
+              <View style={styles.verifyLayeringHeader}>
+                <Ionicons name="swap-horizontal" size={24} color="#0ea5e9" />
+                <Text style={styles.verifyLayeringTitle}>Transfer to Dryers</Text>
+              </View>
+              <Text style={styles.verifyLayeringText}>
+                Mark when you have moved all clothes from the washer(s) to the dryer(s).
+              </Text>
+              <TouchableOpacity
+                style={[styles.verifyLayeringButton, { backgroundColor: '#0ea5e9' }, transferring && styles.buttonDisabled]}
+                onPress={handleTransfer}
+                disabled={transferring || !user}
+              >
+                {transferring ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="arrow-forward" size={20} color="#fff" />
+                    <Text style={styles.verifyLayeringButtonText}>
+                      Mark as Transferred
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Verify Transfer - Show when status is 'transferred' */}
+        {order.status === 'transferred' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Verify Transfer</Text>
+            <View style={styles.verifyLayeringCard}>
+              <View style={styles.verifyLayeringHeader}>
+                <Ionicons name="checkmark-circle" size={24} color="#14b8a6" />
+                <Text style={styles.verifyLayeringTitle}>Transfer Check Required</Text>
+              </View>
+              <Text style={styles.verifyLayeringText}>
+                Verify that all washers are empty and dryers are set correctly. Then scan the dryer QR codes.
+              </Text>
+              <TouchableOpacity
+                style={[styles.verifyLayeringButton, { backgroundColor: '#14b8a6' }, verifyingTransfer && styles.buttonDisabled]}
+                onPress={() => handleVerifyTransfer()}
+                disabled={verifyingTransfer || !user}
+              >
+                {verifyingTransfer ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-done" size={20} color="#fff" />
+                    <Text style={styles.verifyLayeringButtonText}>
+                      Verify Transfer Complete
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Verify Layering - Show only when status is 'laid_on_cart' or 'on_cart' and not yet verified */}
+        {(order.status === 'laid_on_cart' || order.status === 'on_cart') && !order.layeringCheckedBy && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Verify Layering</Text>
             <View style={styles.verifyLayeringCard}>
@@ -1052,31 +1242,31 @@ export default function OrderDetailScreen() {
         )}
 
 
-        {/* Mark Folding Complete - Show only when status is 'folded' and not yet verified */}
-        {order.status === 'folded' && !order.foldingCheckedBy && (
+        {/* Final Check - Show only when status is 'folded' and not yet final checked */}
+        {order.status === 'folded' && !order.finalCheckedBy && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Verify Folding</Text>
+            <Text style={styles.sectionTitle}>Final Quality Check</Text>
             <View style={styles.verifyFoldingCard}>
               <View style={styles.verifyFoldingHeader}>
-                <Ionicons name="shirt" size={24} color="#ec4899" />
-                <Text style={styles.verifyFoldingTitle}>Folding Complete?</Text>
+                <Ionicons name="flag" size={24} color="#ef4444" />
+                <Text style={styles.verifyFoldingTitle}>Final Check Required</Text>
               </View>
               <Text style={styles.verifyFoldingText}>
-                Verify that all {order.bags?.length || 0} bag(s) have been folded correctly.
+                Verify all {order.bags?.length || 0} bag(s) are correctly folded and ready.
                 This will move the order to {order.orderType === 'delivery' ? 'Ready for Delivery' : 'Ready for Pickup'}.
               </Text>
               <TouchableOpacity
-                style={[styles.verifyFoldingButton, verifyingFolding && styles.buttonDisabled]}
-                onPress={handleVerifyFolding}
-                disabled={verifyingFolding || !user}
+                style={[styles.verifyFoldingButton, { backgroundColor: '#ef4444' }, doingFinalCheck && styles.buttonDisabled]}
+                onPress={() => handleFinalCheck()}
+                disabled={doingFinalCheck || !user}
               >
-                {verifyingFolding ? (
+                {doingFinalCheck ? (
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <>
                     <Ionicons name="checkmark-done" size={20} color="#fff" />
                     <Text style={styles.verifyFoldingButtonText}>
-                      Mark Folding Complete
+                      Complete Final Check
                     </Text>
                   </>
                 )}

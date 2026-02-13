@@ -79,6 +79,19 @@ export interface OrderDoc {
   foldingCheckedBy?: string;
   foldingCheckedByInitials?: string;
   foldingCheckedAt?: Date;
+  // Transfer tracking - who moved clothes from washer to dryer
+  transferredBy?: string;
+  transferredByInitials?: string;
+  transferredAt?: Date;
+  // Transfer check tracking - verification after transfer
+  transferCheckedBy?: string;
+  transferCheckedByInitials?: string;
+  transferCheckedAt?: Date;
+  // Final check tracking - verification before marking ready
+  finalCheckedBy?: string;
+  finalCheckedByInitials?: string;
+  finalCheckedAt?: Date;
+  finalWeight?: number;
   statusHistory: Array<{
     status?: string;
     changedBy?: string;
@@ -244,8 +257,11 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
       'new_order',
       'received',
       'in_washer',
+      'transferred',
+      'transfer_checked',
       'in_dryer',
       'laid_on_cart',
+      'on_cart',
       'folding',
       'folded',
       'ready_for_pickup',
@@ -388,6 +404,49 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   },
   foldingCheckedAt: {
     type: Date,
+    default: null,
+  },
+  // Transfer tracking - who moved clothes from washer to dryer
+  transferredBy: {
+    type: String,
+    default: null,
+  },
+  transferredByInitials: {
+    type: String,
+    default: null,
+  },
+  transferredAt: {
+    type: Date,
+    default: null,
+  },
+  // Transfer check tracking - verification after transfer
+  transferCheckedBy: {
+    type: String,
+    default: null,
+  },
+  transferCheckedByInitials: {
+    type: String,
+    default: null,
+  },
+  transferCheckedAt: {
+    type: Date,
+    default: null,
+  },
+  // Final check tracking - verification before marking ready
+  finalCheckedBy: {
+    type: String,
+    default: null,
+  },
+  finalCheckedByInitials: {
+    type: String,
+    default: null,
+  },
+  finalCheckedAt: {
+    type: Date,
+    default: null,
+  },
+  finalWeight: {
+    type: Number,
     default: null,
   },
   statusHistory: [{
