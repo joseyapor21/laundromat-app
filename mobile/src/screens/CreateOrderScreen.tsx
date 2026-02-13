@@ -107,6 +107,13 @@ export default function CreateOrderScreen() {
   const [quickAddNotes, setQuickAddNotes] = useState('');
   const [quickAddCreating, setQuickAddCreating] = useState(false);
 
+  // Search other locations
+  const [showOtherLocationsModal, setShowOtherLocationsModal] = useState(false);
+  const [otherLocationSearch, setOtherLocationSearch] = useState('');
+  const [otherLocationResults, setOtherLocationResults] = useState<(Customer & { locationName: string })[]>([]);
+  const [searchingOtherLocations, setSearchingOtherLocations] = useState(false);
+  const [copyingCustomer, setCopyingCustomer] = useState(false);
+
   // Pickup date - default to tomorrow at 5 PM
   const getDefaultPickupDate = () => {
     const date = new Date();
@@ -276,6 +283,64 @@ export default function CreateOrderScreen() {
       prefillName: isPhone ? '' : searchText,
       prefillPhone: isPhone ? searchText : '',
     });
+  }
+
+  // Search customers from other locations
+  async function searchOtherLocations(query: string) {
+    if (query.length < 2) {
+      setOtherLocationResults([]);
+      return;
+    }
+
+    setSearchingOtherLocations(true);
+    try {
+      const results = await api.searchCustomersOtherLocations(query);
+      setOtherLocationResults(results);
+    } catch (error) {
+      console.error('Failed to search other locations:', error);
+      setOtherLocationResults([]);
+    } finally {
+      setSearchingOtherLocations(false);
+    }
+  }
+
+  // Copy customer from another location
+  async function copyCustomerFromOtherLocation(sourceCustomer: Customer & { locationName: string }) {
+    setCopyingCustomer(true);
+    try {
+      const result = await api.copyCustomerToLocation(sourceCustomer._id);
+
+      // Add to local customers list
+      setCustomers(prev => [result.customer, ...prev]);
+
+      // Select the new customer
+      setSelectedCustomer(result.customer);
+      setShowOtherLocationsModal(false);
+      setOtherLocationSearch('');
+      setOtherLocationResults([]);
+      setCustomerSearch('');
+
+      if (result.customer.notes) {
+        setSpecialInstructions(result.customer.notes);
+      }
+
+      Alert.alert('Success', `Customer "${result.customer.name}" copied from ${sourceCustomer.locationName}!`);
+    } catch (error) {
+      console.error('Failed to copy customer:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to copy customer';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setCopyingCustomer(false);
+    }
+  }
+
+  // Open other locations modal with current search pre-filled
+  function openOtherLocationsSearch() {
+    setOtherLocationSearch(customerSearch);
+    setShowOtherLocationsModal(true);
+    if (customerSearch.length >= 2) {
+      searchOtherLocations(customerSearch);
+    }
   }
 
   // Update customer phone number
@@ -837,6 +902,17 @@ export default function CreateOrderScreen() {
                   <Ionicons name="person-add" size={20} color="#2563eb" />
                   <Text style={styles.quickAddButtonText}>
                     {filteredCustomers.length === 0 ? 'Add New Customer' : 'Add as New Customer'}
+                  </Text>
+                </TouchableOpacity>
+
+                {/* Search Other Locations Button */}
+                <TouchableOpacity
+                  style={styles.searchOtherLocationsButton}
+                  onPress={openOtherLocationsSearch}
+                >
+                  <Ionicons name="business-outline" size={20} color="#8b5cf6" />
+                  <Text style={styles.searchOtherLocationsButtonText}>
+                    Search Other Locations
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1804,6 +1880,101 @@ export default function CreateOrderScreen() {
             </View>
 
           </ScrollView>
+        </View>
+      </Modal>
+
+      {/* Search Other Locations Modal */}
+      <Modal
+        visible={showOtherLocationsModal}
+        animationType="slide"
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setShowOtherLocationsModal(false);
+          setOtherLocationResults([]);
+          setOtherLocationSearch('');
+        }}
+      >
+        <View style={styles.otherLocationsContainer}>
+          {/* Header */}
+          <View style={styles.otherLocationsHeader}>
+            <Text style={styles.otherLocationsHeaderTitle}>Search Other Locations</Text>
+            <TouchableOpacity onPress={() => {
+              Keyboard.dismiss();
+              setShowOtherLocationsModal(false);
+              setOtherLocationResults([]);
+              setOtherLocationSearch('');
+            }}>
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Input */}
+          <View style={styles.otherLocationsSearchContainer}>
+            <Ionicons name="search" size={20} color="#64748b" style={styles.otherLocationsSearchIcon} />
+            <TextInput
+              style={styles.otherLocationsSearchInput}
+              value={otherLocationSearch}
+              onChangeText={(text) => {
+                setOtherLocationSearch(text);
+                searchOtherLocations(text);
+              }}
+              placeholder="Search by name or phone..."
+              placeholderTextColor="#94a3b8"
+              autoFocus
+            />
+            {searchingOtherLocations && (
+              <ActivityIndicator size="small" color="#8b5cf6" style={styles.otherLocationsSearchSpinner} />
+            )}
+          </View>
+
+          {/* Results */}
+          <ScrollView style={styles.otherLocationsResults} keyboardShouldPersistTaps="handled">
+            {otherLocationResults.length === 0 && otherLocationSearch.length >= 2 && !searchingOtherLocations && (
+              <View style={styles.otherLocationsEmptyState}>
+                <Ionicons name="search-outline" size={48} color="#94a3b8" />
+                <Text style={styles.otherLocationsEmptyText}>No customers found in other locations</Text>
+              </View>
+            )}
+
+            {otherLocationResults.length === 0 && otherLocationSearch.length < 2 && (
+              <View style={styles.otherLocationsEmptyState}>
+                <Ionicons name="business-outline" size={48} color="#94a3b8" />
+                <Text style={styles.otherLocationsEmptyText}>Enter at least 2 characters to search</Text>
+              </View>
+            )}
+
+            {otherLocationResults.map((customer) => (
+              <TouchableOpacity
+                key={customer._id}
+                style={styles.otherLocationsCustomerItem}
+                onPress={() => copyCustomerFromOtherLocation(customer)}
+                disabled={copyingCustomer}
+              >
+                <View style={styles.otherLocationsCustomerInfo}>
+                  <Text style={styles.otherLocationsCustomerName}>{customer.name}</Text>
+                  <Text style={styles.otherLocationsCustomerPhone}>{formatPhoneNumber(customer.phoneNumber)}</Text>
+                  {customer.address && (
+                    <Text style={styles.otherLocationsCustomerAddress}>{customer.address}</Text>
+                  )}
+                </View>
+                <View style={styles.otherLocationsCustomerLocation}>
+                  <View style={styles.otherLocationsLocationBadge}>
+                    <Ionicons name="location" size={12} color="#8b5cf6" />
+                    <Text style={styles.otherLocationsLocationText}>{customer.locationName}</Text>
+                  </View>
+                  <Ionicons name="add-circle" size={28} color="#10b981" />
+                </View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+
+          {/* Info Text */}
+          <View style={styles.otherLocationsInfoBar}>
+            <Ionicons name="information-circle" size={16} color="#64748b" />
+            <Text style={styles.otherLocationsInfoText}>
+              Tap a customer to copy them to your location
+            </Text>
+          </View>
         </View>
       </Modal>
     </KeyboardAwareScrollView>
@@ -2883,6 +3054,135 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#2563eb',
+  },
+  // Search Other Locations styles
+  searchOtherLocationsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    backgroundColor: '#f5f3ff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#c4b5fd',
+    borderStyle: 'dashed',
+    marginTop: 4,
+  },
+  searchOtherLocationsButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#8b5cf6',
+  },
+  otherLocationsContainer: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+  },
+  otherLocationsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#7c3aed',
+    padding: 20,
+    paddingTop: 60,
+  },
+  otherLocationsHeaderTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  otherLocationsSearchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    margin: 16,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 4,
+  },
+  otherLocationsSearchIcon: {
+    marginRight: 12,
+  },
+  otherLocationsSearchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1e293b',
+    paddingVertical: 12,
+  },
+  otherLocationsSearchSpinner: {
+    marginLeft: 12,
+  },
+  otherLocationsResults: {
+    flex: 1,
+    paddingHorizontal: 16,
+  },
+  otherLocationsEmptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+  },
+  otherLocationsEmptyText: {
+    fontSize: 16,
+    color: '#94a3b8',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  otherLocationsCustomerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+  },
+  otherLocationsCustomerInfo: {
+    flex: 1,
+  },
+  otherLocationsCustomerName: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  otherLocationsCustomerPhone: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  otherLocationsCustomerAddress: {
+    fontSize: 13,
+    color: '#94a3b8',
+    marginTop: 2,
+  },
+  otherLocationsCustomerLocation: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  otherLocationsLocationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f3ff',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  otherLocationsLocationText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#8b5cf6',
+  },
+  otherLocationsInfoBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#e2e8f0',
+  },
+  otherLocationsInfoText: {
+    fontSize: 13,
+    color: '#64748b',
   },
   quickAddContainer: {
     flex: 1,

@@ -241,6 +241,22 @@ class ApiService {
     });
   }
 
+  // Search customers from other locations
+  async searchCustomersOtherLocations(query: string): Promise<(Customer & { locationName: string })[]> {
+    return this.request<(Customer & { locationName: string })[]>(`/customers/search-all?q=${encodeURIComponent(query)}`);
+  }
+
+  // Copy customer from another location to current location
+  async copyCustomerToLocation(sourceCustomerId: string): Promise<{
+    message: string;
+    customer: Customer;
+  }> {
+    return this.request<{ message: string; customer: Customer }>('/customers/copy', {
+      method: 'POST',
+      body: JSON.stringify({ sourceCustomerId }),
+    });
+  }
+
   // Address verification / autocomplete
   async verifyAddress(address: string): Promise<{
     verified: boolean;
