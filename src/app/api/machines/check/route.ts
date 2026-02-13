@@ -19,9 +19,9 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     const body = await request.json();
-    const { orderId, machineId, checkerInitials } = body;
+    const { orderId, machineId, checkerInitials, forceSamePerson } = body;
 
-    console.log('Check machine request:', { orderId, machineId, checkerInitials, body });
+    console.log('Check machine request:', { orderId, machineId, checkerInitials, forceSamePerson, body });
 
     if (!orderId || !machineId) {
       console.log('Check machine error: Missing orderId or machineId', { orderId, machineId });
@@ -62,11 +62,14 @@ export async function POST(request: NextRequest) {
 
     const assignment = order.machineAssignments![assignmentIndex];
 
-    // VALIDATION: Checker cannot be the same person who assigned
-    if (assignment.assignedBy === currentUser.name) {
+    // VALIDATION: Checker should ideally be a different person
+    if (assignment.assignedBy === currentUser.name && !forceSamePerson) {
       return NextResponse.json(
-        { error: 'You cannot check your own assignment. Another person must verify.' },
-        { status: 403 }
+        {
+          error: 'You assigned this machine. Ideally another person should verify.',
+          requireConfirmation: true,
+        },
+        { status: 400 }
       );
     }
 

@@ -413,10 +413,10 @@ class ApiService {
     });
   }
 
-  async checkMachine(orderId: string, machineId: string, checkerInitials: string): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>('/machines/check', {
+  async checkMachine(orderId: string, machineId: string, checkerInitials: string, forceSamePerson?: boolean): Promise<{ success: boolean; message: string; requireConfirmation?: boolean }> {
+    return this.request<{ success: boolean; message: string; requireConfirmation?: boolean }>('/machines/check', {
       method: 'POST',
-      body: JSON.stringify({ orderId, machineId, checkerInitials }),
+      body: JSON.stringify({ orderId, machineId, checkerInitials, forceSamePerson }),
     });
   }
 
