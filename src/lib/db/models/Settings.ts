@@ -92,6 +92,17 @@ const settingsSchema = new mongoose.Schema<SettingsDocument>({
     type: String,
     required: false,
   },
+  // Break time settings (in minutes)
+  breakfastDurationMinutes: {
+    type: Number,
+    required: false,
+    default: 15,  // Default 15 minutes for breakfast
+  },
+  lunchDurationMinutes: {
+    type: Number,
+    required: false,
+    default: 30,  // Default 30 minutes for lunch
+  },
   updatedAt: {
     type: Date,
     default: Date.now,

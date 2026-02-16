@@ -235,6 +235,9 @@ export interface Settings {
   gmailTokenExpiry?: Date;
   gmailConnectedAt?: Date;
   gmailConnectedBy?: string;
+  // Break time settings (in minutes)
+  breakfastDurationMinutes?: number;
+  lunchDurationMinutes?: number;
   updatedAt: Date;
   updatedBy: string;
 }

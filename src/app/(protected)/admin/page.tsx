@@ -787,7 +787,7 @@ printer is configured correctly.
                   <input
                     type="number"
                     step="0.01"
-                    value={settings.sameDayMinimumCharge || 5}
+                    value={settings.sameDayMinimumCharge ?? 5}
                     onChange={e => setSettings(s => s ? { ...s, sameDayMinimumCharge: parseFloat(e.target.value) || 0 } : s)}
                     className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
                   />
@@ -803,7 +803,7 @@ printer is configured correctly.
                 </p>
                 <p className="text-sm text-amber-800 mt-2">
                   <strong>Minimum Charge:</strong> If the calculated extra (weight × ${(settings.sameDayExtraCentsPerPound || 0.33).toFixed(2)}/lb) is less than
-                  <strong> ${(settings.sameDayMinimumCharge || 5).toFixed(2)}</strong>, the minimum charge of ${(settings.sameDayMinimumCharge || 5).toFixed(2)} is applied instead.
+                  <strong> ${(settings.sameDayMinimumCharge ?? 5).toFixed(2)}</strong>, the minimum charge of ${(settings.sameDayMinimumCharge ?? 5).toFixed(2)} is applied instead.
                 </p>
               </div>
 

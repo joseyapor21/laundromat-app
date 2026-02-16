@@ -54,11 +54,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if QR code already exists
-    const existingMachine = await Machine.findOne({ qrCode });
+    // Check if QR code already exists in the same location
+    const qrQuery = currentUser.locationId
+      ? { qrCode, locationId: currentUser.locationId }
+      : { qrCode };
+    const existingMachine = await Machine.findOne(qrQuery);
     if (existingMachine) {
       return NextResponse.json(
-        { error: 'A machine with this QR code already exists' },
+        { error: 'A machine with this QR code already exists at this location' },
         { status: 400 }
       );
     }

@@ -3,9 +3,12 @@ import { api } from '../services/api';
 import { useAuth } from './AuthContext';
 import type { ClockStatus, TimeEntry } from '../types';
 
+export type BreakType = 'breakfast' | 'lunch' | null;
+
 interface TimeClockContextType {
   isClockedIn: boolean;
   isOnBreak: boolean;
+  breakType: BreakType;
   isLoading: boolean;
   lastClockIn: Date | null;
   lastClockOut: Date | null;
@@ -28,6 +31,7 @@ interface TimeClockContextType {
   startBreak: (data: {
     location: { latitude: number; longitude: number; accuracy?: number };
     notes?: string;
+    breakType?: 'breakfast' | 'lunch';
   }) => Promise<TimeEntry>;
   endBreak: (data: {
     location: { latitude: number; longitude: number; accuracy?: number };
@@ -43,6 +47,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated, user } = useAuth();
   const [isClockedIn, setIsClockedIn] = useState(false);
   const [isOnBreak, setIsOnBreak] = useState(false);
+  const [breakType, setBreakType] = useState<BreakType>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [lastClockIn, setLastClockIn] = useState<Date | null>(null);
   const [lastClockOut, setLastClockOut] = useState<Date | null>(null);
@@ -135,6 +140,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
   const startBreak = useCallback(async (data: {
     location: { latitude: number; longitude: number; accuracy?: number };
     notes?: string;
+    breakType?: 'breakfast' | 'lunch';
   }): Promise<TimeEntry> => {
     const entry = await api.startBreak({
       ...data,
@@ -143,6 +149,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
 
     // Update state
     setIsOnBreak(true);
+    setBreakType(data.breakType || null);
     setLastBreakStart(new Date(entry.timestamp));
     setTodayEntries(prev => [
       { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location },
@@ -163,6 +170,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
 
     // Update state
     setIsOnBreak(false);
+    setBreakType(null);
     setLastBreakEnd(new Date(entry.timestamp));
     setTodayEntries(prev => [
       { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location },
@@ -188,6 +196,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
       value={{
         isClockedIn,
         isOnBreak,
+        breakType,
         isLoading,
         lastClockIn,
         lastClockOut,

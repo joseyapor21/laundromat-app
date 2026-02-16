@@ -51,7 +51,9 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
       if (status === 'granted') {
         try {
           const loc = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 3000,
+            mayShowUserSettingsDialog: false,
           });
           setLocation({
             latitude: loc.coords.latitude,
@@ -113,17 +115,29 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
     try {
       setIsCapturing(true);
 
-      // Get fresh location
+      // Get fresh location (use last known if available for speed)
       if (locationPermission) {
         try {
-          const loc = await Location.getCurrentPositionAsync({
-            accuracy: Location.Accuracy.High,
-          });
-          setLocation({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            accuracy: loc.coords.accuracy || undefined,
-          });
+          const lastKnown = await Location.getLastKnownPositionAsync();
+          if (lastKnown && Date.now() - lastKnown.timestamp < 60000) {
+            // Use last known if less than 1 minute old
+            setLocation({
+              latitude: lastKnown.coords.latitude,
+              longitude: lastKnown.coords.longitude,
+              accuracy: lastKnown.coords.accuracy || undefined,
+            });
+          } else {
+            const loc = await Location.getCurrentPositionAsync({
+              accuracy: Location.Accuracy.Balanced,
+              timeInterval: 3000,
+              mayShowUserSettingsDialog: false,
+            });
+            setLocation({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+              accuracy: loc.coords.accuracy || undefined,
+            });
+          }
         } catch (error) {
           console.error('Error getting location:', error);
         }

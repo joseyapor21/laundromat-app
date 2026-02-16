@@ -455,7 +455,7 @@ export default function CreateOrderScreen() {
       if (isSameDay) {
         const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
         const calculatedExtra = totalWeight * extraCentsPerPound;
-        const minimumCharge = settings.sameDayMinimumCharge || 5;
+        const minimumCharge = settings.sameDayMinimumCharge ?? 5;
         const rawFee = Math.max(calculatedExtra, minimumCharge);
         sameDayExtra = Math.ceil(rawFee * 4) / 4;
       }
@@ -534,7 +534,7 @@ export default function CreateOrderScreen() {
       if (isSameDay) {
         const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
         const calculatedExtra = totalWeight * extraCentsPerPound;
-        const minimumCharge = settings.sameDayMinimumCharge || 5;
+        const minimumCharge = settings.sameDayMinimumCharge ?? 5;
         const rawFee = Math.max(calculatedExtra, minimumCharge);
         const sameDayCharge = Math.ceil(rawFee * 4) / 4;
         const isMinimum = rawFee === minimumCharge && calculatedExtra < minimumCharge;
@@ -684,7 +684,7 @@ export default function CreateOrderScreen() {
       if (isSameDay && settings) {
         const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
         const calculatedExtra = totalWeight * extraCentsPerPound;
-        const minimumCharge = settings.sameDayMinimumCharge || 5;
+        const minimumCharge = settings.sameDayMinimumCharge ?? 5;
         const rawFee = Math.max(calculatedExtra, minimumCharge);
         // Round UP to nearest quarter (0.25)
         sameDayFee = Math.ceil(rawFee * 4) / 4;

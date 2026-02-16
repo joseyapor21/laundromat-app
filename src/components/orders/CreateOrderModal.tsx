@@ -193,7 +193,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
     const calculatedExtra = weight * extraCentsPerPound;
 
     // Use minimum charge if calculated is less, then round to nearest quarter
-    const minimumCharge = settings.sameDayMinimumCharge || 5;
+    const minimumCharge = settings.sameDayMinimumCharge ?? 5;
     return roundToQuarter(Math.max(calculatedExtra, minimumCharge));
   }, [settings, isSameDay, weight]);
 
@@ -266,7 +266,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
     // Same day extra charge
     if (isSameDay && weight > 0) {
       const sameDayExtra = getSameDayExtraCharge();
-      const minimumCharge = settings.sameDayMinimumCharge || 5;
+      const minimumCharge = settings.sameDayMinimumCharge ?? 5;
       if (sameDayExtra === minimumCharge) {
         breakdown.push({
           label: `Same Day (min $${minimumCharge.toFixed(2)})`,
@@ -821,7 +821,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                 <div>
                   <span className={`font-medium text-lg ${isSameDay ? 'text-amber-800' : 'text-gray-700'}`}>Same Day Service</span>
                   <p className={`text-sm ${isSameDay ? 'text-amber-600' : 'text-gray-500'}`}>
-                    Extra ${(settings?.sameDayExtraCentsPerPound || 0.33).toFixed(2)}/lb (min ${(settings?.sameDayMinimumCharge || 5).toFixed(2)})
+                    Extra ${(settings?.sameDayExtraCentsPerPound || 0.33).toFixed(2)}/lb (min ${(settings?.sameDayMinimumCharge ?? 5).toFixed(2)})
                   </p>
                 </div>
               </label>
@@ -831,7 +831,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                     <span className="text-amber-700">Same Day Extra:</span>
                     <span className="font-bold text-amber-700">+${getSameDayExtraCharge().toFixed(2)}</span>
                   </div>
-                  {getSameDayExtraCharge() === (settings.sameDayMinimumCharge || 5) && (
+                  {getSameDayExtraCharge() === (settings.sameDayMinimumCharge ?? 5) && (
                     <p className="text-xs text-amber-600 mt-1">
                       Minimum charge applied (calculated: ${(weight * (settings.sameDayExtraCentsPerPound || 0.33)).toFixed(2)})
                     </p>

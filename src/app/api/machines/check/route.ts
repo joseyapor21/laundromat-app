@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Types } from 'mongoose';
 import { connectDB } from '@/lib/db/connection';
 import { Order, ActivityLog, Machine } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
@@ -90,11 +91,13 @@ export async function POST(request: NextRequest) {
     await order.save();
 
     // Release the machine - set status to available and clear currentOrderId
-    await Machine.findByIdAndUpdate(machineId, {
+    const machineObjectId = Types.ObjectId.isValid(machineId) ? new Types.ObjectId(machineId) : machineId;
+    const releaseResult = await Machine.findByIdAndUpdate(machineObjectId, {
       status: 'available',
       currentOrderId: null,
       lastUsedAt: new Date(),
     });
+    console.log('Machine release result:', releaseResult ? 'success' : 'not found', 'for machineId:', machineId);
 
     // Check if all dryer assignments are now checked - if so, move to on_cart
     if (order.status === 'in_dryer') {

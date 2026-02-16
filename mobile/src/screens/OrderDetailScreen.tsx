@@ -43,7 +43,6 @@ const STATUS_OPTIONS: { value: OrderStatus; label: string; color: string; orderT
   { value: 'transfer_checked', label: 'Transfer Checked', color: '#14b8a6' },
   { value: 'in_dryer', label: 'In Dryer', color: '#f97316' },
   { value: 'on_cart', label: 'On Cart', color: '#eab308' },
-  { value: 'laid_on_cart', label: 'On Cart', color: '#eab308' }, // Legacy, same as on_cart
   { value: 'folding', label: 'Folding', color: '#ec4899' },
   { value: 'folded', label: 'Folded', color: '#f43f5e' },
   { value: 'ready_for_pickup', label: 'Ready for Pickup', color: '#10b981', orderTypes: ['storePickup'] },

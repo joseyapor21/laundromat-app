@@ -69,16 +69,18 @@ export async function POST(request: NextRequest) {
 
     // Also check by looking at active machine assignments in orders (backup check)
     // Filter by location to avoid cross-location conflicts
+    // Exclude assignments that are checked (isChecked: true) since the machine was released
     const orderCheckQuery: {
       _id: { $ne: string };
-      machineAssignments: { $elemMatch: { machineId: string; removedAt: { $exists: boolean } } };
+      machineAssignments: { $elemMatch: { machineId: string; removedAt: { $exists: boolean }; isChecked: { $ne: boolean } } };
       locationId?: string;
     } = {
       _id: { $ne: orderId },
       'machineAssignments': {
         $elemMatch: {
           machineId: machine._id.toString(),
-          removedAt: { $exists: false }
+          removedAt: { $exists: false },
+          isChecked: { $ne: true }
         }
       }
     };

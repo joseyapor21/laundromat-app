@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -11,18 +11,34 @@ import {
   ActivityIndicator,
   Switch,
   FlatList,
+  Vibration,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
 import { useAuth } from '../contexts/AuthContext';
-import { useTimeClock } from '../contexts/TimeClockContext';
+import { useTimeClock, BreakType } from '../contexts/TimeClockContext';
 import { useLocation } from '../contexts/LocationContext';
 import { api } from '../services/api';
 import ClockInScreen from './ClockInScreen';
-import type { Location as LocationType } from '../types';
+import type { Location as LocationType, Settings } from '../types';
+
+// Configure notification handler for foreground notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
+
+// Break notification identifier
+const BREAK_NOTIFICATION_ID = 'break-timer-alarm';
 
 // Dynamically import push notifications
 let pushNotificationService: {
@@ -39,12 +55,19 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { user, logout, refreshUser } = useAuth();
-  const { isClockedIn, isOnBreak, lastClockIn, lastBreakStart, startBreak, endBreak, isLoading: isClockLoading } = useTimeClock();
+  const { isClockedIn, isOnBreak, breakType, lastClockIn, lastBreakStart, startBreak, endBreak, isLoading: isClockLoading } = useTimeClock();
   const { currentLocation, availableLocations, selectLocation, refreshLocations } = useLocation();
 
   // Clock out modal
   const [showClockOutModal, setShowClockOutModal] = useState(false);
   const [isBreakLoading, setIsBreakLoading] = useState(false);
+  const [settings, setSettings] = useState<Settings | null>(null);
+  const [breakTimeRemaining, setBreakTimeRemaining] = useState<number | null>(null);
+  const [breakTimeExpired, setBreakTimeExpired] = useState(false);
+  const [isTimerPaused, setIsTimerPaused] = useState(false);
+  const [pausedTime, setPausedTime] = useState(0); // Total paused time in seconds
+  const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
+  const breakTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Location picker modal
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -69,11 +92,178 @@ export default function ProfileScreen() {
   useEffect(() => {
     checkPushNotificationStatus();
     loadNotificationPreference();
+    loadSettings();
     // Load locations if not already loaded
     if (availableLocations.length === 0) {
       refreshLocations();
     }
   }, []);
+
+  // Load settings for break durations
+  const loadSettings = async () => {
+    try {
+      const settingsData = await api.getSettings();
+      setSettings(settingsData);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
+    }
+  };
+
+  // Schedule a local notification for when break time expires
+  const scheduleBreakNotification = async (type: 'breakfast' | 'lunch', durationMinutes: number) => {
+    try {
+      // Request notification permissions
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Notification permissions not granted');
+        return;
+      }
+
+      // Cancel any existing break notification first
+      await cancelBreakNotification();
+
+      // Schedule notification for when break time expires
+      const triggerDate = new Date(Date.now() + durationMinutes * 60 * 1000);
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `${type === 'breakfast' ? 'Breakfast' : 'Lunch'} Break Time Up!`,
+          body: `Your ${durationMinutes} minute ${type} break has ended. Please return to work.`,
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          vibrate: [0, 500, 200, 500, 200, 500],
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: triggerDate,
+        },
+        identifier: BREAK_NOTIFICATION_ID,
+      });
+
+      console.log(`Break notification scheduled for ${triggerDate.toLocaleTimeString()}`);
+    } catch (error) {
+      console.error('Failed to schedule break notification:', error);
+    }
+  };
+
+  // Cancel the break notification
+  const cancelBreakNotification = async () => {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(BREAK_NOTIFICATION_ID);
+      console.log('Break notification cancelled');
+    } catch (error) {
+      console.error('Failed to cancel break notification:', error);
+    }
+  };
+
+  // Schedule notification with specific remaining seconds (for resume after pause)
+  const scheduleBreakNotificationWithSeconds = async (type: 'breakfast' | 'lunch', remainingSeconds: number) => {
+    try {
+      if (remainingSeconds <= 0) return;
+
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Notification permissions not granted');
+        return;
+      }
+
+      await cancelBreakNotification();
+
+      const triggerDate = new Date(Date.now() + remainingSeconds * 1000);
+      const minutes = Math.ceil(remainingSeconds / 60);
+
+      await Notifications.scheduleNotificationAsync({
+        content: {
+          title: `${type === 'breakfast' ? 'Breakfast' : 'Lunch'} Break Time Up!`,
+          body: `Your ${type} break has ended. Please return to work.`,
+          sound: 'default',
+          priority: Notifications.AndroidNotificationPriority.MAX,
+          vibrate: [0, 500, 200, 500, 200, 500],
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DATE,
+          date: triggerDate,
+        },
+        identifier: BREAK_NOTIFICATION_ID,
+      });
+
+      console.log(`Break notification rescheduled for ${triggerDate.toLocaleTimeString()} (${remainingSeconds}s remaining)`);
+    } catch (error) {
+      console.error('Failed to reschedule break notification:', error);
+    }
+  };
+
+  // Break timer effect
+  useEffect(() => {
+    if (isOnBreak && lastBreakStart && settings && !isTimerPaused) {
+      const allowedMinutes = breakType === 'breakfast'
+        ? (settings.breakfastDurationMinutes || 15)
+        : (settings.lunchDurationMinutes || 30);
+
+      const updateTimer = () => {
+        // Calculate elapsed time minus any paused time
+        const elapsed = Math.floor((Date.now() - lastBreakStart.getTime()) / 1000) - pausedTime;
+        const allowed = allowedMinutes * 60;
+        const remaining = allowed - elapsed;
+
+        setBreakTimeRemaining(remaining);
+
+        if (remaining <= 0 && !breakTimeExpired) {
+          setBreakTimeExpired(true);
+          Vibration.vibrate([500, 200, 500, 200, 500]);
+          Alert.alert(
+            'Break Time Expired',
+            `Your ${breakType || 'break'} time of ${allowedMinutes} minutes has ended. Please end your break now.`,
+            [{ text: 'OK' }]
+          );
+        }
+      };
+
+      updateTimer();
+      breakTimerRef.current = setInterval(updateTimer, 1000);
+
+      return () => {
+        if (breakTimerRef.current) {
+          clearInterval(breakTimerRef.current);
+        }
+      };
+    } else if (!isOnBreak) {
+      setBreakTimeRemaining(null);
+      setBreakTimeExpired(false);
+      setIsTimerPaused(false);
+      setPausedTime(0);
+      setPauseStartTime(null);
+      if (breakTimerRef.current) {
+        clearInterval(breakTimerRef.current);
+      }
+      // Cancel any scheduled break notification
+      cancelBreakNotification();
+    }
+  }, [isOnBreak, lastBreakStart, breakType, settings, breakTimeExpired, isTimerPaused, pausedTime]);
+
+  const toggleTimerPause = async () => {
+    if (isTimerPaused) {
+      // Resume: add the paused duration to total paused time
+      if (pauseStartTime) {
+        const pausedDuration = Math.floor((Date.now() - pauseStartTime) / 1000);
+        const newPausedTime = pausedTime + pausedDuration;
+        setPausedTime(newPausedTime);
+
+        // Reschedule notification with remaining time
+        if (breakTimeRemaining !== null && breakTimeRemaining > 0 && settings) {
+          const remainingSeconds = breakTimeRemaining;
+          await scheduleBreakNotificationWithSeconds(breakType || 'lunch', remainingSeconds);
+        }
+      }
+      setPauseStartTime(null);
+      setIsTimerPaused(false);
+    } else {
+      // Pause: record when we started pausing and cancel notification
+      setPauseStartTime(Date.now());
+      setIsTimerPaused(true);
+      await cancelBreakNotification();
+    }
+  };
 
   const loadNotificationPreference = async () => {
     try {
@@ -141,7 +331,7 @@ export default function ProfileScreen() {
     );
   }
 
-  const handleBreakToggle = async () => {
+  const handleStartBreak = async (type: 'breakfast' | 'lunch') => {
     setIsBreakLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -151,7 +341,9 @@ export default function ProfileScreen() {
       }
 
       const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 5000,
+        mayShowUserSettingsDialog: false,
       });
 
       // Get address via reverse geocoding
@@ -181,19 +373,89 @@ export default function ProfileScreen() {
         address: addressStr,
       };
 
-      if (isOnBreak) {
-        await endBreak({ location });
-        Alert.alert('Break Ended', 'Your break has been recorded.');
-      } else {
-        await startBreak({ location });
-        Alert.alert('Break Started', 'Your break has been recorded.');
-      }
+      const duration = type === 'breakfast'
+        ? (settings?.breakfastDurationMinutes || 15)
+        : (settings?.lunchDurationMinutes || 30);
+
+      await startBreak({ location, breakType: type, notes: `${type} break` });
+
+      // Schedule notification for when break time expires
+      await scheduleBreakNotification(type, duration);
+
+      Alert.alert(
+        `${type.charAt(0).toUpperCase() + type.slice(1)} Break Started`,
+        `You have ${duration} minutes for your ${type} break. You'll be notified when time is up.`
+      );
     } catch (error: any) {
       console.error('Break error:', error);
-      Alert.alert('Error', error.message || 'Failed to record break');
+      Alert.alert('Error', error.message || 'Failed to start break');
     } finally {
       setIsBreakLoading(false);
     }
+  };
+
+  const handleEndBreak = async () => {
+    setIsBreakLoading(true);
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Error', 'Location permission is required for break tracking');
+        return;
+      }
+
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 5000,
+        mayShowUserSettingsDialog: false,
+      });
+
+      // Get address via reverse geocoding
+      let addressStr: string | undefined;
+      try {
+        const addresses = await Location.reverseGeocodeAsync({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+        });
+        if (addresses.length > 0) {
+          const addr = addresses[0];
+          const parts = [];
+          if (addr.streetNumber) parts.push(addr.streetNumber);
+          if (addr.street) parts.push(addr.street);
+          if (addr.city) parts.push(addr.city);
+          if (addr.region) parts.push(addr.region);
+          addressStr = parts.join(', ') || addr.name || undefined;
+        }
+      } catch (geoError) {
+        console.error('Error reverse geocoding:', geoError);
+      }
+
+      const location = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        accuracy: loc.coords.accuracy || undefined,
+        address: addressStr,
+      };
+
+      await endBreak({ location });
+
+      // Cancel the scheduled break notification
+      await cancelBreakNotification();
+
+      Alert.alert('Break Ended', 'Your break has been recorded.');
+    } catch (error: any) {
+      console.error('Break error:', error);
+      Alert.alert('Error', error.message || 'Failed to end break');
+    } finally {
+      setIsBreakLoading(false);
+    }
+  };
+
+  const formatTimeRemaining = (seconds: number): string => {
+    if (seconds <= 0) return 'Time up!';
+    const mins = Math.floor(Math.abs(seconds) / 60);
+    const secs = Math.abs(seconds) % 60;
+    const sign = seconds < 0 ? '-' : '';
+    return `${sign}${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const getRoleLabel = (role: string) => {
@@ -489,28 +751,42 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {isClockedIn && (
+        {isClockedIn && !isOnBreak && (
           <View style={styles.clockActionButtons}>
             <TouchableOpacity
-              style={[styles.breakButton, isOnBreak && styles.breakButtonActive]}
-              onPress={handleBreakToggle}
+              style={styles.breakButton}
+              onPress={() => handleStartBreak('breakfast')}
               disabled={isBreakLoading}
             >
               {isBreakLoading ? (
-                <ActivityIndicator size="small" color={isOnBreak ? '#fff' : '#d97706'} />
+                <ActivityIndicator size="small" color="#d97706" />
               ) : (
                 <>
-                  <Ionicons
-                    name={isOnBreak ? 'cafe' : 'cafe-outline'}
-                    size={20}
-                    color={isOnBreak ? '#fff' : '#d97706'}
-                  />
-                  <Text style={[styles.breakButtonText, isOnBreak && styles.breakButtonTextActive]}>
-                    {isOnBreak ? 'End Break' : 'Start Break'}
-                  </Text>
+                  <Ionicons name="sunny-outline" size={20} color="#d97706" />
+                  <Text style={styles.breakButtonText}>Breakfast</Text>
+                  <Text style={styles.breakDurationText}>({settings?.breakfastDurationMinutes || 15} min)</Text>
                 </>
               )}
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.breakButton}
+              onPress={() => handleStartBreak('lunch')}
+              disabled={isBreakLoading}
+            >
+              {isBreakLoading ? (
+                <ActivityIndicator size="small" color="#d97706" />
+              ) : (
+                <>
+                  <Ionicons name="restaurant-outline" size={20} color="#d97706" />
+                  <Text style={styles.breakButtonText}>Lunch</Text>
+                  <Text style={styles.breakDurationText}>({settings?.lunchDurationMinutes || 30} min)</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+        {isClockedIn && !isOnBreak && (
+          <View style={styles.clockOutRow}>
             <TouchableOpacity
               style={styles.clockOutButton}
               onPress={() => setShowClockOutModal(true)}
@@ -521,11 +797,59 @@ export default function ProfileScreen() {
           </View>
         )}
         {isOnBreak && (
-          <View style={styles.breakStatusBanner}>
-            <Ionicons name="cafe" size={16} color="#d97706" />
-            <Text style={styles.breakStatusText}>
-              On break since {lastBreakStart?.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
-            </Text>
+          <View style={[styles.breakStatusBanner, breakTimeExpired && styles.breakStatusBannerExpired]}>
+            <View style={styles.breakStatusTop}>
+              <Ionicons
+                name={breakType === 'breakfast' ? 'sunny' : 'restaurant'}
+                size={20}
+                color={breakTimeExpired ? '#ef4444' : '#d97706'}
+              />
+              <Text style={[styles.breakStatusText, breakTimeExpired && styles.breakStatusTextExpired]}>
+                {breakType === 'breakfast' ? 'Breakfast' : 'Lunch'} Break
+              </Text>
+              {isTimerPaused && (
+                <View style={styles.pausedBadge}>
+                  <Text style={styles.pausedBadgeText}>PAUSED</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.breakTimerContainer}>
+              <Text style={[styles.breakTimerText, breakTimeExpired && styles.breakTimerTextExpired, isTimerPaused && styles.breakTimerTextPaused]}>
+                {breakTimeRemaining !== null ? formatTimeRemaining(breakTimeRemaining) : '--:--'}
+              </Text>
+              {breakTimeExpired && (
+                <Text style={styles.breakOverTimeText}>OVER TIME</Text>
+              )}
+            </View>
+            <View style={styles.breakButtonsRow}>
+              <TouchableOpacity
+                style={[styles.pauseButton, isTimerPaused && styles.pauseButtonActive]}
+                onPress={toggleTimerPause}
+              >
+                <Ionicons
+                  name={isTimerPaused ? 'play' : 'pause'}
+                  size={20}
+                  color={isTimerPaused ? '#fff' : '#64748b'}
+                />
+                <Text style={[styles.pauseButtonText, isTimerPaused && styles.pauseButtonTextActive]}>
+                  {isTimerPaused ? 'Resume' : 'Pause'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.endBreakButton, breakTimeExpired && styles.endBreakButtonExpired]}
+                onPress={handleEndBreak}
+                disabled={isBreakLoading}
+              >
+                {isBreakLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="stop-circle" size={20} color="#fff" />
+                    <Text style={styles.endBreakButtonText}>End Break</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </View>
@@ -895,19 +1219,123 @@ const styles = StyleSheet.create({
   breakButtonTextActive: {
     color: '#fff',
   },
+  breakDurationText: {
+    fontSize: 12,
+    color: '#92400e',
+    marginLeft: 4,
+  },
+  clockOutRow: {
+    marginTop: 12,
+  },
   breakStatusBanner: {
+    backgroundColor: '#fef3c7',
+    padding: 16,
+    borderRadius: 12,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  breakStatusBannerExpired: {
+    backgroundColor: '#fee2e2',
+    borderWidth: 2,
+    borderColor: '#ef4444',
+  },
+  breakStatusTop: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#fef3c7',
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 8,
+    marginBottom: 8,
   },
   breakStatusText: {
-    fontSize: 13,
+    fontSize: 16,
     color: '#92400e',
-    fontWeight: '500',
+    fontWeight: '600',
+  },
+  breakStatusTextExpired: {
+    color: '#b91c1c',
+  },
+  breakTimerContainer: {
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  breakTimerText: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#d97706',
+    fontVariant: ['tabular-nums'],
+  },
+  breakTimerTextExpired: {
+    color: '#ef4444',
+  },
+  breakTimerTextPaused: {
+    color: '#94a3b8',
+  },
+  pausedBadge: {
+    backgroundColor: '#94a3b8',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  pausedBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  breakButtonsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+    width: '100%',
+  },
+  pauseButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  pauseButtonActive: {
+    backgroundColor: '#22c55e',
+    borderColor: '#22c55e',
+  },
+  pauseButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  pauseButtonTextActive: {
+    color: '#fff',
+  },
+  breakOverTimeText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#ef4444',
+    marginTop: 4,
+  },
+  endBreakButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#d97706',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  endBreakButtonExpired: {
+    backgroundColor: '#ef4444',
+  },
+  endBreakButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
   logoutButton: {
     flexDirection: 'row',

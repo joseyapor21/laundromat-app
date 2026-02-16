@@ -122,6 +122,8 @@ export default function AdminScreen() {
     storeLongitude: '',
     thermalPrinterIp: '',
     thermalPrinterPort: '',
+    breakfastDurationMinutes: '',
+    lunchDurationMinutes: '',
   });
 
   const loadData = useCallback(async () => {
@@ -681,13 +683,15 @@ export default function AdminScreen() {
         minimumWeight: (settings.minimumWeight || 0).toString(),
         minimumPrice: (settings.minimumPrice || 0).toString(),
         pricePerPound: (settings.pricePerPound || 1.25).toString(),
-        sameDayMinimumCharge: (settings.sameDayMinimumCharge || 5).toString(),
+        sameDayMinimumCharge: (settings.sameDayMinimumCharge ?? 5).toString(),
         sameDayExtraCentsPerPound: (settings.sameDayExtraCentsPerPound || 0.33).toString(),
         storeAddress: settings.storeAddress || '',
         storeLatitude: (settings.storeLatitude || 40.7128).toString(),
         storeLongitude: (settings.storeLongitude || -74.0060).toString(),
         thermalPrinterIp: settings.thermalPrinterIp || '',
         thermalPrinterPort: (settings.thermalPrinterPort || 9100).toString(),
+        breakfastDurationMinutes: (settings.breakfastDurationMinutes || 15).toString(),
+        lunchDurationMinutes: (settings.lunchDurationMinutes || 30).toString(),
       });
     }
     setShowSettingsModal(true);
@@ -707,6 +711,8 @@ export default function AdminScreen() {
         storeLongitude: parseFloat(settingsForm.storeLongitude) || -74.0060,
         thermalPrinterIp: settingsForm.thermalPrinterIp,
         thermalPrinterPort: parseInt(settingsForm.thermalPrinterPort) || 9100,
+        breakfastDurationMinutes: parseInt(settingsForm.breakfastDurationMinutes) || 15,
+        lunchDurationMinutes: parseInt(settingsForm.lunchDurationMinutes) || 30,
       });
       Alert.alert('Success', 'Settings updated');
       setShowSettingsModal(false);
@@ -1306,6 +1312,18 @@ export default function AdminScreen() {
             <View style={styles.settingsRow}>
               <Text style={styles.settingsLabel}>Longitude</Text>
               <Text style={styles.settingsValue}>{settings.storeLongitude || '-74.0060'}</Text>
+            </View>
+          </View>
+
+          <View style={styles.settingsCard}>
+            <Text style={styles.settingsTitle}>Break Times</Text>
+            <View style={styles.settingsRow}>
+              <Text style={styles.settingsLabel}>Breakfast Duration</Text>
+              <Text style={styles.settingsValue}>{settings.breakfastDurationMinutes || 15} min</Text>
+            </View>
+            <View style={styles.settingsRow}>
+              <Text style={styles.settingsLabel}>Lunch Duration</Text>
+              <Text style={styles.settingsValue}>{settings.lunchDurationMinutes || 30} min</Text>
             </View>
           </View>
 
@@ -1923,8 +1941,17 @@ export default function AdminScreen() {
                         const entryDate = new Date(entry.timestamp);
                         const getEntryConfig = () => {
                           if (entry.type === 'clock_in') return { bg: '#dcfce7', color: '#16a34a', icon: 'log-in' as const, label: 'Clock In' };
-                          if (entry.type === 'break_start') return { bg: '#fef3c7', color: '#d97706', icon: 'cafe' as const, label: 'Break Start' };
-                          if (entry.type === 'break_end') return { bg: '#dbeafe', color: '#2563eb', icon: 'cafe-outline' as const, label: 'Break End' };
+                          if (entry.type === 'break_start') {
+                            // Check notes for break type
+                            const isBreakfast = entry.notes?.toLowerCase().includes('breakfast');
+                            const isLunch = entry.notes?.toLowerCase().includes('lunch');
+                            const breakLabel = isBreakfast ? 'Breakfast' : isLunch ? 'Lunch' : 'Break';
+                            const icon = isBreakfast ? 'sunny' : isLunch ? 'restaurant' : 'cafe';
+                            return { bg: '#fef3c7', color: '#d97706', icon: icon as const, label: `${breakLabel} Start` };
+                          }
+                          if (entry.type === 'break_end') {
+                            return { bg: '#dbeafe', color: '#2563eb', icon: 'checkmark-circle' as const, label: 'Break End' };
+                          }
                           return { bg: '#fee2e2', color: '#dc2626', icon: 'log-out' as const, label: 'Clock Out' };
                         };
                         const config = getEntryConfig();
@@ -2692,6 +2719,35 @@ export default function AdminScreen() {
                 Enter your thermal receipt printer's IP address. Default port is 9100.
               </Text>
 
+              <Text style={styles.sectionLabel}>Break Time Settings</Text>
+              <View style={styles.inputRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Breakfast (min)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={settingsForm.breakfastDurationMinutes}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, breakfastDurationMinutes: text })}
+                    keyboardType="number-pad"
+                    placeholder="15"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Lunch (min)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={settingsForm.lunchDurationMinutes}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, lunchDurationMinutes: text })}
+                    keyboardType="number-pad"
+                    placeholder="30"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+              </View>
+              <Text style={styles.hintText}>
+                Set the allowed duration for breakfast and lunch breaks. A timer will alert employees when time is up.
+              </Text>
+
             </ScrollView>
             <View style={styles.modalFooter}>
               <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowSettingsModal(false)}>
@@ -2790,7 +2846,10 @@ export default function AdminScreen() {
               <Text style={styles.photoModalTitle}>
                 {selectedTimeEntry?.type === 'clock_in' ? 'Clock In' :
                  selectedTimeEntry?.type === 'clock_out' ? 'Clock Out' :
-                 selectedTimeEntry?.type === 'break_start' ? 'Break Start' : 'Break End'} Photo
+                 selectedTimeEntry?.type === 'break_start' ? (
+                   selectedTimeEntry?.notes?.toLowerCase().includes('breakfast') ? 'Breakfast Start' :
+                   selectedTimeEntry?.notes?.toLowerCase().includes('lunch') ? 'Lunch Start' : 'Break Start'
+                 ) : 'Break End'} Photo
               </Text>
               <TouchableOpacity
                 style={styles.photoModalCloseBtn}

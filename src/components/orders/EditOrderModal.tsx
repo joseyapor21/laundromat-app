@@ -140,7 +140,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     const calculatedExtra = weight * extraCentsPerPound;
 
     // Use minimum charge if calculated is less, then round to nearest quarter
-    const minimumCharge = settings.sameDayMinimumCharge || 5;
+    const minimumCharge = settings.sameDayMinimumCharge ?? 5;
     return roundToQuarter(Math.max(calculatedExtra, minimumCharge));
   };
 
@@ -559,7 +559,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                     </p>
                     <p className="mt-1">
                       Extra charge: <strong>${getSameDayExtraCharge().toFixed(2)}</strong>
-                      {getSameDayExtraCharge() === (settings.sameDayMinimumCharge || 5) && weight > 0 && (
+                      {getSameDayExtraCharge() === (settings.sameDayMinimumCharge ?? 5) && weight > 0 && (
                         <span className="text-amber-600 ml-1">(minimum charge applied)</span>
                       )}
                     </p>

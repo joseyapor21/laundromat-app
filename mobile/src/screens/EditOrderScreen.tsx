@@ -221,7 +221,7 @@ export default function EditOrderScreen() {
 
     const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
     const calculatedExtra = weight * extraCentsPerPound;
-    const minimumCharge = settings.sameDayMinimumCharge || 5;
+    const minimumCharge = settings.sameDayMinimumCharge ?? 5;
     const rawFee = Math.max(calculatedExtra, minimumCharge);
     // Round UP to nearest quarter (0.25)
     return Math.ceil(rawFee * 4) / 4;
@@ -740,8 +740,8 @@ export default function EditOrderScreen() {
                 <View style={styles.sameDayPricing}>
                   <Text style={styles.sameDayPricingText}>
                     Extra charge: ${getSameDayExtraCharge().toFixed(2)}
-                    {getSameDayExtraCharge() === (settings.sameDayMinimumCharge || 5) &&
-                     (weight * (settings.sameDayExtraCentsPerPound || 0.33)) < (settings.sameDayMinimumCharge || 5) && (
+                    {getSameDayExtraCharge() === (settings.sameDayMinimumCharge ?? 5) &&
+                     (weight * (settings.sameDayExtraCentsPerPound || 0.33)) < (settings.sameDayMinimumCharge ?? 5) && (
                       <Text style={styles.minimumNote}> (minimum charge)</Text>
                     )}
                   </Text>
