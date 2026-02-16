@@ -2780,19 +2780,36 @@ export default function AdminScreen() {
                     </View>
                     {item.documents && item.documents.length > 0 ? (
                       item.documents.map((doc, idx) => (
-                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#e2e8f0' }}>
-                          <Ionicons
-                            name={doc.fileType?.startsWith('image') ? 'image' : 'document-attach'}
-                            size={16}
-                            color="#64748b"
-                          />
-                          <Text style={{ fontSize: 13, color: '#1e293b', marginLeft: 6, flex: 1 }} numberOfLines={1}>{doc.fileName}</Text>
-                          <TouchableOpacity
-                            onPress={() => handleDeleteVaultDocument(item._id, doc.filePath, doc.fileName)}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                          >
-                            <Ionicons name="trash-outline" size={16} color="#dc2626" />
-                          </TouchableOpacity>
+                        <View key={idx} style={{ paddingVertical: 8, borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#e2e8f0' }}>
+                          {doc.fileType?.startsWith('image') ? (
+                            <View>
+                              <Image
+                                source={{ uri: api.getVaultDocumentUrl(doc.filePath) }}
+                                style={{ width: '100%', height: 150, borderRadius: 8, marginBottom: 6, backgroundColor: '#e2e8f0' }}
+                                resizeMode="cover"
+                              />
+                              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Text style={{ fontSize: 12, color: '#64748b', flex: 1 }} numberOfLines={1}>{doc.fileName}</Text>
+                                <TouchableOpacity
+                                  onPress={() => handleDeleteVaultDocument(item._id, doc.filePath, doc.fileName)}
+                                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                >
+                                  <Ionicons name="trash-outline" size={16} color="#dc2626" />
+                                </TouchableOpacity>
+                              </View>
+                            </View>
+                          ) : (
+                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                              <Ionicons name="document-attach" size={16} color="#64748b" />
+                              <Text style={{ fontSize: 13, color: '#1e293b', marginLeft: 6, flex: 1 }} numberOfLines={1}>{doc.fileName}</Text>
+                              <TouchableOpacity
+                                onPress={() => handleDeleteVaultDocument(item._id, doc.filePath, doc.fileName)}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                              >
+                                <Ionicons name="trash-outline" size={16} color="#dc2626" />
+                              </TouchableOpacity>
+                            </View>
+                          )}
                         </View>
                       ))
                     ) : (
