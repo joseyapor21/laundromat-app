@@ -69,6 +69,7 @@ export default function DashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<FilterType>('all');
+  const [orderSearch, setOrderSearch] = useState('');
 
   // Detect landscape mode - use 2 columns when width >= 700 in landscape
   const isLandscape = width > height;
@@ -207,22 +208,50 @@ export default function DashboardScreen() {
 
   const filteredOrders = orders
     .filter(order => {
+      // First apply status/type filter
+      let passesFilter = true;
       switch (filter) {
         case 'in-store':
-          return order.orderType === 'storePickup' && order.status !== 'completed';
+          passesFilter = order.orderType === 'storePickup' && order.status !== 'completed';
+          break;
         case 'delivery':
-          return order.orderType === 'delivery' && order.status !== 'completed';
+          passesFilter = order.orderType === 'delivery' && order.status !== 'completed';
+          break;
         case 'new_order':
-          return STATUS_GROUPS.new_order.includes(order.status);
+          passesFilter = STATUS_GROUPS.new_order.includes(order.status);
+          break;
         case 'processing':
-          return STATUS_GROUPS.processing.includes(order.status);
+          passesFilter = STATUS_GROUPS.processing.includes(order.status);
+          break;
         case 'ready':
-          return STATUS_GROUPS.ready.includes(order.status);
+          passesFilter = STATUS_GROUPS.ready.includes(order.status);
+          break;
         case 'completed':
-          return order.status === 'completed';
+          passesFilter = order.status === 'completed';
+          break;
         default: // 'all'
-          return order.status !== 'completed';
+          passesFilter = order.status !== 'completed';
       }
+
+      if (!passesFilter) return false;
+
+      // Then apply search filter
+      if (orderSearch.trim()) {
+        const search = orderSearch.toLowerCase().trim();
+        const orderIdStr = order.orderId?.toString() || '';
+        const phoneClean = order.customerPhone?.replace(/\D/g, '') || '';
+        const searchClean = search.replace(/\D/g, '');
+
+        return (
+          order.customerName?.toLowerCase().includes(search) ||
+          orderIdStr.includes(search) ||
+          order._id?.toLowerCase().includes(search) ||
+          (searchClean && phoneClean.includes(searchClean)) ||
+          order.customerPhone?.includes(search)
+        );
+      }
+
+      return true;
     })
     // Sort by closest pickup/delivery time first
     .sort((a, b) => {
@@ -504,6 +533,26 @@ export default function DashboardScreen() {
             />
           </View>
 
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#94a3b8" />
+            <TextInput
+              style={styles.searchInput}
+              value={orderSearch}
+              onChangeText={setOrderSearch}
+              placeholder="Search by name, order #, or phone..."
+              placeholderTextColor="#94a3b8"
+              returnKeyType="search"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {orderSearch.length > 0 && (
+              <TouchableOpacity onPress={() => setOrderSearch('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close-circle" size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            )}
+          </View>
+
           {/* Orders List - Portrait only */}
           <FlatList
             data={filteredOrders}
@@ -519,8 +568,18 @@ export default function DashboardScreen() {
             }
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
-                <Ionicons name="receipt-outline" size={64} color="#cbd5e1" />
-                <Text style={styles.emptyText}>No orders found</Text>
+                <Ionicons name={orderSearch ? 'search-outline' : 'receipt-outline'} size={64} color="#cbd5e1" />
+                <Text style={styles.emptyText}>
+                  {orderSearch ? `No orders matching "${orderSearch}"` : 'No orders found'}
+                </Text>
+                {orderSearch && (
+                  <TouchableOpacity
+                    style={styles.clearSearchButton}
+                    onPress={() => setOrderSearch('')}
+                  >
+                    <Text style={styles.clearSearchText}>Clear search</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             }
           />
@@ -837,6 +896,36 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: 8,
+    fontSize: 16,
+    color: '#1e293b',
+    paddingVertical: 0,
+  },
+  clearSearchButton: {
+    marginTop: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#2563eb',
+    borderRadius: 8,
+  },
+  clearSearchText: {
+    color: '#fff',
+    fontWeight: '600',
   },
   filterList: {
     paddingHorizontal: 16,

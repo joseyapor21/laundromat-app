@@ -41,12 +41,20 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     const relativePath = pathSegments.join('/');
 
     // Security: Only allow access to specific directories
-    const allowedPrefixes = ['time-entries/', 'pickup-photos/', 'maintenance-photos/'];
+    const allowedPrefixes = ['time-entries/', 'pickup-photos/', 'maintenance-photos/', 'vault-documents/'];
     const isAllowed = allowedPrefixes.some(prefix => relativePath.startsWith(prefix));
 
     if (!isAllowed) {
       return NextResponse.json(
         { error: 'Access denied' },
+        { status: 403 }
+      );
+    }
+
+    // Vault documents are admin-only
+    if (relativePath.startsWith('vault-documents/') && !isAdmin(currentUser)) {
+      return NextResponse.json(
+        { error: 'Access denied. Admin access required.' },
         { status: 403 }
       );
     }
@@ -88,6 +96,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       '.png': 'image/png',
       '.gif': 'image/gif',
       '.webp': 'image/webp',
+      '.pdf': 'application/pdf',
     };
     const contentType = contentTypes[ext] || 'application/octet-stream';
 

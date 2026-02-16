@@ -317,3 +317,49 @@ export interface ClockStatus {
     };
   }>;
 }
+
+// Location Vault types
+export type VaultItemType = 'bill' | 'contract' | 'email_account' | 'password' | 'note' | 'document';
+
+export interface VaultDocument {
+  fileName: string;
+  filePath: string;
+  fileType: string;
+  uploadedAt: string;
+  uploadedBy: string;
+  uploadedByName: string;
+}
+
+export interface LocationVaultItem {
+  _id: string;
+  locationId: string;
+  type: VaultItemType;
+  title: string;
+  description?: string;
+  // Bill/Contract fields
+  vendor?: string;
+  amount?: number;
+  dueDate?: string;
+  // Email Account fields
+  emailAddress?: string;
+  hasEmailPassword?: boolean;
+  smtpServer?: string;
+  imapServer?: string;
+  // Password fields
+  service?: string;
+  username?: string;
+  hasPassword?: boolean;
+  url?: string;
+  // Note fields
+  content?: string;
+  // Documents
+  documents?: VaultDocument[];
+  // Metadata
+  isActive: boolean;
+  createdAt: string;
+  createdBy: string;
+  createdByName: string;
+  updatedAt: string;
+  updatedBy?: string;
+  updatedByName?: string;
+}

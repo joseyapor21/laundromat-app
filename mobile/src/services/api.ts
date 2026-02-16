@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog, OrderStatus, PaymentMethod, TimeEntry, ClockStatus, Location } from '../types';
+import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog, OrderStatus, PaymentMethod, TimeEntry, ClockStatus, Location, LocationVaultItem, VaultDocument } from '../types';
 
 const API_BASE_URL = 'https://cloud.homation.us';
 
@@ -687,6 +687,54 @@ class ApiService {
   getMaintenancePhotoUrl(photoPath: string): string {
     const tokenParam = this.token ? `?token=${encodeURIComponent(this.token)}` : '';
     return `${API_BASE_URL}/api/uploads/${photoPath}${tokenParam}`;
+  }
+
+  // Location Vault
+  async getVaultItems(locationId: string, type?: string): Promise<LocationVaultItem[]> {
+    const query = type && type !== 'all' ? `?type=${type}` : '';
+    return this.request<LocationVaultItem[]>(`/locations/${locationId}/vault${query}`);
+  }
+
+  async createVaultItem(locationId: string, data: Partial<LocationVaultItem> & { password?: string; emailPassword?: string }): Promise<LocationVaultItem> {
+    return this.request<LocationVaultItem>(`/locations/${locationId}/vault`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateVaultItem(locationId: string, itemId: string, data: Partial<LocationVaultItem> & { password?: string; emailPassword?: string }): Promise<LocationVaultItem> {
+    return this.request<LocationVaultItem>(`/locations/${locationId}/vault/${itemId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteVaultItem(locationId: string, itemId: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/locations/${locationId}/vault/${itemId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async revealVaultPassword(locationId: string, itemId: string): Promise<{ password?: string; emailPassword?: string }> {
+    return this.request<{ password?: string; emailPassword?: string }>(`/locations/${locationId}/vault/${itemId}?reveal=true`);
+  }
+
+  async uploadVaultDocument(locationId: string, itemId: string, data: { fileName: string; fileType: string; base64: string }): Promise<{ success: boolean; document: VaultDocument }> {
+    return this.request<{ success: boolean; document: VaultDocument }>(`/locations/${locationId}/vault/${itemId}/document`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteVaultDocument(locationId: string, itemId: string, filePath: string): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/locations/${locationId}/vault/${itemId}/document?filePath=${encodeURIComponent(filePath)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  getVaultDocumentUrl(filePath: string): string {
+    const tokenParam = this.token ? `?token=${encodeURIComponent(this.token)}` : '';
+    return `${API_BASE_URL}/api/uploads/${filePath}${tokenParam}`;
   }
 }
 

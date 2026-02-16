@@ -26,10 +26,10 @@ import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import { useAuth } from '../contexts/AuthContext';
-import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location } from '../types';
+import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location, LocationVaultItem, VaultItemType, VaultDocument } from '../types';
 import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
-type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations';
+type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault';
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
@@ -70,6 +70,33 @@ export default function AdminScreen() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [locationForm, setLocationForm] = useState({ name: '', code: '', address: '', phone: '', email: '', isActive: true });
+
+  // Vault
+  const [vaultItems, setVaultItems] = useState<LocationVaultItem[]>([]);
+  const [vaultLoading, setVaultLoading] = useState(false);
+  const [showVaultModal, setShowVaultModal] = useState(false);
+  const [editingVaultItem, setEditingVaultItem] = useState<LocationVaultItem | null>(null);
+  const [vaultTypeFilter, setVaultTypeFilter] = useState<VaultItemType | 'all'>('all');
+  const [vaultForm, setVaultForm] = useState({
+    type: 'password' as VaultItemType,
+    title: '',
+    description: '',
+    vendor: '',
+    amount: '',
+    dueDate: '',
+    emailAddress: '',
+    emailPassword: '',
+    smtpServer: '',
+    imapServer: '',
+    service: '',
+    username: '',
+    password: '',
+    url: '',
+    content: '',
+  });
+  const [revealedPasswords, setRevealedPasswords] = useState<Record<string, { password?: string; emailPassword?: string }>>({});
+  const [revealingPassword, setRevealingPassword] = useState<string | null>(null);
+  const [selectedVaultLocation, setSelectedVaultLocation] = useState<string>('');
 
   // Printer state
   const [printerScanning, setPrinterScanning] = useState(false);
@@ -676,6 +703,233 @@ export default function AdminScreen() {
     );
   };
 
+  // Vault actions
+  const loadVaultItems = async (locationId: string) => {
+    setVaultLoading(true);
+    try {
+      const items = await api.getVaultItems(locationId);
+      setVaultItems(items);
+    } catch (error) {
+      console.error('Failed to load vault items:', error);
+      setVaultItems([]);
+    } finally {
+      setVaultLoading(false);
+    }
+  };
+
+  // Load vault items when tab changes to vault
+  useEffect(() => {
+    if (activeTab === 'vault' && selectedVaultLocation) {
+      loadVaultItems(selectedVaultLocation);
+    }
+  }, [activeTab, selectedVaultLocation]);
+
+  // Set default vault location when locations load
+  useEffect(() => {
+    if (locations.length > 0 && !selectedVaultLocation) {
+      setSelectedVaultLocation(locations[0]._id);
+    }
+  }, [locations, selectedVaultLocation]);
+
+  const resetVaultForm = () => {
+    setVaultForm({
+      type: 'password' as VaultItemType,
+      title: '',
+      description: '',
+      vendor: '',
+      amount: '',
+      dueDate: '',
+      emailAddress: '',
+      emailPassword: '',
+      smtpServer: '',
+      imapServer: '',
+      service: '',
+      username: '',
+      password: '',
+      url: '',
+      content: '',
+    });
+  };
+
+  const openVaultModal = async (item?: LocationVaultItem) => {
+    if (item) {
+      setEditingVaultItem(item);
+      // If editing, try to reveal passwords first
+      let revealedData: { password?: string; emailPassword?: string } = {};
+      try {
+        const revealed = await api.revealVaultPassword(selectedVaultLocation, item._id);
+        revealedData = {
+          password: revealed.password,
+          emailPassword: revealed.emailPassword,
+        };
+      } catch (error) {
+        console.error('Failed to reveal passwords for editing:', error);
+      }
+      setVaultForm({
+        type: item.type,
+        title: item.title,
+        description: item.description || '',
+        vendor: item.vendor || '',
+        amount: item.amount?.toString() || '',
+        dueDate: item.dueDate || '',
+        emailAddress: item.emailAddress || '',
+        emailPassword: revealedData.emailPassword || '',
+        smtpServer: item.smtpServer || '',
+        imapServer: item.imapServer || '',
+        service: item.service || '',
+        username: item.username || '',
+        password: revealedData.password || '',
+        url: item.url || '',
+        content: item.content || '',
+      });
+    } else {
+      setEditingVaultItem(null);
+      resetVaultForm();
+    }
+    setShowVaultModal(true);
+  };
+
+  const handleSaveVaultItem = async () => {
+    if (!vaultForm.title.trim()) {
+      Alert.alert('Error', 'Please enter a title');
+      return;
+    }
+
+    if (!selectedVaultLocation) {
+      Alert.alert('Error', 'Please select a location');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const data: any = {
+        type: vaultForm.type,
+        title: vaultForm.title.trim(),
+        description: vaultForm.description.trim() || undefined,
+      };
+
+      // Add type-specific fields
+      switch (vaultForm.type) {
+        case 'bill':
+        case 'contract':
+          data.vendor = vaultForm.vendor.trim() || undefined;
+          data.amount = vaultForm.amount ? parseFloat(vaultForm.amount) : undefined;
+          data.dueDate = vaultForm.dueDate.trim() || undefined;
+          break;
+        case 'email_account':
+          data.emailAddress = vaultForm.emailAddress.trim() || undefined;
+          data.emailPassword = vaultForm.emailPassword || undefined;
+          data.smtpServer = vaultForm.smtpServer.trim() || undefined;
+          data.imapServer = vaultForm.imapServer.trim() || undefined;
+          break;
+        case 'password':
+          data.service = vaultForm.service.trim() || undefined;
+          data.username = vaultForm.username.trim() || undefined;
+          data.password = vaultForm.password || undefined;
+          data.url = vaultForm.url.trim() || undefined;
+          break;
+        case 'note':
+          data.content = vaultForm.content.trim() || undefined;
+          break;
+      }
+
+      if (editingVaultItem) {
+        await api.updateVaultItem(selectedVaultLocation, editingVaultItem._id, data);
+        Alert.alert('Success', 'Vault item updated');
+      } else {
+        await api.createVaultItem(selectedVaultLocation, data);
+        Alert.alert('Success', 'Vault item created');
+      }
+      setShowVaultModal(false);
+      loadVaultItems(selectedVaultLocation);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save vault item';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteVaultItem = (item: LocationVaultItem) => {
+    Alert.alert(
+      'Delete Vault Item',
+      `Are you sure you want to delete "${item.title}"? This action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteVaultItem(selectedVaultLocation, item._id);
+              Alert.alert('Success', 'Vault item deleted');
+              loadVaultItems(selectedVaultLocation);
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to delete vault item';
+              Alert.alert('Error', errorMessage);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRevealPassword = async (itemId: string) => {
+    if (revealedPasswords[itemId]) {
+      // Toggle off - clear revealed passwords
+      setRevealedPasswords(prev => {
+        const { [itemId]: _, ...rest } = prev;
+        return rest;
+      });
+      return;
+    }
+
+    setRevealingPassword(itemId);
+    try {
+      const revealed = await api.revealVaultPassword(selectedVaultLocation, itemId);
+      setRevealedPasswords(prev => ({
+        ...prev,
+        [itemId]: {
+          password: revealed.password,
+          emailPassword: revealed.emailPassword,
+        },
+      }));
+    } catch (error) {
+      Alert.alert('Error', 'Failed to reveal password');
+    } finally {
+      setRevealingPassword(null);
+    }
+  };
+
+  const getVaultTypeIcon = (type: VaultItemType): string => {
+    switch (type) {
+      case 'bill': return 'receipt';
+      case 'contract': return 'document-text';
+      case 'email_account': return 'mail';
+      case 'password': return 'key';
+      case 'note': return 'document';
+      case 'document': return 'folder';
+      default: return 'folder';
+    }
+  };
+
+  const getVaultTypeColor = (type: VaultItemType): string => {
+    switch (type) {
+      case 'bill': return '#f59e0b';
+      case 'contract': return '#8b5cf6';
+      case 'email_account': return '#06b6d4';
+      case 'password': return '#ef4444';
+      case 'note': return '#22c55e';
+      case 'document': return '#3b82f6';
+      default: return '#64748b';
+    }
+  };
+
+  const filteredVaultItems = vaultItems.filter(item => {
+    if (vaultTypeFilter === 'all') return true;
+    return item.type === vaultTypeFilter;
+  });
+
   // Settings actions
   const openSettingsModal = () => {
     if (settings) {
@@ -1065,6 +1319,7 @@ export default function AdminScreen() {
     { key: 'extras', label: 'Extras', icon: 'pricetags', adminOnly: false },
     { key: 'settings', label: 'Settings', icon: 'settings', adminOnly: true },
     { key: 'machines', label: 'Machines', icon: 'hardware-chip', adminOnly: true },
+    { key: 'vault', label: 'Vault', icon: 'lock-closed', adminOnly: true },
     { key: 'printers', label: 'Printers', icon: 'print', adminOnly: true },
     { key: 'reports', label: 'Reports', icon: 'document-text', adminOnly: false },
     { key: 'timeclock', label: 'Time Clock', icon: 'timer', adminOnly: true },
@@ -2114,6 +2369,321 @@ export default function AdminScreen() {
         </View>
       )}
 
+      {/* Vault Tab */}
+      {activeTab === 'vault' && (
+        <View style={{ flex: 1 }}>
+          {/* Location Selector */}
+          <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+            <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 6 }}>Select Location</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {locations.map(loc => (
+                  <TouchableOpacity
+                    key={loc._id}
+                    onPress={() => setSelectedVaultLocation(loc._id)}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      backgroundColor: selectedVaultLocation === loc._id ? '#2563eb' : '#f1f5f9',
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 14,
+                      fontWeight: '600',
+                      color: selectedVaultLocation === loc._id ? '#fff' : '#64748b',
+                    }}>{loc.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+
+          {/* Type Filter */}
+          <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                {([
+                  { key: 'all', label: 'All', icon: 'grid' },
+                  { key: 'password', label: 'Passwords', icon: 'key' },
+                  { key: 'email_account', label: 'Email', icon: 'mail' },
+                  { key: 'bill', label: 'Bills', icon: 'receipt' },
+                  { key: 'contract', label: 'Contracts', icon: 'document-text' },
+                  { key: 'note', label: 'Notes', icon: 'document' },
+                ] as const).map(filter => (
+                  <TouchableOpacity
+                    key={filter.key}
+                    onPress={() => setVaultTypeFilter(filter.key)}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      borderRadius: 16,
+                      backgroundColor: vaultTypeFilter === filter.key ? '#1e40af' : '#e2e8f0',
+                      gap: 4,
+                    }}
+                  >
+                    <Ionicons
+                      name={filter.icon as any}
+                      size={14}
+                      color={vaultTypeFilter === filter.key ? '#fff' : '#64748b'}
+                    />
+                    <Text style={{
+                      fontSize: 13,
+                      fontWeight: '500',
+                      color: vaultTypeFilter === filter.key ? '#fff' : '#64748b',
+                    }}>{filter.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+          </View>
+
+          {/* Add Button */}
+          <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: '#2563eb',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                paddingVertical: 12,
+                borderRadius: 10,
+                gap: 6,
+              }}
+              onPress={() => openVaultModal()}
+            >
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={{ color: '#fff', fontWeight: '600', fontSize: 15 }}>Add Vault Item</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Vault Items List */}
+          {vaultLoading ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#2563eb" />
+            </View>
+          ) : (
+            <FlatList
+              data={filteredVaultItems}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
+              renderItem={({ item }) => (
+                <View style={{
+                  backgroundColor: '#fff',
+                  borderRadius: 12,
+                  padding: 16,
+                  marginBottom: 12,
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 1 },
+                  shadowOpacity: 0.1,
+                  shadowRadius: 2,
+                  elevation: 2,
+                }}>
+                  {/* Header with icon and title */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                    <View style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 10,
+                      backgroundColor: `${getVaultTypeColor(item.type)}20`,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginRight: 12,
+                    }}>
+                      <Ionicons name={getVaultTypeIcon(item.type) as any} size={20} color={getVaultTypeColor(item.type)} />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: '#1e293b' }}>{item.title}</Text>
+                      <Text style={{ fontSize: 12, color: '#64748b', textTransform: 'capitalize' }}>
+                        {item.type.replace('_', ' ')}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Type-specific content */}
+                  {item.type === 'password' && (
+                    <View style={{ marginBottom: 12 }}>
+                      {item.service && (
+                        <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+                          <Text style={{ color: '#64748b', width: 70, fontSize: 13 }}>Service:</Text>
+                          <Text style={{ color: '#1e293b', fontSize: 13, flex: 1 }}>{item.service}</Text>
+                        </View>
+                      )}
+                      {item.username && (
+                        <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+                          <Text style={{ color: '#64748b', width: 70, fontSize: 13 }}>Username:</Text>
+                          <Text style={{ color: '#1e293b', fontSize: 13, flex: 1 }}>{item.username}</Text>
+                        </View>
+                      )}
+                      {item.hasPassword && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={{ color: '#64748b', width: 70, fontSize: 13 }}>Password:</Text>
+                          <Text style={{ color: '#1e293b', fontSize: 13, flex: 1, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+                            {revealedPasswords[item._id]?.password || '••••••••'}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => handleRevealPassword(item._id)}
+                            style={{ padding: 4 }}
+                          >
+                            {revealingPassword === item._id ? (
+                              <ActivityIndicator size="small" color="#64748b" />
+                            ) : (
+                              <Ionicons
+                                name={revealedPasswords[item._id]?.password ? 'eye-off' : 'eye'}
+                                size={18}
+                                color="#64748b"
+                              />
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      {item.url && (
+                        <View style={{ flexDirection: 'row', marginTop: 4 }}>
+                          <Text style={{ color: '#64748b', width: 70, fontSize: 13 }}>URL:</Text>
+                          <Text style={{ color: '#2563eb', fontSize: 13, flex: 1 }}>{item.url}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {item.type === 'email_account' && (
+                    <View style={{ marginBottom: 12 }}>
+                      {item.emailAddress && (
+                        <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+                          <Text style={{ color: '#64748b', width: 70, fontSize: 13 }}>Email:</Text>
+                          <Text style={{ color: '#1e293b', fontSize: 13, flex: 1 }}>{item.emailAddress}</Text>
+                        </View>
+                      )}
+                      {item.hasEmailPassword && (
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                          <Text style={{ color: '#64748b', width: 70, fontSize: 13 }}>Password:</Text>
+                          <Text style={{ color: '#1e293b', fontSize: 13, flex: 1, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' }}>
+                            {revealedPasswords[item._id]?.emailPassword || '••••••••'}
+                          </Text>
+                          <TouchableOpacity
+                            onPress={() => handleRevealPassword(item._id)}
+                            style={{ padding: 4 }}
+                          >
+                            {revealingPassword === item._id ? (
+                              <ActivityIndicator size="small" color="#64748b" />
+                            ) : (
+                              <Ionicons
+                                name={revealedPasswords[item._id]?.emailPassword ? 'eye-off' : 'eye'}
+                                size={18}
+                                color="#64748b"
+                              />
+                            )}
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                      {(item.smtpServer || item.imapServer) && (
+                        <View style={{ marginTop: 8, padding: 8, backgroundColor: '#f8fafc', borderRadius: 6 }}>
+                          {item.smtpServer && (
+                            <Text style={{ fontSize: 12, color: '#64748b' }}>SMTP: {item.smtpServer}</Text>
+                          )}
+                          {item.imapServer && (
+                            <Text style={{ fontSize: 12, color: '#64748b' }}>IMAP: {item.imapServer}</Text>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {(item.type === 'bill' || item.type === 'contract') && (
+                    <View style={{ marginBottom: 12 }}>
+                      {item.vendor && (
+                        <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+                          <Text style={{ color: '#64748b', width: 70, fontSize: 13 }}>Vendor:</Text>
+                          <Text style={{ color: '#1e293b', fontSize: 13, flex: 1 }}>{item.vendor}</Text>
+                        </View>
+                      )}
+                      {item.amount !== undefined && (
+                        <View style={{ flexDirection: 'row', marginBottom: 4 }}>
+                          <Text style={{ color: '#64748b', width: 70, fontSize: 13 }}>Amount:</Text>
+                          <Text style={{ color: '#1e293b', fontSize: 13, fontWeight: '600' }}>${item.amount.toFixed(2)}</Text>
+                        </View>
+                      )}
+                      {item.dueDate && (
+                        <View style={{ flexDirection: 'row' }}>
+                          <Text style={{ color: '#64748b', width: 70, fontSize: 13 }}>Due:</Text>
+                          <Text style={{ color: '#1e293b', fontSize: 13 }}>{item.dueDate}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+
+                  {item.type === 'note' && item.content && (
+                    <View style={{ marginBottom: 12, padding: 10, backgroundColor: '#fefce8', borderRadius: 8, borderLeftWidth: 3, borderLeftColor: '#eab308' }}>
+                      <Text style={{ fontSize: 13, color: '#713f12', lineHeight: 20 }}>{item.content}</Text>
+                    </View>
+                  )}
+
+                  {item.description && (
+                    <Text style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>{item.description}</Text>
+                  )}
+
+                  {/* Documents */}
+                  {item.documents && item.documents.length > 0 && (
+                    <View style={{ marginBottom: 12, padding: 10, backgroundColor: '#f1f5f9', borderRadius: 8 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 8 }}>
+                        Documents ({item.documents.length})
+                      </Text>
+                      {item.documents.map((doc, idx) => (
+                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }}>
+                          <Ionicons name="document-attach" size={16} color="#64748b" />
+                          <Text style={{ fontSize: 13, color: '#1e293b', marginLeft: 6, flex: 1 }}>{doc.fileName}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  {/* Actions */}
+                  <View style={{ flexDirection: 'row', justifyContent: 'flex-end', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 12, gap: 8 }}>
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: '#eff6ff',
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                      }}
+                      onPress={() => openVaultModal(item)}
+                    >
+                      <Ionicons name="pencil" size={16} color="#2563eb" />
+                      <Text style={{ color: '#2563eb', marginLeft: 4, fontWeight: '500' }}>Edit</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: '#fef2f2',
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                      }}
+                      onPress={() => handleDeleteVaultItem(item)}
+                    >
+                      <Ionicons name="trash" size={16} color="#dc2626" />
+                      <Text style={{ color: '#dc2626', marginLeft: 4, fontWeight: '500' }}>Delete</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              )}
+              ListEmptyComponent={
+                <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                  <Ionicons name="lock-closed-outline" size={48} color="#cbd5e1" />
+                  <Text style={{ color: '#94a3b8', fontSize: 16, marginTop: 12 }}>No vault items found</Text>
+                  <Text style={{ color: '#cbd5e1', fontSize: 14 }}>Tap "Add Vault Item" to create one</Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      )}
+
       {/* User Modal */}
       <Modal visible={showUserModal} animationType="slide" transparent>
         <KeyboardAvoidingView
@@ -2563,6 +3133,264 @@ export default function AdminScreen() {
             <TouchableOpacity
               style={styles.saveBtn}
               onPress={handleSaveLocation}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveBtnText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Vault Modal */}
+      <Modal visible={showVaultModal} animationType="slide">
+        <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top }}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {editingVaultItem ? 'Edit Vault Item' : 'Add Vault Item'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowVaultModal(false)}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          <KeyboardAwareScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.modalBody}
+            enableOnAndroid={true}
+            extraScrollHeight={20}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Type Selector */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Type *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  {([
+                    { key: 'password', label: 'Password', icon: 'key' },
+                    { key: 'email_account', label: 'Email', icon: 'mail' },
+                    { key: 'bill', label: 'Bill', icon: 'receipt' },
+                    { key: 'contract', label: 'Contract', icon: 'document-text' },
+                    { key: 'note', label: 'Note', icon: 'document' },
+                  ] as const).map(type => (
+                    <TouchableOpacity
+                      key={type.key}
+                      onPress={() => setVaultForm({ ...vaultForm, type: type.key })}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        borderRadius: 8,
+                        backgroundColor: vaultForm.type === type.key ? '#2563eb' : '#f1f5f9',
+                        gap: 6,
+                      }}
+                    >
+                      <Ionicons
+                        name={type.icon as any}
+                        size={16}
+                        color={vaultForm.type === type.key ? '#fff' : '#64748b'}
+                      />
+                      <Text style={{
+                        fontSize: 14,
+                        fontWeight: '500',
+                        color: vaultForm.type === type.key ? '#fff' : '#64748b',
+                      }}>{type.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            {/* Title */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Title *</Text>
+              <TextInput
+                style={styles.input}
+                value={vaultForm.title}
+                onChangeText={(text) => setVaultForm({ ...vaultForm, title: text })}
+                placeholder="Enter a title"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+
+            {/* Description */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Description</Text>
+              <TextInput
+                style={[styles.input, { height: 60, textAlignVertical: 'top' }]}
+                value={vaultForm.description}
+                onChangeText={(text) => setVaultForm({ ...vaultForm, description: text })}
+                placeholder="Optional description"
+                placeholderTextColor="#94a3b8"
+                multiline
+              />
+            </View>
+
+            {/* Password Type Fields */}
+            {vaultForm.type === 'password' && (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Service</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={vaultForm.service}
+                    onChangeText={(text) => setVaultForm({ ...vaultForm, service: text })}
+                    placeholder="e.g., Netflix, Gmail"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Username</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={vaultForm.username}
+                    onChangeText={(text) => setVaultForm({ ...vaultForm, username: text })}
+                    placeholder="Username or email"
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="none"
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Password</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={vaultForm.password}
+                    onChangeText={(text) => setVaultForm({ ...vaultForm, password: text })}
+                    placeholder="Password"
+                    placeholderTextColor="#94a3b8"
+                    secureTextEntry
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>URL</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={vaultForm.url}
+                    onChangeText={(text) => setVaultForm({ ...vaultForm, url: text })}
+                    placeholder="https://..."
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="none"
+                    keyboardType="url"
+                  />
+                </View>
+              </>
+            )}
+
+            {/* Email Account Type Fields */}
+            {vaultForm.type === 'email_account' && (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Email Address</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={vaultForm.emailAddress}
+                    onChangeText={(text) => setVaultForm({ ...vaultForm, emailAddress: text })}
+                    placeholder="email@example.com"
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Email Password</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={vaultForm.emailPassword}
+                    onChangeText={(text) => setVaultForm({ ...vaultForm, emailPassword: text })}
+                    placeholder="Password"
+                    placeholderTextColor="#94a3b8"
+                    secureTextEntry
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>SMTP Server</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={vaultForm.smtpServer}
+                    onChangeText={(text) => setVaultForm({ ...vaultForm, smtpServer: text })}
+                    placeholder="smtp.example.com"
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="none"
+                  />
+                </View>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>IMAP Server</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={vaultForm.imapServer}
+                    onChangeText={(text) => setVaultForm({ ...vaultForm, imapServer: text })}
+                    placeholder="imap.example.com"
+                    placeholderTextColor="#94a3b8"
+                    autoCapitalize="none"
+                  />
+                </View>
+              </>
+            )}
+
+            {/* Bill/Contract Type Fields */}
+            {(vaultForm.type === 'bill' || vaultForm.type === 'contract') && (
+              <>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Vendor</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={vaultForm.vendor}
+                    onChangeText={(text) => setVaultForm({ ...vaultForm, vendor: text })}
+                    placeholder="Vendor name"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+                <View style={styles.inputRow}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>Amount ($)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={vaultForm.amount}
+                      onChangeText={(text) => setVaultForm({ ...vaultForm, amount: text })}
+                      placeholder="0.00"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>Due Date</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={vaultForm.dueDate}
+                      onChangeText={(text) => setVaultForm({ ...vaultForm, dueDate: text })}
+                      placeholder="MM/DD or Monthly"
+                      placeholderTextColor="#94a3b8"
+                    />
+                  </View>
+                </View>
+              </>
+            )}
+
+            {/* Note Type Fields */}
+            {vaultForm.type === 'note' && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Content</Text>
+                <TextInput
+                  style={[styles.input, { height: 150, textAlignVertical: 'top' }]}
+                  value={vaultForm.content}
+                  onChangeText={(text) => setVaultForm({ ...vaultForm, content: text })}
+                  placeholder="Enter your note..."
+                  placeholderTextColor="#94a3b8"
+                  multiline
+                />
+              </View>
+            )}
+          </KeyboardAwareScrollView>
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.saveBtn}
+              onPress={handleSaveVaultItem}
               disabled={saving}
             >
               {saving ? (
