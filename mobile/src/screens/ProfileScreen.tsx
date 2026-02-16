@@ -47,8 +47,9 @@ Notifications.setNotificationHandler({
   }),
 });
 
-// Break notification identifier
+// Break notification identifiers
 const BREAK_NOTIFICATION_ID = 'break-timer-alarm';
+const BREAK_REMINDER_PREFIX = 'break-reminder-';
 
 // Dynamically import push notifications
 let pushNotificationService: {
@@ -122,7 +123,8 @@ export default function ProfileScreen() {
     }
   };
 
-  // Schedule a local notification for when break time expires
+  // Schedule local notifications for when break time expires
+  // Schedules multiple notifications to ensure user is alerted even if app is killed
   const scheduleBreakNotification = async (type: 'breakfast' | 'lunch', durationMinutes: number) => {
     try {
       // Request notification permissions
@@ -132,38 +134,72 @@ export default function ProfileScreen() {
         return;
       }
 
-      // Cancel any existing break notification first
+      // Cancel any existing break notifications first
       await cancelBreakNotification();
 
-      // Schedule notification for when break time expires
-      const triggerDate = new Date(Date.now() + durationMinutes * 60 * 1000);
+      const breakEndTime = Date.now() + durationMinutes * 60 * 1000;
+      const breakLabel = type === 'breakfast' ? 'Breakfast' : 'Lunch';
 
+      // Schedule the initial notification when break ends
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: `${type === 'breakfast' ? 'Breakfast' : 'Lunch'} Break Time Up!`,
-          body: `Your ${durationMinutes} minute ${type} break has ended. Please return to work.`,
+          title: `⏰ ${breakLabel} Break Time Up!`,
+          body: `Your ${durationMinutes} minute ${type} break has ended. Please return to work NOW!`,
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.MAX,
-          vibrate: [0, 500, 200, 500, 200, 500],
+          vibrate: [0, 500, 200, 500, 200, 500, 200, 500],
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: triggerDate,
+          date: new Date(breakEndTime),
         },
         identifier: BREAK_NOTIFICATION_ID,
       });
 
-      console.log(`Break notification scheduled for ${triggerDate.toLocaleTimeString()}`);
+      // Schedule repeating reminder notifications every 30 seconds for 10 minutes after break ends
+      // This ensures the user is continuously reminded even if app is killed
+      const reminderIntervalMs = 30 * 1000; // 30 seconds
+      const maxReminders = 20; // 10 minutes of reminders
+
+      for (let i = 1; i <= maxReminders; i++) {
+        const reminderTime = breakEndTime + (i * reminderIntervalMs);
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `🚨 BREAK OVERTIME - Return to Work!`,
+            body: `Your ${type} break ended ${Math.floor((i * 30) / 60)} min ${(i * 30) % 60} sec ago. End your break immediately!`,
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            vibrate: [0, 500, 200, 500, 200, 500, 200, 500],
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: new Date(reminderTime),
+          },
+          identifier: `${BREAK_REMINDER_PREFIX}${i}`,
+        });
+      }
+
+      console.log(`Break notifications scheduled: initial at ${new Date(breakEndTime).toLocaleTimeString()}, plus ${maxReminders} reminders`);
     } catch (error) {
       console.error('Failed to schedule break notification:', error);
     }
   };
 
-  // Cancel the break notification
+  // Cancel all break notifications (initial + reminders)
   const cancelBreakNotification = async () => {
     try {
+      // Cancel the main break notification
       await Notifications.cancelScheduledNotificationAsync(BREAK_NOTIFICATION_ID);
-      console.log('Break notification cancelled');
+
+      // Cancel all reminder notifications
+      for (let i = 1; i <= 20; i++) {
+        try {
+          await Notifications.cancelScheduledNotificationAsync(`${BREAK_REMINDER_PREFIX}${i}`);
+        } catch (e) {
+          // Ignore errors for notifications that don't exist
+        }
+      }
+      console.log('All break notifications cancelled');
     } catch (error) {
       console.error('Failed to cancel break notification:', error);
     }
@@ -246,7 +282,9 @@ export default function ProfileScreen() {
   // Listen for notification received (when app is in foreground)
   useEffect(() => {
     const subscription = Notifications.addNotificationReceivedListener((notification) => {
-      if (notification.request.identifier === BREAK_NOTIFICATION_ID) {
+      const notificationId = notification.request.identifier;
+      // Respond to main break notification or any reminder notification
+      if (notificationId === BREAK_NOTIFICATION_ID || notificationId.startsWith(BREAK_REMINDER_PREFIX)) {
         // Break notification received - start alarm
         startAlarm();
       }
@@ -270,25 +308,48 @@ export default function ProfileScreen() {
 
       await cancelBreakNotification();
 
-      const triggerDate = new Date(Date.now() + remainingSeconds * 1000);
-      const minutes = Math.ceil(remainingSeconds / 60);
+      const breakEndTime = Date.now() + remainingSeconds * 1000;
+      const breakLabel = type === 'breakfast' ? 'Breakfast' : 'Lunch';
 
+      // Schedule the main notification
       await Notifications.scheduleNotificationAsync({
         content: {
-          title: `${type === 'breakfast' ? 'Breakfast' : 'Lunch'} Break Time Up!`,
-          body: `Your ${type} break has ended. Please return to work.`,
+          title: `⏰ ${breakLabel} Break Time Up!`,
+          body: `Your ${type} break has ended. Please return to work NOW!`,
           sound: 'default',
           priority: Notifications.AndroidNotificationPriority.MAX,
-          vibrate: [0, 500, 200, 500, 200, 500],
+          vibrate: [0, 500, 200, 500, 200, 500, 200, 500],
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
-          date: triggerDate,
+          date: new Date(breakEndTime),
         },
         identifier: BREAK_NOTIFICATION_ID,
       });
 
-      console.log(`Break notification rescheduled for ${triggerDate.toLocaleTimeString()} (${remainingSeconds}s remaining)`);
+      // Schedule repeating reminders
+      const reminderIntervalMs = 30 * 1000;
+      const maxReminders = 20;
+
+      for (let i = 1; i <= maxReminders; i++) {
+        const reminderTime = breakEndTime + (i * reminderIntervalMs);
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `🚨 BREAK OVERTIME - Return to Work!`,
+            body: `Your ${type} break ended ${Math.floor((i * 30) / 60)} min ${(i * 30) % 60} sec ago. End your break immediately!`,
+            sound: 'default',
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            vibrate: [0, 500, 200, 500, 200, 500, 200, 500],
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: new Date(reminderTime),
+          },
+          identifier: `${BREAK_REMINDER_PREFIX}${i}`,
+        });
+      }
+
+      console.log(`Break notification rescheduled for ${new Date(breakEndTime).toLocaleTimeString()} (${remainingSeconds}s remaining) + reminders`);
     } catch (error) {
       console.error('Failed to reschedule break notification:', error);
     }
