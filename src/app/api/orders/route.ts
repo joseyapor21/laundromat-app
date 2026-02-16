@@ -172,13 +172,13 @@ export async function POST(request: NextRequest) {
       console.error('Failed to log activity:', logError);
     }
 
-    // Send push notification to all staff about new order
+    // Send push notification to clocked-in staff at this location about new order
     notifyNewOrder(
       newOrder._id.toString(),
       orderId,
       orderData.customerName,
       orderData.orderType || 'storePickup',
-      currentUser.userId
+      { excludeUserId: currentUser.userId, locationId: newOrder.locationId?.toString() }
     ).catch(err => console.error('Push notification error:', err));
 
     return NextResponse.json(newOrder, { status: 201 });

@@ -23,6 +23,7 @@ export interface UserDoc {
   isOnBreak: boolean;
   lastBreakStart?: Date;
   lastBreakEnd?: Date;
+  currentLocationId?: Types.ObjectId;  // Track which location user is currently working at
   comparePassword(password: string): Promise<boolean>;
 }
 
@@ -104,6 +105,11 @@ const userSchema = new mongoose.Schema<UserDoc>({
   },
   lastBreakEnd: {
     type: Date,
+    default: null,
+  },
+  currentLocationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Location',
     default: null,
   },
 }, {

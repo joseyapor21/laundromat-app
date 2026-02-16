@@ -168,8 +168,14 @@ export async function POST(request: NextRequest) {
       };
       if (type === 'clock_in') {
         userUpdate.lastClockIn = now;
+        // Save the user's current location when they clock in
+        if (currentUser.locationId) {
+          userUpdate.currentLocationId = currentUser.locationId;
+        }
       } else {
         userUpdate.lastClockOut = now;
+        // Clear the location when they clock out
+        userUpdate.currentLocationId = null;
       }
       await User.findByIdAndUpdate(currentUser.userId, userUpdate);
     } else if (type === 'break_start' || type === 'break_end') {

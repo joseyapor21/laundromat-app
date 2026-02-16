@@ -164,18 +164,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       console.error('Failed to log activity:', logError);
     }
 
-    // Send push notification to all staff (except the user who made the change)
+    // Send push notification to clocked-in staff at this location (except the user who made the change)
+    const notifyOptions = { excludeUserId: currentUser.userId, locationId: order.locationId?.toString() };
     notifyOrderStatusChange(
       order._id.toString(),
       order.orderId,
       order.customerName,
       finalStatus,
-      currentUser.userId
+      notifyOptions
     ).catch(err => console.error('Push notification error:', err));
 
     // Special notifications for specific status changes
     if (finalStatus === 'ready_for_delivery' && order.orderType === 'delivery') {
-      // Notify drivers when a delivery order is ready
+      // Notify clocked-in drivers when a delivery order is ready
       let customerAddress = '';
       try {
         const customer = await Customer.findById(order.customerId);
@@ -188,18 +189,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         order.orderId,
         order.customerName,
         customerAddress,
-        currentUser.userId
+        notifyOptions
       ).catch(err => console.error('Driver notification error:', err));
     }
 
     if (finalStatus === 'out_for_delivery' || finalStatus === 'completed') {
-      // Notify when order is picked up (by customer or for delivery)
+      // Notify clocked-in users when order is picked up (by customer or for delivery)
       notifyOrderPickedUp(
         order._id.toString(),
         order.orderId,
         order.customerName,
         order.orderType === 'delivery',
-        currentUser.userId
+        notifyOptions
       ).catch(err => console.error('Pickup notification error:', err));
     }
 

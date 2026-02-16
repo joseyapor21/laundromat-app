@@ -21,8 +21,15 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
-import { Audio } from 'expo-av';
 import { useAuth } from '../contexts/AuthContext';
+
+// Try to import expo-av (requires native rebuild)
+let Audio: typeof import('expo-av').Audio | null = null;
+try {
+  Audio = require('expo-av').Audio;
+} catch (e) {
+  console.log('expo-av not available - alarm will use vibration only');
+}
 import { useTimeClock, BreakType } from '../contexts/TimeClockContext';
 import { useLocation } from '../contexts/LocationContext';
 import { api } from '../services/api';
@@ -72,7 +79,7 @@ export default function ProfileScreen() {
   const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
   const breakTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const alarmSoundRef = useRef<Audio.Sound | null>(null);
+  const alarmSoundRef = useRef<any>(null);
   const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Location picker modal
@@ -166,39 +173,40 @@ export default function ProfileScreen() {
   const startAlarm = async () => {
     if (isAlarmPlaying) return;
 
-    try {
-      // Configure audio for alarm (plays even in silent mode)
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: true,
-        shouldDuckAndroid: false,
-        playThroughEarpieceAndroid: false,
-      });
+    // Start vibration loop (works even without Audio)
+    const vibrateLoop = () => {
+      Vibration.vibrate([500, 300, 500, 300, 500], false);
+    };
+    vibrateLoop();
+    alarmIntervalRef.current = setInterval(vibrateLoop, 2500);
+    setIsAlarmPlaying(true);
 
-      // Create and play the alarm sound
-      const { sound } = await Audio.Sound.createAsync(
-        require('../assets/alarm.mp3'),
-        { isLooping: true, volume: 1.0 }
-      );
+    // Try to play audio if available
+    if (Audio) {
+      try {
+        // Configure audio for alarm (plays even in silent mode)
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: false,
+          playThroughEarpieceAndroid: false,
+        });
 
-      alarmSoundRef.current = sound;
-      await sound.playAsync();
-      setIsAlarmPlaying(true);
+        // Create and play the alarm sound
+        const { sound } = await Audio.Sound.createAsync(
+          require('../assets/alarm.mp3'),
+          { isLooping: true, volume: 1.0 }
+        );
 
-      // Also vibrate continuously
-      const vibrateLoop = () => {
-        Vibration.vibrate([500, 300, 500, 300, 500], false);
-      };
-      vibrateLoop();
-      alarmIntervalRef.current = setInterval(vibrateLoop, 2500);
-
-      console.log('Alarm started');
-    } catch (error) {
-      console.error('Failed to start alarm:', error);
-      // Fallback to just vibration if sound fails
-      Vibration.vibrate([500, 200, 500, 200, 500, 200, 500], true);
-      setIsAlarmPlaying(true);
+        alarmSoundRef.current = sound;
+        await sound.playAsync();
+        console.log('Alarm started with sound');
+      } catch (error) {
+        console.log('Audio not available, using vibration only:', error);
+      }
+    } else {
+      console.log('Alarm started (vibration only - rebuild app for sound)');
     }
   };
 

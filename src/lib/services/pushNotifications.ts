@@ -27,6 +27,8 @@ interface UserWithToken {
   pushToken: string;
   email: string;
   role?: string;
+  isClockedIn?: boolean;
+  locationId?: string;
 }
 
 // Status labels for notifications
@@ -116,26 +118,48 @@ export async function sendPushNotifications(messages: PushMessage[]): Promise<Pu
   }
 }
 
+interface GetUsersOptions {
+  requireClockedIn?: boolean;  // Only return users who are clocked in
+  locationId?: string;         // Only return users at this location
+}
+
 /**
  * Get all users with push tokens (for broadcasting)
  * Merges users from both auth database and app User model
  * Only returns users who have push notifications enabled
  */
-export async function getUsersWithPushTokens(): Promise<UserWithToken[]> {
+export async function getUsersWithPushTokens(options: GetUsersOptions = {}): Promise<UserWithToken[]> {
+  const { requireClockedIn = true, locationId } = options;  // Default to requiring clock-in
   const usersMap = new Map<string, UserWithToken>();
 
   // Get users from app User model (these have proper roles)
   // Only include users who have notifications enabled (default true for backwards compatibility)
   try {
     await connectDB();
-    const appUsers = await User.find({
+
+    // Build query
+    const query: any = {
       pushToken: { $ne: null, $exists: true },
       isActive: true,
       $or: [
         { pushNotificationsEnabled: true },
         { pushNotificationsEnabled: { $exists: false } }, // Default to enabled for existing users
       ],
-    }).select('_id pushToken email role').lean();
+    };
+
+    // Add clock-in filter if required
+    if (requireClockedIn) {
+      query.isClockedIn = true;
+    }
+
+    // Add location filter if specified
+    if (locationId) {
+      query.currentLocationId = locationId;
+    }
+
+    const appUsers = await User.find(query)
+      .select('_id pushToken email role isClockedIn currentLocationId')
+      .lean();
 
     for (const u of appUsers) {
       if (u.pushToken) {
@@ -144,6 +168,8 @@ export async function getUsersWithPushTokens(): Promise<UserWithToken[]> {
           pushToken: u.pushToken,
           email: u.email,
           role: u.role,
+          isClockedIn: u.isClockedIn,
+          locationId: u.currentLocationId?.toString(),
         });
       }
     }
@@ -153,31 +179,34 @@ export async function getUsersWithPushTokens(): Promise<UserWithToken[]> {
 
   // Get users from auth database (fallback for users not in app model)
   // Only include users who have notifications enabled
-  try {
-    const db = await getAuthDatabase();
-    const authUsers = await db.collection('v5users')
-      .find({
-        pushToken: { $ne: null, $exists: true },
-        $or: [
-          { pushNotificationsEnabled: true },
-          { pushNotificationsEnabled: { $exists: false } }, // Default to enabled
-        ],
-      })
-      .project({ _id: 1, pushToken: 1, email: 1 })
-      .toArray();
+  // Note: Auth database users won't have clock-in status, so they're skipped when requireClockedIn is true
+  if (!requireClockedIn) {
+    try {
+      const db = await getAuthDatabase();
+      const authUsers = await db.collection('v5users')
+        .find({
+          pushToken: { $ne: null, $exists: true },
+          $or: [
+            { pushNotificationsEnabled: true },
+            { pushNotificationsEnabled: { $exists: false } }, // Default to enabled
+          ],
+        })
+        .project({ _id: 1, pushToken: 1, email: 1 })
+        .toArray();
 
-    for (const u of authUsers) {
-      if (u.pushToken && !usersMap.has(u.email?.toLowerCase())) {
-        usersMap.set(u.email?.toLowerCase(), {
-          _id: u._id.toString(),
-          pushToken: u.pushToken,
-          email: u.email,
-          role: undefined, // Auth users don't have specific roles
-        });
+      for (const u of authUsers) {
+        if (u.pushToken && !usersMap.has(u.email?.toLowerCase())) {
+          usersMap.set(u.email?.toLowerCase(), {
+            _id: u._id.toString(),
+            pushToken: u.pushToken,
+            email: u.email,
+            role: undefined, // Auth users don't have specific roles
+          });
+        }
       }
+    } catch (e) {
+      console.error('Error getting auth users:', e);
     }
-  } catch (e) {
-    console.error('Error getting auth users:', e);
   }
 
   return Array.from(usersMap.values());
@@ -187,10 +216,12 @@ export async function getUsersWithPushTokens(): Promise<UserWithToken[]> {
  * Get drivers with push tokens
  * Only returns users with driver access who have push notifications enabled
  */
-export async function getDriversWithPushTokens(): Promise<UserWithToken[]> {
+export async function getDriversWithPushTokens(options: GetUsersOptions = {}): Promise<UserWithToken[]> {
+  const { requireClockedIn = true, locationId } = options;  // Default to requiring clock-in
   try {
     await connectDB();
-    const drivers = await User.find({
+
+    const query: any = {
       pushToken: { $ne: null, $exists: true },
       isActive: true,
       $or: [
@@ -205,13 +236,29 @@ export async function getDriversWithPushTokens(): Promise<UserWithToken[]> {
           ],
         },
       ],
-    }).select('_id pushToken email role isDriver').lean();
+    };
+
+    // Add clock-in filter if required
+    if (requireClockedIn) {
+      query.isClockedIn = true;
+    }
+
+    // Add location filter if specified
+    if (locationId) {
+      query.currentLocationId = locationId;
+    }
+
+    const drivers = await User.find(query)
+      .select('_id pushToken email role isDriver isClockedIn currentLocationId')
+      .lean();
 
     return drivers.filter(u => u.pushToken).map(u => ({
       _id: u._id.toString(),
       pushToken: u.pushToken!,
       email: u.email,
       role: u.role,
+      isClockedIn: u.isClockedIn,
+      locationId: u.currentLocationId?.toString(),
     }));
   } catch (e) {
     console.error('Error getting drivers:', e);
@@ -219,18 +266,25 @@ export async function getDriversWithPushTokens(): Promise<UserWithToken[]> {
   }
 }
 
+interface NotifyOptions {
+  excludeUserId?: string;
+  locationId?: string;  // Filter notifications to users at this location
+}
+
 /**
  * Notify all staff about an order status change
+ * Only notifies users who are clocked in (and optionally at the specified location)
  */
 export async function notifyOrderStatusChange(
   orderId: string,
   orderNumber: number,
   customerName: string,
   newStatus: string,
-  excludeUserId?: string
+  options: NotifyOptions = {}
 ): Promise<void> {
   try {
-    const users = await getUsersWithPushTokens();
+    const { excludeUserId, locationId } = options;
+    const users = await getUsersWithPushTokens({ requireClockedIn: true, locationId });
     const statusLabel = STATUS_LABELS[newStatus] || newStatus.replace(/_/g, ' ');
 
     // Filter out the user who made the change
@@ -239,7 +293,7 @@ export async function notifyOrderStatusChange(
       : users;
 
     if (recipients.length === 0) {
-      console.log('No users with push tokens to notify');
+      console.log('No clocked-in users with push tokens to notify (order status change)');
       return;
     }
 
@@ -252,7 +306,7 @@ export async function notifyOrderStatusChange(
       channelId: 'orders',
     }));
 
-    console.log(`Sending ${messages.length} push notifications for order #${orderNumber}`);
+    console.log(`Sending ${messages.length} push notifications for order #${orderNumber} (clocked-in users only)`);
     await sendPushNotifications(messages);
   } catch (error) {
     console.error('Error notifying order status change:', error);
@@ -261,16 +315,18 @@ export async function notifyOrderStatusChange(
 
 /**
  * Notify all staff about a new order
+ * Only notifies users who are clocked in (and optionally at the specified location)
  */
 export async function notifyNewOrder(
   orderId: string,
   orderNumber: number,
   customerName: string,
   orderType: 'storePickup' | 'delivery',
-  excludeUserId?: string
+  options: NotifyOptions = {}
 ): Promise<void> {
   try {
-    const users = await getUsersWithPushTokens();
+    const { excludeUserId, locationId } = options;
+    const users = await getUsersWithPushTokens({ requireClockedIn: true, locationId });
     const typeLabel = orderType === 'delivery' ? 'Delivery' : 'In-Store';
 
     // Filter out the user who created the order
@@ -279,7 +335,7 @@ export async function notifyNewOrder(
       : users;
 
     if (recipients.length === 0) {
-      console.log('No users with push tokens to notify');
+      console.log('No clocked-in users with push tokens to notify (new order)');
       return;
     }
 
@@ -292,7 +348,7 @@ export async function notifyNewOrder(
       channelId: 'orders',
     }));
 
-    console.log(`Sending ${messages.length} push notifications for new order #${orderNumber}`);
+    console.log(`Sending ${messages.length} push notifications for new order #${orderNumber} (clocked-in users only)`);
     await sendPushNotifications(messages);
   } catch (error) {
     console.error('Error notifying new order:', error);
@@ -301,16 +357,18 @@ export async function notifyNewOrder(
 
 /**
  * Notify about machine check
+ * Only notifies users who are clocked in (and optionally at the specified location)
  */
 export async function notifyMachineChecked(
   orderId: string,
   orderNumber: number,
   machineName: string,
   checkedByInitials: string,
-  excludeUserId?: string
+  options: NotifyOptions = {}
 ): Promise<void> {
   try {
-    const users = await getUsersWithPushTokens();
+    const { excludeUserId, locationId } = options;
+    const users = await getUsersWithPushTokens({ requireClockedIn: true, locationId });
 
     const recipients = excludeUserId
       ? users.filter(u => u._id !== excludeUserId)
@@ -335,6 +393,7 @@ export async function notifyMachineChecked(
 
 /**
  * Notify about payment received
+ * Only notifies users who are clocked in (and optionally at the specified location)
  */
 export async function notifyPaymentReceived(
   orderId: string,
@@ -342,10 +401,11 @@ export async function notifyPaymentReceived(
   customerName: string,
   amount: number,
   paymentMethod: string,
-  excludeUserId?: string
+  options: NotifyOptions = {}
 ): Promise<void> {
   try {
-    const users = await getUsersWithPushTokens();
+    const { excludeUserId, locationId } = options;
+    const users = await getUsersWithPushTokens({ requireClockedIn: true, locationId });
 
     const recipients = excludeUserId
       ? users.filter(u => u._id !== excludeUserId)
@@ -370,23 +430,25 @@ export async function notifyPaymentReceived(
 
 /**
  * Notify drivers about a delivery order ready for pickup
+ * Only notifies drivers who are clocked in (and optionally at the specified location)
  */
 export async function notifyDriversForDelivery(
   orderId: string,
   orderNumber: number,
   customerName: string,
   customerAddress: string,
-  excludeUserId?: string
+  options: NotifyOptions = {}
 ): Promise<void> {
   try {
-    const drivers = await getDriversWithPushTokens();
+    const { excludeUserId, locationId } = options;
+    const drivers = await getDriversWithPushTokens({ requireClockedIn: true, locationId });
 
     const recipients = excludeUserId
       ? drivers.filter(u => u._id !== excludeUserId)
       : drivers;
 
     if (recipients.length === 0) {
-      console.log('No drivers with push tokens to notify');
+      console.log('No clocked-in drivers with push tokens to notify');
       return;
     }
 
@@ -399,7 +461,7 @@ export async function notifyDriversForDelivery(
       channelId: 'orders',
     }));
 
-    console.log(`Notifying ${messages.length} drivers about delivery order #${orderNumber}`);
+    console.log(`Notifying ${messages.length} clocked-in drivers about delivery order #${orderNumber}`);
     await sendPushNotifications(messages);
   } catch (error) {
     console.error('Error notifying drivers for delivery:', error);
@@ -408,16 +470,18 @@ export async function notifyDriversForDelivery(
 
 /**
  * Notify about order pickup (customer picked up or driver picked up for delivery)
+ * Only notifies users who are clocked in (and optionally at the specified location)
  */
 export async function notifyOrderPickedUp(
   orderId: string,
   orderNumber: number,
   customerName: string,
   isDelivery: boolean,
-  excludeUserId?: string
+  options: NotifyOptions = {}
 ): Promise<void> {
   try {
-    const users = await getUsersWithPushTokens();
+    const { excludeUserId, locationId } = options;
+    const users = await getUsersWithPushTokens({ requireClockedIn: true, locationId });
 
     const recipients = excludeUserId
       ? users.filter(u => u._id !== excludeUserId)

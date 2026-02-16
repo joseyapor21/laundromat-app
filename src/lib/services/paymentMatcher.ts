@@ -312,14 +312,15 @@ export async function processPayment(payment: ParsedPayment): Promise<PaymentPro
         match.matchType
       );
 
-      // Send push notification
+      // Send push notification to clocked-in staff at this location
       try {
         await notifyPaymentReceived(
           match.orderId,
           match.orderNumber,
           match.customerName,
           payment.amount,
-          payment.paymentMethod.toUpperCase()
+          payment.paymentMethod.toUpperCase(),
+          { locationId: updateResult.order?.locationId?.toString() }
         );
         result.notificationSent = true;
       } catch (error) {

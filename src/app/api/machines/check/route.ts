@@ -150,13 +150,13 @@ export async function POST(request: NextRequest) {
       console.error('Failed to log activity:', logError);
     }
 
-    // Send push notification about machine check
+    // Send push notification about machine check (to clocked-in users at this location)
     notifyMachineChecked(
       order._id.toString(),
       order.orderId,
       assignment.machineName,
       checkerInitials.trim().toUpperCase(),
-      currentUser.userId
+      { excludeUserId: currentUser.userId, locationId: order.locationId?.toString() }
     ).catch(err => console.error('Push notification error:', err));
 
     return NextResponse.json({
