@@ -250,8 +250,16 @@ export default function ProfileScreen() {
   const stopAlarm = async () => {
     try {
       if (alarmSoundRef.current) {
-        await alarmSoundRef.current.stopAsync();
-        await alarmSoundRef.current.unloadAsync();
+        try {
+          const status = await alarmSoundRef.current.getStatusAsync();
+          if (status.isLoaded) {
+            await alarmSoundRef.current.stopAsync();
+            await alarmSoundRef.current.unloadAsync();
+          }
+        } catch (soundError) {
+          // Sound not loaded, just clear the ref
+          console.log('Sound was not loaded, skipping stop');
+        }
         alarmSoundRef.current = null;
       }
       if (alarmIntervalRef.current) {
