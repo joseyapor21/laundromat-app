@@ -22,6 +22,7 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { Device } from 'react-native-ble-plx';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
@@ -97,6 +98,7 @@ export default function AdminScreen() {
   const [revealedPasswords, setRevealedPasswords] = useState<Record<string, { password?: string; emailPassword?: string }>>({});
   const [revealingPassword, setRevealingPassword] = useState<string | null>(null);
   const [selectedVaultLocation, setSelectedVaultLocation] = useState<string>('');
+  const [uploadingDocument, setUploadingDocument] = useState<string | null>(null);
 
   // Printer state
   const [printerScanning, setPrinterScanning] = useState(false);
@@ -923,6 +925,111 @@ export default function AdminScreen() {
       case 'document': return '#3b82f6';
       default: return '#64748b';
     }
+  };
+
+  const handleUploadVaultDocument = async (itemId: string) => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsEditing: false,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      if (!asset.base64) {
+        Alert.alert('Error', 'Failed to process image');
+        return;
+      }
+
+      setUploadingDocument(itemId);
+
+      const fileName = asset.uri.split('/').pop() || `document_${Date.now()}.jpg`;
+      const fileType = asset.mimeType || 'image/jpeg';
+
+      await api.uploadVaultDocument(selectedVaultLocation, itemId, {
+        fileName,
+        fileType,
+        base64: `data:${fileType};base64,${asset.base64}`,
+      });
+
+      Alert.alert('Success', 'Document uploaded');
+      loadVaultItems(selectedVaultLocation);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload document';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setUploadingDocument(null);
+    }
+  };
+
+  const handleTakeVaultPhoto = async (itemId: string) => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera permission is needed to take photos');
+      return;
+    }
+
+    try {
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: false,
+        quality: 0.8,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      if (!asset.base64) {
+        Alert.alert('Error', 'Failed to process image');
+        return;
+      }
+
+      setUploadingDocument(itemId);
+
+      const fileName = `photo_${Date.now()}.jpg`;
+      const fileType = 'image/jpeg';
+
+      await api.uploadVaultDocument(selectedVaultLocation, itemId, {
+        fileName,
+        fileType,
+        base64: `data:${fileType};base64,${asset.base64}`,
+      });
+
+      Alert.alert('Success', 'Photo uploaded');
+      loadVaultItems(selectedVaultLocation);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload photo';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setUploadingDocument(null);
+    }
+  };
+
+  const handleDeleteVaultDocument = (itemId: string, filePath: string, fileName: string) => {
+    Alert.alert(
+      'Delete Document',
+      `Are you sure you want to delete "${fileName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.deleteVaultDocument(selectedVaultLocation, itemId, filePath);
+              Alert.alert('Success', 'Document deleted');
+              loadVaultItems(selectedVaultLocation);
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to delete document';
+              Alert.alert('Error', errorMessage);
+            }
+          },
+        },
+      ]
+    );
   };
 
   const filteredVaultItems = vaultItems.filter(item => {
@@ -2625,19 +2732,73 @@ export default function AdminScreen() {
                   )}
 
                   {/* Documents */}
-                  {item.documents && item.documents.length > 0 && (
-                    <View style={{ marginBottom: 12, padding: 10, backgroundColor: '#f1f5f9', borderRadius: 8 }}>
-                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 8 }}>
-                        Documents ({item.documents.length})
+                  <View style={{ marginBottom: 12, padding: 10, backgroundColor: '#f1f5f9', borderRadius: 8 }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748b' }}>
+                        Documents {item.documents && item.documents.length > 0 ? `(${item.documents.length})` : ''}
                       </Text>
-                      {item.documents.map((doc, idx) => (
-                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 4 }}>
-                          <Ionicons name="document-attach" size={16} color="#64748b" />
-                          <Text style={{ fontSize: 13, color: '#1e293b', marginLeft: 6, flex: 1 }}>{doc.fileName}</Text>
-                        </View>
-                      ))}
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          onPress={() => handleTakeVaultPhoto(item._id)}
+                          disabled={uploadingDocument === item._id}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: '#2563eb',
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 6,
+                            gap: 4,
+                          }}
+                        >
+                          {uploadingDocument === item._id ? (
+                            <ActivityIndicator size="small" color="#fff" />
+                          ) : (
+                            <>
+                              <Ionicons name="camera" size={14} color="#fff" />
+                              <Text style={{ color: '#fff', fontSize: 12, fontWeight: '500' }}>Photo</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => handleUploadVaultDocument(item._id)}
+                          disabled={uploadingDocument === item._id}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            backgroundColor: '#8b5cf6',
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 6,
+                            gap: 4,
+                          }}
+                        >
+                          <Ionicons name="attach" size={14} color="#fff" />
+                          <Text style={{ color: '#fff', fontSize: 12, fontWeight: '500' }}>Upload</Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  )}
+                    {item.documents && item.documents.length > 0 ? (
+                      item.documents.map((doc, idx) => (
+                        <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 6, borderTopWidth: idx > 0 ? 1 : 0, borderTopColor: '#e2e8f0' }}>
+                          <Ionicons
+                            name={doc.fileType?.startsWith('image') ? 'image' : 'document-attach'}
+                            size={16}
+                            color="#64748b"
+                          />
+                          <Text style={{ fontSize: 13, color: '#1e293b', marginLeft: 6, flex: 1 }} numberOfLines={1}>{doc.fileName}</Text>
+                          <TouchableOpacity
+                            onPress={() => handleDeleteVaultDocument(item._id, doc.filePath, doc.fileName)}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                          >
+                            <Ionicons name="trash-outline" size={16} color="#dc2626" />
+                          </TouchableOpacity>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={{ fontSize: 12, color: '#94a3b8', fontStyle: 'italic' }}>No documents attached</Text>
+                    )}
+                  </View>
 
                   {/* Actions */}
                   <View style={{ flexDirection: 'row', justifyContent: 'flex-end', borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 12, gap: 8 }}>
