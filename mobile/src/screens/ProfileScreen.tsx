@@ -12,6 +12,8 @@ import {
   Switch,
   FlatList,
   Vibration,
+  AppState,
+  AppStateStatus,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,6 +21,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+import { Audio } from 'expo-av';
 import { useAuth } from '../contexts/AuthContext';
 import { useTimeClock, BreakType } from '../contexts/TimeClockContext';
 import { useLocation } from '../contexts/LocationContext';
@@ -67,7 +70,10 @@ export default function ProfileScreen() {
   const [isTimerPaused, setIsTimerPaused] = useState(false);
   const [pausedTime, setPausedTime] = useState(0); // Total paused time in seconds
   const [pauseStartTime, setPauseStartTime] = useState<number | null>(null);
+  const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
   const breakTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const alarmSoundRef = useRef<Audio.Sound | null>(null);
+  const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // Location picker modal
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -156,6 +162,93 @@ export default function ProfileScreen() {
     }
   };
 
+  // Start continuous alarm sound
+  const startAlarm = async () => {
+    if (isAlarmPlaying) return;
+
+    try {
+      // Configure audio for alarm (plays even in silent mode)
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: false,
+        playThroughEarpieceAndroid: false,
+      });
+
+      // Create and play the alarm sound
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/alarm.mp3'),
+        { isLooping: true, volume: 1.0 }
+      );
+
+      alarmSoundRef.current = sound;
+      await sound.playAsync();
+      setIsAlarmPlaying(true);
+
+      // Also vibrate continuously
+      const vibrateLoop = () => {
+        Vibration.vibrate([500, 300, 500, 300, 500], false);
+      };
+      vibrateLoop();
+      alarmIntervalRef.current = setInterval(vibrateLoop, 2500);
+
+      console.log('Alarm started');
+    } catch (error) {
+      console.error('Failed to start alarm:', error);
+      // Fallback to just vibration if sound fails
+      Vibration.vibrate([500, 200, 500, 200, 500, 200, 500], true);
+      setIsAlarmPlaying(true);
+    }
+  };
+
+  // Stop the alarm sound
+  const stopAlarm = async () => {
+    try {
+      if (alarmSoundRef.current) {
+        await alarmSoundRef.current.stopAsync();
+        await alarmSoundRef.current.unloadAsync();
+        alarmSoundRef.current = null;
+      }
+      if (alarmIntervalRef.current) {
+        clearInterval(alarmIntervalRef.current);
+        alarmIntervalRef.current = null;
+      }
+      Vibration.cancel();
+      setIsAlarmPlaying(false);
+      console.log('Alarm stopped');
+    } catch (error) {
+      console.error('Failed to stop alarm:', error);
+    }
+  };
+
+  // Handle app state changes - start alarm when app comes to foreground if break expired
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      if (nextAppState === 'active' && breakTimeExpired && !isAlarmPlaying) {
+        startAlarm();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [breakTimeExpired, isAlarmPlaying]);
+
+  // Listen for notification received (when app is in foreground)
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      if (notification.request.identifier === BREAK_NOTIFICATION_ID) {
+        // Break notification received - start alarm
+        startAlarm();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+
   // Schedule notification with specific remaining seconds (for resume after pause)
   const scheduleBreakNotificationWithSeconds = async (type: 'breakfast' | 'lunch', remainingSeconds: number) => {
     try {
@@ -210,7 +303,8 @@ export default function ProfileScreen() {
 
         if (remaining <= 0 && !breakTimeExpired) {
           setBreakTimeExpired(true);
-          Vibration.vibrate([500, 200, 500, 200, 500]);
+          // Start continuous alarm
+          startAlarm();
           Alert.alert(
             'Break Time Expired',
             `Your ${breakType || 'break'} time of ${allowedMinutes} minutes has ended. Please end your break now.`,
@@ -236,7 +330,8 @@ export default function ProfileScreen() {
       if (breakTimerRef.current) {
         clearInterval(breakTimerRef.current);
       }
-      // Cancel any scheduled break notification
+      // Stop alarm and cancel any scheduled break notification
+      stopAlarm();
       cancelBreakNotification();
     }
   }, [isOnBreak, lastBreakStart, breakType, settings, breakTimeExpired, isTimerPaused, pausedTime]);
@@ -437,6 +532,9 @@ export default function ProfileScreen() {
       };
 
       await endBreak({ location });
+
+      // Stop the alarm if playing
+      await stopAlarm();
 
       // Cancel the scheduled break notification
       await cancelBreakNotification();
@@ -821,6 +919,15 @@ export default function ProfileScreen() {
                 <Text style={styles.breakOverTimeText}>OVER TIME</Text>
               )}
             </View>
+            {isAlarmPlaying && (
+              <TouchableOpacity
+                style={styles.stopAlarmButton}
+                onPress={stopAlarm}
+              >
+                <Ionicons name="volume-mute" size={20} color="#fff" />
+                <Text style={styles.stopAlarmButtonText}>Stop Alarm</Text>
+              </TouchableOpacity>
+            )}
             <View style={styles.breakButtonsRow}>
               <TouchableOpacity
                 style={[styles.pauseButton, isTimerPaused && styles.pauseButtonActive]}
@@ -1317,6 +1424,23 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#ef4444',
     marginTop: 4,
+  },
+  stopAlarmButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#dc2626',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    marginVertical: 12,
+    width: '100%',
+  },
+  stopAlarmButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff',
   },
   endBreakButton: {
     flex: 1,
