@@ -23,6 +23,7 @@
     "expo-device": "~8.0.10",
     "expo-image-manipulator": "^14.0.8",
     "expo-image-picker": "~17.0.10",
+    "expo-intent-launcher": "~13.0.8",
     "expo-location": "^19.0.8",
     "expo-navigation-bar": "^5.0.10",
     "expo-notifications": "~0.32.15",
