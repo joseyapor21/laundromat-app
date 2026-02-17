@@ -64,7 +64,8 @@
           "icon": "./assets/icon.png",
           "color": "#2563eb",
           "sounds": [
-            "./assets/neworder.wav"
+            "./assets/neworder.wav",
+            "./assets/alarm.wav"
           ]
         }
       ],

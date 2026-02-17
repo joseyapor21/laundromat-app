@@ -14,6 +14,7 @@ import {
   Vibration,
   AppState,
   AppStateStatus,
+  Platform,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -50,6 +51,26 @@ Notifications.setNotificationHandler({
 // Break notification identifiers
 const BREAK_NOTIFICATION_ID = 'break-timer-alarm';
 const BREAK_REMINDER_PREFIX = 'break-reminder-';
+const BREAK_ALARM_CHANNEL_ID = 'break-alarm';
+
+// Set up the break alarm notification channel for Android with custom sound
+const setupBreakAlarmChannel = async () => {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync(BREAK_ALARM_CHANNEL_ID, {
+      name: 'Break Alarm',
+      description: 'Alarm notifications for when break time is over',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: 'alarm.mp3',
+      vibrationPattern: [0, 500, 200, 500, 200, 500, 200, 500],
+      enableVibrate: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      bypassDnd: true,
+    });
+  }
+};
+
+// Initialize channel on module load
+setupBreakAlarmChannel();
 
 // Dynamically import push notifications
 let pushNotificationService: {
@@ -145,9 +166,10 @@ export default function ProfileScreen() {
         content: {
           title: `⏰ ${breakLabel} Break Time Up!`,
           body: `Your ${durationMinutes} minute ${type} break has ended. Please return to work NOW!`,
-          sound: 'default',
+          sound: Platform.OS === 'ios' ? 'alarm.wav' : 'alarm.mp3',
           priority: Notifications.AndroidNotificationPriority.MAX,
           vibrate: [0, 500, 200, 500, 200, 500, 200, 500],
+          ...(Platform.OS === 'android' && { channelId: BREAK_ALARM_CHANNEL_ID }),
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -167,9 +189,10 @@ export default function ProfileScreen() {
           content: {
             title: `🚨 BREAK OVERTIME - Return to Work!`,
             body: `Your ${type} break ended ${Math.floor((i * 30) / 60)} min ${(i * 30) % 60} sec ago. End your break immediately!`,
-            sound: 'default',
+            sound: Platform.OS === 'ios' ? 'alarm.wav' : 'alarm.mp3',
             priority: Notifications.AndroidNotificationPriority.MAX,
             vibrate: [0, 500, 200, 500, 200, 500, 200, 500],
+            ...(Platform.OS === 'android' && { channelId: BREAK_ALARM_CHANNEL_ID }),
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -324,9 +347,10 @@ export default function ProfileScreen() {
         content: {
           title: `⏰ ${breakLabel} Break Time Up!`,
           body: `Your ${type} break has ended. Please return to work NOW!`,
-          sound: 'default',
+          sound: Platform.OS === 'ios' ? 'alarm.wav' : 'alarm.mp3',
           priority: Notifications.AndroidNotificationPriority.MAX,
           vibrate: [0, 500, 200, 500, 200, 500, 200, 500],
+          ...(Platform.OS === 'android' && { channelId: BREAK_ALARM_CHANNEL_ID }),
         },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -345,9 +369,10 @@ export default function ProfileScreen() {
           content: {
             title: `🚨 BREAK OVERTIME - Return to Work!`,
             body: `Your ${type} break ended ${Math.floor((i * 30) / 60)} min ${(i * 30) % 60} sec ago. End your break immediately!`,
-            sound: 'default',
+            sound: Platform.OS === 'ios' ? 'alarm.wav' : 'alarm.mp3',
             priority: Notifications.AndroidNotificationPriority.MAX,
             vibrate: [0, 500, 200, 500, 200, 500, 200, 500],
+            ...(Platform.OS === 'android' && { channelId: BREAK_ALARM_CHANNEL_ID }),
           },
           trigger: {
             type: Notifications.SchedulableTriggerInputTypes.DATE,

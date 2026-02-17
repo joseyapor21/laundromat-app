@@ -23,6 +23,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Device } from 'react-native-ble-plx';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
@@ -1105,18 +1107,16 @@ export default function AdminScreen() {
 
   const handleUploadAppFile = async (platform: 'ios' | 'android') => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.All,
-        allowsEditing: false,
-        quality: 1,
-        base64: true,
+      const result = await DocumentPicker.getDocumentAsync({
+        type: platform === 'ios' ? 'application/octet-stream' : 'application/vnd.android.package-archive',
+        copyToCacheDirectory: true,
       });
 
-      if (result.canceled || !result.assets[0]) return;
+      if (result.canceled || !result.assets || !result.assets[0]) return;
 
       const asset = result.assets[0];
       const uri = asset.uri;
-      const fileName = uri.split('/').pop() || '';
+      const fileName = asset.name || uri.split('/').pop() || '';
       const ext = fileName.split('.').pop()?.toLowerCase();
 
       // Validate file type
@@ -1129,14 +1129,14 @@ export default function AdminScreen() {
         return;
       }
 
-      if (!asset.base64) {
-        Alert.alert('Error', 'Failed to read file');
-        return;
-      }
-
       setUploadingApp(platform);
 
-      await api.uploadAppFile(platform, fileName, asset.base64);
+      // Read file as base64
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      await api.uploadAppFile(platform, fileName, base64);
       Alert.alert('Success', `${platform.toUpperCase()} app uploaded successfully`);
       loadAppVersionConfig();
     } catch (error) {
