@@ -5,16 +5,13 @@ import { getCurrentUser, isAdmin } from '@/lib/auth/server';
 import fs from 'fs/promises';
 import path from 'path';
 
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
-
 // POST - Upload app file (IPA or APK) using multipart form
 export async function POST(request: NextRequest) {
   try {
+    console.log('Upload request received');
+
     const currentUser = await getCurrentUser();
+    console.log('Current user:', currentUser?.email);
 
     if (!currentUser) {
       return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
@@ -25,10 +22,14 @@ export async function POST(request: NextRequest) {
     }
 
     await connectDB();
+    console.log('DB connected');
 
     const formData = await request.formData();
     const platform = formData.get('platform') as string;
     const file = formData.get('file') as File;
+
+    console.log('Platform:', platform);
+    console.log('File:', file?.name, file?.size);
 
     if (!platform || !['ios', 'android'].includes(platform)) {
       return NextResponse.json({ error: 'Invalid platform. Must be ios or android' }, { status: 400 });
@@ -52,6 +53,7 @@ export async function POST(request: NextRequest) {
     // Create directory
     const uploadDir = path.join(process.cwd(), 'uploads', 'app');
     await fs.mkdir(uploadDir, { recursive: true });
+    console.log('Upload dir:', uploadDir);
 
     // Save file with standard name
     const standardName = platform === 'ios' ? 'Laundromat.ipa' : 'Laundromat.apk';
@@ -59,9 +61,13 @@ export async function POST(request: NextRequest) {
     const relativePath = `app/${standardName}`;
 
     // Convert file to buffer and save
+    console.log('Reading file buffer...');
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
+    console.log('Buffer size:', buffer.length);
+
     await fs.writeFile(filePath, buffer);
+    console.log('File written to:', filePath);
 
     // Update config
     let config = await AppVersion.findOne();
@@ -81,6 +87,7 @@ export async function POST(request: NextRequest) {
     config.updatedByName = currentUser.name;
 
     await config.save();
+    console.log('Config saved');
 
     return NextResponse.json({
       success: true,
@@ -91,8 +98,9 @@ export async function POST(request: NextRequest) {
     }, { status: 201 });
   } catch (error) {
     console.error('Upload app file error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'An error occurred during upload' },
+      { error: `Upload failed: ${errorMessage}` },
       { status: 500 }
     );
   }

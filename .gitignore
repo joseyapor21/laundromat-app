@@ -54,3 +54,7 @@ mobile/android/
 *.orig.*
 web-build/
 mobile/*.ipa
+
+# App builds
+uploads/app/*.ipa
+uploads/app/*.apk

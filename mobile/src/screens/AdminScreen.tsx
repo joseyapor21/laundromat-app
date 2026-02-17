@@ -1140,17 +1140,29 @@ export default function AdminScreen() {
         type: platform === 'ios' ? 'application/octet-stream' : 'application/vnd.android.package-archive',
       } as any);
 
+      const token = api.getToken();
+      console.log('Uploading to:', `${api.getBaseUrl()}/api/app-version/upload`);
+      console.log('Token present:', !!token);
+
       const response = await fetch(`${api.getBaseUrl()}/api/app-version/upload`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${await api.getToken()}`,
+          'Authorization': `Bearer ${token}`,
         },
         body: formData,
       });
 
+      console.log('Response status:', response.status);
+
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Upload failed');
+        const errorText = await response.text();
+        console.log('Error response:', errorText);
+        try {
+          const error = JSON.parse(errorText);
+          throw new Error(error.error || 'Upload failed');
+        } catch {
+          throw new Error(errorText || 'Upload failed');
+        }
       }
 
       Alert.alert('Success', `${platform.toUpperCase()} app uploaded successfully`);
