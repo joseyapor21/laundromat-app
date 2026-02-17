@@ -1108,7 +1108,7 @@ export default function AdminScreen() {
   const handleUploadAppFile = async (platform: 'ios' | 'android') => {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: platform === 'ios' ? 'application/octet-stream' : 'application/vnd.android.package-archive',
+        type: '*/*',
         copyToCacheDirectory: true,
       });
 
@@ -1131,12 +1131,28 @@ export default function AdminScreen() {
 
       setUploadingApp(platform);
 
-      // Read file as base64
-      const base64 = await FileSystem.readAsStringAsync(uri, {
-        encoding: FileSystem.EncodingType.Base64,
+      // Upload using FormData for large files
+      const formData = new FormData();
+      formData.append('platform', platform);
+      formData.append('file', {
+        uri: uri,
+        name: fileName,
+        type: platform === 'ios' ? 'application/octet-stream' : 'application/vnd.android.package-archive',
+      } as any);
+
+      const response = await fetch(`${api.getBaseUrl()}/api/app-version/upload`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${await api.getToken()}`,
+        },
+        body: formData,
       });
 
-      await api.uploadAppFile(platform, fileName, base64);
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
+      }
+
       Alert.alert('Success', `${platform.toUpperCase()} app uploaded successfully`);
       loadAppVersionConfig();
     } catch (error) {

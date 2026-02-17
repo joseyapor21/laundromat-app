@@ -31,6 +31,10 @@ class ApiService {
     return this.token;
   }
 
+  getBaseUrl() {
+    return API_BASE_URL;
+  }
+
   // Location ID methods
   async setLocationId(locationId: string | null) {
     this.locationId = locationId;
