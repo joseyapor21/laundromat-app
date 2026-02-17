@@ -30,7 +30,7 @@ import { useAuth } from '../contexts/AuthContext';
 import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location, LocationVaultItem, VaultItemType, VaultDocument } from '../types';
 import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
-type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault';
+type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault' | 'appupdates';
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
@@ -99,6 +99,27 @@ export default function AdminScreen() {
   const [revealingPassword, setRevealingPassword] = useState<string | null>(null);
   const [selectedVaultLocation, setSelectedVaultLocation] = useState<string>('');
   const [uploadingDocument, setUploadingDocument] = useState<string | null>(null);
+
+  // App Updates state
+  const [appVersionConfig, setAppVersionConfig] = useState<{
+    minVersion: string;
+    latestVersion: string;
+    updateMessage: string;
+    forceUpdate: boolean;
+    iosIpaPath?: string;
+    iosIpaUploadedAt?: string;
+    androidApkPath?: string;
+    androidApkUploadedAt?: string;
+  } | null>(null);
+  const [appVersionLoading, setAppVersionLoading] = useState(false);
+  const [appVersionSaving, setAppVersionSaving] = useState(false);
+  const [appVersionForm, setAppVersionForm] = useState({
+    minVersion: '1.0.0',
+    latestVersion: '1.0.0',
+    updateMessage: 'A new version of the app is available. Please update to continue using the app.',
+    forceUpdate: false,
+  });
+  const [uploadingApp, setUploadingApp] = useState<'ios' | 'android' | null>(null);
 
   // Printer state
   const [printerScanning, setPrinterScanning] = useState(false);
@@ -1037,6 +1058,95 @@ export default function AdminScreen() {
     return item.type === vaultTypeFilter;
   });
 
+  // App Version functions
+  const loadAppVersionConfig = async () => {
+    setAppVersionLoading(true);
+    try {
+      const config = await api.getAppVersionConfig();
+      setAppVersionConfig(config);
+      setAppVersionForm({
+        minVersion: config.minVersion,
+        latestVersion: config.latestVersion,
+        updateMessage: config.updateMessage,
+        forceUpdate: config.forceUpdate,
+      });
+    } catch (error) {
+      console.error('Failed to load app version config:', error);
+    } finally {
+      setAppVersionLoading(false);
+    }
+  };
+
+  // Load app version config when tab changes to appupdates
+  useEffect(() => {
+    if (activeTab === 'appupdates') {
+      loadAppVersionConfig();
+    }
+  }, [activeTab]);
+
+  const handleSaveAppVersionConfig = async () => {
+    setAppVersionSaving(true);
+    try {
+      await api.updateAppVersionConfig({
+        minVersion: appVersionForm.minVersion,
+        latestVersion: appVersionForm.latestVersion,
+        updateMessage: appVersionForm.updateMessage,
+        forceUpdate: appVersionForm.forceUpdate,
+      });
+      Alert.alert('Success', 'App version config saved');
+      loadAppVersionConfig();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save config';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setAppVersionSaving(false);
+    }
+  };
+
+  const handleUploadAppFile = async (platform: 'ios' | 'android') => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.All,
+        allowsEditing: false,
+        quality: 1,
+        base64: true,
+      });
+
+      if (result.canceled || !result.assets[0]) return;
+
+      const asset = result.assets[0];
+      const uri = asset.uri;
+      const fileName = uri.split('/').pop() || '';
+      const ext = fileName.split('.').pop()?.toLowerCase();
+
+      // Validate file type
+      if (platform === 'ios' && ext !== 'ipa') {
+        Alert.alert('Error', 'Please select an .ipa file for iOS');
+        return;
+      }
+      if (platform === 'android' && ext !== 'apk') {
+        Alert.alert('Error', 'Please select an .apk file for Android');
+        return;
+      }
+
+      if (!asset.base64) {
+        Alert.alert('Error', 'Failed to read file');
+        return;
+      }
+
+      setUploadingApp(platform);
+
+      await api.uploadAppFile(platform, fileName, asset.base64);
+      Alert.alert('Success', `${platform.toUpperCase()} app uploaded successfully`);
+      loadAppVersionConfig();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to upload app';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setUploadingApp(null);
+    }
+  };
+
   // Settings actions
   const openSettingsModal = () => {
     if (settings) {
@@ -1432,6 +1542,7 @@ export default function AdminScreen() {
     { key: 'timeclock', label: 'Time Clock', icon: 'timer', adminOnly: true },
     { key: 'activity', label: 'Activity', icon: 'time', adminOnly: true },
     { key: 'locations', label: 'Locations', icon: 'location', adminOnly: true },
+    { key: 'appupdates', label: 'App Updates', icon: 'cloud-download', adminOnly: true },
   ];
 
   // Filter tabs based on role - cashiers only see non-admin tabs
@@ -2860,6 +2971,294 @@ export default function AdminScreen() {
             />
           )}
         </View>
+      )}
+
+      {/* App Updates Tab */}
+      {activeTab === 'appupdates' && (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>
+          {appVersionLoading ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingVertical: 60 }}>
+              <ActivityIndicator size="large" color="#2563eb" />
+            </View>
+          ) : (
+            <>
+              {/* Header */}
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+                <View style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 12,
+                  backgroundColor: '#eff6ff',
+                  justifyContent: 'center',
+                  alignItems: 'center',
+                  marginRight: 12,
+                }}>
+                  <Ionicons name="cloud-download" size={24} color="#2563eb" />
+                </View>
+                <View>
+                  <Text style={{ fontSize: 20, fontWeight: '700', color: '#1e293b' }}>App Updates</Text>
+                  <Text style={{ fontSize: 13, color: '#64748b' }}>Manage app version requirements</Text>
+                </View>
+              </View>
+
+              {/* Version Config Card */}
+              <View style={{
+                backgroundColor: '#fff',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+                elevation: 2,
+              }}>
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#1e293b', marginBottom: 16 }}>Version Settings</Text>
+
+                <View style={{ flexDirection: 'row', gap: 12, marginBottom: 12 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Minimum Version</Text>
+                    <TextInput
+                      style={{
+                        backgroundColor: '#f8fafc',
+                        borderWidth: 1,
+                        borderColor: '#e2e8f0',
+                        borderRadius: 8,
+                        padding: 12,
+                        fontSize: 16,
+                        color: '#1e293b',
+                      }}
+                      value={appVersionForm.minVersion}
+                      onChangeText={(text) => setAppVersionForm({ ...appVersionForm, minVersion: text })}
+                      placeholder="1.0.0"
+                      placeholderTextColor="#94a3b8"
+                    />
+                    <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Users below this must update</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Latest Version</Text>
+                    <TextInput
+                      style={{
+                        backgroundColor: '#f8fafc',
+                        borderWidth: 1,
+                        borderColor: '#e2e8f0',
+                        borderRadius: 8,
+                        padding: 12,
+                        fontSize: 16,
+                        color: '#1e293b',
+                      }}
+                      value={appVersionForm.latestVersion}
+                      onChangeText={(text) => setAppVersionForm({ ...appVersionForm, latestVersion: text })}
+                      placeholder="1.0.0"
+                      placeholderTextColor="#94a3b8"
+                    />
+                    <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 4 }}>Latest available version</Text>
+                  </View>
+                </View>
+
+                <View style={{ marginBottom: 12 }}>
+                  <Text style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>Update Message</Text>
+                  <TextInput
+                    style={{
+                      backgroundColor: '#f8fafc',
+                      borderWidth: 1,
+                      borderColor: '#e2e8f0',
+                      borderRadius: 8,
+                      padding: 12,
+                      fontSize: 14,
+                      color: '#1e293b',
+                      minHeight: 80,
+                      textAlignVertical: 'top',
+                    }}
+                    value={appVersionForm.updateMessage}
+                    onChangeText={(text) => setAppVersionForm({ ...appVersionForm, updateMessage: text })}
+                    placeholder="Update message shown to users..."
+                    placeholderTextColor="#94a3b8"
+                    multiline
+                  />
+                </View>
+
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                  <View>
+                    <Text style={{ fontSize: 14, fontWeight: '500', color: '#1e293b' }}>Force Update</Text>
+                    <Text style={{ fontSize: 12, color: '#64748b' }}>Block app until user updates</Text>
+                  </View>
+                  <Switch
+                    value={appVersionForm.forceUpdate}
+                    onValueChange={(value) => setAppVersionForm({ ...appVersionForm, forceUpdate: value })}
+                    trackColor={{ false: '#e2e8f0', true: '#bfdbfe' }}
+                    thumbColor={appVersionForm.forceUpdate ? '#2563eb' : '#f4f4f5'}
+                  />
+                </View>
+
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#2563eb',
+                    paddingVertical: 14,
+                    borderRadius: 10,
+                    alignItems: 'center',
+                  }}
+                  onPress={handleSaveAppVersionConfig}
+                  disabled={appVersionSaving}
+                >
+                  {appVersionSaving ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Save Settings</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* iOS App Upload Card */}
+              <View style={{
+                backgroundColor: '#fff',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+                elevation: 2,
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    backgroundColor: '#f0f9ff',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    marginRight: 10,
+                  }}>
+                    <Ionicons name="logo-apple" size={20} color="#0ea5e9" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#1e293b' }}>iOS App (.ipa)</Text>
+                    {appVersionConfig?.iosIpaUploadedAt && (
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>
+                        Uploaded: {new Date(appVersionConfig.iosIpaUploadedAt).toLocaleDateString()}
+                      </Text>
+                    )}
+                  </View>
+                  {appVersionConfig?.iosIpaPath && (
+                    <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 11, color: '#166534', fontWeight: '500' }}>UPLOADED</Text>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: uploadingApp === 'ios' ? '#94a3b8' : '#0ea5e9',
+                    paddingVertical: 12,
+                    borderRadius: 8,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                  onPress={() => handleUploadAppFile('ios')}
+                  disabled={uploadingApp === 'ios'}
+                >
+                  {uploadingApp === 'ios' ? (
+                    <>
+                      <ActivityIndicator color="#fff" size="small" />
+                      <Text style={{ color: '#fff', fontWeight: '600' }}>Uploading...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="cloud-upload" size={18} color="#fff" />
+                      <Text style={{ color: '#fff', fontWeight: '600' }}>Upload IPA File</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Android App Upload Card */}
+              <View style={{
+                backgroundColor: '#fff',
+                borderRadius: 12,
+                padding: 16,
+                marginBottom: 16,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 1 },
+                shadowOpacity: 0.1,
+                shadowRadius: 2,
+                elevation: 2,
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+                  <View style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 8,
+                    backgroundColor: '#f0fdf4',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    marginRight: 10,
+                  }}>
+                    <Ionicons name="logo-android" size={20} color="#22c55e" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 16, fontWeight: '600', color: '#1e293b' }}>Android App (.apk)</Text>
+                    {appVersionConfig?.androidApkUploadedAt && (
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>
+                        Uploaded: {new Date(appVersionConfig.androidApkUploadedAt).toLocaleDateString()}
+                      </Text>
+                    )}
+                  </View>
+                  {appVersionConfig?.androidApkPath && (
+                    <View style={{ backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 4 }}>
+                      <Text style={{ fontSize: 11, color: '#166534', fontWeight: '500' }}>UPLOADED</Text>
+                    </View>
+                  )}
+                </View>
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: uploadingApp === 'android' ? '#94a3b8' : '#22c55e',
+                    paddingVertical: 12,
+                    borderRadius: 8,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 8,
+                  }}
+                  onPress={() => handleUploadAppFile('android')}
+                  disabled={uploadingApp === 'android'}
+                >
+                  {uploadingApp === 'android' ? (
+                    <>
+                      <ActivityIndicator color="#fff" size="small" />
+                      <Text style={{ color: '#fff', fontWeight: '600' }}>Uploading...</Text>
+                    </>
+                  ) : (
+                    <>
+                      <Ionicons name="cloud-upload" size={18} color="#fff" />
+                      <Text style={{ color: '#fff', fontWeight: '600' }}>Upload APK File</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              {/* Info Card */}
+              <View style={{
+                backgroundColor: '#fef3c7',
+                borderRadius: 12,
+                padding: 16,
+                flexDirection: 'row',
+              }}>
+                <Ionicons name="information-circle" size={24} color="#d97706" style={{ marginRight: 12 }} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: '#92400e', marginBottom: 4 }}>How it works</Text>
+                  <Text style={{ fontSize: 13, color: '#78350f', lineHeight: 20 }}>
+                    When Force Update is enabled and a user's app version is below the minimum version, they will be blocked from using the app until they update.{'\n\n'}
+                    iOS users will be directed to download the IPA via Safari.{'\n'}
+                    Android users will download and install the APK directly.
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
+        </ScrollView>
       )}
 
       {/* User Modal */}

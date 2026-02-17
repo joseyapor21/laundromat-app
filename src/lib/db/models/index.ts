@@ -9,6 +9,7 @@ export { default as Machine } from './Machine';
 export { default as TimeEntry } from './TimeEntry';
 export { default as Location } from './Location';
 export { default as LocationVaultItem } from './LocationVault';
+export { AppVersion } from './AppVersion';
 export { OrderCounter, CustomerCounter, getNextOrderSequence, getNextCustomerSequence } from './Counter';
 
 export type { UserDocument } from './User';

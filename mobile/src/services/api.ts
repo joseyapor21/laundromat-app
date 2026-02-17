@@ -736,6 +736,44 @@ class ApiService {
     const tokenParam = this.token ? `?token=${encodeURIComponent(this.token)}` : '';
     return `${API_BASE_URL}/api/uploads/${filePath}${tokenParam}`;
   }
+
+  // App Version Management
+  async getAppVersionConfig(): Promise<{
+    minVersion: string;
+    latestVersion: string;
+    updateMessage: string;
+    forceUpdate: boolean;
+    iosIpaPath?: string;
+    iosIpaUploadedAt?: string;
+    androidApkPath?: string;
+    androidApkUploadedAt?: string;
+  }> {
+    return this.request('/app-version');
+  }
+
+  async updateAppVersionConfig(data: {
+    minVersion?: string;
+    latestVersion?: string;
+    updateMessage?: string;
+    forceUpdate?: boolean;
+  }): Promise<{ success: boolean }> {
+    return this.request('/app-version', {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async uploadAppFile(platform: 'ios' | 'android', fileName: string, base64: string): Promise<{
+    success: boolean;
+    platform: string;
+    path: string;
+    uploadedAt: string;
+  }> {
+    return this.request('/app-version', {
+      method: 'POST',
+      body: JSON.stringify({ platform, fileName, base64 }),
+    });
+  }
 }
 
 export const api = new ApiService();
