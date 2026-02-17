@@ -1131,38 +1131,47 @@ export default function AdminScreen() {
 
       setUploadingApp(platform);
 
-      // Upload using FormData for large files
-      const formData = new FormData();
-      formData.append('platform', platform);
-      formData.append('file', {
-        uri: uri,
-        name: fileName,
-        type: platform === 'ios' ? 'application/octet-stream' : 'application/vnd.android.package-archive',
-      } as any);
+      // Check file size
+      const fileInfo = await FileSystem.getInfoAsync(uri);
+      if (!fileInfo.exists) {
+        throw new Error('File not found');
+      }
+      const fileSize = (fileInfo as any).size || 0;
+      const fileSizeMB = (fileSize / (1024 * 1024)).toFixed(1);
+      console.log('File size:', fileSizeMB, 'MB');
 
-      const token = api.getToken();
-      console.log('Uploading to:', `${api.getBaseUrl()}/api/app-version/upload`);
-      console.log('Token present:', !!token);
+      // Max 100MB for upload
+      if (fileSize > 100 * 1024 * 1024) {
+        Alert.alert('Error', `File too large (${fileSizeMB}MB). Maximum size is 100MB.`);
+        return;
+      }
 
-      const response = await fetch(`${api.getBaseUrl()}/api/app-version/upload`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-        body: formData,
+      Alert.alert('Uploading', `Uploading ${fileSizeMB}MB file. This may take a while...`);
+
+      // Read file as base64
+      const base64 = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
       });
 
-      console.log('Response status:', response.status);
+      console.log('Base64 length:', base64.length);
+
+      // Upload using JSON with base64
+      const response = await fetch(`${api.getBaseUrl()}/api/app-version`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${api.getToken()}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform,
+          fileName,
+          base64,
+        }),
+      });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.log('Error response:', errorText);
-        try {
-          const error = JSON.parse(errorText);
-          throw new Error(error.error || 'Upload failed');
-        } catch {
-          throw new Error(errorText || 'Upload failed');
-        }
+        const error = await response.json();
+        throw new Error(error.error || 'Upload failed');
       }
 
       Alert.alert('Success', `${platform.toUpperCase()} app uploaded successfully`);
