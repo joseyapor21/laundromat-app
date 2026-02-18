@@ -30,10 +30,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find the machine assignment
+    // Find the machine assignment (convert both to string for comparison)
     const assignmentIndex = order.machineAssignments?.findIndex(
       (a: { machineId: string; removedAt?: Date; machineType: string }) =>
-        a.machineId === machineId && !a.removedAt && a.machineType === 'dryer'
+        a.machineId?.toString() === machineId?.toString() && !a.removedAt && a.machineType === 'dryer'
     );
 
     if (assignmentIndex === undefined || assignmentIndex === -1) {
