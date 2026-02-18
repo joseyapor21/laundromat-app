@@ -22,11 +22,12 @@ export async function POST(request: NextRequest) {
     const twoDaysAgo = new Date();
     twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
 
-    // Find and update all completed orders older than 2 days
+    // Find and update all completed orders older than 2 days (exclude soft-deleted)
     const result = await Order.updateMany(
       {
         status: 'completed',
         updatedAt: { $lt: twoDaysAgo },
+        deletedAt: { $eq: null },
       },
       {
         $set: { status: 'archived' },
@@ -64,6 +65,7 @@ export async function GET(request: NextRequest) {
     const count = await Order.countDocuments({
       status: 'completed',
       updatedAt: { $lt: twoDaysAgo },
+      deletedAt: { $eq: null },
     });
 
     return NextResponse.json({

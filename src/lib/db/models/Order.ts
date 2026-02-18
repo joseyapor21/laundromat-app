@@ -112,6 +112,9 @@ export interface OrderDoc {
     checkedBy?: string;
     checkedByInitials?: string;
     isChecked?: boolean;
+    // Verification photo
+    verificationPhoto?: string;
+    verificationPhotoAt?: Date;
   }>;
   // Driver pickup photos
   pickupPhotos?: Array<{
@@ -120,6 +123,10 @@ export interface OrderDoc {
     capturedBy: string;
     capturedByName: string;
   }>;
+  // Soft delete fields
+  deletedAt?: Date | null;
+  deletedBy?: string | null;
+  deletedByName?: string | null;
 }
 
 const serviceSchema = new mongoose.Schema({
@@ -269,6 +276,7 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
       'completed',
       'scheduled_pickup',
       'picked_up',
+      'archived',
     ] as OrderStatus[],
     default: 'new_order',
   },
@@ -475,6 +483,9 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
       type: Boolean,
       default: false,
     },
+    // Verification photo
+    verificationPhoto: String,
+    verificationPhotoAt: Date,
   }],
   // Driver pickup photos
   pickupPhotos: [{
@@ -483,6 +494,19 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
     capturedBy: String,
     capturedByName: String,
   }],
+  // Soft delete fields
+  deletedAt: {
+    type: Date,
+    default: null,
+  },
+  deletedBy: {
+    type: String,
+    default: null,
+  },
+  deletedByName: {
+    type: String,
+    default: null,
+  },
 }, {
   collection: 'orders',
   timestamps: false,

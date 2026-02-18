@@ -260,6 +260,9 @@ export interface MachineAssignment {
   checkedAt?: Date;
   checkedBy?: string;
   checkedByInitials?: string;
+  // Verification photo
+  verificationPhoto?: string;
+  verificationPhotoAt?: Date;
 }
 
 export interface OrderExtraItem {

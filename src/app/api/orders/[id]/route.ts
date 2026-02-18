@@ -238,8 +238,11 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    // Now delete the order
-    await Order.findByIdAndDelete(order._id);
+    // Soft delete the order instead of hard delete
+    order.deletedAt = new Date();
+    order.deletedBy = currentUser.userId;
+    order.deletedByName = currentUser.name;
+    await order.save();
 
     // Log the activity
     try {
@@ -250,7 +253,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         action: 'delete_order',
         entityType: 'order',
         entityId: id,
-        details: `Deleted order #${order.orderId}`,
+        details: `Moved order #${order.orderId} to trash`,
         metadata: { orderId: order.orderId, customerName: order.customerName },
         ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
         userAgent: request.headers.get('user-agent') || 'unknown',
@@ -259,7 +262,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       console.error('Failed to log activity:', logError);
     }
 
-    return NextResponse.json({ message: 'Order deleted successfully' });
+    return NextResponse.json({ message: 'Order moved to trash' });
   } catch (error) {
     console.error('Delete order error:', error);
     return NextResponse.json(

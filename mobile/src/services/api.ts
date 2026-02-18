@@ -418,6 +418,13 @@ class ApiService {
     });
   }
 
+  async uploadMachinePhoto(orderId: string, machineId: string, photoBase64: string): Promise<{ success: boolean; message: string; photoPath: string; order: Order }> {
+    return this.request<{ success: boolean; message: string; photoPath: string; order: Order }>(`/orders/${orderId}/machine-photo`, {
+      method: 'POST',
+      body: JSON.stringify({ machineId, photoBase64 }),
+    });
+  }
+
   async checkMachine(orderId: string, machineId: string, checkerInitials: string, forceSamePerson?: boolean): Promise<{ success: boolean; message: string; requireConfirmation?: boolean }> {
     return this.request<{ success: boolean; message: string; requireConfirmation?: boolean }>('/machines/check', {
       method: 'POST',

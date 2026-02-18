@@ -74,6 +74,12 @@ export default function OrderDetailScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const isProcessingScan = useRef(false);
 
+  // Machine verification photo state
+  const [showVerificationCamera, setShowVerificationCamera] = useState(false);
+  const [pendingMachineForPhoto, setPendingMachineForPhoto] = useState<{ machineId: string; machineName: string } | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const verificationCameraRef = useRef<any>(null);
+
   // Pickup photos
   const [pickupPhotos, setPickupPhotos] = useState<Array<{ photoPath: string; capturedAt: Date; capturedBy: string; capturedByName: string }>>([]);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
@@ -211,7 +217,7 @@ export default function OrderDetailScreen() {
     }
   }
 
-  // Print individual bag labels (one per bag)
+  // Print individual bag labels - shows selection if multiple bags
   async function handlePrintBagLabels() {
     if (!order) {
       Alert.alert('Error', 'No order to print bag labels for');
@@ -231,15 +237,77 @@ export default function OrderDetailScreen() {
       return;
     }
 
+    // If only one bag, print directly
+    if (order.bags.length === 1) {
+      await printBagLabel(0);
+      return;
+    }
+
+    // Show selection options for multiple bags
+    const buttons = order.bags.map((bag, index) => ({
+      text: `Bag ${index + 1}: ${bag.identifier}${bag.weight ? ` (${bag.weight} lb)` : ''}`,
+      onPress: () => printBagLabel(index),
+    }));
+
+    buttons.push({
+      text: 'Print All Bags',
+      onPress: () => printAllBagLabels(),
+    });
+
+    buttons.push({
+      text: 'Cancel',
+      onPress: () => {},
+    });
+
+    Alert.alert('Select Bag to Print', 'Choose which bag label to print:', buttons);
+  }
+
+  // Print a single bag label
+  async function printBagLabel(bagIndex: number) {
+    if (!order || !order.bags || bagIndex >= order.bags.length) return;
+
+    const printerIp = settings?.thermalPrinterIp;
+    const printerPort = settings?.thermalPrinterPort || 9100;
+    if (!printerIp) return;
+
     setPrinting(true);
     try {
-      // Use latest customer instructions for printing
       const orderForPrint = {
         ...order,
         specialInstructions: order.customer?.notes || order.specialInstructions || '',
       };
 
-      // Print a label for each bag
+      const bag = order.bags[bagIndex];
+      const totalBags = order.bags.length;
+      const content = generateBagLabelText(orderForPrint, bag, bagIndex + 1, totalBags);
+      const response = await localPrinter.printReceipt(printerIp, content, printerPort);
+
+      if (!response.success) {
+        throw new Error(response.error || `Failed to print bag ${bagIndex + 1}`);
+      }
+      Alert.alert('Success', `Printed label for Bag ${bagIndex + 1}`);
+    } catch (error) {
+      Alert.alert('Print Error', error instanceof Error ? error.message : 'Failed to print bag label.');
+    } finally {
+      setPrinting(false);
+    }
+  }
+
+  // Print all bag labels
+  async function printAllBagLabels() {
+    if (!order || !order.bags) return;
+
+    const printerIp = settings?.thermalPrinterIp;
+    const printerPort = settings?.thermalPrinterPort || 9100;
+    if (!printerIp) return;
+
+    setPrinting(true);
+    try {
+      const orderForPrint = {
+        ...order,
+        specialInstructions: order.customer?.notes || order.specialInstructions || '',
+      };
+
       const totalBags = order.bags.length;
       for (let i = 0; i < totalBags; i++) {
         const bag = order.bags[i];
@@ -269,18 +337,66 @@ export default function OrderDetailScreen() {
 
     try {
       const result = await api.scanMachine(qrCode, order._id);
-      Alert.alert('Success', result.message);
       await loadOrder();
+
+      // Prompt to take verification photo
+      Alert.alert(
+        'Machine Assigned',
+        `${result.message}\n\nTake a photo of the machine settings to verify?`,
+        [
+          {
+            text: 'Skip',
+            style: 'cancel',
+            onPress: () => {
+              isProcessingScan.current = false;
+            },
+          },
+          {
+            text: 'Take Photo',
+            onPress: () => {
+              setPendingMachineForPhoto({
+                machineId: result.machine._id,
+                machineName: result.machine.name,
+              });
+              setShowVerificationCamera(true);
+              isProcessingScan.current = false;
+            },
+          },
+        ]
+      );
     } catch (error) {
       console.error('Scan error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to assign machine';
       Alert.alert('Error', errorMessage);
+      isProcessingScan.current = false;
     } finally {
       setUpdating(false);
-      // Reset after a short delay to allow the scanner to be opened again
-      setTimeout(() => {
-        isProcessingScan.current = false;
-      }, 1000);
+    }
+  }
+
+  // Capture verification photo for machine
+  async function captureVerificationPhoto() {
+    if (!verificationCameraRef.current || !pendingMachineForPhoto || !order) return;
+
+    try {
+      setUploadingPhoto(true);
+      const photo = await verificationCameraRef.current.takePictureAsync({
+        base64: true,
+        quality: 0.7,
+      });
+
+      // Upload the photo
+      await api.uploadMachinePhoto(order._id, pendingMachineForPhoto.machineId, photo.base64);
+
+      setShowVerificationCamera(false);
+      setPendingMachineForPhoto(null);
+      Alert.alert('Success', 'Verification photo saved');
+      await loadOrder();
+    } catch (error) {
+      console.error('Photo upload error:', error);
+      Alert.alert('Error', 'Failed to save photo');
+    } finally {
+      setUploadingPhoto(false);
     }
   }
 
@@ -949,8 +1065,32 @@ export default function OrderDetailScreen() {
                             />
                           )}
                         </View>
-                        <View>
-                          <Text style={styles.machineName}>{assignment.machineName}</Text>
+                        <View style={{ flex: 1 }}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <Text style={styles.machineName}>{assignment.machineName}</Text>
+                            {assignment.verificationPhoto && (
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setSelectedPhotoIndex(-1);
+                                  Alert.alert(
+                                    'Verification Photo',
+                                    'View the machine settings photo?',
+                                    [
+                                      { text: 'Cancel', style: 'cancel' },
+                                      {
+                                        text: 'View',
+                                        onPress: () => {
+                                          Linking.openURL(`${api.getBaseUrl()}${assignment.verificationPhoto}`);
+                                        },
+                                      },
+                                    ]
+                                  );
+                                }}
+                              >
+                                <Ionicons name="camera" size={18} color="#10b981" />
+                              </TouchableOpacity>
+                            )}
+                          </View>
                           <Text style={styles.machineType}>
                             {assignment.machineType}
                             {assignment.isChecked && (
@@ -1608,6 +1748,66 @@ export default function OrderDetailScreen() {
                 <Text style={styles.manualSubmitText}>Submit</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Verification Camera Modal */}
+      <Modal
+        visible={showVerificationCamera}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowVerificationCamera(false);
+          setPendingMachineForPhoto(null);
+        }}
+      >
+        <View style={styles.scannerContainer}>
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>
+              Verify {pendingMachineForPhoto?.machineName} Settings
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowVerificationCamera(false);
+                setPendingMachineForPhoto(null);
+              }}
+            >
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {permission?.granted ? (
+            <CameraView
+              ref={verificationCameraRef}
+              style={styles.camera}
+              facing="back"
+            />
+          ) : (
+            <View style={styles.cameraPlaceholder}>
+              <Text style={styles.cameraPlaceholderText}>Camera permission required</Text>
+              <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+                <Text style={styles.permissionButtonText}>Grant Permission</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={styles.verificationPhotoControls}>
+            <Text style={styles.verificationPhotoHint}>
+              Take a photo of the machine panel showing settings (water temp, cycle type, etc.)
+            </Text>
+            <TouchableOpacity
+              style={[styles.captureButton, uploadingPhoto && styles.buttonDisabled]}
+              onPress={captureVerificationPhoto}
+              disabled={uploadingPhoto}
+            >
+              {uploadingPhoto ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <View style={styles.captureButtonInner}>
+                  <Ionicons name="camera" size={32} color="#fff" />
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -2596,6 +2796,32 @@ const styles = StyleSheet.create({
   manualSubmitText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  // Verification photo controls
+  verificationPhotoControls: {
+    padding: 20,
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+  },
+  verificationPhotoHint: {
+    color: '#94a3b8',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  captureButton: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 4,
+    borderColor: '#fff',
+  },
+  captureButtonInner: {
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   // Print options modal
   printModalOverlay: {

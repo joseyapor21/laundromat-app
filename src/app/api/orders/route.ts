@@ -14,6 +14,7 @@ async function autoArchiveOldOrders() {
       {
         status: 'completed',
         updatedAt: { $lt: twoDaysAgo },
+        deletedAt: { $eq: null },
       },
       {
         $set: { status: 'archived' },
@@ -47,7 +48,10 @@ export async function GET(request: NextRequest) {
 
     // Build query
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const query: any = {};
+    const query: any = {
+      // Exclude soft-deleted orders by default
+      deletedAt: { $eq: null },
+    };
 
     // Filter by location if specified
     if (currentUser.locationId) {

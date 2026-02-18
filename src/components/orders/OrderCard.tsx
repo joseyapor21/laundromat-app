@@ -26,6 +26,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   completed: 'Completed',
   scheduled_pickup: 'Scheduled Pickup',
   picked_up: 'Picked Up',
+  archived: 'Archived',
 };
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
@@ -44,6 +45,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   completed: 'bg-slate-100 text-slate-800',
   scheduled_pickup: 'bg-purple-100 text-purple-800',
   picked_up: 'bg-emerald-100 text-emerald-800',
+  archived: 'bg-gray-100 text-gray-600',
 };
 
 const STATUS_FLOW: OrderStatus[] = [
