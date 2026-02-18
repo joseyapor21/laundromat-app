@@ -11,7 +11,9 @@ import {
   Modal,
   TextInput,
   Image,
+  Dimensions,
 } from 'react-native';
+import ImageViewer from 'react-native-image-zoom-viewer';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -1808,34 +1810,32 @@ export default function OrderDetailScreen() {
         </View>
       </Modal>
 
-      {/* Expanded Verification Photo Modal */}
+      {/* Expanded Verification Photo Modal with Pinch Zoom */}
       <Modal
         visible={!!expandedVerificationPhoto}
         transparent
         animationType="fade"
         onRequestClose={() => setExpandedVerificationPhoto(null)}
       >
-        <TouchableOpacity
-          style={styles.expandedPhotoOverlay}
-          activeOpacity={1}
-          onPress={() => setExpandedVerificationPhoto(null)}
-        >
-          <View style={styles.expandedPhotoContainer}>
-            <TouchableOpacity
-              style={styles.expandedPhotoClose}
-              onPress={() => setExpandedVerificationPhoto(null)}
-            >
-              <Ionicons name="close" size={28} color="#fff" />
-            </TouchableOpacity>
-            {expandedVerificationPhoto && (
-              <Image
-                source={{ uri: expandedVerificationPhoto }}
-                style={styles.expandedPhotoImage}
-                resizeMode="contain"
-              />
-            )}
-          </View>
-        </TouchableOpacity>
+        <View style={styles.expandedPhotoOverlay}>
+          <TouchableOpacity
+            style={styles.expandedPhotoClose}
+            onPress={() => setExpandedVerificationPhoto(null)}
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+          {expandedVerificationPhoto && (
+            <ImageViewer
+              imageUrls={[{ url: expandedVerificationPhoto }]}
+              enableSwipeDown
+              onSwipeDown={() => setExpandedVerificationPhoto(null)}
+              onClick={() => setExpandedVerificationPhoto(null)}
+              backgroundColor="rgba(0, 0, 0, 0.9)"
+              renderIndicator={() => <></>}
+              saveToLocalByLongPress={false}
+            />
+          )}
+        </View>
       </Modal>
 
       {/* Print Options Modal */}
