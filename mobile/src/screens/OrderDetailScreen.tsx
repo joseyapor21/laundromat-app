@@ -657,7 +657,7 @@ export default function OrderDetailScreen() {
   }
 
   // Layering Verification (order-level) - Verifies dryer/layering and moves to folding status
-  async function handleVerifyLayering() {
+  async function handleVerifyLayering(forceSamePerson?: boolean) {
     if (!order || !user) return;
 
     // Get user name and initials
@@ -668,9 +668,20 @@ export default function OrderDetailScreen() {
       ?.filter(a => a.machineType === 'dryer' && !a.removedAt)
       .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime())[0];
 
-    if (lastDryerAssignment && lastDryerAssignment.assignedBy &&
+    // Check if same person - show warning but allow to proceed
+    if (!forceSamePerson && lastDryerAssignment && lastDryerAssignment.assignedBy &&
         lastDryerAssignment.assignedBy.toLowerCase() === checkedBy.toLowerCase()) {
-      Alert.alert('Not Allowed', 'The person who assigned the dryer cannot verify the layering. A different person must check.');
+      Alert.alert(
+        'Same Person',
+        'You assigned the dryer. Ideally another person should verify the layering.\n\nDo you want to verify it anyway?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Verify Anyway',
+            onPress: () => handleVerifyLayering(true),
+          },
+        ]
+      );
       return;
     }
 
