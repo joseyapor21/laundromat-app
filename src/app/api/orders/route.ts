@@ -4,6 +4,26 @@ import { Order, Customer, ActivityLog, getNextOrderSequence } from '@/lib/db/mod
 import { getCurrentUser } from '@/lib/auth/server';
 import { notifyNewOrder } from '@/lib/services/pushNotifications';
 
+// Auto-archive completed orders older than 2 days (runs in background)
+async function autoArchiveOldOrders() {
+  try {
+    const twoDaysAgo = new Date();
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+
+    await Order.updateMany(
+      {
+        status: 'completed',
+        updatedAt: { $lt: twoDaysAgo },
+      },
+      {
+        $set: { status: 'archived' },
+      }
+    );
+  } catch (error) {
+    console.error('Auto-archive error:', error);
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const currentUser = await getCurrentUser();
@@ -16,6 +36,9 @@ export async function GET(request: NextRequest) {
     }
 
     await connectDB();
+
+    // Run auto-archive in background (don't await)
+    autoArchiveOldOrders();
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
