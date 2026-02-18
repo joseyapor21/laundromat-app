@@ -60,7 +60,8 @@ export type OrderStatus =
   | 'ready_for_delivery'
   | 'completed'
   | 'scheduled_pickup'
-  | 'picked_up';
+  | 'picked_up'
+  | 'archived';
 
 export type OrderType = 'storePickup' | 'delivery';
 

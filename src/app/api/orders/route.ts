@@ -33,6 +33,9 @@ export async function GET(request: NextRequest) {
 
     if (status && status !== 'all') {
       query.status = status;
+    } else if (!status || status === 'all') {
+      // Exclude archived orders by default unless specifically requested
+      query.status = { $ne: 'archived' };
     }
 
     if (date) {

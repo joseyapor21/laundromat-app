@@ -71,7 +71,8 @@ export type OrderStatus =
   | 'ready_for_delivery'
   | 'out_for_delivery'
   | 'completed'
-  | 'cancelled';
+  | 'cancelled'
+  | 'archived';
 
 export type OrderType = 'storePickup' | 'delivery';
 export type PaymentMethod = 'cash' | 'credit_card' | 'zelle' | 'credit' | 'pending' | 'venmo' | 'check';
