@@ -49,8 +49,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Save the photo
+    // Save the photo to file system
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'machine-verification');
+    console.log('Creating uploads directory:', uploadsDir);
     await mkdir(uploadsDir, { recursive: true });
 
     const timestamp = Date.now();
@@ -61,9 +62,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const base64Data = photoBase64.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
 
+    console.log('Writing photo to:', filePath, 'Size:', buffer.length);
     await writeFile(filePath, buffer);
 
-    // Update the machine assignment with the photo
+    // Update the machine assignment with the photo path
     const photoPath = `/uploads/machine-verification/${fileName}`;
     const machineAssignments = order.machineAssignments!;
     const assignment = machineAssignments[assignmentIndex];
@@ -103,8 +105,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
   } catch (error) {
     console.error('Upload machine photo error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to upload photo' },
+      { error: 'Failed to upload photo', details: errorMessage },
       { status: 500 }
     );
   }
