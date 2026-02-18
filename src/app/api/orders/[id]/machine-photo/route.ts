@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
+import fs from 'fs';
 import path from 'path';
 import { connectDB } from '@/lib/db/connection';
 import { Order, ActivityLog } from '@/lib/db/models';
@@ -49,24 +49,25 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Save the photo to file system
-    const uploadsDir = path.join(process.cwd(), 'public', 'uploads', 'machine-verification');
-    console.log('Creating uploads directory:', uploadsDir);
-    await mkdir(uploadsDir, { recursive: true });
+    // Create uploads directory structure (same pattern as pickup-photo)
+    const now = new Date();
+    const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const uploadsDir = path.join(process.cwd(), 'uploads', 'machine-verification', yearMonth);
 
-    const timestamp = Date.now();
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+
+    // Save photo to file
+    const timestamp = now.getTime();
     const fileName = `${orderId}_${machineId}_${timestamp}.jpg`;
-    const filePath = path.join(uploadsDir, fileName);
+    const photoPath = `machine-verification/${yearMonth}/${fileName}`;
+    const fullPath = path.join(process.cwd(), 'uploads', photoPath);
 
-    // Remove base64 prefix if present
+    // Decode base64 and save
     const base64Data = photoBase64.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
-
-    console.log('Writing photo to:', filePath, 'Size:', buffer.length);
-    await writeFile(filePath, buffer);
-
-    // Update the machine assignment with the photo path
-    const photoPath = `/uploads/machine-verification/${fileName}`;
+    fs.writeFileSync(fullPath, buffer);
     const machineAssignments = order.machineAssignments!;
     const assignment = machineAssignments[assignmentIndex];
     assignment.verificationPhoto = photoPath;
