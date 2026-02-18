@@ -127,6 +127,10 @@ interface GetUsersOptions {
  * Get all users with push tokens (for broadcasting)
  * Merges users from both auth database and app User model
  * Only returns users who have push notifications enabled
+ *
+ * Notification rules:
+ * - Admins (admin, super_admin) receive ALL notifications regardless of clock-in or location
+ * - Regular employees only receive notifications if clocked in AND at the same location
  */
 export async function getUsersWithPushTokens(options: GetUsersOptions = {}): Promise<UserWithToken[]> {
   const { requireClockedIn = true, locationId } = options;  // Default to requiring clock-in
@@ -137,8 +141,8 @@ export async function getUsersWithPushTokens(options: GetUsersOptions = {}): Pro
   try {
     await connectDB();
 
-    // Build query
-    const query: any = {
+    // Base query for all users with push tokens
+    const baseQuery: any = {
       pushToken: { $ne: null, $exists: true },
       isActive: true,
       $or: [
@@ -147,22 +151,53 @@ export async function getUsersWithPushTokens(options: GetUsersOptions = {}): Pro
       ],
     };
 
-    // Add clock-in filter if required
+    // Query for admins - they receive ALL notifications without clock-in or location filter
+    const adminQuery = {
+      ...baseQuery,
+      role: { $in: ['admin', 'super_admin'] },
+    };
+
+    // Query for regular employees - require clock-in and location filter
+    const employeeQuery: any = {
+      ...baseQuery,
+      role: { $nin: ['admin', 'super_admin'] },
+    };
+
+    // Add clock-in filter for employees if required
     if (requireClockedIn) {
-      query.isClockedIn = true;
+      employeeQuery.isClockedIn = true;
     }
 
-    // Add location filter if specified
+    // Add location filter for employees if specified
     if (locationId) {
-      query.currentLocationId = locationId;
+      employeeQuery.currentLocationId = locationId;
     }
 
-    const appUsers = await User.find(query)
+    // Get admins (no clock-in or location filter)
+    const adminUsers = await User.find(adminQuery)
       .select('_id pushToken email role isClockedIn currentLocationId')
       .lean();
 
-    for (const u of appUsers) {
+    for (const u of adminUsers) {
       if (u.pushToken) {
+        usersMap.set(u.email.toLowerCase(), {
+          _id: u._id.toString(),
+          pushToken: u.pushToken,
+          email: u.email,
+          role: u.role,
+          isClockedIn: u.isClockedIn,
+          locationId: u.currentLocationId?.toString(),
+        });
+      }
+    }
+
+    // Get regular employees (with clock-in and location filters)
+    const employeeUsers = await User.find(employeeQuery)
+      .select('_id pushToken email role isClockedIn currentLocationId')
+      .lean();
+
+    for (const u of employeeUsers) {
+      if (u.pushToken && !usersMap.has(u.email.toLowerCase())) {
         usersMap.set(u.email.toLowerCase(), {
           _id: u._id.toString(),
           pushToken: u.pushToken,
@@ -215,51 +250,87 @@ export async function getUsersWithPushTokens(options: GetUsersOptions = {}): Pro
 /**
  * Get drivers with push tokens
  * Only returns users with driver access who have push notifications enabled
+ *
+ * Notification rules:
+ * - Admins receive ALL driver notifications regardless of clock-in or location
+ * - Regular drivers only receive notifications if clocked in AND at the same location
  */
 export async function getDriversWithPushTokens(options: GetUsersOptions = {}): Promise<UserWithToken[]> {
   const { requireClockedIn = true, locationId } = options;  // Default to requiring clock-in
+  const usersMap = new Map<string, UserWithToken>();
+
   try {
     await connectDB();
 
-    const query: any = {
+    const baseQuery: any = {
       pushToken: { $ne: null, $exists: true },
       isActive: true,
       $or: [
-        { isDriver: true },
-        { role: { $in: ['admin', 'super_admin'] } }, // Admins always have driver access
-      ],
-      $and: [
-        {
-          $or: [
-            { pushNotificationsEnabled: true },
-            { pushNotificationsEnabled: { $exists: false } }, // Default to enabled for existing users
-          ],
-        },
+        { pushNotificationsEnabled: true },
+        { pushNotificationsEnabled: { $exists: false } }, // Default to enabled for existing users
       ],
     };
 
-    // Add clock-in filter if required
+    // Query for admins - they receive ALL notifications without clock-in or location filter
+    const adminQuery = {
+      ...baseQuery,
+      role: { $in: ['admin', 'super_admin'] },
+    };
+
+    // Query for regular drivers - require clock-in and location filter
+    const driverQuery: any = {
+      ...baseQuery,
+      isDriver: true,
+      role: { $nin: ['admin', 'super_admin'] },
+    };
+
+    // Add clock-in filter for drivers if required
     if (requireClockedIn) {
-      query.isClockedIn = true;
+      driverQuery.isClockedIn = true;
     }
 
-    // Add location filter if specified
+    // Add location filter for drivers if specified
     if (locationId) {
-      query.currentLocationId = locationId;
+      driverQuery.currentLocationId = locationId;
     }
 
-    const drivers = await User.find(query)
+    // Get admins (no clock-in or location filter)
+    const adminUsers = await User.find(adminQuery)
       .select('_id pushToken email role isDriver isClockedIn currentLocationId')
       .lean();
 
-    return drivers.filter(u => u.pushToken).map(u => ({
-      _id: u._id.toString(),
-      pushToken: u.pushToken!,
-      email: u.email,
-      role: u.role,
-      isClockedIn: u.isClockedIn,
-      locationId: u.currentLocationId?.toString(),
-    }));
+    for (const u of adminUsers) {
+      if (u.pushToken) {
+        usersMap.set(u.email.toLowerCase(), {
+          _id: u._id.toString(),
+          pushToken: u.pushToken,
+          email: u.email,
+          role: u.role,
+          isClockedIn: u.isClockedIn,
+          locationId: u.currentLocationId?.toString(),
+        });
+      }
+    }
+
+    // Get regular drivers (with clock-in and location filters)
+    const driverUsers = await User.find(driverQuery)
+      .select('_id pushToken email role isDriver isClockedIn currentLocationId')
+      .lean();
+
+    for (const u of driverUsers) {
+      if (u.pushToken && !usersMap.has(u.email.toLowerCase())) {
+        usersMap.set(u.email.toLowerCase(), {
+          _id: u._id.toString(),
+          pushToken: u.pushToken,
+          email: u.email,
+          role: u.role,
+          isClockedIn: u.isClockedIn,
+          locationId: u.currentLocationId?.toString(),
+        });
+      }
+    }
+
+    return Array.from(usersMap.values());
   } catch (e) {
     console.error('Error getting drivers:', e);
     return [];
