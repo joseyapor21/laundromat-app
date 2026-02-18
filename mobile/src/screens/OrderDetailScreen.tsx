@@ -1065,13 +1065,13 @@ export default function OrderDetailScreen() {
                             />
                           )}
                         </View>
-                        <View style={{ flex: 1 }}>
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <View>
+                          <View style={styles.machineNameRow}>
                             <Text style={styles.machineName}>{assignment.machineName}</Text>
                             {assignment.verificationPhoto && (
                               <TouchableOpacity
+                                style={styles.verificationPhotoIcon}
                                 onPress={() => {
-                                  setSelectedPhotoIndex(-1);
                                   Alert.alert(
                                     'Verification Photo',
                                     'View the machine settings photo?',
@@ -1080,14 +1080,14 @@ export default function OrderDetailScreen() {
                                       {
                                         text: 'View',
                                         onPress: () => {
-                                          Linking.openURL(`${api.getBaseUrl()}${assignment.verificationPhoto}`);
+                                          Linking.openURL(`${api.getBaseUrl()}/uploads/${assignment.verificationPhoto}`);
                                         },
                                       },
                                     ]
                                   );
                                 }}
                               >
-                                <Ionicons name="camera" size={18} color="#10b981" />
+                                <Ionicons name="camera" size={16} color="#10b981" />
                               </TouchableOpacity>
                             )}
                           </View>
@@ -2237,6 +2237,14 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#1e293b',
+  },
+  machineNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  verificationPhotoIcon: {
+    marginLeft: 6,
+    padding: 2,
   },
   machineType: {
     fontSize: 13,
