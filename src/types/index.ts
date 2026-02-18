@@ -285,7 +285,9 @@ export type ActivityAction =
   | 'clock_in'
   | 'clock_out'
   | 'break_start'
-  | 'break_end';
+  | 'break_end'
+  | 'dryer_unload'
+  | 'dryer_unload_check';
 
 export type EntityType = 'order' | 'user' | 'customer' | 'extra_item' | 'settings' | 'machine' | 'time_entry';
 
