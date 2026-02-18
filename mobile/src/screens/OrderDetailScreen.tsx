@@ -1242,8 +1242,8 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Process History - Machines, Layering, Folding */}
-        {(allMachineAssignments.length > 0 || order.layeringCheckedBy || order.foldingStartedBy || order.foldedBy || order.foldingCheckedBy) && (
+        {/* Process History - Machines, Transfer, Layering, Folding */}
+        {(allMachineAssignments.length > 0 || order.transferredBy || order.transferCheckedBy || order.layeringCheckedBy || order.foldingStartedBy || order.foldedBy || order.foldingCheckedBy) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Process History</Text>
             <View style={styles.historyCard}>
@@ -1287,6 +1287,36 @@ export default function OrderDetailScreen() {
                     )}
                   </View>
                 ))}
+
+              {/* Transfer History */}
+              {order.transferredBy && (
+                <View style={[styles.historyItem, styles.historyItemDone]}>
+                  <View style={styles.historyHeader}>
+                    <Text style={styles.historyMachine}>🔄 Transfer</Text>
+                    <View style={[styles.historyBadge, styles.historyBadgeDone]}>
+                      <Text style={styles.historyBadgeText}>Done</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.historyDetail}>
+                    Transferred by: {order.transferredBy}{order.transferredByInitials ? ` (${order.transferredByInitials})` : ''} - {formatDate(order.transferredAt)}
+                  </Text>
+                </View>
+              )}
+
+              {/* Transfer Check History */}
+              {order.transferCheckedBy && (
+                <View style={[styles.historyItem, styles.historyItemChecked]}>
+                  <View style={styles.historyHeader}>
+                    <Text style={styles.historyMachine}>✅ Transfer Verified</Text>
+                    <View style={[styles.historyBadge, styles.historyBadgeChecked]}>
+                      <Text style={styles.historyBadgeText}>Verified</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.historyDetail}>
+                    Checked by: {order.transferCheckedBy}{order.transferCheckedByInitials ? ` (${order.transferCheckedByInitials})` : ''} - {formatDate(order.transferCheckedAt)}
+                  </Text>
+                </View>
+              )}
 
               {/* Layering Verification History */}
               {order.layeringCheckedBy && (
