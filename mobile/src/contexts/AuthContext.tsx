@@ -50,9 +50,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('Auth init error:', error);
-      await api.clearToken();
+      // Only clear token if it's an authentication error (401)
+      // For network errors or other issues, keep the token so user stays logged in
+      const isAuthError = error?.status === 401 ||
+        error?.message?.includes('401') ||
+        error?.message?.includes('Unauthorized') ||
+        error?.message?.includes('Not authenticated');
+
+      if (isAuthError) {
+        console.log('Auth token invalid, clearing...');
+        await api.clearToken();
+      } else {
+        console.log('Network/other error, keeping token for offline use');
+      }
     } finally {
       setIsLoading(false);
     }

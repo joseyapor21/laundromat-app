@@ -86,6 +86,7 @@ class ApiService {
         console.log('API Error:', response.status, errorData);
         // Create error with additional data attached
         const error = new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`) as any;
+        error.status = response.status;
         error.invalidAddresses = errorData.invalidAddresses;
         error.debug = errorData.debug;
         error.requireConfirmation = errorData.requireConfirmation;
