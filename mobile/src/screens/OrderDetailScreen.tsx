@@ -79,6 +79,7 @@ export default function OrderDetailScreen() {
   const [pendingMachineForPhoto, setPendingMachineForPhoto] = useState<{ machineId: string; machineName: string } | null>(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const verificationCameraRef = useRef<any>(null);
+  const [expandedVerificationPhoto, setExpandedVerificationPhoto] = useState<string | null>(null);
 
   // Pickup photos
   const [pickupPhotos, setPickupPhotos] = useState<Array<{ photoPath: string; capturedAt: Date; capturedBy: string; capturedByName: string }>>([]);
@@ -1070,24 +1071,13 @@ export default function OrderDetailScreen() {
                             <Text style={styles.machineName}>{assignment.machineName}</Text>
                             {assignment.verificationPhoto && (
                               <TouchableOpacity
-                                style={styles.verificationPhotoIcon}
-                                onPress={() => {
-                                  Alert.alert(
-                                    'Verification Photo',
-                                    'View the machine settings photo?',
-                                    [
-                                      { text: 'Cancel', style: 'cancel' },
-                                      {
-                                        text: 'View',
-                                        onPress: () => {
-                                          Linking.openURL(`${api.getBaseUrl()}/uploads/${assignment.verificationPhoto}`);
-                                        },
-                                      },
-                                    ]
-                                  );
-                                }}
+                                style={styles.verificationPhotoThumb}
+                                onPress={() => setExpandedVerificationPhoto(`${api.getBaseUrl()}/uploads/${assignment.verificationPhoto}`)}
                               >
-                                <Ionicons name="camera" size={16} color="#10b981" />
+                                <Image
+                                  source={{ uri: `${api.getBaseUrl()}/uploads/${assignment.verificationPhoto}` }}
+                                  style={styles.verificationPhotoThumbImage}
+                                />
                               </TouchableOpacity>
                             )}
                           </View>
@@ -1812,6 +1802,36 @@ export default function OrderDetailScreen() {
         </View>
       </Modal>
 
+      {/* Expanded Verification Photo Modal */}
+      <Modal
+        visible={!!expandedVerificationPhoto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setExpandedVerificationPhoto(null)}
+      >
+        <TouchableOpacity
+          style={styles.expandedPhotoOverlay}
+          activeOpacity={1}
+          onPress={() => setExpandedVerificationPhoto(null)}
+        >
+          <View style={styles.expandedPhotoContainer}>
+            <TouchableOpacity
+              style={styles.expandedPhotoClose}
+              onPress={() => setExpandedVerificationPhoto(null)}
+            >
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+            {expandedVerificationPhoto && (
+              <Image
+                source={{ uri: expandedVerificationPhoto }}
+                style={styles.expandedPhotoImage}
+                resizeMode="contain"
+              />
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Print Options Modal */}
       <Modal
         visible={showPrintOptions}
@@ -2242,9 +2262,39 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
-  verificationPhotoIcon: {
-    marginLeft: 6,
-    padding: 2,
+  verificationPhotoThumb: {
+    marginLeft: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#10b981',
+  },
+  verificationPhotoThumbImage: {
+    width: 32,
+    height: 32,
+  },
+  expandedPhotoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expandedPhotoContainer: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  expandedPhotoClose: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    padding: 10,
+  },
+  expandedPhotoImage: {
+    width: '90%',
+    height: '80%',
   },
   machineType: {
     fontSize: 13,
