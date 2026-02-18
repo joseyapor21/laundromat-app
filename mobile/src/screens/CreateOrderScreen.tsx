@@ -748,30 +748,7 @@ export default function CreateOrderScreen() {
         }
       }
 
-      // Auto-print receipts for in-store pickup (drop-off) orders
-      if (orderType === 'storePickup' && settings?.thermalPrinterIp) {
-        try {
-          const printerIp = settings.thermalPrinterIp;
-          const printerPort = settings.thermalPrinterPort || 9100;
-          // Print customer receipt
-          const customerReceipt = generateCustomerReceiptText(createdOrder, currentLocation);
-          await localPrinter.printReceipt(printerIp, customerReceipt, printerPort);
-          // Print store copy
-          const storeCopy = generateStoreCopyText(createdOrder, currentLocation);
-          await localPrinter.printReceipt(printerIp, storeCopy, printerPort);
-          // Print bag labels
-          if (createdOrder.bags && createdOrder.bags.length > 0) {
-            for (let i = 0; i < createdOrder.bags.length; i++) {
-              const bag = createdOrder.bags[i];
-              const bagLabel = generateBagLabelText(createdOrder, bag, i + 1, createdOrder.bags.length);
-              await localPrinter.printReceipt(printerIp, bagLabel, printerPort);
-            }
-          }
-        } catch (printError) {
-          console.error('Auto-print failed:', printError);
-          // Don't show error - order was still created successfully
-        }
-      }
+      // Auto-print disabled - user can print manually from order details
 
       Alert.alert('Success', 'Order created successfully', [
         { text: 'OK', onPress: () => navigation.goBack() }
