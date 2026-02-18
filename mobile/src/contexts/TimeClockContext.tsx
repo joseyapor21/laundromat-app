@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { AppState, AppStateStatus } from 'react-native';
 import { api } from '../services/api';
 import { useAuth } from './AuthContext';
 import type { ClockStatus, TimeEntry } from '../types';
@@ -56,6 +57,9 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
   const [todayEntries, setTodayEntries] = useState<ClockStatus['todayEntries']>([]);
   const [dismissedClockInPrompt, setDismissedClockInPrompt] = useState(false);
 
+  // Track app state to refresh when coming back to foreground
+  const appState = useRef(AppState.currentState);
+
   // Check clock status when user is authenticated
   useEffect(() => {
     if (isAuthenticated) {
@@ -73,6 +77,24 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     }
   }, [isAuthenticated]);
+
+  // Refresh clock status when app comes back to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      // App came back to foreground
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('App came to foreground, refreshing clock status...');
+        if (isAuthenticated) {
+          checkClockStatus();
+        }
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isAuthenticated, checkClockStatus]);
 
   const checkClockStatus = useCallback(async () => {
     if (!isAuthenticated) return;

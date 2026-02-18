@@ -124,6 +124,9 @@ export default function ProfileScreen() {
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(true);
   const [togglingPush, setTogglingPush] = useState(false);
 
+  // Track app state to refresh when coming back to foreground
+  const appStateRef = useRef(AppState.currentState);
+
   useEffect(() => {
     checkPushNotificationStatus();
     loadNotificationPreference();
@@ -133,6 +136,28 @@ export default function ProfileScreen() {
       refreshLocations();
     }
   }, []);
+
+  // Refresh data when app comes back to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      // App came back to foreground
+      if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('ProfileScreen: App came to foreground, refreshing data...');
+        loadSettings();
+        // Reset paused time when app comes back (can't persist pause across app kill)
+        if (isOnBreak && isTimerPaused) {
+          setPausedTime(0);
+          setPauseStartTime(null);
+          setIsTimerPaused(false);
+        }
+      }
+      appStateRef.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isOnBreak, isTimerPaused]);
 
   // Load settings for break durations
   const loadSettings = async () => {
