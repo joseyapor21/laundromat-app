@@ -254,6 +254,7 @@ export interface MachineAssignment {
   machineType: MachineType;
   assignedAt: Date;
   assignedBy: string;
+  assignedByInitials?: string;
   removedAt?: Date;
   removedBy?: string;
   isChecked?: boolean;
@@ -263,6 +264,15 @@ export interface MachineAssignment {
   // Verification photo
   verificationPhoto?: string;
   verificationPhotoAt?: Date;
+  // Dryer unload fields (who took clothes out)
+  unloadedAt?: Date;
+  unloadedBy?: string;
+  unloadedByInitials?: string;
+  // Dryer unload check fields
+  isUnloadChecked?: boolean;
+  unloadCheckedAt?: Date;
+  unloadCheckedBy?: string;
+  unloadCheckedByInitials?: string;
 }
 
 export interface OrderExtraItem {

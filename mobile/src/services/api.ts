@@ -446,6 +446,20 @@ class ApiService {
     });
   }
 
+  async unloadDryer(orderId: string, machineId: string, initials: string): Promise<{ success: boolean; message: string; order: Order }> {
+    return this.request<{ success: boolean; message: string; order: Order }>('/machines/unload', {
+      method: 'POST',
+      body: JSON.stringify({ orderId, machineId, initials }),
+    });
+  }
+
+  async checkDryerUnload(orderId: string, machineId: string, initials: string, forceSamePerson?: boolean): Promise<{ success: boolean; message: string; order: Order; requireConfirmation?: boolean }> {
+    return this.request<{ success: boolean; message: string; order: Order; requireConfirmation?: boolean }>('/machines/unload-check', {
+      method: 'POST',
+      body: JSON.stringify({ orderId, machineId, initials, forceSamePerson }),
+    });
+  }
+
   // Users (Admin)
   async getUsers(): Promise<User[]> {
     return this.request<User[]>('/users');

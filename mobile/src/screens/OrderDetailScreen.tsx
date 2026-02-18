@@ -512,6 +512,58 @@ export default function OrderDetailScreen() {
     }
   }
 
+  // Handle dryer unload (marking dryer as emptied)
+  async function handleDryerUnload(assignment: MachineAssignment) {
+    if (!order || !user) return;
+
+    const initials = user.firstName?.[0] + (user.lastName?.[0] || '');
+
+    setUpdating(true);
+    try {
+      const result = await api.unloadDryer(order._id, assignment.machineId, initials);
+      Alert.alert('Success', result.message);
+      await loadOrder();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to mark dryer as unloaded';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  // Handle dryer unload check (verifying dryer was properly emptied)
+  async function handleDryerUnloadCheck(assignment: MachineAssignment, forceSamePerson?: boolean) {
+    if (!order || !user) return;
+
+    const initials = user.firstName?.[0] + (user.lastName?.[0] || '');
+
+    setUpdating(true);
+    try {
+      const result = await api.checkDryerUnload(order._id, assignment.machineId, initials, forceSamePerson);
+      Alert.alert('Success', result.message);
+      await loadOrder();
+    } catch (error: any) {
+      if (error?.requireConfirmation) {
+        Alert.alert(
+          'Same Person',
+          'You unloaded this dryer. Ideally another person should verify.\n\nDo you want to verify it anyway?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Verify Anyway',
+              onPress: () => handleDryerUnloadCheck(assignment, true),
+            },
+          ]
+        );
+      } else {
+        const errorMessage = error?.message || 'Failed to verify dryer unload';
+        Alert.alert('Error', errorMessage);
+      }
+    } finally {
+      setUpdating(false);
+    }
+  }
+
   async function handlePaymentToggle() {
     if (!order) return;
     setUpdating(true);
@@ -1126,7 +1178,7 @@ export default function OrderDetailScreen() {
                       )}
                     </View>
 
-                    {/* Check/Uncheck section */}
+                    {/* Check/Uncheck section - for verifying machine settings */}
                     <View style={styles.checkSection}>
                       {!assignment.isChecked ? (
                         <>
@@ -1162,6 +1214,61 @@ export default function OrderDetailScreen() {
                         </View>
                       )}
                     </View>
+
+                    {/* Dryer Unload section - for marking when clothes are taken out */}
+                    {assignment.machineType === 'dryer' && assignment.isChecked && (
+                      <View style={styles.checkSection}>
+                        {!assignment.unloadedAt ? (
+                          <>
+                            <Text style={styles.checkHint}>When dryer is done, mark as unloaded:</Text>
+                            <TouchableOpacity
+                              style={[styles.checkButton, { backgroundColor: '#f97316' }, updating && styles.buttonDisabled]}
+                              onPress={() => handleDryerUnload(assignment)}
+                              disabled={updating}
+                            >
+                              {updating ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                              ) : (
+                                <Text style={styles.checkButtonText}>Mark as Unloaded</Text>
+                              )}
+                            </TouchableOpacity>
+                          </>
+                        ) : !assignment.isUnloadChecked ? (
+                          <>
+                            <Text style={styles.checkedByText}>
+                              Unloaded by: {assignment.unloadedBy}
+                              {assignment.unloadedByInitials && ` (${assignment.unloadedByInitials})`}
+                              {formatDate(assignment.unloadedAt) && ` - ${formatDate(assignment.unloadedAt)}`}
+                            </Text>
+                            <Text style={styles.checkHint}>Another person must verify unload:</Text>
+                            <TouchableOpacity
+                              style={[styles.checkButton, { backgroundColor: '#10b981' }, updating && styles.buttonDisabled]}
+                              onPress={() => handleDryerUnloadCheck(assignment)}
+                              disabled={updating}
+                            >
+                              {updating ? (
+                                <ActivityIndicator size="small" color="#fff" />
+                              ) : (
+                                <Text style={styles.checkButtonText}>Verify Unload</Text>
+                              )}
+                            </TouchableOpacity>
+                          </>
+                        ) : (
+                          <View style={styles.checkedInfo}>
+                            <Text style={styles.checkedByText}>
+                              Unloaded by: {assignment.unloadedBy}
+                              {assignment.unloadedByInitials && ` (${assignment.unloadedByInitials})`}
+                              {formatDate(assignment.unloadedAt) && ` - ${formatDate(assignment.unloadedAt)}`}
+                            </Text>
+                            <Text style={styles.checkedByText}>
+                              Verified by: {assignment.unloadCheckedBy}
+                              {assignment.unloadCheckedByInitials && ` (${assignment.unloadCheckedByInitials})`}
+                              {formatDate(assignment.unloadCheckedAt) && ` - ${formatDate(assignment.unloadCheckedAt)}`}
+                            </Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
 
                     {(assignment.assignedBy || assignment.assignedAt) && (
                       <View style={styles.assignedInfo}>
@@ -1288,6 +1395,42 @@ export default function OrderDetailScreen() {
                   </View>
                 ))}
 
+              {/* Dryer Unload History */}
+              {allMachineAssignments
+                .filter((a: MachineAssignment) => a.machineType === 'dryer' && a.unloadedAt)
+                .sort((a: MachineAssignment, b: MachineAssignment) =>
+                  new Date(a.unloadedAt!).getTime() - new Date(b.unloadedAt!).getTime()
+                )
+                .map((assignment: MachineAssignment, index: number) => (
+                  <View
+                    key={`unload-${index}`}
+                    style={[
+                      styles.historyItem,
+                      assignment.isUnloadChecked ? styles.historyItemChecked : styles.historyItemDone,
+                    ]}
+                  >
+                    <View style={styles.historyHeader}>
+                      <Text style={styles.historyMachine}>📤 {assignment.machineName} Unloaded</Text>
+                      <View style={[
+                        styles.historyBadge,
+                        assignment.isUnloadChecked ? styles.historyBadgeChecked : styles.historyBadgeDone,
+                      ]}>
+                        <Text style={styles.historyBadgeText}>
+                          {assignment.isUnloadChecked ? 'Verified' : 'Pending Check'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text style={styles.historyDetail}>
+                      Unloaded by: {assignment.unloadedBy}{assignment.unloadedByInitials ? ` (${assignment.unloadedByInitials})` : ''} - {formatDate(assignment.unloadedAt)}
+                    </Text>
+                    {assignment.isUnloadChecked && assignment.unloadCheckedBy && (
+                      <Text style={styles.historyDetail}>
+                        Verified by: {assignment.unloadCheckedBy}{assignment.unloadCheckedByInitials ? ` (${assignment.unloadCheckedByInitials})` : ''} - {formatDate(assignment.unloadCheckedAt)}
+                      </Text>
+                    )}
+                  </View>
+                ))}
+
               {/* Transfer History */}
               {order.transferredBy && (
                 <View style={[styles.historyItem, styles.historyItemDone]}>
@@ -1327,19 +1470,6 @@ export default function OrderDetailScreen() {
                       <Text style={styles.historyBadgeText}>Verified</Text>
                     </View>
                   </View>
-                  {/* Show last dryer person as who put it on cart */}
-                  {(() => {
-                    const lastDryer = allMachineAssignments
-                      .filter((a: MachineAssignment) => a.machineType === 'dryer' && a.removedAt)
-                      .sort((a: MachineAssignment, b: MachineAssignment) =>
-                        new Date(b.removedAt!).getTime() - new Date(a.removedAt!).getTime()
-                      )[0];
-                    return lastDryer ? (
-                      <Text style={styles.historyDetail}>
-                        On cart by: {lastDryer.assignedBy}{lastDryer.assignedByInitials ? ` (${lastDryer.assignedByInitials})` : ''} - {formatDate(lastDryer.removedAt)}
-                      </Text>
-                    ) : null;
-                  })()}
                   <Text style={styles.historyDetail}>
                     Checked by: {order.layeringCheckedBy} ({order.layeringCheckedByInitials}) - {formatDate(order.layeringCheckedAt)}
                   </Text>

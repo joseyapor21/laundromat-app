@@ -107,7 +107,7 @@ export interface OrderDoc {
     assignedByInitials?: string;
     removedAt?: Date;
     removedBy?: string;
-    // Checker fields
+    // Checker fields (for verifying machine settings when running)
     checkedAt?: Date;
     checkedBy?: string;
     checkedByInitials?: string;
@@ -115,6 +115,15 @@ export interface OrderDoc {
     // Verification photo
     verificationPhoto?: string;
     verificationPhotoAt?: Date;
+    // Dryer unload fields (who took clothes out of dryer)
+    unloadedAt?: Date;
+    unloadedBy?: string;
+    unloadedByInitials?: string;
+    // Dryer unload check fields (who verified the unloading)
+    unloadCheckedAt?: Date;
+    unloadCheckedBy?: string;
+    unloadCheckedByInitials?: string;
+    isUnloadChecked?: boolean;
   }>;
   // Driver pickup photos
   pickupPhotos?: Array<{
@@ -486,6 +495,18 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
     // Verification photo
     verificationPhoto: String,
     verificationPhotoAt: Date,
+    // Dryer unload fields
+    unloadedAt: Date,
+    unloadedBy: String,
+    unloadedByInitials: String,
+    // Dryer unload check fields
+    unloadCheckedAt: Date,
+    unloadCheckedBy: String,
+    unloadCheckedByInitials: String,
+    isUnloadChecked: {
+      type: Boolean,
+      default: false,
+    },
   }],
   // Driver pickup photos
   pickupPhotos: [{
