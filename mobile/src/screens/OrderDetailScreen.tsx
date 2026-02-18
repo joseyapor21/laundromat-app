@@ -1072,10 +1072,10 @@ export default function OrderDetailScreen() {
                             {assignment.verificationPhoto && (
                               <TouchableOpacity
                                 style={styles.verificationPhotoThumb}
-                                onPress={() => setExpandedVerificationPhoto(`${api.getBaseUrl()}/uploads/${assignment.verificationPhoto}`)}
+                                onPress={() => setExpandedVerificationPhoto(`${api.getBaseUrl()}/api/uploads/${assignment.verificationPhoto}?token=${api.getToken()}`)}
                               >
                                 <Image
-                                  source={{ uri: `${api.getBaseUrl()}/uploads/${assignment.verificationPhoto}` }}
+                                  source={{ uri: `${api.getBaseUrl()}/api/uploads/${assignment.verificationPhoto}?token=${api.getToken()}` }}
                                   style={styles.verificationPhotoThumbImage}
                                 />
                               </TouchableOpacity>
