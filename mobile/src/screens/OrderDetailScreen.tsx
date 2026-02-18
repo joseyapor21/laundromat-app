@@ -126,6 +126,23 @@ export default function OrderDetailScreen() {
 
   async function updateStatus(newStatus: OrderStatus) {
     if (!order) return;
+
+    // Check if trying to move to folding - all machines must be checked first
+    if (newStatus === 'folding' || newStatus === 'on_cart' || newStatus === 'folded') {
+      const activeMachinesList = order.machineAssignments?.filter(a => !a.removedAt) || [];
+      const uncheckedMachines = activeMachinesList.filter(a => !a.isChecked);
+
+      if (uncheckedMachines.length > 0) {
+        const machineNames = uncheckedMachines.map(m => m.machineName).join(', ');
+        Alert.alert(
+          'Machines Not Checked',
+          `The following machines must be checked before moving to ${newStatus}: ${machineNames}`,
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+    }
+
     setUpdating(true);
     try {
       await api.updateOrderStatus(order._id, newStatus);
@@ -1161,6 +1178,70 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
+        {/* Transfer to Dryers - Show when status is 'in_washer' */}
+        {order.status === 'in_washer' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Next Step: Transfer</Text>
+            <View style={styles.verifyLayeringCard}>
+              <View style={styles.verifyLayeringHeader}>
+                <Ionicons name="swap-horizontal" size={24} color="#0ea5e9" />
+                <Text style={styles.verifyLayeringTitle}>Transfer to Dryers</Text>
+              </View>
+              <Text style={styles.verifyLayeringText}>
+                Mark when you have moved all clothes from the washer(s) to the dryer(s).
+              </Text>
+              <TouchableOpacity
+                style={[styles.verifyLayeringButton, { backgroundColor: '#0ea5e9' }, transferring && styles.buttonDisabled]}
+                onPress={handleTransfer}
+                disabled={transferring || !user}
+              >
+                {transferring ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="arrow-forward" size={20} color="#fff" />
+                    <Text style={styles.verifyLayeringButtonText}>
+                      Mark as Transferred
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Verify Transfer - Show when status is 'transferred' */}
+        {order.status === 'transferred' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Verify Transfer</Text>
+            <View style={styles.verifyLayeringCard}>
+              <View style={styles.verifyLayeringHeader}>
+                <Ionicons name="checkmark-circle" size={24} color="#14b8a6" />
+                <Text style={styles.verifyLayeringTitle}>Transfer Check Required</Text>
+              </View>
+              <Text style={styles.verifyLayeringText}>
+                Verify that all washers are empty and dryers are set correctly. Then scan the dryer QR codes.
+              </Text>
+              <TouchableOpacity
+                style={[styles.verifyLayeringButton, { backgroundColor: '#14b8a6' }, verifyingTransfer && styles.buttonDisabled]}
+                onPress={() => handleVerifyTransfer()}
+                disabled={verifyingTransfer || !user}
+              >
+                {verifyingTransfer ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-done" size={20} color="#fff" />
+                    <Text style={styles.verifyLayeringButtonText}>
+                      Verify Transfer Complete
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Process History - Machines, Layering, Folding */}
         {(allMachineAssignments.length > 0 || order.layeringCheckedBy || order.foldingStartedBy || order.foldedBy || order.foldingCheckedBy) && (
           <View style={styles.section}>
@@ -1299,70 +1380,6 @@ export default function OrderDetailScreen() {
             ))}
           </View>
         </View>
-
-        {/* Transfer to Dryers - Show when status is 'in_washer' */}
-        {order.status === 'in_washer' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Next Step: Transfer</Text>
-            <View style={styles.verifyLayeringCard}>
-              <View style={styles.verifyLayeringHeader}>
-                <Ionicons name="swap-horizontal" size={24} color="#0ea5e9" />
-                <Text style={styles.verifyLayeringTitle}>Transfer to Dryers</Text>
-              </View>
-              <Text style={styles.verifyLayeringText}>
-                Mark when you have moved all clothes from the washer(s) to the dryer(s).
-              </Text>
-              <TouchableOpacity
-                style={[styles.verifyLayeringButton, { backgroundColor: '#0ea5e9' }, transferring && styles.buttonDisabled]}
-                onPress={handleTransfer}
-                disabled={transferring || !user}
-              >
-                {transferring ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="arrow-forward" size={20} color="#fff" />
-                    <Text style={styles.verifyLayeringButtonText}>
-                      Mark as Transferred
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
-
-        {/* Verify Transfer - Show when status is 'transferred' */}
-        {order.status === 'transferred' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Verify Transfer</Text>
-            <View style={styles.verifyLayeringCard}>
-              <View style={styles.verifyLayeringHeader}>
-                <Ionicons name="checkmark-circle" size={24} color="#14b8a6" />
-                <Text style={styles.verifyLayeringTitle}>Transfer Check Required</Text>
-              </View>
-              <Text style={styles.verifyLayeringText}>
-                Verify that all washers are empty and dryers are set correctly. Then scan the dryer QR codes.
-              </Text>
-              <TouchableOpacity
-                style={[styles.verifyLayeringButton, { backgroundColor: '#14b8a6' }, verifyingTransfer && styles.buttonDisabled]}
-                onPress={() => handleVerifyTransfer()}
-                disabled={verifyingTransfer || !user}
-              >
-                {verifyingTransfer ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-done" size={20} color="#fff" />
-                    <Text style={styles.verifyLayeringButtonText}>
-                      Verify Transfer Complete
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
         {/* Verify Layering - Show only when status is 'laid_on_cart' or 'on_cart' and not yet verified */}
         {(order.status === 'laid_on_cart' || order.status === 'on_cart') && !order.layeringCheckedBy && (
