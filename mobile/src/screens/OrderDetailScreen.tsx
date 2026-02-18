@@ -804,10 +804,16 @@ export default function OrderDetailScreen() {
     }
   }
 
-  // Get active machine assignments (not removed)
-  const activeMachines = order?.machineAssignments?.filter(
+  // Get active machine assignments (not removed), sorted: washers first, then dryers
+  const activeMachines = (order?.machineAssignments?.filter(
     (a: MachineAssignment) => !a.removedAt
-  ) || [];
+  ) || []).sort((a: MachineAssignment, b: MachineAssignment) => {
+    // Washers first, dryers second
+    if (a.machineType === 'washer' && b.machineType === 'dryer') return -1;
+    if (a.machineType === 'dryer' && b.machineType === 'washer') return 1;
+    // Within same type, sort by assignment time
+    return new Date(a.assignedAt).getTime() - new Date(b.assignedAt).getTime();
+  });
 
   // Get all machine assignments for history
   const allMachineAssignments = order?.machineAssignments || [];
