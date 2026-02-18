@@ -14,6 +14,8 @@ export async function POST(request: NextRequest) {
 
     const { orderId, machineId, initials } = body;
 
+    console.log('Unload dryer request:', { orderId, machineId, initials });
+
     if (!orderId || !machineId) {
       return NextResponse.json(
         { error: 'Order ID and machine ID are required' },
@@ -24,17 +26,28 @@ export async function POST(request: NextRequest) {
     // Find the order
     const order = await Order.findById(orderId);
     if (!order) {
+      console.log('Order not found:', orderId);
       return NextResponse.json(
         { error: 'Order not found' },
         { status: 404 }
       );
     }
 
+    console.log('Order found:', order.orderId, 'machineAssignments:', order.machineAssignments?.map((a: any) => ({
+      machineId: a.machineId?.toString(),
+      machineType: a.machineType,
+      removedAt: a.removedAt,
+      isChecked: a.isChecked,
+      unloadedAt: a.unloadedAt,
+    })));
+
     // Find the machine assignment (convert both to string for comparison)
     const assignmentIndex = order.machineAssignments?.findIndex(
       (a: { machineId: string; removedAt?: Date; machineType: string }) =>
         a.machineId?.toString() === machineId?.toString() && !a.removedAt && a.machineType === 'dryer'
     );
+
+    console.log('Looking for machineId:', machineId, 'Found at index:', assignmentIndex);
 
     if (assignmentIndex === undefined || assignmentIndex === -1) {
       return NextResponse.json(
@@ -85,6 +98,7 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Failed to mark dryer as unloaded:', error);
-    return NextResponse.json({ error: 'Failed to mark dryer as unloaded' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json({ error: `Failed to mark dryer as unloaded: ${errorMessage}` }, { status: 500 });
   }
 }
