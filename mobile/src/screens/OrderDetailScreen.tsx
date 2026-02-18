@@ -13,7 +13,7 @@ import {
   Image,
   Dimensions,
 } from 'react-native';
-import ImageViewer from 'react-native-image-zoom-viewer';
+import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -1825,15 +1825,20 @@ export default function OrderDetailScreen() {
             <Ionicons name="close" size={28} color="#fff" />
           </TouchableOpacity>
           {expandedVerificationPhoto && (
-            <ImageViewer
-              imageUrls={[{ url: expandedVerificationPhoto }]}
-              enableSwipeDown
-              onSwipeDown={() => setExpandedVerificationPhoto(null)}
-              onClick={() => setExpandedVerificationPhoto(null)}
-              backgroundColor="rgba(0, 0, 0, 0.9)"
-              renderIndicator={() => <></>}
-              saveToLocalByLongPress={false}
-            />
+            <ReactNativeZoomableView
+              maxZoom={3}
+              minZoom={1}
+              zoomStep={0.5}
+              initialZoom={1}
+              bindToBorders={true}
+              style={styles.zoomableView}
+            >
+              <Image
+                source={{ uri: expandedVerificationPhoto }}
+                style={styles.expandedPhotoImage}
+                resizeMode="contain"
+              />
+            </ReactNativeZoomableView>
           )}
         </View>
       </Modal>
@@ -2299,8 +2304,13 @@ const styles = StyleSheet.create({
     padding: 10,
   },
   expandedPhotoImage: {
-    width: '90%',
-    height: '80%',
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height * 0.8,
+  },
+  zoomableView: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   machineType: {
     fontSize: 13,
