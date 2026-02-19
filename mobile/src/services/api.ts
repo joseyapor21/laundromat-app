@@ -488,10 +488,10 @@ class ApiService {
   }
 
   // Layering verification (verifies dryer/layering complete and moves to folding status)
-  async verifyLayeringComplete(orderId: string, checkedBy: string, checkedByInitials: string): Promise<{ success: boolean; message: string; order: Order }> {
+  async verifyLayeringComplete(orderId: string, checkedBy: string, checkedByInitials: string, forceSamePerson?: boolean): Promise<{ success: boolean; message: string; order: Order }> {
     return this.request<{ success: boolean; message: string; order: Order }>(`/orders/${orderId}/layering-check`, {
       method: 'POST',
-      body: JSON.stringify({ checkedBy, checkedByInitials }),
+      body: JSON.stringify({ checkedBy, checkedByInitials, forceSamePerson }),
     });
   }
 

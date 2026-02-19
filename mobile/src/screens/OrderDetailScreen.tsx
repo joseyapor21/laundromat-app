@@ -696,7 +696,7 @@ export default function OrderDetailScreen() {
 
     setVerifyingLayering(true);
     try {
-      const result = await api.verifyLayeringComplete(order._id, checkedBy, initials);
+      const result = await api.verifyLayeringComplete(order._id, checkedBy, initials, forceSamePerson);
       Alert.alert('Success', result.message);
       await loadOrder();
     } catch (error) {
