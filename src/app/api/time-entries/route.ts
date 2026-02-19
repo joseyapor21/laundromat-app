@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
     await connectDB();
 
     const body = await request.json();
-    const { type, photo, location, notes, deviceInfo } = body;
+    const { type, photo, location, notes, deviceInfo, breakType } = body;
 
     // Validate required fields
     if (!type || !['clock_in', 'clock_out', 'break_start', 'break_end'].includes(type)) {
@@ -182,6 +182,7 @@ export async function POST(request: NextRequest) {
       // Update user's break status
       await User.findByIdAndUpdate(currentUser.userId, {
         isOnBreak: type === 'break_start',
+        breakType: type === 'break_start' ? (breakType || null) : null,
         ...(type === 'break_start' ? { lastBreakStart: now } : { lastBreakEnd: now }),
       });
     }

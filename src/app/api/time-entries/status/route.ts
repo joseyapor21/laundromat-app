@@ -57,6 +57,7 @@ export async function GET() {
     return NextResponse.json({
       isClockedIn,
       isOnBreak,
+      breakType: user?.breakType || null,
       lastClockIn: user?.lastClockIn || null,
       lastClockOut: user?.lastClockOut || null,
       lastBreakStart: user?.lastBreakStart || null,

@@ -628,6 +628,7 @@ class ApiService {
     location: { latitude: number; longitude: number; accuracy?: number; address?: string };
     notes?: string;
     deviceInfo?: string;
+    breakType?: 'breakfast' | 'lunch';
   }): Promise<TimeEntry> {
     return this.request<TimeEntry>('/time-entries', {
       method: 'POST',

@@ -21,6 +21,7 @@ export interface UserDoc {
   lastClockIn?: Date;
   lastClockOut?: Date;
   isOnBreak: boolean;
+  breakType?: 'breakfast' | 'lunch' | null;
   lastBreakStart?: Date;
   lastBreakEnd?: Date;
   currentLocationId?: Types.ObjectId;  // Track which location user is currently working at
@@ -98,6 +99,11 @@ const userSchema = new mongoose.Schema<UserDoc>({
   isOnBreak: {
     type: Boolean,
     default: false,
+  },
+  breakType: {
+    type: String,
+    enum: ['breakfast', 'lunch', null],
+    default: null,
   },
   lastBreakStart: {
     type: Date,
