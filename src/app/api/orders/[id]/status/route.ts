@@ -7,6 +7,7 @@ import { notifyOrderStatusChange, notifyDriversForDelivery, notifyOrderPickedUp 
 // Statuses where machines should be released (past washer/dryer stages)
 const POST_MACHINE_STATUSES = [
   'laid_on_cart',
+  'on_cart',
   'folding',
   'folded',
   'ready_for_pickup',
@@ -209,8 +210,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json(updatedOrder);
   } catch (error) {
     console.error('Update order status error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'An error occurred';
     return NextResponse.json(
-      { error: 'An error occurred' },
+      { error: errorMessage },
       { status: 500 }
     );
   }
