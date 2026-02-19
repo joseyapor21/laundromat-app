@@ -63,11 +63,22 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
   // Track app state to refresh when coming back to foreground
   const appState = useRef(AppState.currentState);
 
-  // Cache clock status locally
+  // Cache clock status locally - only essential data to avoid SecureStore size limits
   const cacheClockStatus = async (status: ClockStatus) => {
     try {
-      await SecureStore.setItemAsync(CLOCK_STATUS_CACHE_KEY, JSON.stringify(status));
-      console.log('Clock status cached:', status.isClockedIn ? 'clocked in' : 'not clocked in');
+      // Only cache essential data to stay under 2048 byte limit
+      const essentialStatus = {
+        isClockedIn: status.isClockedIn,
+        isOnBreak: status.isOnBreak,
+        breakType: status.breakType,
+        lastClockIn: status.lastClockIn,
+        lastClockOut: status.lastClockOut,
+        lastBreakStart: status.lastBreakStart,
+        lastBreakEnd: status.lastBreakEnd,
+        // Don't cache todayEntries - it's too large and will be fetched fresh from API
+      };
+      await SecureStore.setItemAsync(CLOCK_STATUS_CACHE_KEY, JSON.stringify(essentialStatus));
+      console.log('Clock status cached:', status.isClockedIn ? 'clocked in' : 'not clocked in', status.isOnBreak ? '(on break)' : '');
     } catch (e) {
       console.log('Failed to cache clock status:', e);
     }
@@ -94,6 +105,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
   const applyClockStatus = (status: ClockStatus) => {
     setIsClockedIn(status.isClockedIn);
     setIsOnBreak(status.isOnBreak || false);
+    setBreakType(status.breakType || null);
     setLastClockIn(status.lastClockIn ? new Date(status.lastClockIn) : null);
     setLastClockOut(status.lastClockOut ? new Date(status.lastClockOut) : null);
     setLastBreakStart(status.lastBreakStart ? new Date(status.lastBreakStart) : null);
@@ -143,6 +155,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
       cacheClockStatus({
         isClockedIn: true,
         isOnBreak: false,
+        breakType: null,
         lastClockIn: entry.timestamp,
         todayEntries: newEntries,
       });
@@ -173,6 +186,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
       cacheClockStatus({
         isClockedIn: false,
         isOnBreak: false,
+        breakType: null,
         lastClockOut: entry.timestamp,
         todayEntries: newEntries,
       });
@@ -203,6 +217,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
       cacheClockStatus({
         isClockedIn: true,
         isOnBreak: true,
+        breakType: data.breakType || null,
         lastBreakStart: entry.timestamp,
         todayEntries: newEntries,
       });
@@ -232,6 +247,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
       cacheClockStatus({
         isClockedIn: true,
         isOnBreak: false,
+        breakType: null,
         lastBreakEnd: entry.timestamp,
         todayEntries: newEntries,
       });

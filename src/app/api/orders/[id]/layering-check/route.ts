@@ -21,7 +21,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     await connectDB();
     const { id } = await params;
-    const { checkedBy, checkedByInitials } = await request.json();
+    const { checkedBy, checkedByInitials, forceSamePerson } = await request.json();
 
     if (!checkedBy) {
       return NextResponse.json(
@@ -51,8 +51,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Ensure order is in laid_on_cart status
-    if (order.status !== 'laid_on_cart') {
+    // Ensure order is in laid_on_cart or on_cart status
+    if (order.status !== 'laid_on_cart' && order.status !== 'on_cart') {
       return NextResponse.json(
         { error: 'Order must be in "On Cart" status to verify layering' },
         { status: 400 }
@@ -66,11 +66,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime()
       )[0];
 
-    // Prevent same person who assigned the dryer from checking
-    if (lastDryerAssignment && lastDryerAssignment.assignedBy && checkedBy &&
+    // Warn if same person who assigned the dryer is checking (unless forced)
+    if (!forceSamePerson && lastDryerAssignment && lastDryerAssignment.assignedBy && checkedBy &&
         lastDryerAssignment.assignedBy.toLowerCase() === checkedBy.toLowerCase()) {
       return NextResponse.json(
-        { error: 'The person who assigned the dryer cannot verify the layering. A different person must check.' },
+        { error: 'The person who assigned the dryer cannot verify the layering. A different person must check.', isSamePerson: true },
         { status: 400 }
       );
     }

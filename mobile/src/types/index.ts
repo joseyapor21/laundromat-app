@@ -317,6 +317,7 @@ export interface TimeEntry {
 export interface ClockStatus {
   isClockedIn: boolean;
   isOnBreak: boolean;
+  breakType?: 'breakfast' | 'lunch' | null;
   lastClockIn?: Date;
   lastClockOut?: Date;
   lastBreakStart?: Date;

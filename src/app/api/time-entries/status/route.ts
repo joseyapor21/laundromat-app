@@ -36,10 +36,12 @@ export async function GET() {
     // Determine clock status from entries if user model not updated
     let isClockedIn = user?.isClockedIn || false;
 
-    // Double-check with latest entry
+    // Double-check with latest clock entry (ignore break entries for clock status)
     if (todayEntries.length > 0) {
-      const latestEntry = todayEntries[0];
-      isClockedIn = latestEntry.type === 'clock_in';
+      const latestClockEntry = todayEntries.find(e => e.type === 'clock_in' || e.type === 'clock_out');
+      if (latestClockEntry) {
+        isClockedIn = latestClockEntry.type === 'clock_in';
+      }
     }
 
     // Determine break status from entries
