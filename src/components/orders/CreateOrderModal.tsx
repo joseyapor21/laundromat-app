@@ -179,6 +179,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
 
   // Calculate same day price (standalone pricing - replaces regular pricing)
   // Up to threshold: base price, above threshold: base + extra lbs * price per lb
+  // No rounding for same-day pricing
   const calculateSameDayPrice = useCallback((): number => {
     if (!settings || !isSameDay || weight <= 0) return 0;
 
@@ -192,7 +193,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
 
     // Above threshold: base price + extra pounds at price per pound
     const extraPounds = weight - threshold;
-    return roundToQuarter(basePrice + (extraPounds * pricePerPound));
+    return basePrice + (extraPounds * pricePerPound);
   }, [settings, isSameDay, weight]);
 
   const calculateTotalPrice = useCallback(() => {

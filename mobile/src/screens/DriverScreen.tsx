@@ -28,6 +28,32 @@ import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import type { Order, Settings } from '../types';
 import { formatPhoneNumber } from '../utils/phoneFormat';
 
+// Format time with time frames or exact time
+function formatTimeWithFrames(date: Date | null | undefined): string {
+  if (!date) return '';
+  const d = new Date(date);
+  const hours = d.getHours();
+  const minutes = d.getMinutes();
+
+  // 1-hour windows (minute=0)
+  if (minutes === 0) {
+    if (hours === 10) return '10-11AM';
+    if (hours === 11) return '11AM-12PM';
+    if (hours === 16) return '4-5PM';
+    if (hours === 17) return '5-6PM';
+  }
+  // 2-hour windows (minute=1 as marker)
+  if (minutes === 1) {
+    if (hours === 10) return '10AM-12PM';
+    if (hours === 16) return '4-6PM';
+  }
+  // Exact time
+  let displayHours = hours % 12;
+  displayHours = displayHours ? displayHours : 12;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+}
+
 type MapApp = 'google' | 'apple' | 'waze';
 
 interface RouteStop {
@@ -101,33 +127,10 @@ export default function DriverScreen() {
     return true;
   };
 
-  // Filtered deliveries based on date
+  // Filtered deliveries based on date (use deliverySchedule for delivery orders)
   const filteredDeliveries = deliveryOrders.filter(order =>
-    isDateMatch(order.estimatedPickupDate, deliveryDateFilter)
+    isDateMatch(order.deliverySchedule, deliveryDateFilter)
   );
-
-  // Refs to track previous data for change detection
-  const pickupOrdersRef = useRef<Order[]>([]);
-  const deliveryOrdersRef = useRef<Order[]>([]);
-
-  // Helper to check if orders data has changed
-  const hasOrdersChanged = useCallback((newOrders: Order[], oldOrders: Order[]) => {
-    if (newOrders.length !== oldOrders.length) return true;
-    for (let i = 0; i < newOrders.length; i++) {
-      const newOrder = newOrders[i];
-      const oldOrder = oldOrders.find(o => o._id === newOrder._id);
-      if (!oldOrder) return true;
-      if (oldOrder.status !== newOrder.status ||
-          oldOrder.isPaid !== newOrder.isPaid ||
-          oldOrder.updatedAt !== newOrder.updatedAt ||
-          oldOrder.customer?.address !== newOrder.customer?.address ||
-          oldOrder.customer?.buzzerCode !== newOrder.customer?.buzzerCode ||
-          oldOrder.customer?.notes !== newOrder.customer?.notes) {
-        return true;
-      }
-    }
-    return false;
-  }, []);
 
   const loadOrders = useCallback(async () => {
     try {
@@ -145,22 +148,16 @@ export default function DriverScreen() {
         order.status === 'ready_for_delivery'
       );
 
-      // Only update state if data has actually changed
-      if (hasOrdersChanged(pickups, pickupOrdersRef.current)) {
-        pickupOrdersRef.current = pickups;
-        setPickupOrders(pickups);
-      }
-      if (hasOrdersChanged(deliveries, deliveryOrdersRef.current)) {
-        deliveryOrdersRef.current = deliveries;
-        setDeliveryOrders(deliveries);
-      }
+      // Always update state to ensure times are refreshed
+      setPickupOrders(pickups);
+      setDeliveryOrders(deliveries);
     } catch (error) {
       Alert.alert('Error', 'Failed to load orders');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [hasOrdersChanged]);
+  }, []);
 
   useEffect(() => {
     loadOrders();
@@ -799,6 +796,20 @@ export default function DriverScreen() {
           {order.customer?.buzzerCode && (
             <Text style={styles.buzzerCode}>Buzzer: {order.customer.buzzerCode}</Text>
           )}
+          {/* Time Window */}
+          {(() => {
+            // For pickups (driver picking up from customer), use estimatedPickupDate
+            // For deliveries, use deliverySchedule
+            const timeStr = isPickup
+              ? formatTimeWithFrames(order.estimatedPickupDate)
+              : formatTimeWithFrames(order.deliverySchedule);
+            return timeStr ? (
+              <View style={styles.timeWindowRow}>
+                <Ionicons name="time-outline" size={14} color="#3b82f6" />
+                <Text style={styles.timeWindowText}>{timeStr}</Text>
+              </View>
+            ) : null;
+          })()}
         </View>
 
         {/* Order Info - Only show for deliveries */}
@@ -1203,7 +1214,22 @@ export default function DriverScreen() {
                 </View>
 
                 <View style={styles.stopContent}>
-                  <Text style={styles.stopCustomer}>#{stop.order.orderId} - {stop.order.customerName}</Text>
+                  <View style={styles.stopCustomerRow}>
+                    <Text style={styles.stopCustomer}>#{stop.order.orderId} - {stop.order.customerName}</Text>
+                    {(() => {
+                      // For pickups use estimatedPickupDate, for deliveries use deliverySchedule
+                      const isPickupOrder = ['new_order', 'scheduled_pickup', 'picked_up'].includes(stop.order.status);
+                      const timeStr = isPickupOrder
+                        ? formatTimeWithFrames(stop.order.estimatedPickupDate)
+                        : formatTimeWithFrames(stop.order.deliverySchedule);
+                      return timeStr ? (
+                        <View style={styles.stopTimeWindow}>
+                          <Ionicons name="time-outline" size={12} color="#3b82f6" />
+                          <Text style={styles.stopTimeText}>{timeStr}</Text>
+                        </View>
+                      ) : null;
+                    })()}
+                  </View>
                   {editingStopIndex === index ? (
                     <View style={styles.editAddressContainer}>
                       <TextInput
@@ -1536,6 +1562,17 @@ const styles = StyleSheet.create({
     color: '#f59e0b',
     marginTop: 4,
   },
+  timeWindowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 4,
+  },
+  timeWindowText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3b82f6',
+  },
   orderInfo: {
     flexDirection: 'row',
     padding: 12,
@@ -1860,11 +1897,31 @@ const styles = StyleSheet.create({
   stopContent: {
     flex: 1,
   },
+  stopCustomerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 4,
+  },
   stopCustomer: {
     fontSize: 14,
     fontWeight: '600',
     color: '#1e293b',
-    marginBottom: 4,
+  },
+  stopTimeWindow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#eff6ff',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    gap: 3,
+  },
+  stopTimeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#3b82f6',
   },
   stopAddress: {
     fontSize: 13,

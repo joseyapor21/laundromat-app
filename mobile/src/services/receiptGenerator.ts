@@ -104,6 +104,35 @@ function formatTimeASCII(date: Date): string {
   return `${hours}:${minutesStr} ${ampm}`;
 }
 
+// Format time as a window or exact time
+// Time windows (minute=0 for 1-hour windows, minute=1 for 2-hour windows):
+// 10:00 -> "10:00 AM - 11:00 AM"
+// 10:01 -> "10:00 AM - 12:00 PM" (full morning)
+// 11:00 -> "11:00 AM - 12:00 PM"
+// 16:00 -> "4:00 PM - 5:00 PM"
+// 16:01 -> "4:00 PM - 6:00 PM" (full afternoon)
+// 17:00 -> "5:00 PM - 6:00 PM"
+// Otherwise -> exact time
+function formatTimeWindow(date: Date): string {
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+
+  // 1-hour windows (minute=0)
+  if (minutes === 0) {
+    if (hours === 10) return '10:00 AM - 11:00 AM';
+    if (hours === 11) return '11:00 AM - 12:00 PM';
+    if (hours === 16) return '4:00 PM - 5:00 PM';
+    if (hours === 17) return '5:00 PM - 6:00 PM';
+  }
+  // 2-hour windows (minute=1 as marker)
+  if (minutes === 1) {
+    if (hours === 10) return '10:00 AM - 12:00 PM';
+    if (hours === 16) return '4:00 PM - 6:00 PM';
+  }
+  // Any other time: show exact time
+  return formatTimeASCII(date);
+}
+
 // Format date to ASCII-safe string
 function formatDateASCII(date: Date): string {
   const month = (date.getMonth() + 1).toString().padStart(2, '0');
@@ -280,10 +309,23 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
   r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
   r += ESC.NORMAL_SIZE;
 
-  // Show laundry subtotal (includes same day fee if applicable)
-  const laundryTotal = (order.subtotal || 0) + (order.sameDayFee || 0);
+  // Show laundry subtotal
+  // For same-day orders, use the totalAmount minus extras/delivery for accurate same-day pricing
+  let laundryTotal = (order.subtotal || 0) + (order.sameDayFee || 0);
+
+  // If same-day and we have the total, recalculate laundry portion for accurate display
+  if (isSameDay && order.totalAmount) {
+    const extraItemsTotal = order.extraItems?.reduce((sum: number, item: any) => {
+      const itemTotal = item.overrideTotal ?? (item.price * item.quantity);
+      return sum + itemTotal;
+    }, 0) || 0;
+    const deliveryFeeForCalc = order.deliveryFee || 0;
+    laundryTotal = order.totalAmount - extraItemsTotal - deliveryFeeForCalc + (order.creditApplied || 0);
+  }
+
   if (laundryTotal > 0) {
-    r += leftRightAlign('Laundry', `$${laundryTotal.toFixed(2)}`) + '\n';
+    const laundryLabel = isSameDay ? 'Laundry (Same Day)' : 'Laundry';
+    r += leftRightAlign(laundryLabel, `$${laundryTotal.toFixed(2)}`) + '\n';
   }
 
   // Show delivery fee (from order or customer record)
@@ -316,11 +358,11 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
   if (receiptDate) {
     const scheduleDate = new Date(receiptDate);
     const scheduleDateStr = formatDateWithWeekday(scheduleDate);
-    const scheduleTimeStr = formatTimeASCII(scheduleDate);
+    const scheduleTimeWindow = formatTimeWindow(scheduleDate);
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` ${scheduleDateStr} \n`;
-    r += ` ${scheduleTimeStr} \n`;
+    r += ` ${scheduleTimeWindow} \n`;
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
   }
@@ -518,10 +560,23 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
   r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
   r += ESC.NORMAL_SIZE;
 
-  // Show laundry subtotal (includes same day fee if applicable)
-  const laundryTotal = (order.subtotal || 0) + (order.sameDayFee || 0);
+  // Show laundry subtotal
+  // For same-day orders, use the totalAmount minus extras/delivery for accurate same-day pricing
+  let laundryTotal = (order.subtotal || 0) + (order.sameDayFee || 0);
+
+  // If same-day and we have the total, recalculate laundry portion for accurate display
+  if (isSameDay && order.totalAmount) {
+    const extraItemsTotal = order.extraItems?.reduce((sum: number, item: any) => {
+      const itemTotal = item.overrideTotal ?? (item.price * item.quantity);
+      return sum + itemTotal;
+    }, 0) || 0;
+    const deliveryFeeForCalc = order.deliveryFee || 0;
+    laundryTotal = order.totalAmount - extraItemsTotal - deliveryFeeForCalc + (order.creditApplied || 0);
+  }
+
   if (laundryTotal > 0) {
-    r += leftRightAlign('Laundry', `$${laundryTotal.toFixed(2)}`) + '\n';
+    const laundryLabel = isSameDay ? 'Laundry (Same Day)' : 'Laundry';
+    r += leftRightAlign(laundryLabel, `$${laundryTotal.toFixed(2)}`) + '\n';
   }
 
   // Show delivery fee (from order or customer record)
@@ -554,11 +609,11 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
   if (receiptDate) {
     const scheduleDate = new Date(receiptDate);
     const scheduleDateStr = formatDateWithWeekday(scheduleDate);
-    const scheduleTimeStr = formatTimeASCII(scheduleDate);
+    const scheduleTimeWindow = formatTimeWindow(scheduleDate);
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` ${scheduleDateStr} \n`;
-    r += ` ${scheduleTimeStr} \n`;
+    r += ` ${scheduleTimeWindow} \n`;
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
   }
@@ -660,11 +715,11 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
   if (bagLabelDate) {
     const scheduleDate = new Date(bagLabelDate);
     const scheduleDateStr = formatDateWithWeekday(scheduleDate);
-    const scheduleTimeStr = formatTimeASCII(scheduleDate);
+    const scheduleTimeWindow = formatTimeWindow(scheduleDate);
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` ${scheduleDateStr} \n`;
-    r += ` ${scheduleTimeStr} \n`;
+    r += ` ${scheduleTimeWindow} \n`;
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
   }
@@ -768,11 +823,11 @@ export function generateCustomerTagText(order: Order): string {
   if (dateToShow) {
     const scheduleDate = new Date(dateToShow);
     const scheduleDateStr = formatDateWithWeekday(scheduleDate);
-    const scheduleTimeStr = formatTimeASCII(scheduleDate);
+    const scheduleTimeWindow = formatTimeWindow(scheduleDate);
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` ${scheduleDateStr} \n`;
-    r += ` ${scheduleTimeStr} \n`;
+    r += ` ${scheduleTimeWindow} \n`;
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
   }

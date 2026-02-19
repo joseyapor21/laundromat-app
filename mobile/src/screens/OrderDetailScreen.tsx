@@ -23,7 +23,7 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText, generateCustomerTagText } from '../services/receiptGenerator';
-import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag, Settings } from '../types';
+import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag, Settings, AirDryItem } from '../types';
 import { formatPhoneNumber } from '../utils/phoneFormat';
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
@@ -57,6 +57,7 @@ export default function OrderDetailScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { currentLocation } = useLocation();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -86,6 +87,13 @@ export default function OrderDetailScreen() {
   // Pickup photos
   const [pickupPhotos, setPickupPhotos] = useState<Array<{ photoPath: string; capturedAt: Date; capturedBy: string; capturedByName: string }>>([]);
   const [selectedPhotoIndex, setSelectedPhotoIndex] = useState<number | null>(null);
+
+  // Air dry items
+  const [showAirDryCamera, setShowAirDryCamera] = useState(false);
+  const [addingAirDry, setAddingAirDry] = useState(false);
+  const [airDryDescription, setAirDryDescription] = useState('');
+  const airDryCameraRef = useRef<any>(null);
+  const [expandedAirDryPhoto, setExpandedAirDryPhoto] = useState<string | null>(null);
 
   const loadOrder = useCallback(async () => {
     try {
@@ -827,6 +835,92 @@ export default function OrderDetailScreen() {
     }
   }
 
+  // Open air dry camera
+  function openAirDryCamera() {
+    if (!permission?.granted) {
+      requestPermission().then(result => {
+        if (result.granted) {
+          setShowAirDryCamera(true);
+        } else {
+          Alert.alert('Permission Required', 'Camera permission is needed to take photos');
+        }
+      });
+    } else {
+      setShowAirDryCamera(true);
+    }
+  }
+
+  // Capture air dry item photo
+  async function handleCaptureAirDryPhoto() {
+    if (!airDryCameraRef.current || !order || !user) return;
+
+    try {
+      setAddingAirDry(true);
+      const photo = await airDryCameraRef.current.takePictureAsync({
+        base64: true,
+        quality: 0.7,
+      });
+
+      // Get user name and initials
+      const taggedBy = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown';
+      let initials = 'XX';
+      const firstInitial = user.firstName?.charAt(0) || '';
+      const lastInitial = user.lastName?.charAt(0) || '';
+      if (firstInitial && lastInitial) {
+        initials = `${firstInitial}${lastInitial}`.toUpperCase();
+      } else if (firstInitial) {
+        initials = user.firstName.substring(0, 2).toUpperCase();
+      }
+
+      await api.addAirDryItem(order._id, {
+        photo: `data:image/jpeg;base64,${photo.base64}`,
+        description: airDryDescription.trim() || undefined,
+        taggedBy,
+        taggedByInitials: initials,
+      });
+
+      setShowAirDryCamera(false);
+      setAirDryDescription('');
+      Alert.alert('Success', 'Air dry item added');
+      await loadOrder();
+    } catch (error) {
+      console.error('Air dry photo error:', error);
+      Alert.alert('Error', 'Failed to add air dry item');
+    } finally {
+      setAddingAirDry(false);
+    }
+  }
+
+  // Remove air dry item
+  async function handleRemoveAirDryItem(itemId: string) {
+    if (!order) return;
+
+    Alert.alert(
+      'Remove Air Dry Item',
+      'Are you sure you want to remove this item?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setUpdating(true);
+              await api.removeAirDryItem(order._id, itemId);
+              Alert.alert('Success', 'Air dry item removed');
+              await loadOrder();
+            } catch (error) {
+              console.error('Remove air dry error:', error);
+              Alert.alert('Error', 'Failed to remove air dry item');
+            } finally {
+              setUpdating(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   function openScanner() {
     // Reset the scan lock when opening scanner
     isProcessingScan.current = false;
@@ -1009,6 +1103,73 @@ export default function OrderDetailScreen() {
               )}
             </View>
           </View>
+        </View>
+
+        {/* Air Dry Items */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              Air Dry Items {order.airDryItems && order.airDryItems.length > 0 ? `(${order.airDryItems.length})` : ''}
+            </Text>
+            <TouchableOpacity
+              style={styles.addAirDryButton}
+              onPress={openAirDryCamera}
+            >
+              <Ionicons name="camera" size={16} color="#fff" />
+              <Text style={styles.addAirDryButtonText}>Add Item</Text>
+            </TouchableOpacity>
+          </View>
+          {order.airDryItems && order.airDryItems.length > 0 ? (
+            <View style={styles.airDryContainer}>
+              {order.airDryItems.map((item: AirDryItem, index: number) => (
+                <View key={item._id || index} style={styles.airDryCard}>
+                  <TouchableOpacity
+                    style={styles.airDryPhotoWrapper}
+                    onPress={() => setExpandedAirDryPhoto(`${api.getBaseUrl()}/api/uploads/${item.photoPath}?token=${api.getToken()}`)}
+                  >
+                    <Image
+                      source={{ uri: `${api.getBaseUrl()}/api/uploads/${item.photoPath}?token=${api.getToken()}` }}
+                      style={styles.airDryPhoto}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                  <View style={styles.airDryInfo}>
+                    {item.description ? (
+                      <Text style={styles.airDryDescription}>{item.description}</Text>
+                    ) : (
+                      <Text style={styles.airDryNoDescription}>No description</Text>
+                    )}
+                    <Text style={styles.airDryTaggedBy}>
+                      Tagged by {item.taggedByInitials || item.taggedBy}
+                    </Text>
+                    <Text style={styles.airDryTime}>
+                      {new Date(item.taggedAt).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                      })}
+                    </Text>
+                  </View>
+                  {isAdmin && (
+                    <TouchableOpacity
+                      style={styles.removeAirDryButton}
+                      onPress={() => handleRemoveAirDryItem(item._id)}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.noAirDryCard}>
+              <Ionicons name="leaf-outline" size={32} color="#94a3b8" />
+              <Text style={styles.noAirDryText}>No air dry items tagged</Text>
+              <Text style={styles.noAirDryHint}>Tap "Add Item" to tag items that need air drying</Text>
+            </View>
+          )}
         </View>
 
         {/* Pickup Photos from Driver */}
@@ -2151,6 +2312,101 @@ export default function OrderDetailScreen() {
                 </View>
               )}
             </>
+          )}
+        </View>
+      </Modal>
+
+      {/* Air Dry Camera Modal */}
+      <Modal
+        visible={showAirDryCamera}
+        animationType="slide"
+        onRequestClose={() => {
+          setShowAirDryCamera(false);
+          setAirDryDescription('');
+        }}
+      >
+        <View style={styles.scannerContainer}>
+          <View style={styles.scannerHeader}>
+            <Text style={styles.scannerTitle}>Tag Air Dry Item</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowAirDryCamera(false);
+                setAirDryDescription('');
+              }}
+            >
+              <Ionicons name="close" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+
+          {permission?.granted ? (
+            <CameraView
+              ref={airDryCameraRef}
+              style={styles.camera}
+              facing="back"
+            />
+          ) : (
+            <View style={styles.cameraPlaceholder}>
+              <Text style={styles.cameraPlaceholderText}>Camera permission required</Text>
+              <TouchableOpacity style={styles.permissionButton} onPress={requestPermission}>
+                <Text style={styles.permissionButtonText}>Grant Permission</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <View style={styles.airDryCameraControls}>
+            <TextInput
+              style={styles.airDryDescriptionInput}
+              value={airDryDescription}
+              onChangeText={setAirDryDescription}
+              placeholder="Optional description (e.g., Red silk blouse)"
+              placeholderTextColor="#94a3b8"
+            />
+            <TouchableOpacity
+              style={[styles.captureButton, addingAirDry && styles.buttonDisabled]}
+              onPress={handleCaptureAirDryPhoto}
+              disabled={addingAirDry}
+            >
+              {addingAirDry ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <View style={styles.captureButtonInner}>
+                  <Ionicons name="camera" size={32} color="#fff" />
+                </View>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Expanded Air Dry Photo Modal */}
+      <Modal
+        visible={!!expandedAirDryPhoto}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setExpandedAirDryPhoto(null)}
+      >
+        <View style={styles.expandedPhotoOverlay}>
+          <TouchableOpacity
+            style={styles.expandedPhotoClose}
+            onPress={() => setExpandedAirDryPhoto(null)}
+          >
+            <Ionicons name="close" size={28} color="#fff" />
+          </TouchableOpacity>
+          {expandedAirDryPhoto && (
+            <ReactNativeZoomableView
+              maxZoom={3}
+              minZoom={1}
+              zoomStep={0.5}
+              initialZoom={1}
+              bindToBorders={true}
+              style={styles.zoomableView}
+            >
+              <Image
+                source={{ uri: expandedAirDryPhoto }}
+                style={styles.expandedPhotoImage}
+                resizeMode="contain"
+              />
+            </ReactNativeZoomableView>
           )}
         </View>
       </Modal>
@@ -3403,5 +3659,109 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     fontWeight: '600',
+  },
+  // Air Dry styles
+  addAirDryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10b981',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  addAirDryButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  airDryContainer: {
+    gap: 12,
+  },
+  airDryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  airDryPhotoWrapper: {
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  airDryPhoto: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+  },
+  airDryInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  airDryDescription: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  airDryNoDescription: {
+    fontSize: 14,
+    fontStyle: 'italic',
+    color: '#94a3b8',
+    marginBottom: 4,
+  },
+  airDryTaggedBy: {
+    fontSize: 12,
+    color: '#64748b',
+    marginBottom: 2,
+  },
+  airDryTime: {
+    fontSize: 12,
+    color: '#94a3b8',
+  },
+  removeAirDryButton: {
+    padding: 8,
+  },
+  noAirDryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderStyle: 'dashed',
+  },
+  noAirDryText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+    marginTop: 12,
+  },
+  noAirDryHint: {
+    fontSize: 14,
+    color: '#94a3b8',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+  airDryCameraControls: {
+    padding: 20,
+    paddingBottom: 40,
+    alignItems: 'center',
+    backgroundColor: '#000',
+  },
+  airDryDescriptionInput: {
+    width: '100%',
+    backgroundColor: '#1e293b',
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: '#fff',
+    marginBottom: 20,
   },
 });

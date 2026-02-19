@@ -204,8 +204,10 @@ export interface Settings {
   minimumWeight: number;
   minimumPrice: number;
   pricePerPound: number;
-  sameDayMinimumCharge?: number;
-  sameDayExtraCentsPerPound?: number;
+  // Same day pricing (standalone model)
+  sameDayBasePrice?: number;         // Base price for up to threshold (e.g., $12 for up to 7 lbs)
+  sameDayWeightThreshold?: number;   // Weight threshold in lbs (e.g., 7)
+  sameDayPricePerPound?: number;     // Price per lb above threshold (e.g., $1.60/lb)
   // Store location for route optimization
   storeAddress?: string;
   storeLatitude?: number;

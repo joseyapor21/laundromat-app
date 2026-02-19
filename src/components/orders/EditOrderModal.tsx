@@ -125,6 +125,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
   };
 
   // Calculate same day price (standalone pricing - replaces regular pricing)
+  // No rounding for same-day pricing
   const calculateSameDayPrice = (): number => {
     if (!settings || !isSameDay || weight <= 0) return 0;
 
@@ -137,7 +138,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     }
 
     const extraPounds = weight - threshold;
-    return roundToQuarter(basePrice + (extraPounds * pricePerPound));
+    return basePrice + (extraPounds * pricePerPound);
   };
 
   // Calculate laundry base price (tiered pricing, rounded to nearest quarter)

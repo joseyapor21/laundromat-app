@@ -167,8 +167,9 @@ export default function AdminScreen() {
     minimumWeight: '',
     minimumPrice: '',
     pricePerPound: '',
-    sameDayMinimumCharge: '',
-    sameDayExtraCentsPerPound: '',
+    sameDayBasePrice: '',
+    sameDayWeightThreshold: '',
+    sameDayPricePerPound: '',
     storeAddress: '',
     storeLatitude: '',
     storeLongitude: '',
@@ -1191,8 +1192,9 @@ export default function AdminScreen() {
         minimumWeight: (settings.minimumWeight || 0).toString(),
         minimumPrice: (settings.minimumPrice || 0).toString(),
         pricePerPound: (settings.pricePerPound || 1.25).toString(),
-        sameDayMinimumCharge: (settings.sameDayMinimumCharge ?? 5).toString(),
-        sameDayExtraCentsPerPound: (settings.sameDayExtraCentsPerPound || 0.33).toString(),
+        sameDayBasePrice: (settings.sameDayBasePrice ?? 12).toString(),
+        sameDayWeightThreshold: (settings.sameDayWeightThreshold ?? 7).toString(),
+        sameDayPricePerPound: (settings.sameDayPricePerPound ?? 1.60).toString(),
         storeAddress: settings.storeAddress || '',
         storeLatitude: (settings.storeLatitude || 40.7128).toString(),
         storeLongitude: (settings.storeLongitude || -74.0060).toString(),
@@ -1212,8 +1214,9 @@ export default function AdminScreen() {
         minimumWeight: parseFloat(settingsForm.minimumWeight) || 0,
         minimumPrice: parseFloat(settingsForm.minimumPrice) || 0,
         pricePerPound: parseFloat(settingsForm.pricePerPound) || 0,
-        sameDayMinimumCharge: parseFloat(settingsForm.sameDayMinimumCharge) || 0,
-        sameDayExtraCentsPerPound: parseFloat(settingsForm.sameDayExtraCentsPerPound) || 0,
+        sameDayBasePrice: parseFloat(settingsForm.sameDayBasePrice) || 12,
+        sameDayWeightThreshold: parseFloat(settingsForm.sameDayWeightThreshold) || 7,
+        sameDayPricePerPound: parseFloat(settingsForm.sameDayPricePerPound) || 1.60,
         storeAddress: settingsForm.storeAddress,
         storeLatitude: parseFloat(settingsForm.storeLatitude) || 40.7128,
         storeLongitude: parseFloat(settingsForm.storeLongitude) || -74.0060,
@@ -1800,12 +1803,16 @@ export default function AdminScreen() {
           <View style={styles.settingsCard}>
             <Text style={styles.settingsTitle}>Same Day Service</Text>
             <View style={styles.settingsRow}>
-              <Text style={styles.settingsLabel}>Extra Per Pound</Text>
-              <Text style={styles.settingsValue}>${settings.sameDayExtraCentsPerPound}/lb</Text>
+              <Text style={styles.settingsLabel}>Base Price</Text>
+              <Text style={styles.settingsValue}>${settings.sameDayBasePrice ?? 12}</Text>
             </View>
             <View style={styles.settingsRow}>
-              <Text style={styles.settingsLabel}>Minimum Charge</Text>
-              <Text style={styles.settingsValue}>${settings.sameDayMinimumCharge}</Text>
+              <Text style={styles.settingsLabel}>Weight Threshold</Text>
+              <Text style={styles.settingsValue}>{settings.sameDayWeightThreshold ?? 7} lbs</Text>
+            </View>
+            <View style={styles.settingsRow}>
+              <Text style={styles.settingsLabel}>Price Per Pound (after threshold)</Text>
+              <Text style={styles.settingsValue}>${settings.sameDayPricePerPound ?? 1.60}/lb</Text>
             </View>
           </View>
 
@@ -4071,27 +4078,38 @@ export default function AdminScreen() {
               <Text style={styles.sectionLabel}>Same Day Service</Text>
               <View style={styles.inputRow}>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Extra $/lb</Text>
+                  <Text style={styles.inputLabel}>Base Price ($)</Text>
                   <TextInput
                     style={styles.input}
-                    value={settingsForm.sameDayExtraCentsPerPound}
-                    onChangeText={(text) => setSettingsForm({ ...settingsForm, sameDayExtraCentsPerPound: text })}
+                    value={settingsForm.sameDayBasePrice}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, sameDayBasePrice: text })}
                     keyboardType="decimal-pad"
-                    placeholder="0.50"
+                    placeholder="12"
                     placeholderTextColor="#94a3b8"
                   />
                 </View>
                 <View style={[styles.inputGroup, { flex: 1 }]}>
-                  <Text style={styles.inputLabel}>Min Charge ($)</Text>
+                  <Text style={styles.inputLabel}>Weight Threshold (lbs)</Text>
                   <TextInput
                     style={styles.input}
-                    value={settingsForm.sameDayMinimumCharge}
-                    onChangeText={(text) => setSettingsForm({ ...settingsForm, sameDayMinimumCharge: text })}
+                    value={settingsForm.sameDayWeightThreshold}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, sameDayWeightThreshold: text })}
                     keyboardType="decimal-pad"
-                    placeholder="5"
+                    placeholder="7"
                     placeholderTextColor="#94a3b8"
                   />
                 </View>
+              </View>
+              <View style={[styles.inputGroup, { marginTop: 8 }]}>
+                <Text style={styles.inputLabel}>Price Per Pound (after threshold)</Text>
+                <TextInput
+                  style={styles.input}
+                  value={settingsForm.sameDayPricePerPound}
+                  onChangeText={(text) => setSettingsForm({ ...settingsForm, sameDayPricePerPound: text })}
+                  keyboardType="decimal-pad"
+                  placeholder="1.60"
+                  placeholderTextColor="#94a3b8"
+                />
               </View>
 
               <Text style={styles.sectionLabel}>Store Location</Text>

@@ -38,13 +38,47 @@ function formatPickupDate(date: Date): string {
   const dayNum = date.getDate();
   const year = date.getFullYear();
 
-  let hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  hours = hours % 12;
-  hours = hours ? hours : 12;
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
 
-  return `${dayName}, ${monthName} ${dayNum}, ${year}, ${hours}:${minutes} ${ampm}`;
+  // Check for time frames
+  let timeStr: string;
+  // 1-hour windows (minute=0)
+  if (minutes === 0) {
+    if (hours === 10) {
+      timeStr = '10-11AM';
+    } else if (hours === 11) {
+      timeStr = '11AM-12PM';
+    } else if (hours === 16) {
+      timeStr = '4-5PM';
+    } else if (hours === 17) {
+      timeStr = '5-6PM';
+    } else {
+      let displayHours = hours % 12;
+      displayHours = displayHours ? displayHours : 12;
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      timeStr = `${displayHours}:00 ${ampm}`;
+    }
+  // 2-hour windows (minute=1 as marker)
+  } else if (minutes === 1) {
+    if (hours === 10) {
+      timeStr = '10AM-12PM';
+    } else if (hours === 16) {
+      timeStr = '4-6PM';
+    } else {
+      let displayHours = hours % 12;
+      displayHours = displayHours ? displayHours : 12;
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      timeStr = `${displayHours}:01 ${ampm}`;
+    }
+  } else {
+    let displayHours = hours % 12;
+    displayHours = displayHours ? displayHours : 12;
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    timeStr = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  }
+
+  return `${dayName}, ${monthName} ${dayNum}, ${year}, ${timeStr}`;
 }
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
@@ -429,6 +463,26 @@ export default function CreateOrderScreen() {
     });
   }, [bags, extraItems]);
 
+  // Helper to round UP to nearest quarter
+  function roundToQuarter(value: number): number {
+    return Math.ceil(value * 4) / 4;
+  }
+
+  // Calculate same-day price (standalone pricing - replaces regular pricing)
+  // No rounding for same-day pricing
+  function calculateSameDayPrice(weight: number): number {
+    if (!settings || weight <= 0) return 0;
+    const basePrice = settings.sameDayBasePrice ?? 12;
+    const threshold = settings.sameDayWeightThreshold ?? 7;
+    const pricePerPound = settings.sameDayPricePerPound ?? 1.60;
+
+    if (weight <= threshold) {
+      return basePrice;
+    }
+    const extraPounds = weight - threshold;
+    return basePrice + (extraPounds * pricePerPound);
+  }
+
   function calculateTotal() {
     if (!settings) return 0;
 
@@ -436,28 +490,20 @@ export default function CreateOrderScreen() {
 
     // Calculate laundry subtotal only if there's weight
     let laundrySubtotal = 0;
-    let sameDayExtra = 0;
 
     if (totalWeight > 0) {
-      const pricePerPound = settings.pricePerPound;
-
-      // Pricing: minimum price for first X pounds, then price per pound for extra
-      if (totalWeight <= settings.minimumWeight) {
-        // Under or at minimum weight - charge minimum price
-        laundrySubtotal = settings.minimumPrice;
-      } else {
-        // Over minimum weight - charge minimum + extra pounds at price per pound
-        const extraPounds = totalWeight - settings.minimumWeight;
-        laundrySubtotal = settings.minimumPrice + (extraPounds * pricePerPound);
-      }
-
-      // Same day extra: cents per pound with minimum, rounded UP to nearest quarter
       if (isSameDay) {
-        const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
-        const calculatedExtra = totalWeight * extraCentsPerPound;
-        const minimumCharge = settings.sameDayMinimumCharge ?? 5;
-        const rawFee = Math.max(calculatedExtra, minimumCharge);
-        sameDayExtra = Math.ceil(rawFee * 4) / 4;
+        // Same day uses standalone pricing (replaces regular pricing)
+        laundrySubtotal = calculateSameDayPrice(totalWeight);
+      } else {
+        // Regular pricing: minimum price for first X pounds, then price per pound for extra
+        const pricePerPound = settings.pricePerPound;
+        if (totalWeight <= settings.minimumWeight) {
+          laundrySubtotal = settings.minimumPrice;
+        } else {
+          const extraPounds = totalWeight - settings.minimumWeight;
+          laundrySubtotal = settings.minimumPrice + (extraPounds * pricePerPound);
+        }
       }
     }
 
@@ -497,7 +543,7 @@ export default function CreateOrderScreen() {
       }
     }
 
-    return laundrySubtotal + sameDayExtra + extrasTotal + deliveryFee;
+    return laundrySubtotal + extrasTotal + deliveryFee;
   }
 
   function getPriceBreakdown() {
@@ -508,43 +554,48 @@ export default function CreateOrderScreen() {
 
     // Laundry service
     if (totalWeight > 0) {
-      const pricePerPound = settings.pricePerPound;
-
-      if (totalWeight <= settings.minimumWeight) {
-        // Under or at minimum weight - show minimum price
-        breakdown.push({
-          label: `Base (up to ${settings.minimumWeight} lbs)`,
-          amount: settings.minimumPrice,
-        });
-      } else {
-        // Over minimum weight - show minimum + extra pounds
-        const extraPounds = totalWeight - settings.minimumWeight;
-
-        breakdown.push({
-          label: `Base (first ${settings.minimumWeight} lbs)`,
-          amount: settings.minimumPrice,
-        });
-        breakdown.push({
-          label: `Extra ${extraPounds} lbs × $${pricePerPound.toFixed(2)}/lb`,
-          amount: extraPounds * pricePerPound,
-        });
-      }
-
-      // Same day extra charge, rounded UP to nearest quarter
       if (isSameDay) {
-        const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
-        const calculatedExtra = totalWeight * extraCentsPerPound;
-        const minimumCharge = settings.sameDayMinimumCharge ?? 5;
-        const rawFee = Math.max(calculatedExtra, minimumCharge);
-        const sameDayCharge = Math.ceil(rawFee * 4) / 4;
-        const isMinimum = rawFee === minimumCharge && calculatedExtra < minimumCharge;
+        // Same day pricing: standalone model
+        const basePrice = settings.sameDayBasePrice ?? 12;
+        const threshold = settings.sameDayWeightThreshold ?? 7;
+        const pricePerPound = settings.sameDayPricePerPound ?? 1.60;
 
-        breakdown.push({
-          label: isMinimum
-            ? `Same Day (minimum charge)`
-            : `Same Day (${totalWeight} lbs × $${extraCentsPerPound.toFixed(2)}/lb)`,
-          amount: sameDayCharge,
-        });
+        if (totalWeight <= threshold) {
+          breakdown.push({
+            label: `Same Day (up to ${threshold} lbs)`,
+            amount: basePrice,
+          });
+        } else {
+          const extraPounds = totalWeight - threshold;
+          breakdown.push({
+            label: `Same Day (up to ${threshold} lbs)`,
+            amount: basePrice,
+          });
+          breakdown.push({
+            label: `Extra ${extraPounds.toFixed(1)} lbs × $${pricePerPound.toFixed(2)}/lb`,
+            amount: extraPounds * pricePerPound,
+          });
+        }
+      } else {
+        // Regular pricing
+        const pricePerPound = settings.pricePerPound;
+
+        if (totalWeight <= settings.minimumWeight) {
+          breakdown.push({
+            label: `Base (up to ${settings.minimumWeight} lbs)`,
+            amount: settings.minimumPrice,
+          });
+        } else {
+          const extraPounds = totalWeight - settings.minimumWeight;
+          breakdown.push({
+            label: `Base (first ${settings.minimumWeight} lbs)`,
+            amount: settings.minimumPrice,
+          });
+          breakdown.push({
+            label: `Extra ${extraPounds} lbs × $${pricePerPound.toFixed(2)}/lb`,
+            amount: extraPounds * pricePerPound,
+          });
+        }
       }
     }
 
@@ -663,32 +714,31 @@ export default function CreateOrderScreen() {
       // Use manual delivery address if customer doesn't have one
       const finalDeliveryAddress = selectedCustomer.address || deliveryAddress.trim();
 
-      // Calculate individual price components with minimums applied
+      // Calculate individual price components
+      // Same day pricing is standalone (replaces regular pricing)
       let laundrySubtotal = 0;
       if (settings && totalWeight > 0) {
-        console.log('DEBUG: totalWeight=', totalWeight, 'minimumWeight=', settings.minimumWeight, 'minimumPrice=', settings.minimumPrice);
-        if (totalWeight <= settings.minimumWeight) {
-          laundrySubtotal = settings.minimumPrice;
-          console.log('DEBUG: Using minimum price:', laundrySubtotal);
+        if (isSameDay) {
+          // Same day uses standalone pricing
+          laundrySubtotal = calculateSameDayPrice(totalWeight);
+          console.log('DEBUG: Same day price:', laundrySubtotal);
         } else {
-          const extraPounds = totalWeight - settings.minimumWeight;
-          laundrySubtotal = settings.minimumPrice + (extraPounds * settings.pricePerPound);
-          console.log('DEBUG: Over minimum, laundrySubtotal=', laundrySubtotal);
+          // Regular pricing
+          if (totalWeight <= settings.minimumWeight) {
+            laundrySubtotal = settings.minimumPrice;
+            console.log('DEBUG: Using minimum price:', laundrySubtotal);
+          } else {
+            const extraPounds = totalWeight - settings.minimumWeight;
+            laundrySubtotal = settings.minimumPrice + (extraPounds * settings.pricePerPound);
+            console.log('DEBUG: Over minimum, laundrySubtotal=', laundrySubtotal);
+          }
         }
       } else {
         console.log('DEBUG: settings or totalWeight missing', { settings: !!settings, totalWeight });
       }
 
-      // Calculate same day fee with minimum applied, rounded UP to nearest quarter
-      let sameDayFee = 0;
-      if (isSameDay && settings) {
-        const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
-        const calculatedExtra = totalWeight * extraCentsPerPound;
-        const minimumCharge = settings.sameDayMinimumCharge ?? 5;
-        const rawFee = Math.max(calculatedExtra, minimumCharge);
-        // Round UP to nearest quarter (0.25)
-        sameDayFee = Math.ceil(rawFee * 4) / 4;
-      }
+      // Same day fee is now 0 since same-day pricing is included in laundrySubtotal
+      const sameDayFee = 0;
 
       // Calculate delivery fee
       let orderDeliveryFee = 0;
@@ -1086,7 +1136,7 @@ export default function CreateOrderScreen() {
             <Ionicons name="flash" size={24} color={isSameDay ? '#f59e0b' : '#64748b'} />
             <View style={styles.switchTextContainer}>
               <Text style={styles.switchLabel}>Same Day Service</Text>
-              <Text style={styles.switchHint}>+${settings?.sameDayExtraCentsPerPound?.toFixed(2) || '0.33'}/lb (min ${settings?.sameDayMinimumCharge?.toFixed(2) || '5.00'})</Text>
+              <Text style={styles.switchHint}>${(settings?.sameDayBasePrice ?? 12).toFixed(2)} up to {settings?.sameDayWeightThreshold ?? 7} lbs, ${(settings?.sameDayPricePerPound ?? 1.60).toFixed(2)}/lb after</Text>
             </View>
           </View>
           <Switch
@@ -1201,6 +1251,108 @@ export default function CreateOrderScreen() {
                 <Text style={styles.datePickerDone}>Done</Text>
               </TouchableOpacity>
             </View>
+            {/* Time Frame Quick Select */}
+            <View style={styles.timeFrameContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.timeFrameButton,
+                  estimatedPickupDate.getHours() === 10 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonSelected
+                ]}
+                onPress={() => {
+                  const newDate = new Date(estimatedPickupDate);
+                  newDate.setHours(10, 0, 0, 0);
+                  setEstimatedPickupDate(newDate);
+                }}
+              >
+                <Text style={[
+                  styles.timeFrameButtonText,
+                  estimatedPickupDate.getHours() === 10 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonTextSelected
+                ]}>10-11AM</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.timeFrameButton,
+                  estimatedPickupDate.getHours() === 11 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonSelected
+                ]}
+                onPress={() => {
+                  const newDate = new Date(estimatedPickupDate);
+                  newDate.setHours(11, 0, 0, 0);
+                  setEstimatedPickupDate(newDate);
+                }}
+              >
+                <Text style={[
+                  styles.timeFrameButtonText,
+                  estimatedPickupDate.getHours() === 11 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonTextSelected
+                ]}>11-12PM</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.timeFrameButton,
+                  estimatedPickupDate.getHours() === 10 && estimatedPickupDate.getMinutes() === 1 && styles.timeFrameButtonSelected
+                ]}
+                onPress={() => {
+                  const newDate = new Date(estimatedPickupDate);
+                  newDate.setHours(10, 1, 0, 0);
+                  setEstimatedPickupDate(newDate);
+                }}
+              >
+                <Text style={[
+                  styles.timeFrameButtonText,
+                  estimatedPickupDate.getHours() === 10 && estimatedPickupDate.getMinutes() === 1 && styles.timeFrameButtonTextSelected
+                ]}>10-12PM</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.timeFrameContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.timeFrameButton,
+                  estimatedPickupDate.getHours() === 16 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonSelected
+                ]}
+                onPress={() => {
+                  const newDate = new Date(estimatedPickupDate);
+                  newDate.setHours(16, 0, 0, 0);
+                  setEstimatedPickupDate(newDate);
+                }}
+              >
+                <Text style={[
+                  styles.timeFrameButtonText,
+                  estimatedPickupDate.getHours() === 16 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonTextSelected
+                ]}>4-5PM</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.timeFrameButton,
+                  estimatedPickupDate.getHours() === 17 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonSelected
+                ]}
+                onPress={() => {
+                  const newDate = new Date(estimatedPickupDate);
+                  newDate.setHours(17, 0, 0, 0);
+                  setEstimatedPickupDate(newDate);
+                }}
+              >
+                <Text style={[
+                  styles.timeFrameButtonText,
+                  estimatedPickupDate.getHours() === 17 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonTextSelected
+                ]}>5-6PM</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.timeFrameButton,
+                  estimatedPickupDate.getHours() === 16 && estimatedPickupDate.getMinutes() === 1 && styles.timeFrameButtonSelected
+                ]}
+                onPress={() => {
+                  const newDate = new Date(estimatedPickupDate);
+                  newDate.setHours(16, 1, 0, 0);
+                  setEstimatedPickupDate(newDate);
+                }}
+              >
+                <Text style={[
+                  styles.timeFrameButtonText,
+                  estimatedPickupDate.getHours() === 16 && estimatedPickupDate.getMinutes() === 1 && styles.timeFrameButtonTextSelected
+                ]}>4-6PM</Text>
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.timeFrameDividerText}>Or select exact time:</Text>
             <View style={styles.datePickerSelectedDisplay}>
               <Text style={styles.datePickerSelectedText}>
                 {estimatedPickupDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
@@ -2999,6 +3151,49 @@ const styles = StyleSheet.create({
   },
   datePickerSpinner: {
     height: 200,
+  },
+  timeFrameContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  timeFrameButton: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+  },
+  timeFrameButtonSelected: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  timeFrameButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  timeFrameButtonSubtext: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  timeFrameButtonTextSelected: {
+    color: '#ffffff',
+  },
+  timeFrameDividerText: {
+    textAlign: 'center',
+    color: '#64748b',
+    fontSize: 14,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   datePickerSelectedDisplay: {
     backgroundColor: '#eff6ff',

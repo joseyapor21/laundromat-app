@@ -204,7 +204,9 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       ).catch(err => console.error('Pickup notification error:', err));
     }
 
-    return NextResponse.json(order);
+    // Convert to plain object to avoid circular reference issues
+    const updatedOrder = await Order.findById(order._id).populate('customer').lean();
+    return NextResponse.json(updatedOrder);
   } catch (error) {
     console.error('Update order status error:', error);
     return NextResponse.json(

@@ -28,6 +28,31 @@ import type { Order, ExtraItem, Settings, Bag, OrderType, OrderExtraItem } from 
 import { calculateWeightBasedPrice, calculateWeightBasedQuantity, roundToNearestQuarter } from '../utils/pricing';
 import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
+// Format time with time frames or exact time
+function formatTimeWithFrames(date: Date | null): string {
+  if (!date) return '5:00 PM';
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+
+  // 1-hour windows (minute=0)
+  if (minutes === 0) {
+    if (hours === 10) return '10-11AM';
+    if (hours === 11) return '11AM-12PM';
+    if (hours === 16) return '4-5PM';
+    if (hours === 17) return '5-6PM';
+  }
+  // 2-hour windows (minute=1 as marker)
+  if (minutes === 1) {
+    if (hours === 10) return '10AM-12PM';
+    if (hours === 16) return '4-6PM';
+  }
+  // Exact time
+  let displayHours = hours % 12;
+  displayHours = displayHours ? displayHours : 12;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+}
+
 export default function EditOrderScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
@@ -59,6 +84,7 @@ export default function EditOrderScreen() {
   // Pricing
   const [settings, setSettings] = useState<Settings | null>(null);
   const [priceOverride, setPriceOverride] = useState<number | null>(null);
+  const [priceOverrideInput, setPriceOverrideInput] = useState('');
   const [priceChangeNote, setPriceChangeNote] = useState('');
   const [showPriceOverride, setShowPriceOverride] = useState(false);
 
@@ -164,6 +190,7 @@ export default function EditOrderScreen() {
       // Price override - check if exists (not just truthy, since 0 could be a valid override)
       if (orderData.priceOverride !== undefined && orderData.priceOverride !== null) {
         setPriceOverride(orderData.priceOverride);
+        setPriceOverrideInput(orderData.priceOverride.toFixed(2));
         setShowPriceOverride(true);
         setPriceChangeNote(orderData.priceChangeNote || '');
       }
@@ -206,25 +233,24 @@ export default function EditOrderScreen() {
     });
   }, [bags, extraItems, calculateTotalWeight]);
 
-  // Calculate same day price per pound (regular + extra)
-  const getSameDayPricePerPound = (): number => {
-    if (!settings) return 0;
-    const regularPrice = settings.pricePerPound || 1.25;
-    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
-    return regularPrice + extraCentsPerPound;
+  // Helper to round UP to nearest quarter
+  const roundToQuarter = (value: number): number => {
+    return Math.ceil(value * 4) / 4;
   };
 
-  // Calculate same day extra charge, rounded UP to nearest quarter
-  const getSameDayExtraCharge = (): number => {
-    const weight = calculateTotalWeight();
-    if (!settings || !isSameDay || weight <= 0) return 0;
+  // Calculate same-day price (standalone pricing - replaces regular pricing)
+  // No rounding for same-day pricing
+  const calculateSameDayPrice = (weight: number): number => {
+    if (!settings || weight <= 0) return 0;
+    const basePrice = settings.sameDayBasePrice ?? 12;
+    const threshold = settings.sameDayWeightThreshold ?? 7;
+    const pricePerPound = settings.sameDayPricePerPound ?? 1.60;
 
-    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
-    const calculatedExtra = weight * extraCentsPerPound;
-    const minimumCharge = settings.sameDayMinimumCharge ?? 5;
-    const rawFee = Math.max(calculatedExtra, minimumCharge);
-    // Round UP to nearest quarter (0.25)
-    return Math.ceil(rawFee * 4) / 4;
+    if (weight <= threshold) {
+      return basePrice;
+    }
+    const extraPounds = weight - threshold;
+    return basePrice + (extraPounds * pricePerPound);
   };
 
   // Calculate total price using tiered pricing
@@ -235,18 +261,19 @@ export default function EditOrderScreen() {
     let basePrice = 0;
 
     if (weight > 0) {
-      // Pricing: minimum price for first X pounds, then price per pound for extra
-      if (weight <= settings.minimumWeight) {
-        // Under or at minimum weight - charge minimum price
-        basePrice = settings.minimumPrice;
+      if (isSameDay) {
+        // Same day uses standalone pricing (replaces regular pricing)
+        basePrice = calculateSameDayPrice(weight);
       } else {
-        // Over minimum weight - charge minimum + extra pounds at price per pound
-        const extraPounds = weight - settings.minimumWeight;
-        basePrice = settings.minimumPrice + (extraPounds * settings.pricePerPound);
+        // Regular pricing: minimum price for first X pounds, then price per pound for extra
+        if (weight <= settings.minimumWeight) {
+          basePrice = settings.minimumPrice;
+        } else {
+          const extraPounds = weight - settings.minimumWeight;
+          basePrice = settings.minimumPrice + (extraPounds * settings.pricePerPound);
+        }
       }
     }
-
-    const sameDayExtra = getSameDayExtraCharge();
 
     const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
       // Use override total if set (for any item type)
@@ -272,7 +299,7 @@ export default function EditOrderScreen() {
       }
     }
 
-    return basePrice + sameDayExtra + extraItemsTotal + deliveryFee;
+    return basePrice + extraItemsTotal + deliveryFee;
   };
 
   const getFinalPrice = () => {
@@ -363,14 +390,13 @@ export default function EditOrderScreen() {
         specialInstructions,
         totalAmount: finalPrice,
         subtotal: laundrySubtotal,
-        sameDayFee: isSameDay ? getSameDayExtraCharge() : 0,
+        sameDayFee: 0, // Same-day pricing is now standalone (included in subtotal)
         priceOverride: showPriceOverride ? priceOverride : null,
         priceChangeNote: showPriceOverride ? priceChangeNote : null,
         extraItems: orderExtraItems,
         bags,
         orderType,
         isSameDay,
-        sameDayPricePerPound: isSameDay ? getSameDayPricePerPound() : undefined,
         // Delivery fields
         deliveryType: orderType === 'delivery' ? deliveryType : null,
         deliveryFee: orderType === 'delivery' ? (deliveryType === 'pickupOnly' || deliveryType === 'deliveryOnly' ? deliveryPrice / 2 : deliveryPrice) : 0,
@@ -724,7 +750,7 @@ export default function EditOrderScreen() {
                     <Text style={styles.sameDayTitle}>Same Day Service</Text>
                     {settings && (
                       <Text style={styles.sameDaySubtitle}>
-                        ${settings.pricePerPound?.toFixed(2)}/lb → ${getSameDayPricePerPound().toFixed(2)}/lb
+                        ${(settings.sameDayBasePrice ?? 12).toFixed(2)} up to {settings.sameDayWeightThreshold ?? 7} lbs, ${(settings.sameDayPricePerPound ?? 1.60).toFixed(2)}/lb after
                       </Text>
                     )}
                   </View>
@@ -739,11 +765,7 @@ export default function EditOrderScreen() {
               {isSameDay && settings && weight > 0 && (
                 <View style={styles.sameDayPricing}>
                   <Text style={styles.sameDayPricingText}>
-                    Extra charge: ${getSameDayExtraCharge().toFixed(2)}
-                    {getSameDayExtraCharge() === (settings.sameDayMinimumCharge ?? 5) &&
-                     (weight * (settings.sameDayExtraCentsPerPound || 0.33)) < (settings.sameDayMinimumCharge ?? 5) && (
-                      <Text style={styles.minimumNote}> (minimum charge)</Text>
-                    )}
+                    Same Day Price: ${calculateSameDayPrice(weight).toFixed(2)}
                   </Text>
                 </View>
               )}
@@ -754,7 +776,8 @@ export default function EditOrderScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Schedule</Text>
             <View style={styles.card}>
-              {/* Pickup/Drop-off Date - automatically set when order is picked up */}
+              {/* For delivery orders: Pickup Date/Time uses estimatedPickupDate */}
+              {/* For store orders: Drop-off Date/Time uses dropOffDate */}
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>
                   {orderType === 'delivery' ? 'Pickup Date/Time' : 'Drop-off Date/Time'}
@@ -762,28 +785,28 @@ export default function EditOrderScreen() {
                 <View style={styles.dateTimeRow}>
                   <TouchableOpacity
                     style={[styles.dateButton, styles.dateButtonFlex]}
-                    onPress={() => setShowDatePicker('dropoff')}
+                    onPress={() => setShowDatePicker(orderType === 'delivery' ? 'pickup' : 'dropoff')}
                   >
                     <Ionicons name="calendar-outline" size={20} color="#64748b" />
                     <Text style={styles.dateButtonText}>
-                      {dropOffDate
-                        ? `${dropOffDate.toLocaleDateString('en-US', { weekday: 'short' })}, ${dropOffDate.toLocaleDateString('en-US', { month: 'short' })} ${dropOffDate.getDate()}, ${dropOffDate.getFullYear()}`
-                        : 'Select date'}
+                      {orderType === 'delivery'
+                        ? (estimatedPickupDate
+                          ? `${estimatedPickupDate.toLocaleDateString('en-US', { weekday: 'short' })}, ${estimatedPickupDate.toLocaleDateString('en-US', { month: 'short' })} ${estimatedPickupDate.getDate()}, ${estimatedPickupDate.getFullYear()}`
+                          : 'Select date')
+                        : (dropOffDate
+                          ? `${dropOffDate.toLocaleDateString('en-US', { weekday: 'short' })}, ${dropOffDate.toLocaleDateString('en-US', { month: 'short' })} ${dropOffDate.getDate()}, ${dropOffDate.getFullYear()}`
+                          : 'Select date')}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.dateButton, styles.timeButtonFlex]}
-                    onPress={() => setShowTimePicker('dropoff')}
+                    onPress={() => setShowTimePicker(orderType === 'delivery' ? 'pickup' : 'dropoff')}
                   >
                     <Ionicons name="time-outline" size={20} color="#64748b" />
                     <Text style={styles.dateButtonText}>
-                      {dropOffDate
-                        ? dropOffDate.toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            hour12: true,
-                          })
-                        : '12:00 PM'}
+                      {orderType === 'delivery'
+                        ? formatTimeWithFrames(estimatedPickupDate)
+                        : (dropOffDate ? formatTimeWithFrames(dropOffDate) : '12:00 PM')}
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -811,13 +834,7 @@ export default function EditOrderScreen() {
                     >
                       <Ionicons name="time-outline" size={20} color="#64748b" />
                       <Text style={styles.dateButtonText}>
-                        {deliverySchedule
-                          ? deliverySchedule.toLocaleTimeString('en-US', {
-                              hour: '2-digit',
-                              minute: '2-digit',
-                              hour12: true,
-                            })
-                          : '5:00 PM'}
+                        {formatTimeWithFrames(deliverySchedule)}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -925,15 +942,85 @@ export default function EditOrderScreen() {
                     <Text style={styles.datePickerDone}>Done</Text>
                   </TouchableOpacity>
                 </View>
+                {/* Time Frame Quick Select */}
+                {(() => {
+                  const currentDate = showTimePicker === 'pickup'
+                    ? estimatedPickupDate
+                    : showTimePicker === 'dropoff'
+                    ? dropOffDate
+                    : deliverySchedule;
+                  const isSelected = (hour: number, minute: number = 0) =>
+                    currentDate && currentDate.getHours() === hour && currentDate.getMinutes() === minute;
+                  const setTime = (hour: number, minute: number = 0) => {
+                    if (showTimePicker === 'pickup') {
+                      const newDate = estimatedPickupDate ? new Date(estimatedPickupDate) : new Date();
+                      newDate.setHours(hour, minute, 0, 0);
+                      setEstimatedPickupDate(newDate);
+                    } else if (showTimePicker === 'dropoff') {
+                      const newDate = dropOffDate ? new Date(dropOffDate) : new Date();
+                      newDate.setHours(hour, minute, 0, 0);
+                      setDropOffDate(newDate);
+                    } else {
+                      const newDate = deliverySchedule ? new Date(deliverySchedule) : new Date();
+                      newDate.setHours(hour, minute, 0, 0);
+                      setDeliverySchedule(newDate);
+                    }
+                  };
+                  return (
+                    <>
+                      <View style={styles.timeFrameContainer}>
+                        <TouchableOpacity
+                          style={[styles.timeFrameButton, isSelected(10, 0) && styles.timeFrameButtonSelected]}
+                          onPress={() => setTime(10, 0)}
+                        >
+                          <Text style={[styles.timeFrameButtonText, isSelected(10, 0) && styles.timeFrameButtonTextSelected]}>10-11AM</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.timeFrameButton, isSelected(11, 0) && styles.timeFrameButtonSelected]}
+                          onPress={() => setTime(11, 0)}
+                        >
+                          <Text style={[styles.timeFrameButtonText, isSelected(11, 0) && styles.timeFrameButtonTextSelected]}>11-12PM</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.timeFrameButton, isSelected(10, 1) && styles.timeFrameButtonSelected]}
+                          onPress={() => setTime(10, 1)}
+                        >
+                          <Text style={[styles.timeFrameButtonText, isSelected(10, 1) && styles.timeFrameButtonTextSelected]}>10-12PM</Text>
+                        </TouchableOpacity>
+                      </View>
+                      <View style={styles.timeFrameContainer}>
+                        <TouchableOpacity
+                          style={[styles.timeFrameButton, isSelected(16, 0) && styles.timeFrameButtonSelected]}
+                          onPress={() => setTime(16, 0)}
+                        >
+                          <Text style={[styles.timeFrameButtonText, isSelected(16, 0) && styles.timeFrameButtonTextSelected]}>4-5PM</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.timeFrameButton, isSelected(17, 0) && styles.timeFrameButtonSelected]}
+                          onPress={() => setTime(17, 0)}
+                        >
+                          <Text style={[styles.timeFrameButtonText, isSelected(17, 0) && styles.timeFrameButtonTextSelected]}>5-6PM</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.timeFrameButton, isSelected(16, 1) && styles.timeFrameButtonSelected]}
+                          onPress={() => setTime(16, 1)}
+                        >
+                          <Text style={[styles.timeFrameButtonText, isSelected(16, 1) && styles.timeFrameButtonTextSelected]}>4-6PM</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </>
+                  );
+                })()}
+                <Text style={styles.timeFrameDividerText}>Or select exact time:</Text>
                 <View style={styles.datePickerSelectedDisplay}>
                   <Text style={styles.datePickerSelectedText}>
                     {(() => {
                       const date = showTimePicker === 'pickup'
-                        ? estimatedPickupDate || new Date()
+                        ? estimatedPickupDate
                         : showTimePicker === 'dropoff'
-                        ? dropOffDate || new Date()
-                        : deliverySchedule || new Date();
-                      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                        ? dropOffDate
+                        : deliverySchedule;
+                      return formatTimeWithFrames(date);
                     })()}
                   </Text>
                 </View>
@@ -1171,42 +1258,72 @@ export default function EditOrderScreen() {
             <View style={styles.pricingCard}>
               {settings && weight > 0 && (
                 <View style={styles.priceBreakdown}>
-                  {weight <= settings.minimumWeight ? (
-                    <View style={styles.priceRow}>
-                      <Text style={styles.priceLabel}>
-                        Base (up to {settings.minimumWeight} lbs)
-                      </Text>
-                      <Text style={styles.priceValue}>
-                        ${settings.minimumPrice.toFixed(2)}
-                      </Text>
-                    </View>
-                  ) : (
+                  {isSameDay ? (
+                    // Same-day pricing (standalone)
                     <>
-                      <View style={styles.priceRow}>
-                        <Text style={styles.priceLabel}>
-                          Base (first {settings.minimumWeight} lbs)
-                        </Text>
-                        <Text style={styles.priceValue}>
-                          ${settings.minimumPrice.toFixed(2)}
-                        </Text>
-                      </View>
-                      <View style={styles.priceRow}>
-                        <Text style={styles.priceLabel}>
-                          Extra {(weight - settings.minimumWeight).toFixed(1)} lbs × ${settings.pricePerPound.toFixed(2)}
-                        </Text>
-                        <Text style={styles.priceValue}>
-                          ${((weight - settings.minimumWeight) * settings.pricePerPound).toFixed(2)}
-                        </Text>
-                      </View>
+                      {weight <= (settings.sameDayWeightThreshold ?? 7) ? (
+                        <View style={styles.priceRow}>
+                          <Text style={[styles.priceLabel, { color: '#f59e0b' }]}>
+                            Same Day (up to {settings.sameDayWeightThreshold ?? 7} lbs)
+                          </Text>
+                          <Text style={[styles.priceValue, { color: '#f59e0b' }]}>
+                            ${(settings.sameDayBasePrice ?? 12).toFixed(2)}
+                          </Text>
+                        </View>
+                      ) : (
+                        <>
+                          <View style={styles.priceRow}>
+                            <Text style={[styles.priceLabel, { color: '#f59e0b' }]}>
+                              Same Day (up to {settings.sameDayWeightThreshold ?? 7} lbs)
+                            </Text>
+                            <Text style={[styles.priceValue, { color: '#f59e0b' }]}>
+                              ${(settings.sameDayBasePrice ?? 12).toFixed(2)}
+                            </Text>
+                          </View>
+                          <View style={styles.priceRow}>
+                            <Text style={[styles.priceLabel, { color: '#f59e0b' }]}>
+                              Extra {(weight - (settings.sameDayWeightThreshold ?? 7)).toFixed(1)} lbs × ${(settings.sameDayPricePerPound ?? 1.60).toFixed(2)}
+                            </Text>
+                            <Text style={[styles.priceValue, { color: '#f59e0b' }]}>
+                              ${((weight - (settings.sameDayWeightThreshold ?? 7)) * (settings.sameDayPricePerPound ?? 1.60)).toFixed(2)}
+                            </Text>
+                          </View>
+                        </>
+                      )}
                     </>
-                  )}
-                  {isSameDay && (
-                    <View style={styles.priceRow}>
-                      <Text style={[styles.priceLabel, { color: '#f59e0b' }]}>Same Day Extra</Text>
-                      <Text style={[styles.priceValue, { color: '#f59e0b' }]}>
-                        +${getSameDayExtraCharge().toFixed(2)}
-                      </Text>
-                    </View>
+                  ) : (
+                    // Regular pricing
+                    <>
+                      {weight <= settings.minimumWeight ? (
+                        <View style={styles.priceRow}>
+                          <Text style={styles.priceLabel}>
+                            Base (up to {settings.minimumWeight} lbs)
+                          </Text>
+                          <Text style={styles.priceValue}>
+                            ${settings.minimumPrice.toFixed(2)}
+                          </Text>
+                        </View>
+                      ) : (
+                        <>
+                          <View style={styles.priceRow}>
+                            <Text style={styles.priceLabel}>
+                              Base (first {settings.minimumWeight} lbs)
+                            </Text>
+                            <Text style={styles.priceValue}>
+                              ${settings.minimumPrice.toFixed(2)}
+                            </Text>
+                          </View>
+                          <View style={styles.priceRow}>
+                            <Text style={styles.priceLabel}>
+                              Extra {(weight - settings.minimumWeight).toFixed(1)} lbs × ${settings.pricePerPound.toFixed(2)}
+                            </Text>
+                            <Text style={styles.priceValue}>
+                              ${((weight - settings.minimumWeight) * settings.pricePerPound).toFixed(2)}
+                            </Text>
+                          </View>
+                        </>
+                      )}
+                    </>
                   )}
                   {Object.entries(selectedExtraItems).filter(([, data]) => data.quantity > 0).length > 0 && (
                     <View style={styles.priceRow}>
@@ -1277,7 +1394,9 @@ export default function EditOrderScreen() {
                   style={styles.overrideButton}
                   onPress={() => {
                     setShowPriceOverride(true);
-                    setPriceOverride(calculateTotalPrice());
+                    const total = calculateTotalPrice();
+                    setPriceOverride(total);
+                    setPriceOverrideInput(total.toFixed(2));
                   }}
                 >
                   <Text style={styles.overrideButtonText}>Override Price</Text>
@@ -1288,8 +1407,12 @@ export default function EditOrderScreen() {
                     <Text style={styles.inputLabel}>Override Price ($)</Text>
                     <TextInput
                       style={styles.input}
-                      value={priceOverride?.toString() || ''}
-                      onChangeText={(text) => setPriceOverride(parseFloat(text) || 0)}
+                      value={priceOverrideInput}
+                      onChangeText={(text) => {
+                        setPriceOverrideInput(text);
+                        const parsed = parseFloat(text);
+                        setPriceOverride(isNaN(parsed) ? 0 : parsed);
+                      }}
                       keyboardType="decimal-pad"
                       placeholder="0.00"
                       placeholderTextColor="#94a3b8"
@@ -1310,6 +1433,7 @@ export default function EditOrderScreen() {
                     onPress={() => {
                       setShowPriceOverride(false);
                       setPriceOverride(null);
+                      setPriceOverrideInput('');
                       setPriceChangeNote('');
                     }}
                   >
@@ -2385,6 +2509,49 @@ const styles = StyleSheet.create({
   },
   datePickerSpinner: {
     height: 200,
+  },
+  timeFrameContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  timeFrameButton: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+  },
+  timeFrameButtonSelected: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
+  },
+  timeFrameButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#334155',
+  },
+  timeFrameButtonSubtext: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  timeFrameButtonTextSelected: {
+    color: '#ffffff',
+  },
+  timeFrameDividerText: {
+    textAlign: 'center',
+    color: '#64748b',
+    fontSize: 14,
+    paddingTop: 12,
+    paddingBottom: 4,
   },
   datePickerSelectedDisplay: {
     backgroundColor: '#eff6ff',
