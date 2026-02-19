@@ -1461,7 +1461,7 @@ export default function OrderDetailScreen() {
             <View style={styles.historyCard}>
               {allMachineAssignments
                 .sort((a: MachineAssignment, b: MachineAssignment) =>
-                  new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime()
+                  new Date(a.assignedAt).getTime() - new Date(b.assignedAt).getTime()
                 )
                 .map((assignment: MachineAssignment, index: number) => (
                   <View
@@ -1473,9 +1473,14 @@ export default function OrderDetailScreen() {
                     ]}
                   >
                     <View style={styles.historyHeader}>
-                      <Text style={styles.historyMachine}>
-                        {assignment.machineType === 'washer' ? '🧺' : '🔥'} {assignment.machineName}
-                      </Text>
+                      <View style={styles.historyMachineRow}>
+                        <Ionicons
+                          name={assignment.machineType === 'washer' ? 'water' : 'flame'}
+                          size={18}
+                          color={assignment.machineType === 'washer' ? '#3b82f6' : '#f97316'}
+                        />
+                        <Text style={styles.historyMachine}> {assignment.machineName}</Text>
+                      </View>
                       <View style={[
                         styles.historyBadge,
                         assignment.removedAt
@@ -2868,6 +2873,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 4,
+  },
+  historyMachineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   historyMachine: {
     fontSize: 14,
