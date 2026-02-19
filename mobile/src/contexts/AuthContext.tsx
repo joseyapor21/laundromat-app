@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import * as SecureStore from 'expo-secure-store';
 import { api } from '../services/api';
 import type { User, Location } from '../types';
+
+const USER_CACHE_KEY = 'cached_user';
 
 // Dynamically import push notifications to avoid crash in Expo Go
 let pushNotificationService: {
@@ -34,12 +37,41 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     initAuth();
   }, []);
 
+  // Cache user data locally for offline access
+  async function cacheUser(userData: User) {
+    try {
+      await SecureStore.setItemAsync(USER_CACHE_KEY, JSON.stringify(userData));
+    } catch (e) {
+      console.log('Failed to cache user:', e);
+    }
+  }
+
+  async function getCachedUser(): Promise<User | null> {
+    try {
+      const cached = await SecureStore.getItemAsync(USER_CACHE_KEY);
+      return cached ? JSON.parse(cached) : null;
+    } catch (e) {
+      console.log('Failed to get cached user:', e);
+      return null;
+    }
+  }
+
+  async function clearCachedUser() {
+    try {
+      await SecureStore.deleteItemAsync(USER_CACHE_KEY);
+    } catch (e) {
+      console.log('Failed to clear cached user:', e);
+    }
+  }
+
   async function initAuth() {
     try {
       await api.init();
       if (api.getToken()) {
         const currentUser = await api.getCurrentUser();
         setUser(currentUser);
+        // Cache the user for offline access
+        await cacheUser(currentUser);
         // Register for push notifications if already logged in
         if (pushNotificationService) {
           try {
@@ -53,7 +85,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error: any) {
       console.log('Auth init error:', error);
       // Only clear token if it's an authentication error (401)
-      // For network errors or other issues, keep the token so user stays logged in
       const isAuthError = error?.status === 401 ||
         error?.message?.includes('401') ||
         error?.message?.includes('Unauthorized') ||
@@ -62,8 +93,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (isAuthError) {
         console.log('Auth token invalid, clearing...');
         await api.clearToken();
-      } else {
-        console.log('Network/other error, keeping token for offline use');
+        await clearCachedUser();
+      } else if (api.getToken()) {
+        // Network error but we have a token - use cached user data
+        console.log('Network/other error, using cached user data');
+        const cachedUser = await getCachedUser();
+        if (cachedUser) {
+          setUser(cachedUser);
+        }
       }
     } finally {
       setIsLoading(false);
@@ -73,6 +110,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(email: string, password: string): Promise<Location[]> {
     const { user: loggedInUser, locations } = await api.login(email, password);
     setUser(loggedInUser);
+    // Cache user for offline access
+    await cacheUser(loggedInUser);
 
     // If only one location, auto-select it
     if (locations.length === 1) {
@@ -103,6 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
       await api.logout();
+      await clearCachedUser();
     } finally {
       setUser(null);
     }
@@ -112,6 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const currentUser = await api.getCurrentUser();
       setUser(currentUser);
+      await cacheUser(currentUser);
     } catch (error) {
       console.error('Failed to refresh user:', error);
     }

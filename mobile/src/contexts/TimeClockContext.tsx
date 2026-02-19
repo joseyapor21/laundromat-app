@@ -1,8 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { AppState, AppStateStatus } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
 import { api } from '../services/api';
 import { useAuth } from './AuthContext';
 import type { ClockStatus, TimeEntry } from '../types';
+
+const CLOCK_STATUS_CACHE_KEY = 'cached_clock_status';
 
 export type BreakType = 'breakfast' | 'lunch' | null;
 
@@ -96,21 +99,60 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     };
   }, [isAuthenticated, checkClockStatus]);
 
+  // Cache clock status locally
+  const cacheClockStatus = async (status: ClockStatus) => {
+    try {
+      await SecureStore.setItemAsync(CLOCK_STATUS_CACHE_KEY, JSON.stringify(status));
+    } catch (e) {
+      console.log('Failed to cache clock status:', e);
+    }
+  };
+
+  const getCachedClockStatus = async (): Promise<ClockStatus | null> => {
+    try {
+      const cached = await SecureStore.getItemAsync(CLOCK_STATUS_CACHE_KEY);
+      return cached ? JSON.parse(cached) : null;
+    } catch (e) {
+      console.log('Failed to get cached clock status:', e);
+      return null;
+    }
+  };
+
+  const clearCachedClockStatus = async () => {
+    try {
+      await SecureStore.deleteItemAsync(CLOCK_STATUS_CACHE_KEY);
+    } catch (e) {
+      console.log('Failed to clear cached clock status:', e);
+    }
+  };
+
+  const applyClockStatus = (status: ClockStatus) => {
+    setIsClockedIn(status.isClockedIn);
+    setIsOnBreak(status.isOnBreak || false);
+    setLastClockIn(status.lastClockIn ? new Date(status.lastClockIn) : null);
+    setLastClockOut(status.lastClockOut ? new Date(status.lastClockOut) : null);
+    setLastBreakStart(status.lastBreakStart ? new Date(status.lastBreakStart) : null);
+    setLastBreakEnd(status.lastBreakEnd ? new Date(status.lastBreakEnd) : null);
+    setTodayEntries(status.todayEntries || []);
+  };
+
   const checkClockStatus = useCallback(async () => {
     if (!isAuthenticated) return;
 
     try {
       setIsLoading(true);
       const status = await api.getClockStatus();
-      setIsClockedIn(status.isClockedIn);
-      setIsOnBreak(status.isOnBreak || false);
-      setLastClockIn(status.lastClockIn ? new Date(status.lastClockIn) : null);
-      setLastClockOut(status.lastClockOut ? new Date(status.lastClockOut) : null);
-      setLastBreakStart(status.lastBreakStart ? new Date(status.lastBreakStart) : null);
-      setLastBreakEnd(status.lastBreakEnd ? new Date(status.lastBreakEnd) : null);
-      setTodayEntries(status.todayEntries || []);
+      applyClockStatus(status);
+      // Cache the status for offline access
+      await cacheClockStatus(status);
     } catch (error) {
       console.error('Failed to check clock status:', error);
+      // Try to use cached status if network fails
+      const cachedStatus = await getCachedClockStatus();
+      if (cachedStatus) {
+        console.log('Using cached clock status');
+        applyClockStatus(cachedStatus);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -129,10 +171,18 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     // Update state
     setIsClockedIn(true);
     setLastClockIn(new Date(entry.timestamp));
-    setTodayEntries(prev => [
-      { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location },
-      ...prev,
-    ]);
+    const newEntry = { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location };
+    setTodayEntries(prev => {
+      const newEntries = [newEntry, ...prev];
+      // Update cache with new clock status
+      cacheClockStatus({
+        isClockedIn: true,
+        isOnBreak: false,
+        lastClockIn: entry.timestamp,
+        todayEntries: newEntries,
+      });
+      return newEntries;
+    });
     setDismissedClockInPrompt(false);
 
     return entry;
@@ -151,10 +201,18 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     // Update state
     setIsClockedIn(false);
     setLastClockOut(new Date(entry.timestamp));
-    setTodayEntries(prev => [
-      { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location },
-      ...prev,
-    ]);
+    const newEntry = { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location };
+    setTodayEntries(prev => {
+      const newEntries = [newEntry, ...prev];
+      // Update cache with new clock status
+      cacheClockStatus({
+        isClockedIn: false,
+        isOnBreak: false,
+        lastClockOut: entry.timestamp,
+        todayEntries: newEntries,
+      });
+      return newEntries;
+    });
 
     return entry;
   }, [user]);
@@ -173,10 +231,18 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     setIsOnBreak(true);
     setBreakType(data.breakType || null);
     setLastBreakStart(new Date(entry.timestamp));
-    setTodayEntries(prev => [
-      { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location },
-      ...prev,
-    ]);
+    const newEntry = { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location };
+    setTodayEntries(prev => {
+      const newEntries = [newEntry, ...prev];
+      // Update cache with new clock status
+      cacheClockStatus({
+        isClockedIn: true,
+        isOnBreak: true,
+        lastBreakStart: entry.timestamp,
+        todayEntries: newEntries,
+      });
+      return newEntries;
+    });
 
     return entry;
   }, [user]);
@@ -194,10 +260,18 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     setIsOnBreak(false);
     setBreakType(null);
     setLastBreakEnd(new Date(entry.timestamp));
-    setTodayEntries(prev => [
-      { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location },
-      ...prev,
-    ]);
+    const newEntry = { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location };
+    setTodayEntries(prev => {
+      const newEntries = [newEntry, ...prev];
+      // Update cache with new clock status
+      cacheClockStatus({
+        isClockedIn: true,
+        isOnBreak: false,
+        lastBreakEnd: entry.timestamp,
+        todayEntries: newEntries,
+      });
+      return newEntries;
+    });
 
     return entry;
   }, [user]);
