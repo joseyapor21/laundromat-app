@@ -1105,73 +1105,6 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
-        {/* Air Dry Items */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              Air Dry Items {order.airDryItems && order.airDryItems.length > 0 ? `(${order.airDryItems.length})` : ''}
-            </Text>
-            <TouchableOpacity
-              style={styles.addAirDryButton}
-              onPress={openAirDryCamera}
-            >
-              <Ionicons name="camera" size={16} color="#fff" />
-              <Text style={styles.addAirDryButtonText}>Add Item</Text>
-            </TouchableOpacity>
-          </View>
-          {order.airDryItems && order.airDryItems.length > 0 ? (
-            <View style={styles.airDryContainer}>
-              {order.airDryItems.map((item: AirDryItem, index: number) => (
-                <View key={item._id || index} style={styles.airDryCard}>
-                  <TouchableOpacity
-                    style={styles.airDryPhotoWrapper}
-                    onPress={() => setExpandedAirDryPhoto(`${api.getBaseUrl()}/api/uploads/${item.photoPath}?token=${api.getToken()}`)}
-                  >
-                    <Image
-                      source={{ uri: `${api.getBaseUrl()}/api/uploads/${item.photoPath}?token=${api.getToken()}` }}
-                      style={styles.airDryPhoto}
-                      resizeMode="cover"
-                    />
-                  </TouchableOpacity>
-                  <View style={styles.airDryInfo}>
-                    {item.description ? (
-                      <Text style={styles.airDryDescription}>{item.description}</Text>
-                    ) : (
-                      <Text style={styles.airDryNoDescription}>No description</Text>
-                    )}
-                    <Text style={styles.airDryTaggedBy}>
-                      Tagged by {item.taggedByInitials || item.taggedBy}
-                    </Text>
-                    <Text style={styles.airDryTime}>
-                      {new Date(item.taggedAt).toLocaleString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        hour: 'numeric',
-                        minute: '2-digit',
-                        hour12: true,
-                      })}
-                    </Text>
-                  </View>
-                  {isAdmin && (
-                    <TouchableOpacity
-                      style={styles.removeAirDryButton}
-                      onPress={() => handleRemoveAirDryItem(item._id)}
-                    >
-                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
-                    </TouchableOpacity>
-                  )}
-                </View>
-              ))}
-            </View>
-          ) : (
-            <View style={styles.noAirDryCard}>
-              <Ionicons name="leaf-outline" size={32} color="#94a3b8" />
-              <Text style={styles.noAirDryText}>No air dry items tagged</Text>
-              <Text style={styles.noAirDryHint}>Tap "Add Item" to tag items that need air drying</Text>
-            </View>
-          )}
-        </View>
-
         {/* Pickup Photos from Driver */}
         {pickupPhotos.length > 0 && (
           <View style={styles.section}>
@@ -1711,6 +1644,73 @@ export default function OrderDetailScreen() {
               </TouchableOpacity>
             ))}
           </View>
+        </View>
+
+        {/* Air Dry Items */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              Air Dry Items {order.airDryItems && order.airDryItems.length > 0 ? `(${order.airDryItems.length})` : ''}
+            </Text>
+            <TouchableOpacity
+              style={styles.addAirDryButton}
+              onPress={openAirDryCamera}
+            >
+              <Ionicons name="camera" size={16} color="#fff" />
+              <Text style={styles.addAirDryButtonText}>Add Item</Text>
+            </TouchableOpacity>
+          </View>
+          {order.airDryItems && order.airDryItems.length > 0 ? (
+            <View style={styles.airDryContainer}>
+              {order.airDryItems.map((item: AirDryItem, index: number) => (
+                <View key={item._id || index} style={styles.airDryCard}>
+                  <TouchableOpacity
+                    style={styles.airDryPhotoWrapper}
+                    onPress={() => setExpandedAirDryPhoto(`${api.getBaseUrl()}/api/uploads/${item.photoPath}?token=${api.getToken()}`)}
+                  >
+                    <Image
+                      source={{ uri: `${api.getBaseUrl()}/api/uploads/${item.photoPath}?token=${api.getToken()}` }}
+                      style={styles.airDryPhoto}
+                      resizeMode="cover"
+                    />
+                  </TouchableOpacity>
+                  <View style={styles.airDryInfo}>
+                    {item.description ? (
+                      <Text style={styles.airDryDescription}>{item.description}</Text>
+                    ) : (
+                      <Text style={styles.airDryNoDescription}>No description</Text>
+                    )}
+                    <Text style={styles.airDryTaggedBy}>
+                      Tagged by {item.taggedByInitials || item.taggedBy}
+                    </Text>
+                    <Text style={styles.airDryTime}>
+                      {new Date(item.taggedAt).toLocaleString('en-US', {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: 'numeric',
+                        minute: '2-digit',
+                        hour12: true,
+                      })}
+                    </Text>
+                  </View>
+                  {isAdmin && (
+                    <TouchableOpacity
+                      style={styles.removeAirDryButton}
+                      onPress={() => handleRemoveAirDryItem(item._id)}
+                    >
+                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.noAirDryCard}>
+              <Ionicons name="leaf-outline" size={32} color="#94a3b8" />
+              <Text style={styles.noAirDryText}>No air dry items tagged</Text>
+              <Text style={styles.noAirDryHint}>Tap "Add Item" to tag items that need air drying</Text>
+            </View>
+          )}
         </View>
 
         {/* Verify Layering - Show only when status is 'laid_on_cart' or 'on_cart' and not yet verified */}
