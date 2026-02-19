@@ -70,7 +70,6 @@ export default function OrderDetailScreen() {
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [verifyingFolding, setVerifyingFolding] = useState(false);
-  const [verifyingLayering, setVerifyingLayering] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [verifyingTransfer, setVerifyingTransfer] = useState(false);
   const [doingFinalCheck, setDoingFinalCheck] = useState(false);
@@ -661,57 +660,6 @@ export default function OrderDetailScreen() {
       Alert.alert('Error', errorMessage);
     } finally {
       setVerifyingFolding(false);
-    }
-  }
-
-  // Layering Verification (order-level) - Verifies dryer/layering and moves to folding status
-  async function handleVerifyLayering(forceSamePerson?: boolean) {
-    if (!order || !user) return;
-
-    // Get user name and initials
-    const checkedBy = `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'Unknown';
-
-    // Get the last dryer assignment to check if same person
-    const lastDryerAssignment = order.machineAssignments
-      ?.filter(a => a.machineType === 'dryer' && !a.removedAt)
-      .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime())[0];
-
-    // Check if same person - show warning but allow to proceed
-    if (!forceSamePerson && lastDryerAssignment && lastDryerAssignment.assignedBy &&
-        lastDryerAssignment.assignedBy.toLowerCase() === checkedBy.toLowerCase()) {
-      Alert.alert(
-        'Same Person',
-        'You assigned the dryer. Ideally another person should verify the layering.\n\nDo you want to verify it anyway?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Verify Anyway',
-            onPress: () => handleVerifyLayering(true),
-          },
-        ]
-      );
-      return;
-    }
-
-    let initials = 'XX';
-    const firstInitial = user.firstName?.charAt(0) || '';
-    const lastInitial = user.lastName?.charAt(0) || '';
-    if (firstInitial && lastInitial) {
-      initials = `${firstInitial}${lastInitial}`.toUpperCase();
-    } else if (firstInitial) {
-      initials = user.firstName.substring(0, 2).toUpperCase();
-    }
-
-    setVerifyingLayering(true);
-    try {
-      const result = await api.verifyLayeringComplete(order._id, checkedBy, initials, forceSamePerson);
-      Alert.alert('Success', result.message);
-      await loadOrder();
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to verify layering';
-      Alert.alert('Error', errorMessage);
-    } finally {
-      setVerifyingLayering(false);
     }
   }
 
@@ -1718,37 +1666,6 @@ export default function OrderDetailScreen() {
           )}
         </View>
 
-        {/* Verify Layering - Show only when status is 'laid_on_cart' or 'on_cart' and not yet verified */}
-        {(order.status === 'laid_on_cart' || order.status === 'on_cart') && !order.layeringCheckedBy && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Verify Layering</Text>
-            <View style={styles.verifyLayeringCard}>
-              <View style={styles.verifyLayeringHeader}>
-                <Ionicons name="layers" size={24} color="#f97316" />
-                <Text style={styles.verifyLayeringTitle}>Dryer Check Required</Text>
-              </View>
-              <Text style={styles.verifyLayeringText}>
-                A different person must verify that all clothes have been properly laid out from the dryer.
-              </Text>
-              <TouchableOpacity
-                style={[styles.verifyLayeringButton, verifyingLayering && styles.buttonDisabled]}
-                onPress={handleVerifyLayering}
-                disabled={verifyingLayering || !user}
-              >
-                {verifyingLayering ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Ionicons name="checkmark-done" size={20} color="#fff" />
-                    <Text style={styles.verifyLayeringButtonText}>
-                      Verify Layering Complete
-                    </Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        )}
 
 
         {/* Final Check - Show only when status is 'folded' and not yet final checked */}
