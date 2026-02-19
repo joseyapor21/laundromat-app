@@ -106,7 +106,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     return NextResponse.json({
       success: true,
       message: `Layering verified by ${checkedBy}`,
-      order,
+      order: order.toObject(),
     });
   } catch (error) {
     console.error('Layering check error:', error);
