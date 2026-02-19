@@ -165,48 +165,52 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       console.error('Failed to log activity:', logError);
     }
 
-    // Send push notification to clocked-in staff at this location (except the user who made the change)
-    const notifyOptions = { excludeUserId: currentUser.userId, locationId: order.locationId?.toString() };
-    notifyOrderStatusChange(
-      order._id.toString(),
-      order.orderId,
-      order.customerName,
-      finalStatus,
-      notifyOptions
-    ).catch(err => console.error('Push notification error:', err));
+    // Send push notifications (fire and forget - don't let notification failures affect the response)
+    try {
+      const notifyOptions = { excludeUserId: currentUser.userId, locationId: order.locationId?.toString() };
+      notifyOrderStatusChange(
+        order._id.toString(),
+        order.orderId,
+        order.customerName || 'Unknown',
+        finalStatus,
+        notifyOptions
+      ).catch(err => console.error('Push notification error:', err));
 
-    // Special notifications for specific status changes
-    if (finalStatus === 'ready_for_delivery' && order.orderType === 'delivery') {
-      // Notify clocked-in drivers when a delivery order is ready
-      let customerAddress = '';
-      try {
-        const customer = await Customer.findById(order.customerId);
-        customerAddress = customer?.address || '';
-      } catch (e) {
-        console.error('Error getting customer address:', e);
+      // Special notifications for specific status changes
+      if (finalStatus === 'ready_for_delivery' && order.orderType === 'delivery') {
+        // Notify clocked-in drivers when a delivery order is ready
+        let customerAddress = '';
+        try {
+          const customer = await Customer.findById(order.customerId);
+          customerAddress = customer?.address || '';
+        } catch (e) {
+          console.error('Error getting customer address:', e);
+        }
+        notifyDriversForDelivery(
+          order._id.toString(),
+          order.orderId,
+          order.customerName || 'Unknown',
+          customerAddress,
+          notifyOptions
+        ).catch(err => console.error('Driver notification error:', err));
       }
-      notifyDriversForDelivery(
-        order._id.toString(),
-        order.orderId,
-        order.customerName,
-        customerAddress,
-        notifyOptions
-      ).catch(err => console.error('Driver notification error:', err));
-    }
 
-    if (finalStatus === 'out_for_delivery' || finalStatus === 'completed') {
-      // Notify clocked-in users when order is picked up (by customer or for delivery)
-      notifyOrderPickedUp(
-        order._id.toString(),
-        order.orderId,
-        order.customerName,
-        order.orderType === 'delivery',
-        notifyOptions
-      ).catch(err => console.error('Pickup notification error:', err));
+      if (finalStatus === 'out_for_delivery' || finalStatus === 'completed') {
+        // Notify clocked-in users when order is picked up (by customer or for delivery)
+        notifyOrderPickedUp(
+          order._id.toString(),
+          order.orderId,
+          order.customerName || 'Unknown',
+          order.orderType === 'delivery',
+          notifyOptions
+        ).catch(err => console.error('Pickup notification error:', err));
+      }
+    } catch (notifyError) {
+      console.error('Notification setup error:', notifyError);
     }
 
     // Convert to plain object to avoid circular reference issues
-    const updatedOrder = await Order.findById(order._id).populate('customer').lean();
+    const updatedOrder = await Order.findById(order._id).lean();
     return NextResponse.json(updatedOrder);
   } catch (error) {
     console.error('Update order status error:', error);
