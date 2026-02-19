@@ -63,46 +63,11 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
   // Track app state to refresh when coming back to foreground
   const appState = useRef(AppState.currentState);
 
-  // Check clock status when user is authenticated
-  useEffect(() => {
-    if (isAuthenticated) {
-      checkClockStatus();
-    } else {
-      // Reset state when logged out
-      setIsClockedIn(false);
-      setIsOnBreak(false);
-      setLastClockIn(null);
-      setLastClockOut(null);
-      setLastBreakStart(null);
-      setLastBreakEnd(null);
-      setTodayEntries([]);
-      setDismissedClockInPrompt(false);
-      setIsLoading(false);
-    }
-  }, [isAuthenticated]);
-
-  // Refresh clock status when app comes back to foreground
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
-      // App came back to foreground
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('App came to foreground, refreshing clock status...');
-        if (isAuthenticated) {
-          checkClockStatus();
-        }
-      }
-      appState.current = nextAppState;
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, [isAuthenticated, checkClockStatus]);
-
   // Cache clock status locally
   const cacheClockStatus = async (status: ClockStatus) => {
     try {
       await SecureStore.setItemAsync(CLOCK_STATUS_CACHE_KEY, JSON.stringify(status));
+      console.log('Clock status cached:', status.isClockedIn ? 'clocked in' : 'not clocked in');
     } catch (e) {
       console.log('Failed to cache clock status:', e);
     }
@@ -283,6 +248,54 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
   const resetDismissed = useCallback(() => {
     setDismissedClockInPrompt(false);
   }, []);
+
+  // Load cached clock status immediately on mount, then refresh from API
+  useEffect(() => {
+    const loadCachedAndRefresh = async () => {
+      if (isAuthenticated) {
+        // First, load cached status immediately to prevent clock-in prompt flash
+        const cachedStatus = await getCachedClockStatus();
+        if (cachedStatus) {
+          console.log('Loaded cached clock status:', cachedStatus.isClockedIn ? 'clocked in' : 'not clocked in');
+          applyClockStatus(cachedStatus);
+          setIsLoading(false);
+        }
+        // Then refresh from server in background
+        checkClockStatus();
+      } else {
+        // Reset state when logged out
+        setIsClockedIn(false);
+        setIsOnBreak(false);
+        setLastClockIn(null);
+        setLastClockOut(null);
+        setLastBreakStart(null);
+        setLastBreakEnd(null);
+        setTodayEntries([]);
+        setDismissedClockInPrompt(false);
+        setIsLoading(false);
+        clearCachedClockStatus();
+      }
+    };
+    loadCachedAndRefresh();
+  }, [isAuthenticated]);
+
+  // Refresh clock status when app comes back to foreground
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+      // App came back to foreground
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('App came to foreground, refreshing clock status...');
+        if (isAuthenticated) {
+          checkClockStatus();
+        }
+      }
+      appState.current = nextAppState;
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [isAuthenticated, checkClockStatus]);
 
   // Show clock-in prompt if authenticated, not clocked in, not loading, and not dismissed
   const showClockInPrompt = isAuthenticated && !isClockedIn && !isLoading && !dismissedClockInPrompt;
