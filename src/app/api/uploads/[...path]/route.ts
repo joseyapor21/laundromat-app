@@ -47,7 +47,7 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       }
 
       // Security: Only allow access to specific directories
-      const allowedPrefixes = ['time-entries/', 'pickup-photos/', 'maintenance-photos/', 'vault-documents/', 'machine-verification/'];
+      const allowedPrefixes = ['time-entries/', 'pickup-photos/', 'maintenance-photos/', 'vault-documents/', 'machine-verification/', 'air-dry/'];
       const isAllowed = allowedPrefixes.some(prefix => relativePath.startsWith(prefix));
 
       if (!isAllowed) {

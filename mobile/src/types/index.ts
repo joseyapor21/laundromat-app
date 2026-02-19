@@ -187,6 +187,16 @@ export interface Order {
   updatedAt: Date;
   customer?: Customer;
   statusHistory?: StatusHistoryEntry[];
+  airDryItems?: AirDryItem[];
+}
+
+export interface AirDryItem {
+  _id: string;
+  photoPath: string;
+  description?: string;
+  taggedAt: Date;
+  taggedBy: string;
+  taggedByInitials?: string;
 }
 
 export interface Settings {

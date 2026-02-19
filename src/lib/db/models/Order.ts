@@ -132,6 +132,15 @@ export interface OrderDoc {
     capturedBy: string;
     capturedByName: string;
   }>;
+  // Air dry items - items that need to be air dried instead of machine dried
+  airDryItems?: Array<{
+    _id?: Types.ObjectId;
+    photoPath: string;
+    description?: string;
+    taggedAt: Date;
+    taggedBy: string;
+    taggedByInitials?: string;
+  }>;
   // Soft delete fields
   deletedAt?: Date | null;
   deletedBy?: string | null;
@@ -514,6 +523,23 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
     capturedAt: Date,
     capturedBy: String,
     capturedByName: String,
+  }],
+  // Air dry items - items that need to be air dried
+  airDryItems: [{
+    photoPath: {
+      type: String,
+      required: true,
+    },
+    description: String,
+    taggedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    taggedBy: {
+      type: String,
+      required: true,
+    },
+    taggedByInitials: String,
   }],
   // Soft delete fields
   deletedAt: {

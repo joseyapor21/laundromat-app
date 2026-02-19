@@ -526,6 +526,21 @@ class ApiService {
     });
   }
 
+  // Air Dry Items
+  async addAirDryItem(orderId: string, data: { photo: string; description?: string; taggedBy: string; taggedByInitials?: string }): Promise<{ success: boolean; message: string; airDryItem: AirDryItem }> {
+    return this.request<{ success: boolean; message: string; airDryItem: AirDryItem }>(`/orders/${orderId}/air-dry`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async removeAirDryItem(orderId: string, itemId: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/orders/${orderId}/air-dry`, {
+      method: 'DELETE',
+      body: JSON.stringify({ itemId }),
+    });
+  }
+
   // Print customer balance
   async printCustomerBalance(customerId: string): Promise<{ success: boolean; message: string }> {
     return this.request<{ success: boolean; message: string }>(`/customers/${customerId}/print-balance`, {
