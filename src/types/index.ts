@@ -219,9 +219,10 @@ export interface Settings {
   minimumWeight: number;
   minimumPrice: number;
   pricePerPound: number;
-  // Same day service settings
-  sameDayMinimumCharge: number;        // Minimum charge for same day service (e.g., $5)
-  sameDayExtraCentsPerPound: number;   // Extra cents per pound for same day (e.g., 0.50 = $0.50/lb extra)
+  // Same day service settings (standalone pricing)
+  sameDayBasePrice: number;            // Base price for up to threshold (e.g., $12 for up to 7 lbs)
+  sameDayWeightThreshold: number;      // Weight threshold in lbs (e.g., 7)
+  sameDayPricePerPound: number;        // Price per lb above threshold (e.g., $1.60/lb)
   // Store location for route optimization
   storeAddress?: string;
   storeLatitude?: number;

@@ -177,35 +177,29 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
     return roundToQuarter(minPrice + (extraPounds * pricePerPound));
   }, []);
 
-  // Calculate same day price per pound (regular + extra)
-  const getSameDayPricePerPound = useCallback((): number => {
-    if (!settings) return 0;
-    const regularPrice = settings.pricePerPound || 1.25;
-    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
-    return regularPrice + extraCentsPerPound;
-  }, [settings]);
-
-  // Calculate same day extra charge (rounded to nearest quarter)
-  const getSameDayExtraCharge = useCallback((): number => {
+  // Calculate same day price (standalone pricing - replaces regular pricing)
+  // Up to threshold: base price, above threshold: base + extra lbs * price per lb
+  const calculateSameDayPrice = useCallback((): number => {
     if (!settings || !isSameDay || weight <= 0) return 0;
 
-    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
-    const calculatedExtra = weight * extraCentsPerPound;
+    const basePrice = settings.sameDayBasePrice ?? 12;
+    const threshold = settings.sameDayWeightThreshold ?? 7;
+    const pricePerPound = settings.sameDayPricePerPound ?? 1.60;
 
-    // Use minimum charge if calculated is less, then round to nearest quarter
-    const minimumCharge = settings.sameDayMinimumCharge ?? 5;
-    return roundToQuarter(Math.max(calculatedExtra, minimumCharge));
+    if (weight <= threshold) {
+      return basePrice;
+    }
+
+    // Above threshold: base price + extra pounds at price per pound
+    const extraPounds = weight - threshold;
+    return roundToQuarter(basePrice + (extraPounds * pricePerPound));
   }, [settings, isSameDay, weight]);
 
   const calculateTotalPrice = useCallback(() => {
     if (!settings) return 0;
 
-    // Calculate laundry price (no delivery fee included)
-    let basePrice = calculateLaundryPrice(weight, settings);
-
-    // Add same day extra charge
-    const sameDayExtra = getSameDayExtraCharge();
-    basePrice += sameDayExtra;
+    // Calculate laundry price - use same-day pricing if applicable, otherwise regular
+    let basePrice = isSameDay ? calculateSameDayPrice() : calculateLaundryPrice(weight, settings);
 
     // Add delivery fee ONLY for delivery orders
     const isDelivery = orderType === 'delivery';
@@ -229,7 +223,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
     }, 0);
 
     return basePrice + extraItemsTotal;
-  }, [settings, weight, orderType, selectedExtraItems, extraItems, calculateLaundryPrice, newCustomer.deliveryPrice, getSameDayExtraCharge]);
+  }, [settings, weight, orderType, selectedExtraItems, extraItems, calculateLaundryPrice, newCustomer.deliveryPrice, isSameDay, calculateSameDayPrice]);
 
   // Get price breakdown for display
   const getPriceBreakdown = useCallback(() => {
@@ -237,46 +231,52 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
 
     const breakdown: { label: string; amount: number }[] = [];
 
-    // Laundry price - tiered pricing
+    // Laundry price - same-day has its own pricing, regular has tiered pricing
     if (weight > 0) {
-      const minWeight = settings.minimumWeight || 8;
-      const pricePerPound = settings.pricePerPound || 1.25;
-      const minPrice = settings.minimumPrice || 8;
+      if (isSameDay) {
+        // Same-day pricing: base price up to threshold, then per-lb above
+        const basePrice = settings.sameDayBasePrice ?? 12;
+        const threshold = settings.sameDayWeightThreshold ?? 7;
+        const pricePerPound = settings.sameDayPricePerPound ?? 1.60;
 
-      if (weight <= minWeight) {
-        // Under or at minimum weight - show base price
-        breakdown.push({
-          label: `Base (up to ${minWeight} lbs)`,
-          amount: minPrice,
-        });
+        if (weight <= threshold) {
+          breakdown.push({
+            label: `Same Day (up to ${threshold} lbs)`,
+            amount: basePrice,
+          });
+        } else {
+          const extraPounds = weight - threshold;
+          breakdown.push({
+            label: `Same Day Base (first ${threshold} lbs)`,
+            amount: basePrice,
+          });
+          breakdown.push({
+            label: `Extra ${extraPounds} lbs × $${pricePerPound.toFixed(2)}/lb`,
+            amount: roundToQuarter(extraPounds * pricePerPound),
+          });
+        }
       } else {
-        // Over minimum weight - show base + extra (rounded to nearest quarter)
-        const extraPounds = weight - minWeight;
-        breakdown.push({
-          label: `Base (first ${minWeight} lbs)`,
-          amount: minPrice,
-        });
-        breakdown.push({
-          label: `Extra ${extraPounds} lbs × $${pricePerPound.toFixed(2)}/lb`,
-          amount: roundToQuarter(extraPounds * pricePerPound),
-        });
-      }
-    }
+        // Regular pricing: minimum weight/price, then per-lb above
+        const minWeight = settings.minimumWeight || 8;
+        const pricePerPound = settings.pricePerPound || 1.25;
+        const minPrice = settings.minimumPrice || 8;
 
-    // Same day extra charge
-    if (isSameDay && weight > 0) {
-      const sameDayExtra = getSameDayExtraCharge();
-      const minimumCharge = settings.sameDayMinimumCharge ?? 5;
-      if (sameDayExtra === minimumCharge) {
-        breakdown.push({
-          label: `Same Day (min $${minimumCharge.toFixed(2)})`,
-          amount: sameDayExtra,
-        });
-      } else {
-        breakdown.push({
-          label: `Same Day: ${weight} lbs × $${(settings.sameDayExtraCentsPerPound || 0.33).toFixed(2)}/lb`,
-          amount: sameDayExtra,
-        });
+        if (weight <= minWeight) {
+          breakdown.push({
+            label: `Base (up to ${minWeight} lbs)`,
+            amount: minPrice,
+          });
+        } else {
+          const extraPounds = weight - minWeight;
+          breakdown.push({
+            label: `Base (first ${minWeight} lbs)`,
+            amount: minPrice,
+          });
+          breakdown.push({
+            label: `Extra ${extraPounds} lbs × $${pricePerPound.toFixed(2)}/lb`,
+            amount: roundToQuarter(extraPounds * pricePerPound),
+          });
+        }
       }
     }
 
@@ -307,7 +307,7 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
     });
 
     return breakdown;
-  }, [settings, weight, orderType, newCustomer.deliveryPrice, selectedExtraItems, extraItems, calculateLaundryPrice, isSameDay, getSameDayExtraCharge]);
+  }, [settings, weight, orderType, newCustomer.deliveryPrice, selectedExtraItems, extraItems, calculateLaundryPrice, isSameDay, calculateSameDayPrice]);
 
   // Calculate total weight from all bags
   const calculateTotalWeight = useCallback(() => {
@@ -450,7 +450,6 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
         isPaid: markAsPaid,
         paymentMethod: markAsPaid ? paymentMethod : 'pending',
         isSameDay: isSameDay,
-        sameDayPricePerPound: isSameDay ? getSameDayPricePerPound() : undefined,
       };
 
       const orderResponse = await fetch('/api/orders', {
@@ -821,21 +820,16 @@ export default function CreateOrderModal({ onClose, onSuccess }: CreateOrderModa
                 <div>
                   <span className={`font-medium text-lg ${isSameDay ? 'text-amber-800' : 'text-gray-700'}`}>Same Day Service</span>
                   <p className={`text-sm ${isSameDay ? 'text-amber-600' : 'text-gray-500'}`}>
-                    Extra ${(settings?.sameDayExtraCentsPerPound || 0.33).toFixed(2)}/lb (min ${(settings?.sameDayMinimumCharge ?? 5).toFixed(2)})
+                    ${(settings?.sameDayBasePrice ?? 12).toFixed(2)} up to {settings?.sameDayWeightThreshold ?? 7} lbs, ${(settings?.sameDayPricePerPound ?? 1.60).toFixed(2)}/lb after
                   </p>
                 </div>
               </label>
               {isSameDay && weight > 0 && settings && (
                 <div className="mt-3 pt-3 border-t border-amber-200">
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-amber-700">Same Day Extra:</span>
-                    <span className="font-bold text-amber-700">+${getSameDayExtraCharge().toFixed(2)}</span>
+                    <span className="text-amber-700">Same Day Price:</span>
+                    <span className="font-bold text-amber-700">${calculateSameDayPrice().toFixed(2)}</span>
                   </div>
-                  {getSameDayExtraCharge() === (settings.sameDayMinimumCharge ?? 5) && (
-                    <p className="text-xs text-amber-600 mt-1">
-                      Minimum charge applied (calculated: ${(weight * (settings.sameDayExtraCentsPerPound || 0.33)).toFixed(2)})
-                    </p>
-                  )}
                 </div>
               )}
             </div>

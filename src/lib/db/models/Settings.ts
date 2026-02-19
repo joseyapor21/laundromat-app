@@ -26,16 +26,21 @@ const settingsSchema = new mongoose.Schema<SettingsDocument>({
     required: true,
     default: 1.25,
   },
-  // Same day service settings
-  sameDayMinimumCharge: {
+  // Same day service settings (standalone pricing)
+  sameDayBasePrice: {
     type: Number,
     required: false,
-    default: 5,  // Minimum $5 charge for same day
+    default: 12,  // $12 base price for up to threshold weight
   },
-  sameDayExtraCentsPerPound: {
+  sameDayWeightThreshold: {
     type: Number,
     required: false,
-    default: 0.50,  // $0.50 extra per pound for same day
+    default: 7,  // Up to 7 lbs at base price
+  },
+  sameDayPricePerPound: {
+    type: Number,
+    required: false,
+    default: 1.60,  // $1.60 per lb above threshold
   },
   // Store location for route optimization
   storeAddress: {

@@ -124,24 +124,20 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     return Math.round(value * 4) / 4;
   };
 
-  // Calculate same day price per pound (regular + extra)
-  const getSameDayPricePerPound = (): number => {
-    if (!settings) return 0;
-    const regularPrice = settings.pricePerPound || 1.25;
-    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
-    return regularPrice + extraCentsPerPound;
-  };
-
-  // Calculate same day extra charge (rounded to nearest quarter)
-  const getSameDayExtraCharge = (): number => {
+  // Calculate same day price (standalone pricing - replaces regular pricing)
+  const calculateSameDayPrice = (): number => {
     if (!settings || !isSameDay || weight <= 0) return 0;
 
-    const extraCentsPerPound = settings.sameDayExtraCentsPerPound || 0.33;
-    const calculatedExtra = weight * extraCentsPerPound;
+    const basePrice = settings.sameDayBasePrice ?? 12;
+    const threshold = settings.sameDayWeightThreshold ?? 7;
+    const pricePerPound = settings.sameDayPricePerPound ?? 1.60;
 
-    // Use minimum charge if calculated is less, then round to nearest quarter
-    const minimumCharge = settings.sameDayMinimumCharge ?? 5;
-    return roundToQuarter(Math.max(calculatedExtra, minimumCharge));
+    if (weight <= threshold) {
+      return basePrice;
+    }
+
+    const extraPounds = weight - threshold;
+    return roundToQuarter(basePrice + (extraPounds * pricePerPound));
   };
 
   // Calculate laundry base price (tiered pricing, rounded to nearest quarter)
@@ -165,11 +161,8 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
   const calculateTotalPrice = () => {
     if (!settings) return order.totalAmount || 0;
 
-    // Calculate laundry price using tiered pricing
-    let basePrice = calculateLaundryPrice();
-
-    // Add same day extra charge
-    const sameDayExtra = getSameDayExtraCharge();
+    // Calculate laundry price - use same-day pricing if applicable
+    let basePrice = isSameDay ? calculateSameDayPrice() : calculateLaundryPrice();
 
     // Add extra items (handle weight-based items - calculate exact proportional amount, round to nearest quarter)
     const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
@@ -191,7 +184,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
       deliveryFee = deliveryPrice;
     }
 
-    return basePrice + sameDayExtra + extraItemsTotal + deliveryFee;
+    return basePrice + extraItemsTotal + deliveryFee;
   };
 
   const getFinalPrice = () => {
@@ -298,7 +291,6 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
         deliverySchedule: deliverySchedule ? new Date(deliverySchedule) : undefined,
         // Same day service
         isSameDay,
-        sameDayPricePerPound: isSameDay ? getSameDayPricePerPound() : undefined,
       };
 
       // Update customer address if it's a delivery order
@@ -547,22 +539,21 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                   </div>
                   {isSameDay && settings && (
                     <span className="px-3 py-1 bg-amber-500 text-white text-sm font-medium rounded-full">
-                      ${getSameDayPricePerPound().toFixed(2)}/lb
+                      Same Day
                     </span>
                   )}
                 </div>
                 {isSameDay && settings && (
                   <div className="mt-3 text-sm text-amber-800">
                     <p>
-                      Regular: ${settings.pricePerPound?.toFixed(2)}/lb →
-                      Same Day: <strong>${getSameDayPricePerPound().toFixed(2)}/lb</strong>
+                      Same Day: ${(settings.sameDayBasePrice ?? 12).toFixed(2)} up to {settings.sameDayWeightThreshold ?? 7} lbs,
+                      ${(settings.sameDayPricePerPound ?? 1.60).toFixed(2)}/lb after
                     </p>
-                    <p className="mt-1">
-                      Extra charge: <strong>${getSameDayExtraCharge().toFixed(2)}</strong>
-                      {getSameDayExtraCharge() === (settings.sameDayMinimumCharge ?? 5) && weight > 0 && (
-                        <span className="text-amber-600 ml-1">(minimum charge applied)</span>
-                      )}
-                    </p>
+                    {weight > 0 && (
+                      <p className="mt-1">
+                        Price: <strong>${calculateSameDayPrice().toFixed(2)}</strong>
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -826,12 +817,6 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                           <span>${roundToQuarter((weight - settings.minimumWeight) * settings.pricePerPound).toFixed(2)}</span>
                         </div>
                       </>
-                    )}
-                    {isSameDay && (
-                      <div className="flex justify-between text-amber-700">
-                        <span>Same Day Extra:</span>
-                        <span>+${getSameDayExtraCharge().toFixed(2)}</span>
-                      </div>
                     )}
                     {Object.entries(selectedExtraItems).filter(([, data]) => data.quantity > 0).length > 0 && (
                       <>
