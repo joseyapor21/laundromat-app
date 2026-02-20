@@ -542,10 +542,19 @@ export default function ProfileScreen() {
         newPausedTime = pausedTime + pausedDuration;
         setPausedTime(newPausedTime);
 
-        // Reschedule notification with remaining time
-        if (breakTimeRemaining !== null && breakTimeRemaining > 0 && settings) {
-          const remainingSeconds = breakTimeRemaining;
-          await scheduleBreakNotificationWithSeconds(breakType || 'lunch', remainingSeconds);
+        // Calculate and set the correct remaining time immediately to avoid flicker
+        if (lastBreakStart && settings) {
+          const allowedMinutes = breakType === 'breakfast'
+            ? (settings.breakfastDurationMinutes || 15)
+            : (settings.lunchDurationMinutes || 30);
+          const elapsed = Math.floor((Date.now() - lastBreakStart.getTime()) / 1000) - newPausedTime;
+          const remaining = allowedMinutes * 60 - elapsed;
+          setBreakTimeRemaining(remaining);
+
+          // Reschedule notification with remaining time
+          if (remaining > 0) {
+            await scheduleBreakNotificationWithSeconds(breakType || 'lunch', remaining);
+          }
         }
       }
       setPauseStartTime(null);
