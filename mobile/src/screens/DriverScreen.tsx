@@ -1304,7 +1304,7 @@ export default function DriverScreen() {
 
           {capturedPhoto ? (
             // Preview captured photo
-            <View style={styles.photoPreviewContainer}>
+            <View style={[styles.photoPreviewContainer, { paddingBottom: insets.bottom + 20 }]}>
               <Image
                 source={{ uri: `data:image/jpeg;base64,${capturedPhoto}` }}
                 style={[styles.photoPreview, { transform: [{ scaleX: -1 }] }]}
@@ -2141,34 +2141,41 @@ const styles = StyleSheet.create({
   },
   photoActions: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 10,
     marginTop: 24,
+    paddingHorizontal: 16,
   },
   retakeBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#64748b',
     paddingVertical: 14,
-    paddingHorizontal: 24,
+    paddingHorizontal: 12,
     borderRadius: 12,
   },
   confirmBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#10b981',
     paddingVertical: 14,
-    paddingHorizontal: 24,
+    paddingHorizontal: 12,
     borderRadius: 12,
   },
   addAnotherBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    gap: 6,
     backgroundColor: '#3b82f6',
     paddingVertical: 14,
-    paddingHorizontal: 24,
+    paddingHorizontal: 12,
     borderRadius: 12,
   },
   confirmBtnDisabled: {
@@ -2176,7 +2183,7 @@ const styles = StyleSheet.create({
   },
   photoActionText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   doneFloatingBtn: {
