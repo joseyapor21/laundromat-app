@@ -12,7 +12,10 @@ import {
   TextInput,
   Image,
   Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
@@ -2247,7 +2250,11 @@ export default function OrderDetailScreen() {
           setAirDryDescription('');
         }}
       >
-        <View style={styles.scannerContainer}>
+        <KeyboardAvoidingView
+          style={styles.scannerContainer}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={0}
+        >
           <View style={styles.scannerHeader}>
             <Text style={styles.scannerTitle}>Tag Air Dry Item</Text>
             <TouchableOpacity
@@ -2297,7 +2304,7 @@ export default function OrderDetailScreen() {
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Expanded Air Dry Photo Modal */}
