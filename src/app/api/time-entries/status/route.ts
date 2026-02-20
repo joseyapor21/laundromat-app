@@ -76,14 +76,35 @@ export async function GET() {
       );
     }
 
+    // Get lastBreakStart from the most recent break_start entry if on break
+    let lastBreakStart = user?.lastBreakStart || null;
+    let lastBreakEnd = user?.lastBreakEnd || null;
+
+    if (isOnBreak && breakEntries.length > 0) {
+      // Find the active break_start entry
+      const activeBreakStart = breakEntries.find(e => e.type === 'break_start');
+      if (activeBreakStart) {
+        lastBreakStart = activeBreakStart.timestamp;
+      }
+    }
+
+    // Get lastClockIn from the most recent clock_in entry
+    let lastClockIn = user?.lastClockIn || null;
+    if (todayEntries.length > 0) {
+      const latestClockIn = todayEntries.find(e => e.type === 'clock_in');
+      if (latestClockIn) {
+        lastClockIn = latestClockIn.timestamp;
+      }
+    }
+
     return NextResponse.json({
       isClockedIn,
       isOnBreak,
       breakType,
-      lastClockIn: user?.lastClockIn || null,
+      lastClockIn,
       lastClockOut: user?.lastClockOut || null,
-      lastBreakStart: user?.lastBreakStart || null,
-      lastBreakEnd: user?.lastBreakEnd || null,
+      lastBreakStart,
+      lastBreakEnd,
       todayEntries: todayEntries.map(entry => ({
         _id: entry._id.toString(),
         type: entry.type,
