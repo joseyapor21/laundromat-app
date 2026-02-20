@@ -81,6 +81,7 @@ export default function CreateOrderScreen() {
   const insets = useSafeAreaInsets();
   const { currentLocation } = useLocation();
   const scrollViewRef = useRef<ScrollView>(null);
+  const orderCreatedRef = useRef(false); // Track if order was successfully created
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -178,6 +179,35 @@ export default function CreateOrderScreen() {
       }
     }, [selectedCustomer?._id])
   );
+
+  // Prevent accidental back navigation - require confirmation
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      // Allow navigation if order was successfully created
+      if (orderCreatedRef.current) {
+        return;
+      }
+
+      // Prevent default behavior of leaving the screen
+      e.preventDefault();
+
+      // Show confirmation alert
+      Alert.alert(
+        'Discard Order?',
+        'Are you sure you want to go back? Any unsaved changes will be lost.',
+        [
+          { text: 'Stay', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => navigation.dispatch(e.data.action),
+          },
+        ]
+      );
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   async function loadData() {
     try {
@@ -778,6 +808,9 @@ export default function CreateOrderScreen() {
       }
 
       // Auto-print disabled - user can print manually from order details
+
+      // Mark order as created to bypass back confirmation
+      orderCreatedRef.current = true;
 
       Alert.alert('Success', 'Order created successfully', [
         { text: 'OK', onPress: () => navigation.goBack() }
