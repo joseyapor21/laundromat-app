@@ -48,18 +48,26 @@ export async function GET() {
     }
 
     // Determine break status from entries
-    let isOnBreak = user?.isOnBreak || false;
-    let breakType = user?.breakType || null;
+    // Default to NOT on break - only show as on break if there's an active break_start today
+    let isOnBreak = false;
+    let breakType = null;
     if (todayEntries.length > 0) {
       // Find the most recent break entry
       const latestBreakEntry = todayEntries.find(e => e.type === 'break_start' || e.type === 'break_end');
       if (latestBreakEntry) {
         isOnBreak = latestBreakEntry.type === 'break_start';
-        // Clear breakType if break has ended
-        if (!isOnBreak) {
-          breakType = null;
+        if (isOnBreak) {
+          // Get breakType from the break_start entry or user model
+          breakType = user?.breakType || null;
         }
       }
+    }
+
+    // Also fix the User model if it's out of sync
+    if (user && user.isOnBreak !== isOnBreak) {
+      User.findByIdAndUpdate(user._id, { isOnBreak, breakType }).catch(err =>
+        console.error('Failed to sync user break status:', err)
+      );
     }
 
     return NextResponse.json({
