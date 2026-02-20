@@ -22,6 +22,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+import * as SecureStore from 'expo-secure-store';
 import { useAuth } from '../contexts/AuthContext';
 
 // Try to import expo-av (requires native rebuild)
@@ -52,6 +53,7 @@ Notifications.setNotificationHandler({
 const BREAK_NOTIFICATION_ID = 'break-timer-alarm';
 const BREAK_REMINDER_PREFIX = 'break-reminder-';
 const BREAK_ALARM_CHANNEL_ID = 'break-alarm';
+const BREAK_PAUSE_CACHE_KEY = 'break_pause_state';
 
 // Set up the break alarm notification channel for Android with custom sound
 const setupBreakAlarmChannel = async () => {
@@ -135,20 +137,37 @@ export default function ProfileScreen() {
     if (availableLocations.length === 0) {
       refreshLocations();
     }
+    // Load saved pause state if on break
+    const initPauseState = async () => {
+      if (isOnBreak) {
+        const savedState = await loadPauseState();
+        if (savedState) {
+          setIsTimerPaused(savedState.isTimerPaused);
+          setPausedTime(savedState.pausedTime || 0);
+          setPauseStartTime(savedState.pauseStartTime || null);
+          console.log('Restored pause state on mount:', savedState);
+        }
+      }
+    };
+    initPauseState();
   }, []);
 
   // Refresh data when app comes back to foreground
   useEffect(() => {
-    const subscription = AppState.addEventListener('change', (nextAppState: AppStateStatus) => {
+    const subscription = AppState.addEventListener('change', async (nextAppState: AppStateStatus) => {
       // App came back to foreground
       if (appStateRef.current.match(/inactive|background/) && nextAppState === 'active') {
         console.log('ProfileScreen: App came to foreground, refreshing data...');
         loadSettings();
-        // Reset paused time when app comes back (can't persist pause across app kill)
-        if (isOnBreak && isTimerPaused) {
-          setPausedTime(0);
-          setPauseStartTime(null);
-          setIsTimerPaused(false);
+        // Restore pause state from cache when app comes back
+        if (isOnBreak) {
+          const savedState = await loadPauseState();
+          if (savedState) {
+            setIsTimerPaused(savedState.isTimerPaused);
+            setPausedTime(savedState.pausedTime || 0);
+            setPauseStartTime(savedState.pauseStartTime || null);
+            console.log('Restored pause state on foreground:', savedState);
+          }
         }
       }
       appStateRef.current = nextAppState;
@@ -157,7 +176,7 @@ export default function ProfileScreen() {
     return () => {
       subscription.remove();
     };
-  }, [isOnBreak, isTimerPaused]);
+  }, [isOnBreak]);
 
   // Load settings for break durations
   const loadSettings = async () => {
@@ -454,6 +473,8 @@ export default function ProfileScreen() {
       setIsTimerPaused(false);
       setPausedTime(0);
       setPauseStartTime(null);
+      // Clear saved pause state when break ends
+      clearPauseState();
       if (breakTimerRef.current) {
         clearInterval(breakTimerRef.current);
       }
@@ -463,12 +484,48 @@ export default function ProfileScreen() {
     }
   }, [isOnBreak, lastBreakStart, breakType, settings, breakTimeExpired, isTimerPaused, pausedTime]);
 
+  // Save pause state to persist across app restarts
+  const savePauseState = async (paused: boolean, totalPausedTime: number, startTime: number | null) => {
+    try {
+      const state = { isTimerPaused: paused, pausedTime: totalPausedTime, pauseStartTime: startTime };
+      await SecureStore.setItemAsync(BREAK_PAUSE_CACHE_KEY, JSON.stringify(state));
+      console.log('Saved pause state:', state);
+    } catch (e) {
+      console.log('Failed to save pause state:', e);
+    }
+  };
+
+  // Load pause state from cache
+  const loadPauseState = async () => {
+    try {
+      const cached = await SecureStore.getItemAsync(BREAK_PAUSE_CACHE_KEY);
+      if (cached) {
+        const state = JSON.parse(cached);
+        console.log('Loaded pause state:', state);
+        return state;
+      }
+    } catch (e) {
+      console.log('Failed to load pause state:', e);
+    }
+    return null;
+  };
+
+  // Clear pause state
+  const clearPauseState = async () => {
+    try {
+      await SecureStore.deleteItemAsync(BREAK_PAUSE_CACHE_KEY);
+    } catch (e) {
+      console.log('Failed to clear pause state:', e);
+    }
+  };
+
   const toggleTimerPause = async () => {
     if (isTimerPaused) {
       // Resume: add the paused duration to total paused time
+      let newPausedTime = pausedTime;
       if (pauseStartTime) {
         const pausedDuration = Math.floor((Date.now() - pauseStartTime) / 1000);
-        const newPausedTime = pausedTime + pausedDuration;
+        newPausedTime = pausedTime + pausedDuration;
         setPausedTime(newPausedTime);
 
         // Reschedule notification with remaining time
@@ -479,11 +536,16 @@ export default function ProfileScreen() {
       }
       setPauseStartTime(null);
       setIsTimerPaused(false);
+      // Save resumed state
+      await savePauseState(false, newPausedTime, null);
     } else {
       // Pause: record when we started pausing and cancel notification
-      setPauseStartTime(Date.now());
+      const startTime = Date.now();
+      setPauseStartTime(startTime);
       setIsTimerPaused(true);
       await cancelBreakNotification();
+      // Save paused state
+      await savePauseState(true, pausedTime, startTime);
     }
   };
 
