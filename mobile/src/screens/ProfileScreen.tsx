@@ -434,17 +434,26 @@ export default function ProfileScreen() {
 
   // Break timer effect
   useEffect(() => {
-    if (isOnBreak && lastBreakStart && settings && !isTimerPaused) {
+    if (isOnBreak && lastBreakStart && settings) {
       const allowedMinutes = breakType === 'breakfast'
         ? (settings.breakfastDurationMinutes || 15)
         : (settings.lunchDurationMinutes || 30);
 
-      const updateTimer = () => {
-        // Calculate elapsed time minus any paused time
-        const elapsed = Math.floor((Date.now() - lastBreakStart.getTime()) / 1000) - pausedTime;
-        const allowed = allowedMinutes * 60;
-        const remaining = allowed - elapsed;
+      const calculateRemaining = () => {
+        // Calculate total paused time including current pause session if paused
+        let totalPausedSeconds = pausedTime;
+        if (isTimerPaused && pauseStartTime) {
+          totalPausedSeconds += Math.floor((Date.now() - pauseStartTime) / 1000);
+        }
 
+        // Calculate elapsed time minus any paused time
+        const elapsed = Math.floor((Date.now() - lastBreakStart.getTime()) / 1000) - totalPausedSeconds;
+        const allowed = allowedMinutes * 60;
+        return allowed - elapsed;
+      };
+
+      const updateTimer = () => {
+        const remaining = calculateRemaining();
         setBreakTimeRemaining(remaining);
 
         if (remaining <= 0 && !breakTimeExpired) {
@@ -459,8 +468,13 @@ export default function ProfileScreen() {
         }
       };
 
+      // Calculate immediately to show time even when paused
       updateTimer();
-      breakTimerRef.current = setInterval(updateTimer, 1000);
+
+      // Only start interval if not paused
+      if (!isTimerPaused) {
+        breakTimerRef.current = setInterval(updateTimer, 1000);
+      }
 
       return () => {
         if (breakTimerRef.current) {
@@ -482,7 +496,7 @@ export default function ProfileScreen() {
       stopAlarm();
       cancelBreakNotification();
     }
-  }, [isOnBreak, lastBreakStart, breakType, settings, breakTimeExpired, isTimerPaused, pausedTime]);
+  }, [isOnBreak, lastBreakStart, breakType, settings, breakTimeExpired, isTimerPaused, pausedTime, pauseStartTime]);
 
   // Save pause state to persist across app restarts
   const savePauseState = async (paused: boolean, totalPausedTime: number, startTime: number | null) => {
