@@ -541,32 +541,37 @@ export default function ProfileScreen() {
 
   const toggleTimerPause = async () => {
     if (isTimerPaused) {
-      // Resume: add the paused duration to total paused time
+      // Resume: calculate new paused time first
       let newPausedTime = pausedTime;
       if (pauseStartTime) {
         const pausedDuration = Math.floor((Date.now() - pauseStartTime) / 1000);
         newPausedTime = pausedTime + pausedDuration;
-        setPausedTime(newPausedTime);
-
-        // Reschedule notification with remaining time
-        if (breakTimeRemaining !== null && breakTimeRemaining > 0) {
-          await scheduleBreakNotificationWithSeconds(breakType || 'lunch', breakTimeRemaining);
-        }
       }
+
       // Mark to skip immediate timer update in effect (we keep the current displayed time)
       skipNextTimerUpdate.current = true;
+
+      // Do ALL state updates together so React batches them
+      setPausedTime(newPausedTime);
       setPauseStartTime(null);
       setIsTimerPaused(false);
-      // Save resumed state
-      await savePauseState(false, newPausedTime, null);
+
+      // Async operations AFTER state updates (won't cause partial state renders)
+      if (breakTimeRemaining !== null && breakTimeRemaining > 0) {
+        scheduleBreakNotificationWithSeconds(breakType || 'lunch', breakTimeRemaining);
+      }
+      savePauseState(false, newPausedTime, null);
     } else {
-      // Pause: record when we started pausing and cancel notification
+      // Pause: record when we started pausing
       const startTime = Date.now();
+
+      // Do ALL state updates together
       setPauseStartTime(startTime);
       setIsTimerPaused(true);
-      await cancelBreakNotification();
-      // Save paused state
-      await savePauseState(true, pausedTime, startTime);
+
+      // Async operations AFTER state updates
+      cancelBreakNotification();
+      savePauseState(true, pausedTime, startTime);
     }
   };
 
