@@ -240,14 +240,17 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     setIsOnBreak(false);
     setBreakType(null);
     setLastBreakEnd(new Date(entry.timestamp));
+    setLastBreakStart(null); // Clear break start so UI doesn't show stale data
     const newEntry = { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location };
     setTodayEntries(prev => {
       const newEntries = [newEntry, ...prev];
-      // Update cache with new clock status
+      // Update cache with new clock status (preserve lastClockIn)
       cacheClockStatus({
         isClockedIn: true,
         isOnBreak: false,
         breakType: null,
+        lastClockIn: lastClockIn?.toISOString(),
+        lastBreakStart: null,
         lastBreakEnd: entry.timestamp,
         todayEntries: newEntries,
       });
@@ -255,7 +258,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     });
 
     return entry;
-  }, [user]);
+  }, [user, lastClockIn]);
 
   const dismissClockInPrompt = useCallback(() => {
     setDismissedClockInPrompt(true);

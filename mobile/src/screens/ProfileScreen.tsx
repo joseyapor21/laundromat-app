@@ -976,7 +976,7 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {isClockedIn && !isOnBreak && (
+        {isClockedIn && (
           <View style={styles.clockActionButtons}>
             <TouchableOpacity
               style={styles.breakButton}
@@ -1010,7 +1010,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         )}
-        {isClockedIn && !isOnBreak && (
+        {isClockedIn && (
           <View style={styles.clockOutRow}>
             <TouchableOpacity
               style={styles.clockOutButton}
@@ -1021,7 +1021,7 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
         )}
-        {isOnBreak && (
+        {isOnBreak && lastBreakStart && (
           <View style={[styles.breakStatusBanner, breakTimeExpired && styles.breakStatusBannerExpired]}>
             <View style={styles.breakStatusTop}>
               <Ionicons
