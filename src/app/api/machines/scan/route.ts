@@ -117,18 +117,16 @@ export async function POST(request: NextRequest) {
 
     // For keepSeparated orders, validate per-bag assignment
     if (order.keepSeparated) {
-      // Require bag selection
+      // Require bag selection - return 200 with requireBagSelection flag
+      // so the mobile app can show the bag picker modal
       if (!bagIdentifier) {
-        console.log('Scan error: Bag identifier required for separated order');
-        return NextResponse.json(
-          {
-            error: 'Please select which bag to assign to this machine',
-            requireBagSelection: true,
-            machineType: machine.type,
-            machineName: machine.name,
-          },
-          { status: 400 }
-        );
+        console.log('Bag selection required for separated order');
+        return NextResponse.json({
+          requireBagSelection: true,
+          machineType: machine.type,
+          machineName: machine.name,
+          message: 'Please select which bag to assign to this machine',
+        });
       }
 
       // Validate bag exists in order
