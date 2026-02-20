@@ -158,6 +158,7 @@ export default function CreateOrderScreen() {
   const [estimatedPickupDate, setEstimatedPickupDate] = useState<Date>(getDefaultPickupDate());
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<string | null>('5-6PM'); // Track which time slot button was clicked
 
   useEffect(() => {
     loadData();
@@ -1256,49 +1257,52 @@ export default function CreateOrderScreen() {
               <TouchableOpacity
                 style={[
                   styles.timeFrameButton,
-                  estimatedPickupDate.getHours() === 10 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonSelected
+                  selectedTimeSlot === '10-11AM' && styles.timeFrameButtonSelected
                 ]}
                 onPress={() => {
                   const newDate = new Date(estimatedPickupDate);
                   newDate.setHours(10, 0, 0, 0);
                   setEstimatedPickupDate(newDate);
+                  setSelectedTimeSlot('10-11AM');
                 }}
               >
                 <Text style={[
                   styles.timeFrameButtonText,
-                  estimatedPickupDate.getHours() === 10 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonTextSelected
+                  selectedTimeSlot === '10-11AM' && styles.timeFrameButtonTextSelected
                 ]}>10-11AM</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.timeFrameButton,
-                  estimatedPickupDate.getHours() === 11 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonSelected
+                  selectedTimeSlot === '11-12PM' && styles.timeFrameButtonSelected
                 ]}
                 onPress={() => {
                   const newDate = new Date(estimatedPickupDate);
                   newDate.setHours(11, 0, 0, 0);
                   setEstimatedPickupDate(newDate);
+                  setSelectedTimeSlot('11-12PM');
                 }}
               >
                 <Text style={[
                   styles.timeFrameButtonText,
-                  estimatedPickupDate.getHours() === 11 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonTextSelected
+                  selectedTimeSlot === '11-12PM' && styles.timeFrameButtonTextSelected
                 ]}>11-12PM</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.timeFrameButton,
-                  estimatedPickupDate.getHours() === 10 && estimatedPickupDate.getMinutes() === 1 && styles.timeFrameButtonSelected
+                  selectedTimeSlot === '10-12PM' && styles.timeFrameButtonSelected
                 ]}
                 onPress={() => {
                   const newDate = new Date(estimatedPickupDate);
                   newDate.setHours(10, 1, 0, 0);
                   setEstimatedPickupDate(newDate);
+                  setSelectedTimeSlot('10-12PM');
                 }}
               >
                 <Text style={[
                   styles.timeFrameButtonText,
-                  estimatedPickupDate.getHours() === 10 && estimatedPickupDate.getMinutes() === 1 && styles.timeFrameButtonTextSelected
+                  selectedTimeSlot === '10-12PM' && styles.timeFrameButtonTextSelected
                 ]}>10-12PM</Text>
               </TouchableOpacity>
             </View>
@@ -1306,49 +1310,52 @@ export default function CreateOrderScreen() {
               <TouchableOpacity
                 style={[
                   styles.timeFrameButton,
-                  estimatedPickupDate.getHours() === 16 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonSelected
+                  selectedTimeSlot === '4-5PM' && styles.timeFrameButtonSelected
                 ]}
                 onPress={() => {
                   const newDate = new Date(estimatedPickupDate);
                   newDate.setHours(16, 0, 0, 0);
                   setEstimatedPickupDate(newDate);
+                  setSelectedTimeSlot('4-5PM');
                 }}
               >
                 <Text style={[
                   styles.timeFrameButtonText,
-                  estimatedPickupDate.getHours() === 16 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonTextSelected
+                  selectedTimeSlot === '4-5PM' && styles.timeFrameButtonTextSelected
                 ]}>4-5PM</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.timeFrameButton,
-                  estimatedPickupDate.getHours() === 17 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonSelected
+                  selectedTimeSlot === '5-6PM' && styles.timeFrameButtonSelected
                 ]}
                 onPress={() => {
                   const newDate = new Date(estimatedPickupDate);
                   newDate.setHours(17, 0, 0, 0);
                   setEstimatedPickupDate(newDate);
+                  setSelectedTimeSlot('5-6PM');
                 }}
               >
                 <Text style={[
                   styles.timeFrameButtonText,
-                  estimatedPickupDate.getHours() === 17 && estimatedPickupDate.getMinutes() === 0 && styles.timeFrameButtonTextSelected
+                  selectedTimeSlot === '5-6PM' && styles.timeFrameButtonTextSelected
                 ]}>5-6PM</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.timeFrameButton,
-                  estimatedPickupDate.getHours() === 16 && estimatedPickupDate.getMinutes() === 1 && styles.timeFrameButtonSelected
+                  selectedTimeSlot === '4-6PM' && styles.timeFrameButtonSelected
                 ]}
                 onPress={() => {
                   const newDate = new Date(estimatedPickupDate);
                   newDate.setHours(16, 1, 0, 0);
                   setEstimatedPickupDate(newDate);
+                  setSelectedTimeSlot('4-6PM');
                 }}
               >
                 <Text style={[
                   styles.timeFrameButtonText,
-                  estimatedPickupDate.getHours() === 16 && estimatedPickupDate.getMinutes() === 1 && styles.timeFrameButtonTextSelected
+                  selectedTimeSlot === '4-6PM' && styles.timeFrameButtonTextSelected
                 ]}>4-6PM</Text>
               </TouchableOpacity>
             </View>
@@ -1368,6 +1375,7 @@ export default function CreateOrderScreen() {
                     const newDate = new Date(estimatedPickupDate);
                     newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
                     setEstimatedPickupDate(newDate);
+                    setSelectedTimeSlot(null); // Clear time slot when exact time is picked
                   }
                 }}
                 style={{ flex: 1 }}
