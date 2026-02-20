@@ -1316,7 +1316,7 @@ export default function DriverScreen() {
                   onPress={retakePhoto}
                   disabled={isUploading}
                 >
-                  <Ionicons name="camera-reverse" size={24} color="#fff" />
+                  <Ionicons name="camera-reverse" size={20} color="#fff" />
                   <Text style={styles.photoActionText}>Retake</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1327,10 +1327,10 @@ export default function DriverScreen() {
                   {isUploading ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Ionicons name="add-circle" size={24} color="#fff" />
+                    <Ionicons name="add-circle" size={20} color="#fff" />
                   )}
                   <Text style={styles.photoActionText}>
-                    {isUploading ? 'Saving...' : 'Add Another'}
+                    {isUploading ? 'Saving...' : 'Add'}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1341,10 +1341,10 @@ export default function DriverScreen() {
                   {isUploading ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
-                    <Ionicons name="checkmark" size={24} color="#fff" />
+                    <Ionicons name="checkmark" size={20} color="#fff" />
                   )}
                   <Text style={styles.photoActionText}>
-                    {isUploading ? 'Finishing...' : 'Done'}
+                    {isUploading ? 'Done...' : 'Done'}
                   </Text>
                 </TouchableOpacity>
               </View>
