@@ -28,8 +28,8 @@ import type { Customer, Settings, ExtraItem, PaymentMethod } from '../types';
 import { calculateWeightBasedPrice, calculateWeightBasedQuantity, roundToNearestQuarter } from '../utils/pricing';
 import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
-// Format date as "Tue, Jan 12, 2026, 11:45 AM"
-function formatPickupDate(date: Date): string {
+// Format date as "Tue, Jan 12, 2026, 11:45 AM" or "Tue, Jan 12, 2026, 5-6PM" if time slot selected
+function formatPickupDate(date: Date, timeSlot: string | null): string {
   const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -41,37 +41,13 @@ function formatPickupDate(date: Date): string {
   const hours = date.getHours();
   const minutes = date.getMinutes();
 
-  // Check for time frames
   let timeStr: string;
-  // 1-hour windows (minute=0)
-  if (minutes === 0) {
-    if (hours === 10) {
-      timeStr = '10-11AM';
-    } else if (hours === 11) {
-      timeStr = '11AM-12PM';
-    } else if (hours === 16) {
-      timeStr = '4-5PM';
-    } else if (hours === 17) {
-      timeStr = '5-6PM';
-    } else {
-      let displayHours = hours % 12;
-      displayHours = displayHours ? displayHours : 12;
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      timeStr = `${displayHours}:00 ${ampm}`;
-    }
-  // 2-hour windows (minute=1 as marker)
-  } else if (minutes === 1) {
-    if (hours === 10) {
-      timeStr = '10AM-12PM';
-    } else if (hours === 16) {
-      timeStr = '4-6PM';
-    } else {
-      let displayHours = hours % 12;
-      displayHours = displayHours ? displayHours : 12;
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      timeStr = `${displayHours}:01 ${ampm}`;
-    }
+
+  // If a time slot was explicitly selected, use it
+  if (timeSlot) {
+    timeStr = timeSlot;
   } else {
+    // Otherwise show exact time
     let displayHours = hours % 12;
     displayHours = displayHours ? displayHours : 12;
     const ampm = hours >= 12 ? 'PM' : 'AM';
@@ -1159,7 +1135,7 @@ export default function CreateOrderScreen() {
           >
             <Ionicons name="calendar-outline" size={20} color="#2563eb" />
             <Text style={styles.dateButtonText}>
-              {formatPickupDate(estimatedPickupDate)}
+              {formatPickupDate(estimatedPickupDate, selectedTimeSlot)}
             </Text>
             <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
           </TouchableOpacity>
