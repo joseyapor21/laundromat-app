@@ -213,11 +213,12 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     const newEntry = { _id: entry._id, type: entry.type, timestamp: entry.timestamp, location: entry.location };
     setTodayEntries(prev => {
       const newEntries = [newEntry, ...prev];
-      // Update cache with new clock status
+      // Update cache with new clock status (preserve lastClockIn)
       cacheClockStatus({
         isClockedIn: true,
         isOnBreak: true,
         breakType: data.breakType || null,
+        lastClockIn: lastClockIn?.toISOString(),
         lastBreakStart: entry.timestamp,
         todayEntries: newEntries,
       });
@@ -225,7 +226,7 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     });
 
     return entry;
-  }, [user]);
+  }, [user, lastClockIn]);
 
   const endBreak = useCallback(async (data: {
     location: { latitude: number; longitude: number; accuracy?: number };
