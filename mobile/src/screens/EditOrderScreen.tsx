@@ -72,6 +72,7 @@ export default function EditOrderScreen() {
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [orderType, setOrderType] = useState<OrderType>('storePickup');
   const [isSameDay, setIsSameDay] = useState(false);
+  const [keepSeparated, setKeepSeparated] = useState(false);
 
   // Bags
   const [bags, setBags] = useState<Bag[]>([]);
@@ -137,6 +138,7 @@ export default function EditOrderScreen() {
 
       setOrderType(orderData.orderType || 'storePickup');
       setIsSameDay(orderData.isSameDay || false);
+      setKeepSeparated(orderData.keepSeparated || false);
       setBags(orderData.bags || []);
 
       // Always use customer's original delivery fee as base price
@@ -397,6 +399,7 @@ export default function EditOrderScreen() {
         bags,
         orderType,
         isSameDay,
+        keepSeparated,
         // Delivery fields
         deliveryType: orderType === 'delivery' ? deliveryType : null,
         deliveryFee: orderType === 'delivery' ? (deliveryType === 'pickupOnly' || deliveryType === 'deliveryOnly' ? deliveryPrice / 2 : deliveryPrice) : 0,
@@ -769,6 +772,33 @@ export default function EditOrderScreen() {
                   </Text>
                 </View>
               )}
+            </View>
+          </View>
+
+          {/* Keep Separated */}
+          <View style={styles.section}>
+            <View style={[styles.sameDayCard, keepSeparated && { borderColor: '#8b5cf6', backgroundColor: '#f5f3ff' }]}>
+              <View style={styles.sameDayRow}>
+                <View style={styles.sameDayInfo}>
+                  <Ionicons
+                    name="git-branch"
+                    size={24}
+                    color={keepSeparated ? '#8b5cf6' : '#94a3b8'}
+                  />
+                  <View>
+                    <Text style={styles.sameDayTitle}>Keep Separated</Text>
+                    <Text style={styles.sameDaySubtitle}>
+                      Each bag washed & dried separately
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={keepSeparated}
+                  onValueChange={setKeepSeparated}
+                  trackColor={{ false: '#e2e8f0', true: '#c4b5fd' }}
+                  thumbColor={keepSeparated ? '#8b5cf6' : '#fff'}
+                />
+              </View>
             </View>
           </View>
 

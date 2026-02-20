@@ -79,6 +79,13 @@ export default function OrderDetailScreen() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const isProcessingScan = useRef(false);
 
+  // Bag picker state for keepSeparated orders
+  const [showBagPicker, setShowBagPicker] = useState(false);
+  const [pendingQrCode, setPendingQrCode] = useState<string | null>(null);
+  const [availableBags, setAvailableBags] = useState<Bag[]>([]);
+  const [pendingMachineInfo, setPendingMachineInfo] = useState<{ type: 'washer' | 'dryer'; name: string } | null>(null);
+  const [loadingBags, setLoadingBags] = useState(false);
+
   // Machine verification photo state
   const [showVerificationCamera, setShowVerificationCamera] = useState(false);
   const [pendingMachineForPhoto, setPendingMachineForPhoto] = useState<{ machineId: string; machineName: string } | null>(null);
@@ -356,7 +363,7 @@ export default function OrderDetailScreen() {
   }
 
   // Handle QR scan for machine assignment
-  async function handleMachineScan(qrCode: string) {
+  async function handleMachineScan(qrCode: string, bagIdentifier?: string) {
     // Prevent duplicate scans - the camera fires multiple times quickly
     if (!order || isProcessingScan.current) return;
 
@@ -366,7 +373,32 @@ export default function OrderDetailScreen() {
     setUpdating(true);
 
     try {
-      const result = await api.scanMachine(qrCode, order._id);
+      const result = await api.scanMachine(qrCode, order._id, bagIdentifier);
+
+      // Check if bag selection is required (for keepSeparated orders)
+      if (result.requireBagSelection && result.machineType && result.machineName) {
+        // Store the QR code and machine info, then fetch available bags
+        setPendingQrCode(qrCode);
+        setPendingMachineInfo({ type: result.machineType, name: result.machineName });
+        setLoadingBags(true);
+        setShowBagPicker(true);
+
+        try {
+          const bags = await api.getAvailableBags(order._id, result.machineType);
+          setAvailableBags(bags);
+        } catch (bagError) {
+          console.error('Error fetching bags:', bagError);
+          Alert.alert('Error', 'Failed to load available bags');
+          setShowBagPicker(false);
+        } finally {
+          setLoadingBags(false);
+        }
+
+        isProcessingScan.current = false;
+        setUpdating(false);
+        return;
+      }
+
       await loadOrder();
 
       // Prompt to take verification photo
@@ -401,6 +433,50 @@ export default function OrderDetailScreen() {
       isProcessingScan.current = false;
     } finally {
       setUpdating(false);
+    }
+  }
+
+  // Handle bag selection for keepSeparated orders
+  async function handleBagSelected(bag: Bag) {
+    if (!pendingQrCode || !order) return;
+
+    setShowBagPicker(false);
+    setUpdating(true);
+
+    try {
+      const result = await api.scanMachine(pendingQrCode, order._id, bag.identifier);
+      await loadOrder();
+
+      // Prompt to take verification photo
+      Alert.alert(
+        'Machine Assigned',
+        `${bag.identifier} assigned to ${result.machine.name}\n\nTake a photo of the machine settings to verify?`,
+        [
+          {
+            text: 'Skip',
+            style: 'cancel',
+          },
+          {
+            text: 'Take Photo',
+            onPress: () => {
+              setPendingMachineForPhoto({
+                machineId: result.machine._id,
+                machineName: result.machine.name,
+              });
+              setShowVerificationCamera(true);
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('Bag assignment error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to assign machine';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setUpdating(false);
+      setPendingQrCode(null);
+      setPendingMachineInfo(null);
+      setAvailableBags([]);
     }
   }
 
@@ -1052,6 +1128,12 @@ export default function OrderDetailScreen() {
                   <Text style={styles.tagText}>Same Day</Text>
                 </View>
               )}
+              {order.keepSeparated && (
+                <View style={[styles.tag, { backgroundColor: '#8b5cf6' }]}>
+                  <Ionicons name="git-branch" size={12} color="#fff" />
+                  <Text style={styles.tagText}>Separated</Text>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -1216,6 +1298,9 @@ export default function OrderDetailScreen() {
                           </View>
                           <Text style={styles.machineType}>
                             {assignment.machineType}
+                            {order.keepSeparated && assignment.bagIdentifier && (
+                              <Text style={styles.bagIdentifierText}> • {assignment.bagIdentifier}</Text>
+                            )}
                             {assignment.isChecked && (
                               <Text style={styles.checkedText}> - Checked by {assignment.checkedByInitials}</Text>
                             )}
@@ -2024,6 +2109,82 @@ export default function OrderDetailScreen() {
         </View>
       </Modal>
 
+      {/* Bag Picker Modal for keepSeparated orders */}
+      <Modal
+        visible={showBagPicker}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowBagPicker(false);
+          setPendingQrCode(null);
+          setPendingMachineInfo(null);
+          setAvailableBags([]);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.bagPickerModal}>
+            <View style={styles.bagPickerHeader}>
+              <View>
+                <Text style={styles.bagPickerTitle}>Select Bag</Text>
+                {pendingMachineInfo && (
+                  <Text style={styles.bagPickerSubtitle}>
+                    Assigning to {pendingMachineInfo.name} ({pendingMachineInfo.type})
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowBagPicker(false);
+                  setPendingQrCode(null);
+                  setPendingMachineInfo(null);
+                  setAvailableBags([]);
+                }}
+              >
+                <Ionicons name="close" size={24} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            {loadingBags ? (
+              <View style={styles.bagPickerLoading}>
+                <ActivityIndicator size="large" color="#2563eb" />
+                <Text style={styles.bagPickerLoadingText}>Loading bags...</Text>
+              </View>
+            ) : availableBags.length === 0 ? (
+              <View style={styles.bagPickerEmpty}>
+                <Ionicons name="cube-outline" size={48} color="#94a3b8" />
+                <Text style={styles.bagPickerEmptyText}>
+                  All bags already have a {pendingMachineInfo?.type} assigned
+                </Text>
+              </View>
+            ) : (
+              <ScrollView style={styles.bagPickerList}>
+                {availableBags.map((bag, index) => (
+                  <TouchableOpacity
+                    key={bag.identifier}
+                    style={styles.bagPickerItem}
+                    onPress={() => handleBagSelected(bag)}
+                  >
+                    <View style={styles.bagPickerItemLeft}>
+                      <View style={styles.bagPickerIcon}>
+                        <Ionicons name="cube" size={24} color="#8b5cf6" />
+                      </View>
+                      <View>
+                        <Text style={styles.bagPickerItemTitle}>{bag.identifier}</Text>
+                        <Text style={styles.bagPickerItemSubtitle}>
+                          {bag.weight ? `${bag.weight} lbs` : 'No weight'}
+                          {bag.color ? ` • ${bag.color}` : ''}
+                        </Text>
+                      </View>
+                    </View>
+                    <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
       {/* Verification Camera Modal */}
       <Modal
         visible={showVerificationCamera}
@@ -2692,6 +2853,10 @@ const styles = StyleSheet.create({
   },
   checkedText: {
     color: '#10b981',
+  },
+  bagIdentifierText: {
+    color: '#8b5cf6',
+    fontWeight: '600',
   },
   machineHeader: {
     flexDirection: 'row',
@@ -3696,5 +3861,93 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#fff',
     marginBottom: 20,
+  },
+  // Bag picker modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  bagPickerModal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '70%',
+    paddingBottom: 40,
+  },
+  bagPickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  bagPickerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  bagPickerSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  bagPickerLoading: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  bagPickerLoadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748b',
+  },
+  bagPickerEmpty: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  bagPickerEmptyText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  bagPickerList: {
+    padding: 16,
+  },
+  bagPickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  bagPickerItemLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  bagPickerIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#f5f3ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  bagPickerItemTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  bagPickerItemSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 2,
   },
 });

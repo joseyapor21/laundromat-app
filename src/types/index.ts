@@ -128,6 +128,8 @@ export interface MachineAssignment {
   checkedBy?: string;
   checkedByInitials?: string;
   isChecked?: boolean;
+  // For keepSeparated orders - which bag this machine is assigned to
+  bagIdentifier?: string;
 }
 
 // Extra item in order format (stored in database)
@@ -179,6 +181,8 @@ export interface Order {
   // Same day service
   isSameDay?: boolean;
   sameDayPricePerPound?: number;  // The combined price per pound (regular + same day extra)
+  // Keep separated - each bag washed/dried separately with individual machine tracking
+  keepSeparated?: boolean;
   // Folding tracking - who started folding
   foldingStartedBy?: string;
   foldingStartedByInitials?: string;

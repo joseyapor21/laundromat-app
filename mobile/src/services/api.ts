@@ -412,11 +412,34 @@ class ApiService {
     });
   }
 
-  async scanMachine(qrCode: string, orderId: string): Promise<{ message: string; machine: Machine; order: Order }> {
-    return this.request<{ message: string; machine: Machine; order: Order }>('/machines/scan', {
+  async scanMachine(
+    qrCode: string,
+    orderId: string,
+    bagIdentifier?: string
+  ): Promise<{
+    message: string;
+    machine: Machine;
+    order: Order;
+    // Returned when bag selection is required for keepSeparated orders
+    requireBagSelection?: boolean;
+    machineType?: 'washer' | 'dryer';
+    machineName?: string;
+  }> {
+    return this.request<{
+      message: string;
+      machine: Machine;
+      order: Order;
+      requireBagSelection?: boolean;
+      machineType?: 'washer' | 'dryer';
+      machineName?: string;
+    }>('/machines/scan', {
       method: 'POST',
-      body: JSON.stringify({ qrCode, orderId }),
+      body: JSON.stringify({ qrCode, orderId, bagIdentifier }),
     });
+  }
+
+  async getAvailableBags(orderId: string, machineType: 'washer' | 'dryer'): Promise<Bag[]> {
+    return this.request<Bag[]>(`/orders/${orderId}/available-bags?machineType=${machineType}`);
   }
 
   async uploadMachinePhoto(orderId: string, machineId: string, photoBase64: string): Promise<{ success: boolean; message: string; photoPath: string; order: Order }> {

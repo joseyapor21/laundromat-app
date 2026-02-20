@@ -60,6 +60,8 @@ export interface OrderDoc {
   // Same day service
   isSameDay?: boolean;
   sameDayPricePerPound?: number;
+  // Keep separated
+  keepSeparated?: boolean;
   // Price override
   priceOverride?: number;
   priceChangeNote?: string;
@@ -124,6 +126,8 @@ export interface OrderDoc {
     unloadCheckedBy?: string;
     unloadCheckedByInitials?: string;
     isUnloadChecked?: boolean;
+    // For keepSeparated orders
+    bagIdentifier?: string;
   }>;
   // Driver pickup photos
   pickupPhotos?: Array<{
@@ -371,6 +375,11 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
     type: Number,
     default: null,
   },
+  // Keep separated - each bag washed/dried separately with individual machine tracking
+  keepSeparated: {
+    type: Boolean,
+    default: false,
+  },
   // Price override
   priceOverride: {
     type: Number,
@@ -516,6 +525,8 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
       type: Boolean,
       default: false,
     },
+    // For keepSeparated orders - which bag this machine is assigned to
+    bagIdentifier: String,
   }],
   // Driver pickup photos
   pickupPhotos: [{

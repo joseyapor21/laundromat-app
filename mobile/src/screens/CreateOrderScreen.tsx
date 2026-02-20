@@ -96,6 +96,7 @@ export default function CreateOrderScreen() {
   const [manualDeliveryFee, setManualDeliveryFee] = useState('');
   const [bags, setBags] = useState<Bag[]>([]);
   const [isSameDay, setIsSameDay] = useState(false);
+  const [keepSeparated, setKeepSeparated] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [selectedExtras, setSelectedExtras] = useState<Record<string, { quantity: number; price: number; overrideTotal?: number }>>({});
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
@@ -742,6 +743,7 @@ export default function CreateOrderScreen() {
           description: bag.description || '',
         })),
         isSameDay,
+        keepSeparated,
         specialInstructions,
         items: [],
         extraItems: extraItemsData,
@@ -1121,6 +1123,25 @@ export default function CreateOrderScreen() {
             onValueChange={setIsSameDay}
             trackColor={{ false: '#e2e8f0', true: '#fcd34d' }}
             thumbColor={isSameDay ? '#f59e0b' : '#f4f4f5'}
+          />
+        </View>
+      </View>
+
+      {/* Keep Separated */}
+      <View style={styles.section}>
+        <View style={[styles.switchRow, keepSeparated && styles.switchRowActive]}>
+          <View style={styles.switchContent}>
+            <Ionicons name="git-branch" size={24} color={keepSeparated ? '#8b5cf6' : '#64748b'} />
+            <View style={styles.switchTextContainer}>
+              <Text style={styles.switchLabel}>Keep Separated</Text>
+              <Text style={styles.switchHint}>Each bag washed & dried separately</Text>
+            </View>
+          </View>
+          <Switch
+            value={keepSeparated}
+            onValueChange={setKeepSeparated}
+            trackColor={{ false: '#e2e8f0', true: '#c4b5fd' }}
+            thumbColor={keepSeparated ? '#8b5cf6' : '#f4f4f5'}
           />
         </View>
       </View>

@@ -134,6 +134,7 @@ export interface Order {
   specialInstructions?: string;
   notes?: string;
   isSameDay?: boolean;
+  keepSeparated?: boolean;
   isPaid?: boolean;
   paidAt?: Date;
   paidBy?: string;
@@ -285,6 +286,8 @@ export interface MachineAssignment {
   unloadCheckedAt?: Date;
   unloadCheckedBy?: string;
   unloadCheckedByInitials?: string;
+  // For keepSeparated orders - which bag this machine is assigned to
+  bagIdentifier?: string;
 }
 
 export interface OrderExtraItem {

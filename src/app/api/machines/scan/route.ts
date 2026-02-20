@@ -12,9 +12,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const user = await getCurrentUser();
 
-    const { qrCode, orderId } = body;
+    const { qrCode, orderId, bagIdentifier } = body;
 
-    console.log('Scan request:', { qrCode, orderId, user: user?.name, locationId: user?.locationId });
+    console.log('Scan request:', { qrCode, orderId, bagIdentifier, user: user?.name, locationId: user?.locationId });
 
     if (!qrCode || !orderId) {
       console.log('Scan error: Missing qrCode or orderId');
@@ -115,6 +115,65 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // For keepSeparated orders, validate per-bag assignment
+    if (order.keepSeparated) {
+      // Require bag selection
+      if (!bagIdentifier) {
+        console.log('Scan error: Bag identifier required for separated order');
+        return NextResponse.json(
+          {
+            error: 'Please select which bag to assign to this machine',
+            requireBagSelection: true,
+            machineType: machine.type,
+            machineName: machine.name,
+          },
+          { status: 400 }
+        );
+      }
+
+      // Validate bag exists in order
+      const bagExists = order.bags?.some((b: { identifier: string }) => b.identifier === bagIdentifier);
+      if (!bagExists) {
+        console.log('Scan error: Bag not found in order:', bagIdentifier);
+        return NextResponse.json(
+          { error: `Bag "${bagIdentifier}" not found in order` },
+          { status: 400 }
+        );
+      }
+
+      // Check if this bag already has a machine of this type assigned
+      const machineAssignmentsArray = order.machineAssignments || [];
+      const existingBagAssignment = machineAssignmentsArray.find(
+        (a: { bagIdentifier?: string; machineType: string; removedAt?: Date }) =>
+          a.bagIdentifier === bagIdentifier &&
+          a.machineType === machine.type &&
+          !a.removedAt
+      );
+      if (existingBagAssignment) {
+        console.log('Scan error: Bag already has this machine type:', bagIdentifier, machine.type);
+        return NextResponse.json(
+          { error: `"${bagIdentifier}" already has a ${machine.type} assigned` },
+          { status: 400 }
+        );
+      }
+
+      // Block different bags from using the same machine (unless checked/released)
+      const machineUsedByOtherBag = machineAssignmentsArray.find(
+        (a: { machineId: string; bagIdentifier?: string; removedAt?: Date; isChecked?: boolean }) =>
+          a.machineId === machine._id.toString() &&
+          a.bagIdentifier !== bagIdentifier &&
+          !a.removedAt &&
+          !a.isChecked
+      );
+      if (machineUsedByOtherBag) {
+        console.log('Scan error: Machine used by another bag:', machine.name, machineUsedByOtherBag.bagIdentifier);
+        return NextResponse.json(
+          { error: `${machine.name} is being used by "${machineUsedByOtherBag.bagIdentifier}". Each bag must use separate machines.` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Check if this machine is already assigned to this order
     const machineAssignments = order.machineAssignments || [];
     const existingAssignment = machineAssignments.find(
@@ -131,13 +190,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Add machine assignment to order
-    const assignment = {
+    const assignment: {
+      machineId: string;
+      machineName: string;
+      machineType: string;
+      assignedAt: Date;
+      assignedBy: string;
+      bagIdentifier?: string;
+    } = {
       machineId: machine._id.toString(),
       machineName: machine.name,
       machineType: machine.type,
       assignedAt: new Date(),
       assignedBy: user?.name || 'System',
     };
+
+    // Include bagIdentifier for keepSeparated orders
+    if (order.keepSeparated && bagIdentifier) {
+      assignment.bagIdentifier = bagIdentifier;
+    }
 
     // Initialize machineAssignments array if it doesn't exist, then push
     const updateResult = await Order.findByIdAndUpdate(
