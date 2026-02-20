@@ -159,6 +159,7 @@ export async function POST(request: NextRequest) {
       ...(currentUser.locationId && { locationId: currentUser.locationId }),
       deviceInfo,
       notes,
+      ...(type === 'break_start' && breakType && { breakType }),
     });
 
     // Update user's clock status (only for clock_in/clock_out, not breaks)

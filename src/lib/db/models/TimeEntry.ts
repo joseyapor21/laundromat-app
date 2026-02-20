@@ -17,6 +17,7 @@ export interface TimeEntryDoc {
   photoPath?: string;
   deviceInfo?: string;
   notes?: string;
+  breakType?: 'breakfast' | 'lunch';
   createdAt: Date;
 }
 
@@ -64,6 +65,10 @@ const timeEntrySchema = new mongoose.Schema<TimeEntryDoc>({
   },
   notes: {
     type: String,
+  },
+  breakType: {
+    type: String,
+    enum: ['breakfast', 'lunch'],
   },
   createdAt: {
     type: Date,

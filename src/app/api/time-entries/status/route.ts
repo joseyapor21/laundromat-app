@@ -63,8 +63,10 @@ export async function GET() {
         isOnBreak = latestBreakEntry.type === 'break_start';
         console.log('Latest break entry:', latestBreakEntry.type, '-> isOnBreak:', isOnBreak);
         if (isOnBreak) {
-          // Get breakType from the break_start entry or user model
-          breakType = user?.breakType || null;
+          // Get breakType from the break_start entry itself
+          const activeBreakEntry = breakEntries.find(e => e.type === 'break_start');
+          breakType = activeBreakEntry?.breakType || user?.breakType || null;
+          console.log('Break type from entry:', activeBreakEntry?.breakType, 'from user:', user?.breakType, '-> breakType:', breakType);
         }
       }
     }
