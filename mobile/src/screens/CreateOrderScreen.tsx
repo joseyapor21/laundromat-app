@@ -1358,19 +1358,21 @@ export default function CreateOrderScreen() {
                 {estimatedPickupDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
               </Text>
             </View>
-            <DateTimePicker
-              value={estimatedPickupDate}
-              mode="time"
-              display="spinner"
-              onChange={(event, selectedTime) => {
-                if (selectedTime) {
-                  const newDate = new Date(estimatedPickupDate);
-                  newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
-                  setEstimatedPickupDate(newDate);
-                }
-              }}
-              style={styles.datePickerSpinner}
-            />
+            <View style={{ height: 200 }}>
+              <DateTimePicker
+                value={estimatedPickupDate}
+                mode="time"
+                display="spinner"
+                onChange={(event, selectedTime) => {
+                  if (selectedTime) {
+                    const newDate = new Date(estimatedPickupDate);
+                    newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                    setEstimatedPickupDate(newDate);
+                  }
+                }}
+                style={{ flex: 1 }}
+              />
+            </View>
           </View>
         </View>
       </Modal>
