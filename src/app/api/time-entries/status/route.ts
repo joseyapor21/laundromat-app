@@ -17,8 +17,11 @@ export async function GET() {
 
     await connectDB();
 
-    // Get user's clock status from User model
-    const user = await User.findById(currentUser.userId).lean();
+    // Get user's clock status from User model (try by ID first, then by email)
+    let user = await User.findById(currentUser.userId).lean();
+    if (!user && currentUser.email) {
+      user = await User.findOne({ email: currentUser.email }).lean();
+    }
 
     // Get today's entries for this user
     const today = new Date();
@@ -46,18 +49,23 @@ export async function GET() {
 
     // Determine break status from entries
     let isOnBreak = user?.isOnBreak || false;
+    let breakType = user?.breakType || null;
     if (todayEntries.length > 0) {
       // Find the most recent break entry
       const latestBreakEntry = todayEntries.find(e => e.type === 'break_start' || e.type === 'break_end');
       if (latestBreakEntry) {
         isOnBreak = latestBreakEntry.type === 'break_start';
+        // Clear breakType if break has ended
+        if (!isOnBreak) {
+          breakType = null;
+        }
       }
     }
 
     return NextResponse.json({
       isClockedIn,
       isOnBreak,
-      breakType: user?.breakType || null,
+      breakType,
       lastClockIn: user?.lastClockIn || null,
       lastClockOut: user?.lastClockOut || null,
       lastBreakStart: user?.lastBreakStart || null,
