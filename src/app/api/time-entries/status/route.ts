@@ -51,11 +51,17 @@ export async function GET() {
     // Default to NOT on break - only show as on break if there's an active break_start today
     let isOnBreak = false;
     let breakType = null;
+
+    // Log all break entries for debugging
+    const breakEntries = todayEntries.filter(e => e.type === 'break_start' || e.type === 'break_end');
+    console.log('Today break entries:', breakEntries.map(e => ({ type: e.type, timestamp: e.timestamp })));
+
     if (todayEntries.length > 0) {
       // Find the most recent break entry
       const latestBreakEntry = todayEntries.find(e => e.type === 'break_start' || e.type === 'break_end');
       if (latestBreakEntry) {
         isOnBreak = latestBreakEntry.type === 'break_start';
+        console.log('Latest break entry:', latestBreakEntry.type, '-> isOnBreak:', isOnBreak);
         if (isOnBreak) {
           // Get breakType from the break_start entry or user model
           breakType = user?.breakType || null;

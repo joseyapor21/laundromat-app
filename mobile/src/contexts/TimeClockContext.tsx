@@ -78,7 +78,12 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
         // Don't cache todayEntries - it's too large and will be fetched fresh from API
       };
       await SecureStore.setItemAsync(CLOCK_STATUS_CACHE_KEY, JSON.stringify(essentialStatus));
-      console.log('Clock status cached:', status.isClockedIn ? 'clocked in' : 'not clocked in', status.isOnBreak ? '(on break)' : '');
+      console.log('Clock status cached:', JSON.stringify({
+        isClockedIn: status.isClockedIn,
+        isOnBreak: status.isOnBreak,
+        breakType: status.breakType,
+        lastBreakStart: status.lastBreakStart,
+      }));
     } catch (e) {
       console.log('Failed to cache clock status:', e);
     }
@@ -87,7 +92,18 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
   const getCachedClockStatus = async (): Promise<ClockStatus | null> => {
     try {
       const cached = await SecureStore.getItemAsync(CLOCK_STATUS_CACHE_KEY);
-      return cached ? JSON.parse(cached) : null;
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        console.log('Got cached clock status:', JSON.stringify({
+          isClockedIn: parsed.isClockedIn,
+          isOnBreak: parsed.isOnBreak,
+          breakType: parsed.breakType,
+          lastBreakStart: parsed.lastBreakStart,
+        }));
+        return parsed;
+      }
+      console.log('No cached clock status found');
+      return null;
     } catch (e) {
       console.log('Failed to get cached clock status:', e);
       return null;
@@ -119,6 +135,12 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
     try {
       setIsLoading(true);
       const status = await api.getClockStatus();
+      console.log('API returned clock status:', JSON.stringify({
+        isClockedIn: status.isClockedIn,
+        isOnBreak: status.isOnBreak,
+        breakType: status.breakType,
+        lastBreakStart: status.lastBreakStart,
+      }));
       applyClockStatus(status);
       // Cache the status for offline access
       await cacheClockStatus(status);
