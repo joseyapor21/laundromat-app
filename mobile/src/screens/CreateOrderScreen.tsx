@@ -181,66 +181,51 @@ export default function CreateOrderScreen() {
     }, [selectedCustomer?._id])
   );
 
-  // Disable swipe-back gesture on iOS to force confirmation
+  // Show confirmation before going back
+  const confirmGoBack = useCallback(() => {
+    if (orderCreatedRef.current) {
+      navigation.goBack();
+      return;
+    }
+
+    Alert.alert(
+      'Discard Order?',
+      'Are you sure you want to go back? Any unsaved changes will be lost.',
+      [
+        { text: 'Stay', style: 'cancel' },
+        {
+          text: 'Discard',
+          style: 'destructive',
+          onPress: () => navigation.goBack(),
+        },
+      ]
+    );
+  }, [navigation]);
+
+  // Set custom back button and disable swipe gesture
   useLayoutEffect(() => {
     navigation.setOptions({
       gestureEnabled: false,
+      headerLeft: () => (
+        <TouchableOpacity onPress={confirmGoBack} style={{ paddingHorizontal: 8 }}>
+          <Ionicons name="arrow-back" size={24} color="#2563eb" />
+        </TouchableOpacity>
+      ),
     });
-  }, [navigation]);
+  }, [navigation, confirmGoBack]);
 
-  // Prevent accidental back navigation - require confirmation
+  // Handle Android hardware back button
   useEffect(() => {
-    // Handle Android hardware back button
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (orderCreatedRef.current) {
-        return false; // Let default behavior happen
+        return false;
       }
-
-      Alert.alert(
-        'Discard Order?',
-        'Are you sure you want to go back? Any unsaved changes will be lost.',
-        [
-          { text: 'Stay', style: 'cancel' },
-          {
-            text: 'Discard',
-            style: 'destructive',
-            onPress: () => navigation.goBack(),
-          },
-        ]
-      );
-      return true; // Prevent default back behavior
+      confirmGoBack();
+      return true;
     });
 
-    // Handle navigation back (iOS swipe, header back button)
-    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
-      // Allow navigation if order was successfully created
-      if (orderCreatedRef.current) {
-        return;
-      }
-
-      // Prevent default behavior of leaving the screen
-      e.preventDefault();
-
-      // Show confirmation alert
-      Alert.alert(
-        'Discard Order?',
-        'Are you sure you want to go back? Any unsaved changes will be lost.',
-        [
-          { text: 'Stay', style: 'cancel' },
-          {
-            text: 'Discard',
-            style: 'destructive',
-            onPress: () => navigation.dispatch(e.data.action),
-          },
-        ]
-      );
-    });
-
-    return () => {
-      backHandler.remove();
-      unsubscribe();
-    };
-  }, [navigation]);
+    return () => backHandler.remove();
+  }, [confirmGoBack]);
 
   async function loadData() {
     try {
