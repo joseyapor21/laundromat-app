@@ -20,9 +20,10 @@
         "NSLocationWhenInUseUsageDescription": "This app uses your location to record where you clock in and out.",
         "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to connect to thermal label printers for printing bag labels.",
         "NSBluetoothPeripheralUsageDescription": "This app uses Bluetooth to connect to thermal label printers for printing bag labels.",
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["audio"]
       },
-      "buildNumber": "9"
+      "buildNumber": "10"
     },
     "android": {
       "adaptiveIcon": {
@@ -67,6 +68,12 @@
             "./assets/neworder.wav",
             "./assets/alarm.wav"
           ]
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow Laundromat to access your microphone."
         }
       ],
       "react-native-ble-plx"
