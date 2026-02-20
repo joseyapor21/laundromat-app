@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,7 @@ import {
   Modal,
   Platform,
   KeyboardAvoidingView,
+  BackHandler,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
@@ -180,8 +181,37 @@ export default function CreateOrderScreen() {
     }, [selectedCustomer?._id])
   );
 
+  // Disable swipe-back gesture on iOS to force confirmation
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      gestureEnabled: false,
+    });
+  }, [navigation]);
+
   // Prevent accidental back navigation - require confirmation
   useEffect(() => {
+    // Handle Android hardware back button
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (orderCreatedRef.current) {
+        return false; // Let default behavior happen
+      }
+
+      Alert.alert(
+        'Discard Order?',
+        'Are you sure you want to go back? Any unsaved changes will be lost.',
+        [
+          { text: 'Stay', style: 'cancel' },
+          {
+            text: 'Discard',
+            style: 'destructive',
+            onPress: () => navigation.goBack(),
+          },
+        ]
+      );
+      return true; // Prevent default back behavior
+    });
+
+    // Handle navigation back (iOS swipe, header back button)
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
       // Allow navigation if order was successfully created
       if (orderCreatedRef.current) {
@@ -206,7 +236,10 @@ export default function CreateOrderScreen() {
       );
     });
 
-    return unsubscribe;
+    return () => {
+      backHandler.remove();
+      unsubscribe();
+    };
   }, [navigation]);
 
   async function loadData() {
