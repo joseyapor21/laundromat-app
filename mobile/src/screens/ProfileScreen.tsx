@@ -105,6 +105,7 @@ export default function ProfileScreen() {
   const breakTimerRef = useRef<NodeJS.Timeout | null>(null);
   const alarmSoundRef = useRef<any>(null);
   const alarmIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const skipNextTimerUpdate = useRef(false); // Skip immediate update after manual time set
 
   // Location picker modal
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -469,7 +470,12 @@ export default function ProfileScreen() {
       };
 
       // Calculate immediately to show time even when paused
-      updateTimer();
+      // But skip if we just resumed (to avoid jump from recalculation)
+      if (skipNextTimerUpdate.current) {
+        skipNextTimerUpdate.current = false;
+      } else {
+        updateTimer();
+      }
 
       // Only start interval if not paused
       if (!isTimerPaused) {
@@ -542,21 +548,13 @@ export default function ProfileScreen() {
         newPausedTime = pausedTime + pausedDuration;
         setPausedTime(newPausedTime);
 
-        // Calculate and set the correct remaining time immediately to avoid flicker
-        if (lastBreakStart && settings) {
-          const allowedMinutes = breakType === 'breakfast'
-            ? (settings.breakfastDurationMinutes || 15)
-            : (settings.lunchDurationMinutes || 30);
-          const elapsed = Math.floor((Date.now() - lastBreakStart.getTime()) / 1000) - newPausedTime;
-          const remaining = allowedMinutes * 60 - elapsed;
-          setBreakTimeRemaining(remaining);
-
-          // Reschedule notification with remaining time
-          if (remaining > 0) {
-            await scheduleBreakNotificationWithSeconds(breakType || 'lunch', remaining);
-          }
+        // Reschedule notification with remaining time
+        if (breakTimeRemaining !== null && breakTimeRemaining > 0) {
+          await scheduleBreakNotificationWithSeconds(breakType || 'lunch', breakTimeRemaining);
         }
       }
+      // Mark to skip immediate timer update in effect (we keep the current displayed time)
+      skipNextTimerUpdate.current = true;
       setPauseStartTime(null);
       setIsTimerPaused(false);
       // Save resumed state
