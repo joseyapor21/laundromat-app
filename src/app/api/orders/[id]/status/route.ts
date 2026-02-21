@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Types } from 'mongoose';
 import { connectDB } from '@/lib/db/connection';
 import { Order, ActivityLog, Machine, Customer } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
@@ -117,12 +118,16 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
       for (const assignment of activeAssignments) {
         if (assignment.machineId) {
-          // Release the machine
-          await Machine.findByIdAndUpdate(assignment.machineId, {
+          // Release the machine - convert to ObjectId if needed
+          const machineObjectId = Types.ObjectId.isValid(assignment.machineId)
+            ? new Types.ObjectId(assignment.machineId)
+            : assignment.machineId;
+          const releaseResult = await Machine.findByIdAndUpdate(machineObjectId, {
             status: 'available',
             currentOrderId: null,
             lastUsedAt: new Date(),
           });
+          console.log(`Machine release on status change: ${releaseResult ? 'success' : 'not found'} for machineId: ${assignment.machineId}`);
         }
       }
 

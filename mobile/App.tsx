@@ -82,6 +82,7 @@ export default function App() {
           updateMessage={updateInfo.updateMessage}
           updateUrl={updateInfo.updateUrl}
           onRetry={checkForUpdates}
+          onBypass={() => setUpdateInfo(null)}
         />
       </SafeAreaProvider>
     );

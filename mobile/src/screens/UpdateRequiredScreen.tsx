@@ -8,10 +8,14 @@ import {
   Linking,
   Platform,
   Alert,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as FileSystem from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
+
+const API_BASE_URL = 'https://cloud.homation.us';
 
 interface UpdateRequiredScreenProps {
   currentVersion: string;
@@ -19,6 +23,7 @@ interface UpdateRequiredScreenProps {
   updateMessage: string;
   updateUrl: string;
   onRetry: () => void;
+  onBypass?: () => void;
 }
 
 export default function UpdateRequiredScreen({
@@ -27,9 +32,57 @@ export default function UpdateRequiredScreen({
   updateMessage,
   updateUrl,
   onRetry,
+  onBypass,
 }: UpdateRequiredScreenProps) {
   const [downloading, setDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [tapCount, setTapCount] = useState(0);
+  const [showAdminLogin, setShowAdminLogin] = useState(false);
+  const [adminEmail, setAdminEmail] = useState('');
+  const [adminPassword, setAdminPassword] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  const handleVersionTap = () => {
+    const newCount = tapCount + 1;
+    setTapCount(newCount);
+    if (newCount >= 5) {
+      setTapCount(0);
+      setShowAdminLogin(true);
+    }
+  };
+
+  const handleAdminLogin = async () => {
+    if (!adminEmail || !adminPassword) {
+      Alert.alert('Error', 'Please enter email and password');
+      return;
+    }
+
+    setLoggingIn(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: adminEmail, password: adminPassword }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.user?.role === 'admin') {
+        setShowAdminLogin(false);
+        setAdminEmail('');
+        setAdminPassword('');
+        onBypass?.();
+      } else if (response.ok && data.user?.role !== 'admin') {
+        Alert.alert('Access Denied', 'Only administrators can bypass the update.');
+      } else {
+        Alert.alert('Error', data.error || 'Invalid credentials');
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Failed to verify credentials');
+    } finally {
+      setLoggingIn(false);
+    }
+  };
 
   const handleUpdate = async () => {
     if (Platform.OS === 'ios') {
@@ -99,7 +152,7 @@ export default function UpdateRequiredScreen({
 
         <Text style={styles.message}>{updateMessage}</Text>
 
-        <View style={styles.versionContainer}>
+        <TouchableOpacity style={styles.versionContainer} onPress={handleVersionTap} activeOpacity={0.8}>
           <View style={styles.versionRow}>
             <Text style={styles.versionLabel}>Current Version:</Text>
             <Text style={styles.versionValue}>{currentVersion}</Text>
@@ -108,7 +161,7 @@ export default function UpdateRequiredScreen({
             <Text style={styles.versionLabel}>Latest Version:</Text>
             <Text style={[styles.versionValue, styles.latestVersion]}>{latestVersion}</Text>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {downloading ? (
           <View style={styles.downloadingContainer}>
@@ -141,6 +194,60 @@ export default function UpdateRequiredScreen({
           <Text style={styles.retryButtonText}>Check Again</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Admin Login Modal */}
+      <Modal visible={showAdminLogin} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Admin Bypass</Text>
+            <Text style={styles.modalSubtitle}>Enter admin credentials to continue</Text>
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Admin Email"
+              placeholderTextColor="#94a3b8"
+              value={adminEmail}
+              onChangeText={setAdminEmail}
+              autoCapitalize="none"
+              keyboardType="email-address"
+            />
+
+            <TextInput
+              style={styles.modalInput}
+              placeholder="Password"
+              placeholderTextColor="#94a3b8"
+              value={adminPassword}
+              onChangeText={setAdminPassword}
+              secureTextEntry
+            />
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.modalCancelButton}
+                onPress={() => {
+                  setShowAdminLogin(false);
+                  setAdminEmail('');
+                  setAdminPassword('');
+                }}
+              >
+                <Text style={styles.modalCancelText}>Cancel</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.modalLoginButton}
+                onPress={handleAdminLogin}
+                disabled={loggingIn}
+              >
+                {loggingIn ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.modalLoginText}>Login</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -266,5 +373,71 @@ const styles = StyleSheet.create({
   retryButtonText: {
     fontSize: 14,
     color: '#64748b',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalInput: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 16,
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  modalCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  modalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  modalLoginButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+  },
+  modalLoginText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });

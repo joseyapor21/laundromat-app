@@ -812,6 +812,8 @@ class ApiService {
     iosIpaUploadedAt?: string;
     androidApkPath?: string;
     androidApkUploadedAt?: string;
+    iosExternalUrl?: string;
+    androidExternalUrl?: string;
   }> {
     return this.request('/app-version');
   }
@@ -821,6 +823,8 @@ class ApiService {
     latestVersion?: string;
     updateMessage?: string;
     forceUpdate?: boolean;
+    iosExternalUrl?: string;
+    androidExternalUrl?: string;
   }): Promise<{ success: boolean }> {
     return this.request('/app-version', {
       method: 'PUT',
