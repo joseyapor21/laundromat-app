@@ -925,6 +925,7 @@ export function generateCreditBalanceReceipt(customer: { name: string; phoneNumb
 
   // === CREDIT BALANCE ===
   r += ESC.CENTER;
+  r += 'Current Balance:\n';
   r += ESC.DOUBLE_SIZE_ON;
   r += ESC.BOLD_ON;
   r += ESC.INVERT_ON;
