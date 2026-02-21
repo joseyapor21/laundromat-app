@@ -934,14 +934,14 @@ export function generateCreditBalanceReceipt(customer: { name: string; phoneNumb
   r += ESC.NORMAL_SIZE;
   r += '--------------------------------\n';
 
-  // === RECENT CREDIT HISTORY (last 10 transactions) ===
+  // === RECENT CREDIT HISTORY (last 5 transactions) ===
   if (customer.creditHistory && customer.creditHistory.length > 0) {
     r += ESC.LEFT;
     r += ESC.BOLD_ON;
     r += 'Recent Transactions:\n';
     r += ESC.BOLD_OFF;
     r += '--------------------------------\n';
-    const recentTransactions = customer.creditHistory.slice(-10).reverse();
+    const recentTransactions = customer.creditHistory.slice(-5).reverse();
     recentTransactions.forEach(tx => {
       const txDate = new Date(tx.createdAt).toLocaleDateString('en-US', {
         month: 'short',
