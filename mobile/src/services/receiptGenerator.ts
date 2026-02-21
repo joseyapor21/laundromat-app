@@ -941,7 +941,10 @@ export function generateCreditBalanceReceipt(customer: { name: string; phoneNumb
     r += 'Recent Transactions:\n';
     r += ESC.BOLD_OFF;
     r += '--------------------------------\n';
-    const recentTransactions = customer.creditHistory.slice(-5).reverse();
+    // Sort by date descending and take latest 5
+    const recentTransactions = [...customer.creditHistory]
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 5);
     recentTransactions.forEach(tx => {
       const txDateObj = new Date(tx.createdAt);
       const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
