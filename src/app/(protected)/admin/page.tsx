@@ -53,6 +53,17 @@ export default function AdminPage() {
   const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; expired: boolean; message: string } | null>(null);
   const [checkingEmails, setCheckingEmails] = useState(false);
 
+  // App Version state
+  const [appVersion, setAppVersion] = useState<{
+    minVersion: string;
+    latestVersion: string;
+    updateMessage: string;
+    forceUpdate: boolean;
+    iosExternalUrl?: string;
+    androidExternalUrl?: string;
+  } | null>(null);
+  const [savingAppVersion, setSavingAppVersion] = useState(false);
+
   // Load data on mount
   useEffect(() => {
     loadAllData();
@@ -61,13 +72,14 @@ export default function AdminPage() {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      const [usersRes, customersRes, settingsRes, extraItemsRes, machinesRes, logsRes] = await Promise.all([
+      const [usersRes, customersRes, settingsRes, extraItemsRes, machinesRes, logsRes, appVersionRes] = await Promise.all([
         fetch('/api/users'),
         fetch('/api/customers'),
         fetch('/api/settings'),
         fetch('/api/extra-items'),
         fetch('/api/machines'),
         fetch('/api/activity-logs?limit=50'),
+        fetch('/api/app-version'),
       ]);
 
       if (usersRes.ok) setUsers(await usersRes.json());
@@ -78,6 +90,17 @@ export default function AdminPage() {
       if (logsRes.ok) {
         const logsData = await logsRes.json();
         setActivityLogs(logsData.logs || []);
+      }
+      if (appVersionRes.ok) {
+        const appVersionData = await appVersionRes.json();
+        setAppVersion({
+          minVersion: appVersionData.minVersion || '1.0.0',
+          latestVersion: appVersionData.latestVersion || '1.0.0',
+          updateMessage: appVersionData.updateMessage || 'A new version is available. Please update to continue.',
+          forceUpdate: appVersionData.forceUpdate || false,
+          iosExternalUrl: appVersionData.iosExternalUrl || '',
+          androidExternalUrl: appVersionData.androidExternalUrl || '',
+        });
       }
     } catch (error) {
       console.error('Failed to load admin data:', error);
@@ -339,6 +362,30 @@ export default function AdminPage() {
       toast.error('Failed to update settings');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Update App Version
+  const handleUpdateAppVersion = async () => {
+    if (!appVersion) return;
+    setSavingAppVersion(true);
+    try {
+      const response = await fetch('/api/app-version', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(appVersion),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to update app version');
+      }
+
+      toast.success('App version settings updated successfully');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update app version');
+    } finally {
+      setSavingAppVersion(false);
     }
   };
 
@@ -1051,6 +1098,141 @@ printer is configured correctly.
                     <li>Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET environment variables</li>
                     <li>Click &quot;Connect Gmail&quot; and authorize access</li>
                   </ol>
+                </div>
+              )}
+            </div>
+
+            {/* App Update Management Section */}
+            <div className="mt-8 pt-6 border-t-2 border-gray-200">
+              <h3 className="text-md font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                </svg>
+                App Update Management
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Control forced updates for the mobile app. When enabled, users with older versions will be required to update before using the app.
+              </p>
+
+              {appVersion && (
+                <div className="space-y-4">
+                  {/* Force Update Toggle */}
+                  <div className={`p-4 rounded-lg border-2 ${appVersion.forceUpdate ? 'bg-emerald-50 border-emerald-300' : 'bg-gray-50 border-gray-200'}`}>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium text-gray-900">Force Update</div>
+                        <div className="text-sm text-gray-600">
+                          {appVersion.forceUpdate
+                            ? 'Users with versions below minimum will be forced to update'
+                            : 'Users can continue using older versions'}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setAppVersion(v => v ? { ...v, forceUpdate: !v.forceUpdate } : v)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          appVersion.forceUpdate ? 'bg-emerald-600' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          appVersion.forceUpdate ? 'translate-x-6' : 'translate-x-1'
+                        }`} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Version Settings */}
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Required Version</label>
+                      <input
+                        type="text"
+                        value={appVersion.minVersion}
+                        onChange={e => setAppVersion(v => v ? { ...v, minVersion: e.target.value } : v)}
+                        placeholder="e.g., 1.0.1"
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-emerald-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Users below this version must update</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Latest Version</label>
+                      <input
+                        type="text"
+                        value={appVersion.latestVersion}
+                        onChange={e => setAppVersion(v => v ? { ...v, latestVersion: e.target.value } : v)}
+                        placeholder="e.g., 1.0.1"
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-emerald-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">The newest available version</p>
+                    </div>
+                  </div>
+
+                  {/* Download URLs */}
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">iOS Download URL</label>
+                      <input
+                        type="url"
+                        value={appVersion.iosExternalUrl || ''}
+                        onChange={e => setAppVersion(v => v ? { ...v, iosExternalUrl: e.target.value } : v)}
+                        placeholder="https://loadly.io/..."
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-emerald-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Loadly.io or other distribution URL</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Android Download URL</label>
+                      <input
+                        type="url"
+                        value={appVersion.androidExternalUrl || ''}
+                        onChange={e => setAppVersion(v => v ? { ...v, androidExternalUrl: e.target.value } : v)}
+                        placeholder="https://loadly.io/..."
+                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-emerald-500"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Loadly.io or direct APK URL</p>
+                    </div>
+                  </div>
+
+                  {/* Update Message */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Update Message</label>
+                    <textarea
+                      value={appVersion.updateMessage}
+                      onChange={e => setAppVersion(v => v ? { ...v, updateMessage: e.target.value } : v)}
+                      rows={2}
+                      placeholder="A new version is available. Please update to continue."
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-emerald-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Message shown to users when update is required</p>
+                  </div>
+
+                  {/* Current Status */}
+                  <div className="p-3 bg-slate-100 border border-slate-200 rounded-lg">
+                    <div className="text-sm text-slate-600">
+                      <strong>Current Configuration:</strong> Users with version &lt; <span className="font-mono bg-white px-1 rounded">{appVersion.minVersion}</span> will
+                      {appVersion.forceUpdate
+                        ? <span className="text-emerald-700 font-medium"> be forced to update</span>
+                        : <span className="text-gray-500"> not be forced to update</span>
+                      }
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleUpdateAppVersion}
+                    disabled={savingAppVersion}
+                    className="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {savingAppVersion ? (
+                      <>
+                        <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                        </svg>
+                        Saving...
+                      </>
+                    ) : (
+                      'Save App Update Settings'
+                    )}
+                  </button>
                 </div>
               )}
             </div>
