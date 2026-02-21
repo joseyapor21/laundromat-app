@@ -934,18 +934,42 @@ export function generateCreditBalanceReceipt(customer: { name: string; phoneNumb
   r += ESC.NORMAL_SIZE;
   r += '--------------------------------\n';
 
-  // === RECENT CREDIT HISTORY (last 5 transactions) ===
+  // === RECENT CREDIT HISTORY (last 10 transactions) ===
   if (customer.creditHistory && customer.creditHistory.length > 0) {
     r += ESC.LEFT;
+    r += ESC.BOLD_ON;
     r += 'Recent Transactions:\n';
-    const recentTransactions = customer.creditHistory.slice(-5).reverse();
+    r += ESC.BOLD_OFF;
+    r += '--------------------------------\n';
+    const recentTransactions = customer.creditHistory.slice(-10).reverse();
     recentTransactions.forEach(tx => {
       const txDate = new Date(tx.createdAt).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
+        year: '2-digit',
+      });
+      const txTime = new Date(tx.createdAt).toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true,
       });
       const amount = tx.type === 'add' ? `+$${tx.amount.toFixed(2)}` : `-$${tx.amount.toFixed(2)}`;
-      r += leftRightAlign(txDate, amount) + '\n';
+      const typeLabel = tx.type === 'add' ? 'ADDED' : 'USED';
+
+      // Date and amount line
+      r += ESC.BOLD_ON;
+      r += leftRightAlign(`${txDate} ${txTime}`, amount) + '\n';
+      r += ESC.BOLD_OFF;
+
+      // Type indicator
+      r += `  ${typeLabel}`;
+
+      // Description if available
+      if (tx.description) {
+        r += `: ${tx.description}`;
+      }
+      r += '\n';
+      r += '\n';
     });
     r += '--------------------------------\n';
   }
