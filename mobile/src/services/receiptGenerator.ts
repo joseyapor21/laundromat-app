@@ -943,16 +943,19 @@ export function generateCreditBalanceReceipt(customer: { name: string; phoneNumb
     r += '--------------------------------\n';
     const recentTransactions = customer.creditHistory.slice(-5).reverse();
     recentTransactions.forEach(tx => {
-      const txDate = new Date(tx.createdAt).toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: '2-digit',
-      });
-      const txTime = new Date(tx.createdAt).toLocaleTimeString('en-US', {
-        hour: 'numeric',
-        minute: '2-digit',
-        hour12: true,
-      });
+      const txDateObj = new Date(tx.createdAt);
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const txDate = `${months[txDateObj.getMonth()]} ${txDateObj.getDate()}`;
+
+      // ASCII-safe time formatting
+      let hours = txDateObj.getHours();
+      const minutes = txDateObj.getMinutes();
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      const minutesStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
+      const txTime = `${hours}:${minutesStr} ${ampm}`;
+
       const amount = tx.type === 'add' ? `+$${tx.amount.toFixed(2)}` : `-$${tx.amount.toFixed(2)}`;
       const typeLabel = tx.type === 'add' ? 'ADDED' : 'USED';
 
