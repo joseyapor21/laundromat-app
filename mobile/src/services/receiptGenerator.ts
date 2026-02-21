@@ -959,19 +959,16 @@ export function generateCreditBalanceReceipt(customer: { name: string; phoneNumb
       const amount = tx.type === 'add' ? `+$${tx.amount.toFixed(2)}` : `-$${tx.amount.toFixed(2)}`;
       const typeLabel = tx.type === 'add' ? 'ADDED' : 'USED';
 
-      // Date and amount line
+      // Date, time and amount line
       r += ESC.BOLD_ON;
       r += leftRightAlign(`${txDate} ${txTime}`, amount) + '\n';
       r += ESC.BOLD_OFF;
 
-      // Type indicator
+      // Type and description on separate line
       r += `  ${typeLabel}`;
-
-      // Description if available
       if (tx.description) {
-        r += `: ${tx.description}`;
+        r += `\n  ${tx.description}`;
       }
-      r += '\n';
       r += '\n';
     });
     r += '--------------------------------\n';
