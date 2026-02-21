@@ -43,10 +43,11 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    const iosUpdateUrl = `itms-services://?action=download-manifest&url=${encodeURIComponent(`${BASE_URL}/api/app-version/manifest.plist`)}`;
-    const androidUpdateUrl = config.androidApkPath
-      ? `${BASE_URL}/api/uploads/${config.androidApkPath}`
-      : `${BASE_URL}/api/uploads/app/Laundromat.apk`;
+    // Prefer external URLs (loadly.io, etc.) over local file paths
+    const iosUpdateUrl = config.iosExternalUrl
+      || `itms-services://?action=download-manifest&url=${encodeURIComponent(`${BASE_URL}/api/app-version/manifest.plist`)}`;
+    const androidUpdateUrl = config.androidExternalUrl
+      || (config.androidApkPath ? `${BASE_URL}/api/uploads/${config.androidApkPath}` : `${BASE_URL}/api/uploads/app/Laundromat.apk`);
 
     // If no version provided, return full config (for admin)
     if (!currentVersion) {
@@ -57,8 +58,10 @@ export async function GET(request: NextRequest) {
         forceUpdate: config.forceUpdate,
         iosIpaPath: config.iosIpaPath,
         iosIpaUploadedAt: config.iosIpaUploadedAt,
+        iosExternalUrl: config.iosExternalUrl,
         androidApkPath: config.androidApkPath,
         androidApkUploadedAt: config.androidApkUploadedAt,
+        androidExternalUrl: config.androidExternalUrl,
         ios: { updateUrl: iosUpdateUrl },
         android: { updateUrl: androidUpdateUrl },
       });
@@ -111,7 +114,7 @@ export async function PUT(request: NextRequest) {
     await connectDB();
 
     const body = await request.json();
-    const { minVersion, latestVersion, updateMessage, forceUpdate } = body;
+    const { minVersion, latestVersion, updateMessage, forceUpdate, iosExternalUrl, androidExternalUrl } = body;
 
     let config = await AppVersion.findOne();
     if (!config) {
@@ -122,6 +125,8 @@ export async function PUT(request: NextRequest) {
     if (latestVersion) config.latestVersion = latestVersion;
     if (updateMessage !== undefined) config.updateMessage = updateMessage;
     if (forceUpdate !== undefined) config.forceUpdate = forceUpdate;
+    if (iosExternalUrl !== undefined) config.iosExternalUrl = iosExternalUrl;
+    if (androidExternalUrl !== undefined) config.androidExternalUrl = androidExternalUrl;
     config.updatedBy = currentUser.userId;
     config.updatedByName = currentUser.name;
 
@@ -134,6 +139,8 @@ export async function PUT(request: NextRequest) {
         latestVersion: config.latestVersion,
         updateMessage: config.updateMessage,
         forceUpdate: config.forceUpdate,
+        iosExternalUrl: config.iosExternalUrl,
+        androidExternalUrl: config.androidExternalUrl,
       },
     });
   } catch (error) {

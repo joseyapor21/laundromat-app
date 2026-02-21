@@ -7,8 +7,10 @@ export interface IAppVersion extends Document {
   forceUpdate: boolean;
   iosIpaPath?: string;
   iosIpaUploadedAt?: Date;
+  iosExternalUrl?: string;
   androidApkPath?: string;
   androidApkUploadedAt?: Date;
+  androidExternalUrl?: string;
   updatedAt: Date;
   updatedBy: string;
   updatedByName: string;
@@ -25,8 +27,10 @@ const AppVersionSchema = new Schema<IAppVersion>(
     forceUpdate: { type: Boolean, default: false },
     iosIpaPath: { type: String },
     iosIpaUploadedAt: { type: Date },
+    iosExternalUrl: { type: String },
     androidApkPath: { type: String },
     androidApkUploadedAt: { type: Date },
+    androidExternalUrl: { type: String },
     updatedBy: { type: String },
     updatedByName: { type: String },
   },
