@@ -784,7 +784,7 @@ export default function CreateOrderScreen() {
         orderType,
         deliveryType: orderType === 'delivery' ? deliveryType : undefined,
         weight: totalWeight,
-        bags: bags.filter(bag => bag.weight > 0 || bag.color || bag.description).map(bag => ({
+        bags: bags.filter(bag => bag.identifier || bag.weight > 0 || bag.color || bag.description).map(bag => ({
           identifier: bag.identifier,
           weight: bag.weight,
           color: bag.color || '',
