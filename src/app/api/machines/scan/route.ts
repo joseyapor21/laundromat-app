@@ -172,11 +172,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Check if this machine is already assigned to this order
+    // Check if this machine is already actively assigned to this order
+    // Allow reuse if the previous assignment was checked (machine was unloaded)
     const machineAssignments = order.machineAssignments || [];
     const existingAssignment = machineAssignments.find(
-      (a: { machineId: string; removedAt?: Date }) =>
-        a.machineId === machine._id.toString() && !a.removedAt
+      (a: { machineId: string; removedAt?: Date; isChecked?: boolean }) =>
+        a.machineId === machine._id.toString() && !a.removedAt && !a.isChecked
     );
 
     if (existingAssignment) {
