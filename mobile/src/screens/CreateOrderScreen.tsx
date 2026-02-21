@@ -18,7 +18,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect, useRoute, RouteProp } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute, RouteProp, CommonActions } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
@@ -834,14 +834,24 @@ export default function CreateOrderScreen() {
         {
           text: 'OK',
           onPress: () => {
-            // Reset navigation stack to go to order details, clearing any intermediate screens
-            navigation.reset({
-              index: 1,
-              routes: [
-                { name: 'MainTabs' },
-                { name: 'OrderDetail', params: { orderId: createdOrder._id } },
-              ],
-            });
+            // Pop all screens and navigate to order details
+            navigation.dispatch(
+              CommonActions.reset({
+                index: 0,
+                routes: [
+                  {
+                    name: 'MainTabs',
+                    state: {
+                      routes: [{ name: 'Dashboard' }],
+                    },
+                  },
+                ],
+              })
+            );
+            // Navigate to order details after reset
+            setTimeout(() => {
+              navigation.navigate('OrderDetail' as never, { orderId: createdOrder._id } as never);
+            }, 100);
           }
         }
       ]);
