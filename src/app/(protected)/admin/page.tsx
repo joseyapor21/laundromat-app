@@ -1108,11 +1108,8 @@ printer is configured correctly.
                 <svg className="w-5 h-5 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                 </svg>
-                App Update Management
+                App Update
               </h3>
-              <p className="text-sm text-gray-600 mb-4">
-                Control forced updates for the mobile app. When enabled, users with older versions will be required to update before using the app.
-              </p>
 
               {appVersion && (
                 <div className="space-y-4">
@@ -1122,9 +1119,7 @@ printer is configured correctly.
                       <div>
                         <div className="font-medium text-gray-900">Force Update</div>
                         <div className="text-sm text-gray-600">
-                          {appVersion.forceUpdate
-                            ? 'Users with versions below minimum will be forced to update'
-                            : 'Users can continue using older versions'}
+                          {appVersion.forceUpdate ? 'Enabled' : 'Disabled'}
                         </div>
                       </div>
                       <button
@@ -1140,36 +1135,20 @@ printer is configured correctly.
                     </div>
                   </div>
 
-                  {/* Version Settings */}
-                  <div className="grid md:grid-cols-2 gap-4">
+                  {/* Version and URLs */}
+                  <div className="grid md:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Required Version</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Min Version</label>
                       <input
                         type="text"
                         value={appVersion.minVersion}
-                        onChange={e => setAppVersion(v => v ? { ...v, minVersion: e.target.value } : v)}
-                        placeholder="e.g., 1.0.1"
+                        onChange={e => setAppVersion(v => v ? { ...v, minVersion: e.target.value, latestVersion: e.target.value } : v)}
+                        placeholder="1.0.1"
                         className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-emerald-500"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Users below this version must update</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Latest Version</label>
-                      <input
-                        type="text"
-                        value={appVersion.latestVersion}
-                        onChange={e => setAppVersion(v => v ? { ...v, latestVersion: e.target.value } : v)}
-                        placeholder="e.g., 1.0.1"
-                        className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-emerald-500"
-                      />
-                      <p className="text-xs text-gray-500 mt-1">The newest available version</p>
-                    </div>
-                  </div>
-
-                  {/* Download URLs */}
-                  <div className="grid md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">iOS Download URL</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">iOS URL</label>
                       <input
                         type="url"
                         value={appVersion.iosExternalUrl || ''}
@@ -1177,10 +1156,9 @@ printer is configured correctly.
                         placeholder="https://loadly.io/..."
                         className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-emerald-500"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Loadly.io or other distribution URL</p>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Android Download URL</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Android URL</label>
                       <input
                         type="url"
                         value={appVersion.androidExternalUrl || ''}
@@ -1188,31 +1166,6 @@ printer is configured correctly.
                         placeholder="https://loadly.io/..."
                         className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-emerald-500"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Loadly.io or direct APK URL</p>
-                    </div>
-                  </div>
-
-                  {/* Update Message */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Update Message</label>
-                    <textarea
-                      value={appVersion.updateMessage}
-                      onChange={e => setAppVersion(v => v ? { ...v, updateMessage: e.target.value } : v)}
-                      rows={2}
-                      placeholder="A new version is available. Please update to continue."
-                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-emerald-500"
-                    />
-                    <p className="text-xs text-gray-500 mt-1">Message shown to users when update is required</p>
-                  </div>
-
-                  {/* Current Status */}
-                  <div className="p-3 bg-slate-100 border border-slate-200 rounded-lg">
-                    <div className="text-sm text-slate-600">
-                      <strong>Current Configuration:</strong> Users with version &lt; <span className="font-mono bg-white px-1 rounded">{appVersion.minVersion}</span> will
-                      {appVersion.forceUpdate
-                        ? <span className="text-emerald-700 font-medium"> be forced to update</span>
-                        : <span className="text-gray-500"> not be forced to update</span>
-                      }
                     </div>
                   </div>
 
