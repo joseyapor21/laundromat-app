@@ -831,7 +831,19 @@ export default function CreateOrderScreen() {
       orderCreatedRef.current = true;
 
       Alert.alert('Success', 'Order created successfully', [
-        { text: 'OK', onPress: () => navigation.goBack() }
+        {
+          text: 'OK',
+          onPress: () => {
+            // Reset navigation stack to go to order details, clearing any intermediate screens
+            navigation.reset({
+              index: 1,
+              routes: [
+                { name: 'MainTabs' },
+                { name: 'OrderDetail', params: { orderId: createdOrder._id } },
+              ],
+            });
+          }
+        }
       ]);
     } catch (error) {
       Alert.alert('Error', 'Failed to create order');
