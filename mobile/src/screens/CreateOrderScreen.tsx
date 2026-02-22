@@ -834,24 +834,10 @@ export default function CreateOrderScreen() {
         {
           text: 'OK',
           onPress: () => {
-            // Pop all screens and navigate to order details
-            navigation.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [
-                  {
-                    name: 'MainTabs',
-                    state: {
-                      routes: [{ name: 'Dashboard' }],
-                    },
-                  },
-                ],
-              })
-            );
-            // Navigate to order details after reset
-            setTimeout(() => {
-              navigation.navigate('OrderDetail' as never, { orderId: createdOrder._id } as never);
-            }, 100);
+            // Pop to top first to clear all intermediate screens
+            navigation.popToTop();
+            // Then replace current screen with order details
+            navigation.replace('OrderDetail' as never, { orderId: createdOrder._id } as never);
           }
         }
       ]);
