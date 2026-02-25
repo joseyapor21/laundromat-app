@@ -126,6 +126,16 @@ export interface OrderDoc {
     unloadCheckedBy?: string;
     unloadCheckedByInitials?: string;
     isUnloadChecked?: boolean;
+    // Dryer folding fields (who is folding clothes from this dryer)
+    isFolding?: boolean;
+    foldingStartedAt?: Date;
+    foldingStartedBy?: string;
+    foldingStartedByInitials?: string;
+    // Dryer folded fields (who finished folding clothes from this dryer)
+    isFolded?: boolean;
+    foldedAt?: Date;
+    foldedBy?: string;
+    foldedByInitials?: string;
     // For keepSeparated orders
     bagIdentifier?: string;
   }>;
@@ -525,6 +535,22 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
       type: Boolean,
       default: false,
     },
+    // Dryer folding fields (who is folding clothes from this dryer)
+    isFolding: {
+      type: Boolean,
+      default: false,
+    },
+    foldingStartedAt: Date,
+    foldingStartedBy: String,
+    foldingStartedByInitials: String,
+    // Dryer folded fields (who finished folding clothes from this dryer)
+    isFolded: {
+      type: Boolean,
+      default: false,
+    },
+    foldedAt: Date,
+    foldedBy: String,
+    foldedByInitials: String,
     // For keepSeparated orders - which bag this machine is assigned to
     bagIdentifier: String,
   }],
