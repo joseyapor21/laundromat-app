@@ -132,6 +132,11 @@ export default function DriverScreen() {
     isDateMatch(order.deliverySchedule, deliveryDateFilter)
   );
 
+  // Filtered pickups based on date (use estimatedPickupDate for pickup orders)
+  const filteredPickups = pickupOrders.filter(order =>
+    isDateMatch(order.estimatedPickupDate, deliveryDateFilter)
+  );
+
   const loadOrders = useCallback(async () => {
     try {
       const allOrders = await api.getOrders();
@@ -578,9 +583,9 @@ export default function DriverScreen() {
     });
   }
 
-  // Open route planning modal
+  // Open route planning modal - uses filtered orders based on date
   function openRoutePlanner() {
-    const allOrders = [...pickupOrders, ...deliveryOrders];
+    const allOrders = [...filteredPickups, ...filteredDeliveries];
     const stops: RouteStop[] = allOrders
       .filter(order => order.customer?.address)
       .map(order => ({
@@ -589,7 +594,7 @@ export default function DriverScreen() {
       }));
 
     if (stops.length === 0) {
-      Alert.alert('No Addresses', 'No orders have addresses to navigate to.');
+      Alert.alert('No Addresses', 'No orders for the selected date have addresses to navigate to.');
       return;
     }
 
@@ -888,7 +893,7 @@ export default function DriverScreen() {
     );
   };
 
-  const activeOrders = activeTab === 'pickups' ? pickupOrders : filteredDeliveries;
+  const activeOrders = activeTab === 'pickups' ? filteredPickups : filteredDeliveries;
 
   if (loading) {
     return (
@@ -1099,7 +1104,7 @@ export default function DriverScreen() {
           >
             <Ionicons name="map" size={20} color="#fff" />
             <Text style={styles.actionBarButtonText}>
-              Plan Route ({pickupOrders.length + deliveryOrders.length} stops)
+              Plan Route ({filteredPickups.length + filteredDeliveries.length} stops)
             </Text>
           </TouchableOpacity>
         </View>

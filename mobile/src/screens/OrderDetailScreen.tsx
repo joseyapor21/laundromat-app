@@ -1064,6 +1064,20 @@ export default function OrderDetailScreen() {
   return (
     <>
       <ScrollView style={styles.container} keyboardDismissMode="on-drag">
+        {/* Back to Dashboard - Show when no back navigation available */}
+        {!navigation.canGoBack() && (
+          <TouchableOpacity
+            style={styles.backToDashboard}
+            onPress={() => navigation.reset({
+              index: 0,
+              routes: [{ name: 'Main' as never }],
+            })}
+          >
+            <Ionicons name="arrow-back" size={20} color="#2563eb" />
+            <Text style={styles.backToDashboardText}>Back to Dashboard</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Header Card */}
         <View style={styles.headerCard}>
           <View style={styles.headerRow}>
@@ -2509,6 +2523,24 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f1f5f9',
+  },
+  backToDashboard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  backToDashboardText: {
+    color: '#2563eb',
+    fontSize: 16,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,

@@ -247,6 +247,12 @@ class ApiService {
     });
   }
 
+  async deleteCustomer(id: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/customers/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Search customers from other locations
   async searchCustomersOtherLocations(query: string): Promise<(Customer & { locationName: string })[]> {
     return this.request<(Customer & { locationName: string })[]>(`/customers/search-all?q=${encodeURIComponent(query)}`);

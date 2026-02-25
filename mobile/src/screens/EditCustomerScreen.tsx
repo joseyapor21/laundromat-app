@@ -213,14 +213,14 @@ export default function EditCustomerScreen() {
           onPress: async () => {
             setSaving(true);
             try {
-              // Note: You may need to add a deleteCustomer method to the API
-              await api.updateCustomer(customer!._id, { isDeleted: true } as any);
+              await api.deleteCustomer(customer!._id);
               Alert.alert('Success', 'Customer deleted', [
                 { text: 'OK', onPress: () => navigation.goBack() }
               ]);
-            } catch (error) {
+            } catch (error: any) {
               console.error('Failed to delete customer:', error);
-              Alert.alert('Error', 'Failed to delete customer');
+              const message = error?.message || 'Failed to delete customer';
+              Alert.alert('Error', message);
             } finally {
               setSaving(false);
             }

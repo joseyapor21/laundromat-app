@@ -102,6 +102,18 @@ export default function CreateOrderScreen() {
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [selectedExtras, setSelectedExtras] = useState<Record<string, { quantity: number; price: number; overrideTotal?: number }>>({});
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
+
+  // Multi-instance extra items (for items like bath mats, blankets with different prices)
+  const [extraItemInstances, setExtraItemInstances] = useState<Array<{
+    instanceId: string;
+    itemId: string;
+    itemName: string;
+    quantity: number;
+    price: number;
+  }>>([]);
+  const [showInstanceModal, setShowInstanceModal] = useState(false);
+  const [selectedItemForInstances, setSelectedItemForInstances] = useState<{ _id: string; name: string; price: number } | null>(null);
+  const [newInstancePrice, setNewInstancePrice] = useState('');
   const [markAsPaid, setMarkAsPaid] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
 
@@ -554,6 +566,11 @@ export default function CreateOrderScreen() {
       }
     });
 
+    // Add multi-instance extra items
+    extraItemInstances.forEach(instance => {
+      extrasTotal += instance.price * instance.quantity;
+    });
+
     // Add delivery fee (half price for pickup only or delivery only)
     let deliveryFee = 0;
     if (orderType === 'delivery' && selectedCustomer) {
@@ -648,6 +665,14 @@ export default function CreateOrderScreen() {
       }
     });
 
+    // Add multi-instance extra items to breakdown
+    extraItemInstances.forEach(instance => {
+      breakdown.push({
+        label: `${instance.itemName} @ $${instance.price.toFixed(2)}`,
+        amount: instance.price * instance.quantity,
+      });
+    });
+
     // Delivery fee (half price for one-way)
     if (orderType === 'delivery' && selectedCustomer) {
       let fee = 0;
@@ -705,6 +730,49 @@ export default function CreateOrderScreen() {
     }));
   }
 
+  // Multi-instance extra item functions
+  function openInstanceModal(item: { _id: string; name: string; price: number }) {
+    setSelectedItemForInstances(item);
+    setNewInstancePrice('');
+    // Close the extra items modal first, then open the instance modal
+    setShowExtraItemsModal(false);
+    setTimeout(() => {
+      setShowInstanceModal(true);
+    }, 300);
+  }
+
+  function addExtraItemInstance() {
+    if (!selectedItemForInstances) return;
+    const price = parseFloat(newInstancePrice) || 0;
+    const newInstance = {
+      instanceId: `${selectedItemForInstances._id}_${Date.now()}`,
+      itemId: selectedItemForInstances._id,
+      itemName: selectedItemForInstances.name,
+      quantity: 1,
+      price,
+    };
+    setExtraItemInstances(prev => [...prev, newInstance]);
+    setNewInstancePrice('');
+  }
+
+  function removeExtraItemInstance(instanceId: string) {
+    setExtraItemInstances(prev => prev.filter(i => i.instanceId !== instanceId));
+  }
+
+  function updateInstanceQuantity(instanceId: string, delta: number) {
+    setExtraItemInstances(prev => prev.map(instance => {
+      if (instance.instanceId === instanceId) {
+        const newQty = Math.max(1, instance.quantity + delta);
+        return { ...instance, quantity: newQty };
+      }
+      return instance;
+    }));
+  }
+
+  function getInstanceCountForItem(itemId: string): number {
+    return extraItemInstances.filter(i => i.itemId === itemId).length;
+  }
+
   async function handleSubmit() {
     if (!selectedCustomer) {
       Alert.alert('Error', 'Please select a customer');
@@ -736,6 +804,17 @@ export default function CreateOrderScreen() {
             overrideTotal: data.overrideTotal,
           };
         });
+
+      // Add multi-instance extra items
+      extraItemInstances.forEach(instance => {
+        extraItemsData.push({
+          itemId: instance.itemId,
+          name: instance.itemName,
+          price: instance.price,
+          quantity: instance.quantity,
+          overrideTotal: undefined,
+        });
+      });
 
       // Use manual delivery address if customer doesn't have one
       const finalDeliveryAddress = selectedCustomer.address || deliveryAddress.trim();
@@ -1453,7 +1532,7 @@ export default function CreateOrderScreen() {
             <Text style={styles.addExtraItemsButtonText}>Add Extra Item</Text>
           </TouchableOpacity>
         </View>
-        {Object.keys(selectedExtras).filter(id => selectedExtras[id]?.quantity > 0).length === 0 && (
+        {Object.keys(selectedExtras).filter(id => selectedExtras[id]?.quantity > 0).length === 0 && extraItemInstances.length === 0 && (
           <View style={styles.noExtrasCard}>
             <Text style={styles.noExtrasText}>No extra items added</Text>
             <Text style={styles.noExtrasHint}>Tap "Add Extra Item" to add items</Text>
@@ -1511,6 +1590,46 @@ export default function CreateOrderScreen() {
               </View>
             );
           })}
+        {/* Multi-instance extra items */}
+        {extraItemInstances.map((instance) => (
+          <View key={instance.instanceId} style={styles.extraItemCard}>
+            <View style={styles.extraItemHeader}>
+              <Text style={styles.extraItemTitle}>
+                {instance.itemName} @ ${instance.price.toFixed(2)}
+              </Text>
+              <TouchableOpacity
+                onPress={() => removeExtraItemInstance(instance.instanceId)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                style={styles.extraItemDeleteButton}
+              >
+                <Ionicons name="trash-outline" size={20} color="#ef4444" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.extraItemRow}>
+              <View style={styles.instanceQtyControls}>
+                <TouchableOpacity
+                  style={styles.instanceQtyBtnSmall}
+                  onPress={() => updateInstanceQuantity(instance.instanceId, -1)}
+                >
+                  <Ionicons name="remove" size={16} color="#2563eb" />
+                </TouchableOpacity>
+                <Text style={styles.instanceQtyDisplay}>Qty: {instance.quantity}</Text>
+                <TouchableOpacity
+                  style={styles.instanceQtyBtnSmall}
+                  onPress={() => updateInstanceQuantity(instance.instanceId, 1)}
+                >
+                  <Ionicons name="add" size={16} color="#2563eb" />
+                </TouchableOpacity>
+              </View>
+              <View style={styles.extraItemTotalBox}>
+                <Text style={styles.extraItemTotalLabel}>Total</Text>
+                <Text style={styles.extraItemTotalValue}>
+                  ${(instance.price * instance.quantity).toFixed(2)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        ))}
       </View>
 
       {/* Special Instructions */}
@@ -1735,20 +1854,32 @@ export default function CreateOrderScreen() {
                           trackColor={{ false: '#e2e8f0', true: '#c4b5fd' }}
                           thumbColor={isEnabled ? '#8b5cf6' : '#f4f4f5'}
                         />
+                      ) : item.allowMultiplePrices ? (
+                        // Items with multiple prices - button to add with custom prices
+                        <TouchableOpacity
+                          style={styles.addMultipleBtn}
+                          onPress={() => openInstanceModal(item)}
+                        >
+                          <Ionicons name="add-circle" size={20} color="#8b5cf6" />
+                          <Text style={styles.addMultipleBtnText}>
+                            {getInstanceCountForItem(item._id) > 0
+                              ? `${getInstanceCountForItem(item._id)} added`
+                              : 'Add'}
+                          </Text>
+                        </TouchableOpacity>
                       ) : (
-                        // Regular items use +/- quantity controls
+                        // Regular items - standard quantity controls
                         <View style={styles.modalQuantityControl}>
                           <TouchableOpacity
                             style={[styles.modalQuantityButton, quantity === 0 && styles.modalQuantityButtonDisabled]}
-                            onPress={() => setSelectedExtras(prev => {
-                              const current = prev[item._id] || { quantity: 0, price: item.price };
-                              const newQty = Math.max(0, current.quantity - 1);
-                              if (newQty === 0) {
-                                const { [item._id]: _, ...rest } = prev;
-                                return rest;
+                            onPress={() => {
+                              if (quantity > 0) {
+                                setSelectedExtras(prev => ({
+                                  ...prev,
+                                  [item._id]: { ...prev[item._id], quantity: quantity - 1, price: prev[item._id]?.price || item.price }
+                                }));
                               }
-                              return { ...prev, [item._id]: { ...current, quantity: newQty } };
-                            })}
+                            }}
                             disabled={quantity === 0}
                           >
                             <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
@@ -1756,10 +1887,12 @@ export default function CreateOrderScreen() {
                           <Text style={styles.modalQuantityText}>{quantity}</Text>
                           <TouchableOpacity
                             style={styles.modalQuantityButton}
-                            onPress={() => setSelectedExtras(prev => {
-                              const current = prev[item._id] || { quantity: 0, price: item.price };
-                              return { ...prev, [item._id]: { ...current, quantity: current.quantity + 1 } };
-                            })}
+                            onPress={() => {
+                              setSelectedExtras(prev => ({
+                                ...prev,
+                                [item._id]: { quantity: (prev[item._id]?.quantity || 0) + 1, price: prev[item._id]?.price || item.price }
+                              }));
+                            }}
                           >
                             <Ionicons name="add" size={20} color="#2563eb" />
                           </TouchableOpacity>
@@ -1910,6 +2043,116 @@ export default function CreateOrderScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Multi-Instance Extra Item Modal */}
+      <Modal
+        visible={showInstanceModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => {
+          setShowInstanceModal(false);
+          setTimeout(() => setShowExtraItemsModal(true), 300);
+        }}
+      >
+        <KeyboardAvoidingView
+          style={styles.instanceModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.instanceModalContent}>
+            <View style={styles.instanceModalHeader}>
+              <Text style={styles.instanceModalTitle}>
+                {selectedItemForInstances?.name || 'Item'}
+              </Text>
+              <TouchableOpacity onPress={() => {
+                setShowInstanceModal(false);
+                setTimeout(() => setShowExtraItemsModal(true), 300);
+              }}>
+                <Ionicons name="close" size={24} color="#1e293b" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.instanceModalHint}>
+              Add multiple items with different prices
+            </Text>
+
+            {/* Add new instance */}
+            <View style={styles.addInstanceRow}>
+              <View style={styles.addInstancePriceContainer}>
+                <Text style={styles.addInstanceLabel}>Price: $</Text>
+                <TextInput
+                  style={styles.addInstancePriceInput}
+                  value={newInstancePrice}
+                  onChangeText={setNewInstancePrice}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                />
+              </View>
+              <TouchableOpacity
+                style={styles.addInstanceButton}
+                onPress={addExtraItemInstance}
+              >
+                <Ionicons name="add" size={20} color="#fff" />
+                <Text style={styles.addInstanceButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* List of instances */}
+            <ScrollView style={styles.instancesList}>
+              {extraItemInstances
+                .filter(i => i.itemId === selectedItemForInstances?._id)
+                .map((instance, index) => (
+                  <View key={instance.instanceId} style={styles.instanceRow}>
+                    <View style={styles.instanceInfo}>
+                      <Text style={styles.instancePrice}>
+                        ${instance.price.toFixed(2)} × {instance.quantity}
+                      </Text>
+                      <Text style={styles.instanceTotal}>
+                        = ${(instance.price * instance.quantity).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.instanceActions}>
+                      <TouchableOpacity
+                        style={styles.instanceQtyBtn}
+                        onPress={() => updateInstanceQuantity(instance.instanceId, -1)}
+                      >
+                        <Ionicons name="remove" size={18} color="#2563eb" />
+                      </TouchableOpacity>
+                      <Text style={styles.instanceQtyText}>{instance.quantity}</Text>
+                      <TouchableOpacity
+                        style={styles.instanceQtyBtn}
+                        onPress={() => updateInstanceQuantity(instance.instanceId, 1)}
+                      >
+                        <Ionicons name="add" size={18} color="#2563eb" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.instanceDeleteBtn}
+                        onPress={() => removeExtraItemInstance(instance.instanceId)}
+                      >
+                        <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              {extraItemInstances.filter(i => i.itemId === selectedItemForInstances?._id).length === 0 && (
+                <Text style={styles.noInstancesText}>
+                  No items added yet. Enter a price and tap "Add".
+                </Text>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.instanceDoneBtn}
+              onPress={() => {
+                Keyboard.dismiss();
+                setShowInstanceModal(false);
+                setTimeout(() => setShowExtraItemsModal(true), 300);
+              }}
+            >
+              <Text style={styles.instanceDoneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
 
@@ -3528,5 +3771,187 @@ const styles = StyleSheet.create({
   },
   quickAddButtonDisabled: {
     opacity: 0.6,
+  },
+  // Multi-instance extra items styles
+  addMultipleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f5f3ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#c4b5fd',
+  },
+  addMultipleBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8b5cf6',
+  },
+  instanceModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  instanceModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '70%',
+  },
+  instanceModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  instanceModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  instanceModalHint: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 16,
+  },
+  addInstanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  addInstancePriceContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  addInstanceLabel: {
+    fontSize: 16,
+    color: '#64748b',
+  },
+  addInstancePriceInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    paddingVertical: 12,
+    paddingLeft: 4,
+  },
+  addInstanceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#10b981',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+  },
+  addInstanceButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  instancesList: {
+    maxHeight: 250,
+  },
+  instanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 8,
+  },
+  instanceInfo: {
+    flex: 1,
+  },
+  instancePrice: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  instanceTotal: {
+    fontSize: 14,
+    color: '#10b981',
+    fontWeight: '600',
+  },
+  instanceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  instanceQtyBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  instanceQtyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    minWidth: 24,
+    textAlign: 'center',
+  },
+  instanceDeleteBtn: {
+    padding: 6,
+    marginLeft: 4,
+  },
+  noInstancesText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    textAlign: 'center',
+    paddingVertical: 24,
+    fontStyle: 'italic',
+  },
+  instanceDoneBtn: {
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    marginTop: 16,
+  },
+  instanceDoneBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  instanceQtyControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  instanceQtyBtnSmall: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  instanceQtyDisplay: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    minWidth: 50,
+    textAlign: 'center',
   },
 });

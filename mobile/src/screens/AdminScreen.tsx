@@ -163,7 +163,7 @@ export default function AdminScreen() {
 
   // Form state for modals
   const [userForm, setUserForm] = useState({ email: '', firstName: '', lastName: '', role: 'employee' as UserRole, isDriver: false, password: '' });
-  const [extraItemForm, setExtraItemForm] = useState({ name: '', description: '', price: '', isActive: true, perWeightUnit: '' });
+  const [extraItemForm, setExtraItemForm] = useState({ name: '', description: '', price: '', isActive: true, perWeightUnit: '', allowMultiplePrices: false });
   const [machineForm, setMachineForm] = useState({ name: '', type: 'washer' as MachineType, qrCode: '', status: 'available' as MachineStatus });
   const [settingsForm, setSettingsForm] = useState({
     minimumWeight: '',
@@ -457,10 +457,11 @@ export default function AdminScreen() {
         price: item.price.toString(),
         isActive: item.isActive,
         perWeightUnit: item.perWeightUnit ? item.perWeightUnit.toString() : '',
+        allowMultiplePrices: item.allowMultiplePrices || false,
       });
     } else {
       setEditingExtraItem(null);
-      setExtraItemForm({ name: '', description: '', price: '', isActive: true, perWeightUnit: '' });
+      setExtraItemForm({ name: '', description: '', price: '', isActive: true, perWeightUnit: '', allowMultiplePrices: false });
     }
     setShowExtraItemModal(true);
   };
@@ -482,6 +483,7 @@ export default function AdminScreen() {
           price: parseFloat(extraItemForm.price),
           isActive: extraItemForm.isActive,
           perWeightUnit: perWeightUnit,
+          allowMultiplePrices: extraItemForm.allowMultiplePrices,
         });
         Alert.alert('Success', 'Extra item updated');
       } else {
@@ -491,6 +493,7 @@ export default function AdminScreen() {
           price: parseFloat(extraItemForm.price),
           isActive: extraItemForm.isActive,
           perWeightUnit: perWeightUnit,
+          allowMultiplePrices: extraItemForm.allowMultiplePrices,
         });
         Alert.alert('Success', 'Extra item created');
       }
@@ -3327,6 +3330,18 @@ export default function AdminScreen() {
                 onValueChange={(value) => setExtraItemForm({ ...extraItemForm, isActive: value })}
                 trackColor={{ false: '#e2e8f0', true: '#86efac' }}
                 thumbColor={extraItemForm.isActive ? '#10b981' : '#fff'}
+              />
+            </View>
+            <View style={styles.switchRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Allow Multiple Prices</Text>
+                <Text style={styles.inputHint}>Enable for items like bath mats, blankets - allows adding multiple with different prices</Text>
+              </View>
+              <Switch
+                value={extraItemForm.allowMultiplePrices}
+                onValueChange={(value) => setExtraItemForm({ ...extraItemForm, allowMultiplePrices: value })}
+                trackColor={{ false: '#e2e8f0', true: '#c4b5fd' }}
+                thumbColor={extraItemForm.allowMultiplePrices ? '#8b5cf6' : '#fff'}
               />
             </View>
           </KeyboardAwareScrollView>
