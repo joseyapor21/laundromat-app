@@ -260,6 +260,8 @@ export interface ExtraItem {
   // Weight-based pricing: if set, price applies per X pounds (e.g., 15 = per 15 lbs)
   // Quantity is auto-calculated as ceil(totalWeight / perWeightUnit)
   perWeightUnit?: number | null;
+  // Allow adding multiple instances of this item with different prices (e.g., bath mats, blankets)
+  allowMultiplePrices?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }

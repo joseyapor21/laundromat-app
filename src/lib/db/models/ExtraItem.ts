@@ -37,6 +37,11 @@ const extraItemSchema = new mongoose.Schema<ExtraItemDocument>({
     type: Number,
     default: null,
   },
+  // Allow adding multiple instances of this item with different prices (e.g., bath mats, blankets)
+  allowMultiplePrices: {
+    type: Boolean,
+    default: false,
+  },
 }, {
   collection: 'extraItems',
   timestamps: true,
