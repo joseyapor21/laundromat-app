@@ -490,6 +490,20 @@ class ApiService {
     });
   }
 
+  async startDryerFolding(orderId: string, machineId: string, initials: string): Promise<{ success: boolean; message: string; order: Order }> {
+    return this.request<{ success: boolean; message: string; order: Order }>('/machines/folding', {
+      method: 'POST',
+      body: JSON.stringify({ orderId, machineId, initials }),
+    });
+  }
+
+  async markDryerFolded(orderId: string, machineId: string, initials: string): Promise<{ success: boolean; message: string; order: Order }> {
+    return this.request<{ success: boolean; message: string; order: Order }>('/machines/folded', {
+      method: 'POST',
+      body: JSON.stringify({ orderId, machineId, initials }),
+    });
+  }
+
   // Users (Admin)
   async getUsers(): Promise<User[]> {
     return this.request<User[]>('/users');

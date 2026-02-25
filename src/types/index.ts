@@ -128,6 +128,28 @@ export interface MachineAssignment {
   checkedBy?: string;
   checkedByInitials?: string;
   isChecked?: boolean;
+  // Verification photo
+  verificationPhoto?: string;
+  verificationPhotoAt?: Date;
+  // Dryer unload fields (who took clothes out)
+  unloadedAt?: Date;
+  unloadedBy?: string;
+  unloadedByInitials?: string;
+  // Dryer unload check fields
+  isUnloadChecked?: boolean;
+  unloadCheckedAt?: Date;
+  unloadCheckedBy?: string;
+  unloadCheckedByInitials?: string;
+  // Dryer folding fields (who is folding clothes from this dryer)
+  isFolding?: boolean;
+  foldingStartedAt?: Date;
+  foldingStartedBy?: string;
+  foldingStartedByInitials?: string;
+  // Dryer folded fields (who finished folding clothes from this dryer)
+  isFolded?: boolean;
+  foldedAt?: Date;
+  foldedBy?: string;
+  foldedByInitials?: string;
   // For keepSeparated orders - which bag this machine is assigned to
   bagIdentifier?: string;
 }

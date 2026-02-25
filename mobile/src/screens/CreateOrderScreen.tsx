@@ -891,7 +891,7 @@ export default function CreateOrderScreen() {
         totalAmount: calculateTotal(),
         dropOffDate: new Date(),
         estimatedPickupDate: estimatedPickupDate,
-        deliverySchedule: (orderType === 'delivery' && deliveryType === 'deliveryOnly') ? deliveryScheduleDate : undefined,
+        deliverySchedule: (orderType === 'delivery' && (deliveryType === 'full' || deliveryType === 'deliveryOnly')) ? deliveryScheduleDate : undefined,
         // If credit covers full amount, mark as paid
         isPaid: markAsPaid || (applyCredit && creditToApply >= calculateTotal()),
         paymentMethod: (applyCredit && creditToApply >= calculateTotal())
@@ -1343,8 +1343,8 @@ export default function CreateOrderScreen() {
         </View>
       </View>
 
-      {/* Delivery Date - only for deliveryOnly orders */}
-      {orderType === 'delivery' && deliveryType === 'deliveryOnly' && (
+      {/* Delivery Date - for full service and deliveryOnly orders */}
+      {orderType === 'delivery' && (deliveryType === 'full' || deliveryType === 'deliveryOnly') && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Delivery Date & Time</Text>
           <View style={styles.pickupDateCard}>
@@ -1617,7 +1617,42 @@ export default function CreateOrderScreen() {
               style={styles.datePickerSpinner}
             />
             {/* Time Frame Quick Select */}
+            {/* Time Frame Quick Select - Row 1 */}
             <View style={styles.timeFrameContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.timeFrameButton,
+                  selectedDeliveryTimeSlot === '10-11AM' && styles.timeFrameButtonSelected
+                ]}
+                onPress={() => {
+                  const newDate = new Date(deliveryScheduleDate);
+                  newDate.setHours(10, 0, 0, 0);
+                  setDeliveryScheduleDate(newDate);
+                  setSelectedDeliveryTimeSlot('10-11AM');
+                }}
+              >
+                <Text style={[
+                  styles.timeFrameButtonText,
+                  selectedDeliveryTimeSlot === '10-11AM' && styles.timeFrameButtonTextSelected
+                ]}>10-11AM</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.timeFrameButton,
+                  selectedDeliveryTimeSlot === '11-12PM' && styles.timeFrameButtonSelected
+                ]}
+                onPress={() => {
+                  const newDate = new Date(deliveryScheduleDate);
+                  newDate.setHours(11, 0, 0, 0);
+                  setDeliveryScheduleDate(newDate);
+                  setSelectedDeliveryTimeSlot('11-12PM');
+                }}
+              >
+                <Text style={[
+                  styles.timeFrameButtonText,
+                  selectedDeliveryTimeSlot === '11-12PM' && styles.timeFrameButtonTextSelected
+                ]}>11-12PM</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={[
                   styles.timeFrameButton,
@@ -1635,22 +1670,25 @@ export default function CreateOrderScreen() {
                   selectedDeliveryTimeSlot === '10-12PM' && styles.timeFrameButtonTextSelected
                 ]}>10-12PM</Text>
               </TouchableOpacity>
+            </View>
+            {/* Time Frame Quick Select - Row 2 */}
+            <View style={styles.timeFrameContainer}>
               <TouchableOpacity
                 style={[
                   styles.timeFrameButton,
-                  selectedDeliveryTimeSlot === '4-6PM' && styles.timeFrameButtonSelected
+                  selectedDeliveryTimeSlot === '4-5PM' && styles.timeFrameButtonSelected
                 ]}
                 onPress={() => {
                   const newDate = new Date(deliveryScheduleDate);
-                  newDate.setHours(16, 1, 0, 0);
+                  newDate.setHours(16, 0, 0, 0);
                   setDeliveryScheduleDate(newDate);
-                  setSelectedDeliveryTimeSlot('4-6PM');
+                  setSelectedDeliveryTimeSlot('4-5PM');
                 }}
               >
                 <Text style={[
                   styles.timeFrameButtonText,
-                  selectedDeliveryTimeSlot === '4-6PM' && styles.timeFrameButtonTextSelected
-                ]}>4-6PM</Text>
+                  selectedDeliveryTimeSlot === '4-5PM' && styles.timeFrameButtonTextSelected
+                ]}>4-5PM</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[
@@ -1668,6 +1706,23 @@ export default function CreateOrderScreen() {
                   styles.timeFrameButtonText,
                   selectedDeliveryTimeSlot === '5-6PM' && styles.timeFrameButtonTextSelected
                 ]}>5-6PM</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.timeFrameButton,
+                  selectedDeliveryTimeSlot === '4-6PM' && styles.timeFrameButtonSelected
+                ]}
+                onPress={() => {
+                  const newDate = new Date(deliveryScheduleDate);
+                  newDate.setHours(16, 1, 0, 0);
+                  setDeliveryScheduleDate(newDate);
+                  setSelectedDeliveryTimeSlot('4-6PM');
+                }}
+              >
+                <Text style={[
+                  styles.timeFrameButtonText,
+                  selectedDeliveryTimeSlot === '4-6PM' && styles.timeFrameButtonTextSelected
+                ]}>4-6PM</Text>
               </TouchableOpacity>
             </View>
           </View>
