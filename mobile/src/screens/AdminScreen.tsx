@@ -450,6 +450,8 @@ export default function AdminScreen() {
   // Extra Item actions
   const openExtraItemModal = (item?: ExtraItem) => {
     if (item) {
+      console.log('Opening extra item:', item);
+      console.log('allowMultiplePrices value:', item.allowMultiplePrices);
       setEditingExtraItem(item);
       setExtraItemForm({
         name: item.name,
@@ -477,14 +479,17 @@ export default function AdminScreen() {
       const perWeightUnit = extraItemForm.perWeightUnit ? parseFloat(extraItemForm.perWeightUnit) : null;
 
       if (editingExtraItem) {
-        await api.updateExtraItem(editingExtraItem._id, {
+        const updateData = {
           name: extraItemForm.name,
           description: extraItemForm.description,
           price: parseFloat(extraItemForm.price),
           isActive: extraItemForm.isActive,
           perWeightUnit: perWeightUnit,
           allowMultiplePrices: extraItemForm.allowMultiplePrices,
-        });
+        };
+        console.log('Updating extra item with:', updateData);
+        const result = await api.updateExtraItem(editingExtraItem._id, updateData);
+        console.log('Update result:', result);
         Alert.alert('Success', 'Extra item updated');
       } else {
         await api.createExtraItem({
