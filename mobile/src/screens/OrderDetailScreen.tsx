@@ -1447,63 +1447,97 @@ export default function OrderDetailScreen() {
                             </TouchableOpacity>
                           </>
                         ) : (
-                          <View style={styles.checkedInfo}>
-                            <Text style={styles.checkedByText}>
-                              Unloaded by: {assignment.unloadedBy}
-                              {assignment.unloadedByInitials && ` (${assignment.unloadedByInitials})`}
-                              {formatDate(assignment.unloadedAt) && ` - ${formatDate(assignment.unloadedAt)}`}
-                            </Text>
-                            <Text style={styles.checkedByText}>
-                              Verified by: {assignment.unloadCheckedBy}
-                              {assignment.unloadCheckedByInitials && ` (${assignment.unloadCheckedByInitials})`}
-                              {formatDate(assignment.unloadCheckedAt) && ` - ${formatDate(assignment.unloadCheckedAt)}`}
-                            </Text>
-                            {/* Folding status per dryer */}
-                            {!assignment.isFolding && !assignment.isFolded && (
-                              <TouchableOpacity
-                                style={[styles.checkButton, { backgroundColor: '#8b5cf6', marginTop: 8 }, updating && styles.buttonDisabled]}
-                                onPress={() => handleStartDryerFolding(assignment)}
-                                disabled={updating}
-                              >
-                                {updating ? (
-                                  <ActivityIndicator size="small" color="#fff" />
-                                ) : (
-                                  <Text style={styles.checkButtonText}>Start Folding</Text>
-                                )}
-                              </TouchableOpacity>
-                            )}
-                            {assignment.isFolding && !assignment.isFolded && (
-                              <>
-                                <Text style={[styles.checkedByText, { color: '#8b5cf6', marginTop: 8 }]}>
-                                  Folding by: {assignment.foldingStartedBy}
-                                  {assignment.foldingStartedByInitials && ` (${assignment.foldingStartedByInitials})`}
-                                  {formatDate(assignment.foldingStartedAt) && ` - ${formatDate(assignment.foldingStartedAt)}`}
+                          <View style={styles.dryerStatusContainer}>
+                            {/* Step 1: Unloaded */}
+                            <View style={styles.dryerStatusRow}>
+                              <View style={[styles.dryerStatusDot, { backgroundColor: '#10b981' }]} />
+                              <View style={styles.dryerStatusContent}>
+                                <Text style={styles.dryerStatusLabel}>Unloaded</Text>
+                                <Text style={styles.dryerStatusValue}>
+                                  {assignment.unloadedBy}{assignment.unloadedByInitials && ` (${assignment.unloadedByInitials})`}
                                 </Text>
-                                <TouchableOpacity
-                                  style={[styles.checkButton, { backgroundColor: '#10b981', marginTop: 8 }, updating && styles.buttonDisabled]}
-                                  onPress={() => handleMarkDryerFolded(assignment)}
-                                  disabled={updating}
-                                >
-                                  {updating ? (
-                                    <ActivityIndicator size="small" color="#fff" />
-                                  ) : (
-                                    <Text style={styles.checkButtonText}>Mark Folded</Text>
-                                  )}
-                                </TouchableOpacity>
-                              </>
+                                <Text style={styles.dryerStatusDate}>{formatDate(assignment.unloadedAt)}</Text>
+                              </View>
+                            </View>
+
+                            {/* Step 2: Verified */}
+                            <View style={styles.dryerStatusRow}>
+                              <View style={[styles.dryerStatusDot, { backgroundColor: '#10b981' }]} />
+                              <View style={styles.dryerStatusContent}>
+                                <Text style={styles.dryerStatusLabel}>Verified</Text>
+                                <Text style={styles.dryerStatusValue}>
+                                  {assignment.unloadCheckedBy}{assignment.unloadCheckedByInitials && ` (${assignment.unloadCheckedByInitials})`}
+                                </Text>
+                                <Text style={styles.dryerStatusDate}>{formatDate(assignment.unloadCheckedAt)}</Text>
+                              </View>
+                            </View>
+
+                            {/* Step 3: Folding */}
+                            {!assignment.isFolding && !assignment.isFolded && (
+                              <View style={styles.dryerStatusRow}>
+                                <View style={[styles.dryerStatusDot, { backgroundColor: '#d1d5db' }]} />
+                                <View style={styles.dryerStatusContent}>
+                                  <TouchableOpacity
+                                    style={[styles.foldingButton, updating && styles.buttonDisabled]}
+                                    onPress={() => handleStartDryerFolding(assignment)}
+                                    disabled={updating}
+                                  >
+                                    {updating ? (
+                                      <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                      <Text style={styles.foldingButtonText}>Start Folding</Text>
+                                    )}
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
                             )}
+
+                            {assignment.isFolding && !assignment.isFolded && (
+                              <View style={styles.dryerStatusRow}>
+                                <View style={[styles.dryerStatusDot, { backgroundColor: '#8b5cf6' }]} />
+                                <View style={styles.dryerStatusContent}>
+                                  <Text style={[styles.dryerStatusLabel, { color: '#8b5cf6' }]}>Folding</Text>
+                                  <Text style={styles.dryerStatusValue}>
+                                    {assignment.foldingStartedBy}{assignment.foldingStartedByInitials && ` (${assignment.foldingStartedByInitials})`}
+                                  </Text>
+                                  <Text style={styles.dryerStatusDate}>{formatDate(assignment.foldingStartedAt)}</Text>
+                                  <TouchableOpacity
+                                    style={[styles.foldingButton, { backgroundColor: '#10b981', marginTop: 6 }, updating && styles.buttonDisabled]}
+                                    onPress={() => handleMarkDryerFolded(assignment)}
+                                    disabled={updating}
+                                  >
+                                    {updating ? (
+                                      <ActivityIndicator size="small" color="#fff" />
+                                    ) : (
+                                      <Text style={styles.foldingButtonText}>Mark Folded</Text>
+                                    )}
+                                  </TouchableOpacity>
+                                </View>
+                              </View>
+                            )}
+
                             {assignment.isFolded && (
                               <>
-                                <Text style={[styles.checkedByText, { color: '#8b5cf6', marginTop: 8 }]}>
-                                  Folding by: {assignment.foldingStartedBy}
-                                  {assignment.foldingStartedByInitials && ` (${assignment.foldingStartedByInitials})`}
-                                  {formatDate(assignment.foldingStartedAt) && ` - ${formatDate(assignment.foldingStartedAt)}`}
-                                </Text>
-                                <Text style={[styles.checkedByText, { color: '#10b981' }]}>
-                                  Folded by: {assignment.foldedBy}
-                                  {assignment.foldedByInitials && ` (${assignment.foldedByInitials})`}
-                                  {formatDate(assignment.foldedAt) && ` - ${formatDate(assignment.foldedAt)}`}
-                                </Text>
+                                <View style={styles.dryerStatusRow}>
+                                  <View style={[styles.dryerStatusDot, { backgroundColor: '#8b5cf6' }]} />
+                                  <View style={styles.dryerStatusContent}>
+                                    <Text style={[styles.dryerStatusLabel, { color: '#8b5cf6' }]}>Folding</Text>
+                                    <Text style={styles.dryerStatusValue}>
+                                      {assignment.foldingStartedBy}{assignment.foldingStartedByInitials && ` (${assignment.foldingStartedByInitials})`}
+                                    </Text>
+                                    <Text style={styles.dryerStatusDate}>{formatDate(assignment.foldingStartedAt)}</Text>
+                                  </View>
+                                </View>
+                                <View style={styles.dryerStatusRow}>
+                                  <View style={[styles.dryerStatusDot, { backgroundColor: '#10b981' }]} />
+                                  <View style={styles.dryerStatusContent}>
+                                    <Text style={[styles.dryerStatusLabel, { color: '#10b981' }]}>Folded ✓</Text>
+                                    <Text style={styles.dryerStatusValue}>
+                                      {assignment.foldedBy}{assignment.foldedByInitials && ` (${assignment.foldedByInitials})`}
+                                    </Text>
+                                    <Text style={styles.dryerStatusDate}>{formatDate(assignment.foldedAt)}</Text>
+                                  </View>
+                                </View>
                               </>
                             )}
                           </View>
@@ -3028,6 +3062,54 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#10b981',
     flex: 1,
+  },
+  dryerStatusContainer: {
+    marginTop: 4,
+  },
+  dryerStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 10,
+  },
+  dryerStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginTop: 4,
+    marginRight: 10,
+  },
+  dryerStatusContent: {
+    flex: 1,
+  },
+  dryerStatusLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748b',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  dryerStatusValue: {
+    fontSize: 13,
+    color: '#1e293b',
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  dryerStatusDate: {
+    fontSize: 11,
+    color: '#94a3b8',
+    marginTop: 1,
+  },
+  foldingButton: {
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  foldingButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   uncheckButton: {
     paddingHorizontal: 10,

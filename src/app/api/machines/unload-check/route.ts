@@ -80,6 +80,35 @@ export async function POST(request: NextRequest) {
 
     await order.save();
 
+    // Check if all dryers are now unloaded and verified - if so, move to on_cart
+    let movedToCart = false;
+    if (order.status === 'in_dryer') {
+      const dryerAssignments = order.machineAssignments?.filter(
+        (a: { machineType: string; removedAt?: Date }) =>
+          a.machineType === 'dryer' && !a.removedAt
+      ) || [];
+
+      const allDryersUnloadedAndVerified = dryerAssignments.length > 0 && dryerAssignments.every(
+        (a: { isUnloadChecked?: boolean }) => a.isUnloadChecked
+      );
+
+      if (allDryersUnloadedAndVerified) {
+        await Order.findByIdAndUpdate(order._id, {
+          status: 'on_cart',
+          $push: {
+            statusHistory: {
+              status: 'on_cart',
+              changedBy: user?.name || 'System',
+              changedAt: new Date(),
+              notes: 'All dryers unloaded and verified - moved to cart',
+            },
+          },
+        });
+        movedToCart = true;
+        console.log(`Order ${order.orderId} moved to on_cart - all dryers unloaded and verified`);
+      }
+    }
+
     // Log activity
     await ActivityLog.create({
       locationId: user?.locationId,
@@ -99,10 +128,15 @@ export async function POST(request: NextRequest) {
       timestamp: new Date(),
     });
 
+    // Refetch order to get updated status
+    const updatedOrder = await Order.findById(orderId);
+
     return NextResponse.json({
       success: true,
-      message: `${assignment.machineName} unload verified`,
-      order,
+      message: movedToCart
+        ? `${assignment.machineName} unload verified - Order moved to cart`
+        : `${assignment.machineName} unload verified`,
+      order: updatedOrder,
     });
   } catch (error) {
     console.error('Failed to verify dryer unload:', error);

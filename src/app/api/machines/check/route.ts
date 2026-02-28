@@ -99,32 +99,10 @@ export async function POST(request: NextRequest) {
     });
     console.log('Machine release result:', releaseResult ? 'success' : 'not found', 'for machineId:', machineId);
 
-    // Check if all dryer assignments are now checked - if so, move to on_cart
-    if (order.status === 'in_dryer') {
-      const dryerAssignments = order.machineAssignments?.filter(
-        (a: { machineType: string; removedAt?: Date }) =>
-          a.machineType === 'dryer' && !a.removedAt
-      ) || [];
-
-      const allDryersChecked = dryerAssignments.length > 0 && dryerAssignments.every(
-        (a: { isChecked?: boolean }) => a.isChecked
-      );
-
-      if (allDryersChecked) {
-        await Order.findByIdAndUpdate(order._id, {
-          status: 'on_cart',
-          $push: {
-            statusHistory: {
-              status: 'on_cart',
-              changedBy: currentUser.name,
-              changedAt: new Date(),
-              notes: 'All dryers checked - moved to cart',
-            },
-          },
-        });
-        console.log(`Order ${order.orderId} moved to on_cart - all dryers checked`);
-      }
-    }
+    // Note: Moving to on_cart now requires dryers to be unloaded and verified
+    // This check is only for dryer "running" verification, not unload
+    // The on_cart transition happens in the unload-check endpoint
+    console.log(`Dryer ${assignment.machineName} checked for order ${order.orderId}`);
 
     // Log the activity
     try {
