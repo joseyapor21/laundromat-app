@@ -84,6 +84,13 @@ class ApiService {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Request failed' }));
         console.log('API Error:', response.status, errorData);
+
+        // If token is expired/invalid, clear it so the app redirects to login
+        if (response.status === 401 || response.status === 403) {
+          console.log('Token expired or invalid, clearing credentials');
+          await this.clearToken();
+        }
+
         // Create error with additional data attached
         const error = new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`) as any;
         error.status = response.status;

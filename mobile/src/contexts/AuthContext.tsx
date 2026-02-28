@@ -84,16 +84,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       console.log('Auth init error:', error);
-      // Only clear token if it's an authentication error (401)
+      // Clear token if it's an authentication error (401 or 403)
       const isAuthError = error?.status === 401 ||
+        error?.status === 403 ||
         error?.message?.includes('401') ||
+        error?.message?.includes('403') ||
         error?.message?.includes('Unauthorized') ||
-        error?.message?.includes('Not authenticated');
+        error?.message?.includes('Not authenticated') ||
+        error?.message?.includes('Invalid or expired token');
 
       if (isAuthError) {
-        console.log('Auth token invalid, clearing...');
+        console.log('Auth token invalid/expired, clearing...');
         await api.clearToken();
         await clearCachedUser();
+        setUser(null);
       } else if (api.getToken()) {
         // Network error but we have a token - use cached user data
         console.log('Network/other error, using cached user data');
