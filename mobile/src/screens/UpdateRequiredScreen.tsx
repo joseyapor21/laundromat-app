@@ -193,6 +193,11 @@ export default function UpdateRequiredScreen({
           <Ionicons name="refresh" size={20} color="#64748b" />
           <Text style={styles.retryButtonText}>Check Again</Text>
         </TouchableOpacity>
+
+        <TouchableOpacity style={styles.adminBypassButton} onPress={() => setShowAdminLogin(true)}>
+          <Ionicons name="shield-checkmark-outline" size={16} color="#94a3b8" />
+          <Text style={styles.adminBypassText}>Admin Bypass</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Admin Login Modal */}
@@ -373,6 +378,18 @@ const styles = StyleSheet.create({
   retryButtonText: {
     fontSize: 14,
     color: '#64748b',
+  },
+  adminBypassButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    marginTop: 8,
+    gap: 6,
+  },
+  adminBypassText: {
+    fontSize: 12,
+    color: '#94a3b8',
   },
   modalOverlay: {
     flex: 1,
