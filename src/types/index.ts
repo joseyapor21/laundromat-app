@@ -316,7 +316,9 @@ export type ActivityAction =
   | 'break_start'
   | 'break_end'
   | 'dryer_unload'
-  | 'dryer_unload_check';
+  | 'dryer_unload_check'
+  | 'dryer_folding_started'
+  | 'dryer_folded';
 
 export type EntityType = 'order' | 'user' | 'customer' | 'extra_item' | 'settings' | 'machine' | 'time_entry';
 

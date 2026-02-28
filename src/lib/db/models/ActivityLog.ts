@@ -29,6 +29,7 @@ const activityLogSchema = new mongoose.Schema<ActivityLogDocument>({
       'assign_washer', 'assign_dryer', 'release_machine',
       'clock_in', 'clock_out', 'break_start', 'break_end',
       'dryer_unload', 'dryer_unload_check',
+      'dryer_folding_started', 'dryer_folded',
     ] as ActivityAction[],
   },
   entityType: {
