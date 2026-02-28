@@ -31,6 +31,7 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
 
   const [permission, requestPermission] = useCameraPermissions();
   const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
+  const [hasRequestedLocation, setHasRequestedLocation] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
@@ -40,10 +41,69 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
   const cameraRef = useRef<CameraView>(null);
 
   useEffect(() => {
-    requestLocationPermission();
+    checkAndRequestLocationPermission();
   }, []);
 
+  const checkAndRequestLocationPermission = async () => {
+    try {
+      // First check existing permission status
+      const { status: existingStatus } = await Location.getForegroundPermissionsAsync();
+
+      if (existingStatus === 'granted') {
+        setLocationPermission(true);
+        // Get location immediately if permission already granted
+        try {
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+            timeInterval: 3000,
+            mayShowUserSettingsDialog: false,
+          });
+          setLocation({
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            accuracy: loc.coords.accuracy || undefined,
+          });
+
+          // Reverse geocode to get address
+          try {
+            const addresses = await Location.reverseGeocodeAsync({
+              latitude: loc.coords.latitude,
+              longitude: loc.coords.longitude,
+            });
+            if (addresses.length > 0) {
+              const addr = addresses[0];
+              const parts = [];
+              if (addr.streetNumber) parts.push(addr.streetNumber);
+              if (addr.street) parts.push(addr.street);
+              if (addr.city) parts.push(addr.city);
+              if (addr.region) parts.push(addr.region);
+              setAddress(parts.join(', ') || addr.name || null);
+            }
+          } catch (geoError) {
+            console.error('Error reverse geocoding:', geoError);
+          }
+        } catch (error) {
+          console.error('Error getting location:', error);
+        }
+        return;
+      }
+
+      // Permission not granted, need to request
+      requestLocationPermission();
+    } catch (error) {
+      console.error('Error checking location permission:', error);
+      requestLocationPermission();
+    }
+  };
+
   const requestLocationPermission = async () => {
+    // Prevent multiple requests
+    if (hasRequestedLocation) {
+      console.log('Location permission already requested this session');
+      return;
+    }
+    setHasRequestedLocation(true);
+
     try {
       const { status, canAskAgain } = await Location.requestForegroundPermissionsAsync();
       setLocationPermission(status === 'granted');
@@ -276,8 +336,20 @@ export default function ClockInScreen({ mode = 'clock_in', onComplete, onDismiss
           <Text style={styles.permissionText}>
             We need location access to record where you {mode === 'clock_in' ? 'clock in' : 'clock out'}.
           </Text>
-          <TouchableOpacity style={styles.permissionButton} onPress={requestLocationPermission}>
-            <Text style={styles.permissionButtonText}>Grant Permission</Text>
+          <TouchableOpacity
+            style={styles.permissionButton}
+            onPress={() => {
+              // If we've already requested, open settings instead
+              if (hasRequestedLocation) {
+                Linking.openSettings();
+              } else {
+                requestLocationPermission();
+              }
+            }}
+          >
+            <Text style={styles.permissionButtonText}>
+              {hasRequestedLocation ? 'Open Settings' : 'Grant Permission'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.dismissButton} onPress={handleDismiss}>
             <Text style={styles.dismissButtonText}>Dismiss</Text>

@@ -193,8 +193,12 @@ export default function ProfileScreen() {
   // Schedules multiple notifications to ensure user is alerted even if app is killed
   const scheduleBreakNotification = async (type: 'breakfast' | 'lunch', durationMinutes: number) => {
     try {
-      // Request notification permissions
-      const { status } = await Notifications.requestPermissionsAsync();
+      // Check existing notification permission first, only request if needed
+      let { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        const result = await Notifications.requestPermissionsAsync();
+        status = result.status;
+      }
       if (status !== 'granted') {
         console.log('Notification permissions not granted');
         return;
@@ -376,7 +380,12 @@ export default function ProfileScreen() {
     try {
       if (remainingSeconds <= 0) return;
 
-      const { status } = await Notifications.requestPermissionsAsync();
+      // Check existing notification permission first, only request if needed
+      let { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        const result = await Notifications.requestPermissionsAsync();
+        status = result.status;
+      }
       if (status !== 'granted') {
         console.log('Notification permissions not granted');
         return;
@@ -644,9 +653,21 @@ export default function ProfileScreen() {
   const handleStartBreak = async (type: 'breakfast' | 'lunch') => {
     setIsBreakLoading(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      // Check existing permission first, only request if needed
+      let { status } = await Location.getForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Error', 'Location permission is required for break tracking');
+        const result = await Location.requestForegroundPermissionsAsync();
+        status = result.status;
+      }
+      if (status !== 'granted') {
+        Alert.alert(
+          'Location Permission Required',
+          'Location permission is required for break tracking. Please enable it in Settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
         return;
       }
 
@@ -707,9 +728,21 @@ export default function ProfileScreen() {
   const handleEndBreak = async () => {
     setIsBreakLoading(true);
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
+      // Check existing permission first, only request if needed
+      let { status } = await Location.getForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Error', 'Location permission is required for break tracking');
+        const result = await Location.requestForegroundPermissionsAsync();
+        status = result.status;
+      }
+      if (status !== 'granted') {
+        Alert.alert(
+          'Location Permission Required',
+          'Location permission is required for break tracking. Please enable it in Settings.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Open Settings', onPress: () => Linking.openSettings() },
+          ]
+        );
         return;
       }
 

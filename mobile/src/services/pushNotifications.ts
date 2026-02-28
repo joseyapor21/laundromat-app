@@ -7,6 +7,8 @@ class PushNotificationService {
   private expoPushToken: string | null = null;
   private Notifications: typeof import('expo-notifications') | null = null;
   private isAvailable = false;
+  private isRegistering = false; // Prevent concurrent registration attempts
+  private hasRequestedPermission = false; // Track if we've already requested this session
 
   constructor() {
     // Try to load notifications module
@@ -35,18 +37,38 @@ class PushNotificationService {
       return null;
     }
 
+    // Prevent concurrent registration attempts (avoid permission loop)
+    if (this.isRegistering) {
+      console.log('Push notification registration already in progress');
+      return this.expoPushToken;
+    }
+
+    // If we already have a token, return it
+    if (this.expoPushToken) {
+      return this.expoPushToken;
+    }
+
     // Check if physical device
     if (!Device.isDevice) {
       console.log('Push notifications require a physical device');
       return null;
     }
 
+    this.isRegistering = true;
+
     try {
-      // Check/request permissions
+      // Check current permission status first
       const { status: existingStatus } = await this.Notifications.getPermissionsAsync();
       let finalStatus = existingStatus;
 
+      // Only request if not already granted AND we haven't requested yet this session
       if (existingStatus !== 'granted') {
+        if (this.hasRequestedPermission) {
+          // Already requested this session and was denied, don't ask again
+          console.log('Push notification permission already requested this session');
+          return null;
+        }
+        this.hasRequestedPermission = true;
         const { status } = await this.Notifications.requestPermissionsAsync();
         finalStatus = status;
       }
@@ -87,6 +109,8 @@ class PushNotificationService {
     } catch (error) {
       console.log('Push notifications not available:', error);
       return null;
+    } finally {
+      this.isRegistering = false;
     }
   }
 
