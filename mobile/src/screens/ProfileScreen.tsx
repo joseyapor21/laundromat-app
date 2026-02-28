@@ -20,6 +20,7 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
@@ -1056,7 +1057,7 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.cardContent}>
               <Text style={styles.cardLabel}>Version</Text>
-              <Text style={styles.cardValue}>1.0.0</Text>
+              <Text style={styles.cardValue}>{Constants.expoConfig?.version || '1.0.0'}</Text>
             </View>
           </View>
         </View>
