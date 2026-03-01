@@ -97,13 +97,14 @@ function formatPaymentMethod(method: string | undefined): string {
   return methodMap[method] || method;
 }
 
-// Clean address for navigation - remove apartment/unit/floor info
+// Clean address for navigation - extract just the street address
 function cleanAddressForNavigation(address: string): string {
   if (!address) return '';
 
-  let cleaned = address;
+  // Get just the street address (before first comma) - works better with Google Maps
+  let cleaned = address.split(',')[0].trim();
 
-  // First, remove "number + floor indicator" patterns: "2 flr", "2nd floor", "3rd fl"
+  // Remove "number + floor indicator" patterns: "2 flr", "2nd floor", "3rd fl"
   cleaned = cleaned.replace(/\s+\d+\s*(flr|floor|fl)\b/gi, '');
   cleaned = cleaned.replace(/\s+\d+(st|nd|rd|th)\s*(floor|flr|fl)\b/gi, '');
 
@@ -116,13 +117,8 @@ function cleanAddressForNavigation(address: string): string {
   // Remove hash patterns: "#1a", "# 2B"
   cleaned = cleaned.replace(/\s*#\s*\w+/gi, '');
 
-  // Clean up extra commas and spaces
-  cleaned = cleaned.replace(/,\s*,/g, ',');
-  cleaned = cleaned.replace(/\s+,/g, ',');
-  cleaned = cleaned.replace(/,\s*$/g, '');
-  cleaned = cleaned.replace(/^\s*,/g, '');
-  cleaned = cleaned.replace(/\s+/g, ' ');
-  cleaned = cleaned.trim();
+  // Clean up spaces
+  cleaned = cleaned.replace(/\s+/g, ' ').trim();
 
   return cleaned;
 }
