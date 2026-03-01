@@ -97,6 +97,33 @@ function formatPaymentMethod(method: string | undefined): string {
   return methodMap[method] || method;
 }
 
+// Clean address for navigation - remove apartment/unit/floor info
+function cleanAddressForNavigation(address: string): string {
+  if (!address) return '';
+
+  let cleaned = address;
+
+  // Remove common apartment/unit patterns
+  // #1a, #2B, Apt 3, Unit 4, Suite 5, etc.
+  cleaned = cleaned.replace(/\s*#\s*\w+/gi, '');
+  cleaned = cleaned.replace(/\s*(apt|apartment|unit|suite|ste|fl|flr|floor)\s*\.?\s*\w*/gi, '');
+
+  // Remove floor descriptions like "2nd floor", "second floor", "ground floor"
+  cleaned = cleaned.replace(/\s*(first|second|third|fourth|fifth|ground|basement)\s*(floor|flr|fl)?/gi, '');
+  cleaned = cleaned.replace(/\s*\d+(st|nd|rd|th)\s*(floor|flr|fl)/gi, '');
+
+  // Remove "2 flr" pattern (number followed by flr/floor)
+  cleaned = cleaned.replace(/\s*\d+\s*(flr|fl|floor)/gi, '');
+
+  // Clean up extra spaces and commas
+  cleaned = cleaned.replace(/\s*,\s*,/g, ',');
+  cleaned = cleaned.replace(/,\s*$/g, '');
+  cleaned = cleaned.replace(/\s+/g, ' ');
+  cleaned = cleaned.trim();
+
+  return cleaned;
+}
+
 type MapApp = 'google' | 'apple' | 'waze';
 
 interface RouteStop {
@@ -601,7 +628,9 @@ export default function DriverScreen() {
   }
 
   function openNavigation(address: string, mapApp: MapApp = selectedMapApp) {
-    const encodedAddress = encodeURIComponent(address);
+    // Clean address to remove apt/unit/floor info for better navigation
+    const cleanedAddress = cleanAddressForNavigation(address);
+    const encodedAddress = encodeURIComponent(cleanedAddress);
     let url = '';
 
     switch (mapApp) {
@@ -749,7 +778,10 @@ export default function DriverScreen() {
   }
 
   function startNavigation() {
-    const addresses = routeStops.map(stop => stop.editedAddress || stop.address);
+    // Clean addresses for navigation - remove apt/unit/floor info
+    const addresses = routeStops.map(stop =>
+      cleanAddressForNavigation(stop.editedAddress || stop.address)
+    );
 
     if (addresses.length === 1) {
       openNavigation(addresses[0]);
