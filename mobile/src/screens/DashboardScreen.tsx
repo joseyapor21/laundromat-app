@@ -14,6 +14,7 @@ import {
   Platform,
   ScrollView,
   StatusBar,
+  Linking,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -417,10 +418,10 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.orderDetails}>
-          {order.customerPhone && (
+          {order.customer?.address && (
             <View style={styles.detailRow}>
-              <Ionicons name="call-outline" size={16} color="#64748b" />
-              <Text style={styles.detailText}>{formatPhoneNumber(order.customerPhone)}</Text>
+              <Ionicons name="location-outline" size={16} color="#64748b" />
+              <Text style={styles.detailText} numberOfLines={1}>{order.customer.address}</Text>
             </View>
           )}
           <View style={styles.detailRow}>
@@ -432,6 +433,32 @@ export default function DashboardScreen() {
             <Text style={styles.detailText}>{order.orderType === 'delivery' ? 'Delivery' : 'Store Pickup'}</Text>
           </View>
         </View>
+
+        {/* Call/Text buttons */}
+        {order.customerPhone && (
+          <View style={styles.contactButtons}>
+            <TouchableOpacity
+              style={styles.contactButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                Linking.openURL(`tel:${order.customerPhone}`);
+              }}
+            >
+              <Ionicons name="call" size={18} color="#22c55e" />
+              <Text style={styles.contactButtonText}>Call</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.contactButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                Linking.openURL(`sms:${order.customerPhone}`);
+              }}
+            >
+              <Ionicons name="chatbubble" size={18} color="#3b82f6" />
+              <Text style={styles.contactButtonText}>Text</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.orderFooter}>
           <View style={styles.orderAmountContainer}>
@@ -1034,6 +1061,29 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: '#f1f5f9',
     paddingTop: 12,
+  },
+  contactButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  contactButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#f8fafc',
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  contactButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#475569',
   },
   addressSection: {
     flexDirection: 'row',
