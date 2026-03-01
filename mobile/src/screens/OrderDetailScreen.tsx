@@ -750,10 +750,24 @@ export default function OrderDetailScreen() {
     if (!order || !order.customer) return;
 
     const customerCredit = order.customer.credit || 0;
-    const amountDue = (order.totalAmount || 0) - (order.creditApplied || 0);
+    // Calculate amount due: total minus amount already paid
+    const amountDue = Math.max(0, (order.totalAmount || 0) - (order.amountPaid || 0));
+
+    console.log('Use Credit calculation:', {
+      customerCredit,
+      totalAmount: order.totalAmount,
+      amountPaid: order.amountPaid,
+      creditApplied: order.creditApplied,
+      amountDue
+    });
 
     if (customerCredit <= 0) {
       Alert.alert('No Credit', 'This customer has no credit available.');
+      return;
+    }
+
+    if (amountDue <= 0) {
+      Alert.alert('Already Paid', 'This order is already fully paid.');
       return;
     }
 
@@ -770,10 +784,18 @@ export default function OrderDetailScreen() {
           onPress: async () => {
             setUpdating(true);
             try {
+              console.log('Applying credit:', { creditToApply, customerId: order.customer!._id });
+
+              if (creditToApply <= 0) {
+                Alert.alert('Error', 'Credit amount must be greater than 0');
+                setUpdating(false);
+                return;
+              }
+
               // Deduct credit from customer
-              await api.addCustomerCredit(
+              await api.useCustomerCredit(
                 order.customer!._id,
-                -creditToApply,
+                creditToApply,
                 `Applied to order #${order.orderId || order._id.slice(-6)}`
               );
 
@@ -789,9 +811,9 @@ export default function OrderDetailScreen() {
                 updateData.paymentStatus = 'paid';
                 updateData.amountPaid = order.totalAmount;
               } else {
-                // Partial payment with credit
+                // Partial payment with credit - add to existing amountPaid
                 updateData.paymentStatus = 'partial';
-                updateData.amountPaid = creditToApply;
+                updateData.amountPaid = (order.amountPaid || 0) + creditToApply;
               }
 
               await api.updateOrder(order._id, updateData);

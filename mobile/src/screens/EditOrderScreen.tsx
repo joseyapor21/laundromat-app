@@ -516,9 +516,15 @@ export default function EditOrderScreen() {
 
   // Delete order (admin only)
   const handleDelete = () => {
+    const creditToRefund = order?.creditApplied || 0;
+    const customerId = order?.customer?._id || order?.customerId;
+    const refundMessage = creditToRefund > 0
+      ? `\n\n$${creditToRefund.toFixed(2)} credit will be refunded to the customer.`
+      : '';
+
     Alert.alert(
       'Delete Order',
-      'Are you sure you want to delete this order? This action cannot be undone.',
+      `Are you sure you want to delete this order? This action cannot be undone.${refundMessage}`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -527,8 +533,26 @@ export default function EditOrderScreen() {
           onPress: async () => {
             setSaving(true);
             try {
+              // Refund credit if order was paid with credit
+              if (creditToRefund > 0 && customerId) {
+                try {
+                  await api.addCustomerCredit(
+                    customerId,
+                    creditToRefund,
+                    `Refund from deleted order #${order?.orderId || order?._id.slice(-6)}`
+                  );
+                  console.log(`Refunded $${creditToRefund} credit to customer ${customerId}`);
+                } catch (creditError) {
+                  console.error('Failed to refund credit:', creditError);
+                  Alert.alert('Warning', 'Order will be deleted but credit refund failed. Please manually add credit to customer.');
+                }
+              }
+
               await api.deleteOrder(order!._id);
-              Alert.alert('Success', 'Order deleted successfully', [
+              const successMessage = creditToRefund > 0
+                ? `Order deleted successfully. $${creditToRefund.toFixed(2)} credit refunded.`
+                : 'Order deleted successfully';
+              Alert.alert('Success', successMessage, [
                 { text: 'OK', onPress: () => navigation.navigate('Main') }
               ]);
             } catch (error) {

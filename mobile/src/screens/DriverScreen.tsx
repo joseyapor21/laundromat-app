@@ -22,11 +22,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { Device } from 'react-native-ble-plx';
 import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
+import * as SecureStore from 'expo-secure-store';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import type { Order, Settings } from '../types';
 import { formatPhoneNumber } from '../utils/phoneFormat';
+
+const LAST_PRINTER_KEY = 'last_connected_printer';
 
 // Format time with time frames or exact time
 function formatTimeWithFrames(date: Date | null | undefined): string {
@@ -74,12 +77,13 @@ export default function DriverScreen() {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
   // Printer state
-  const [printerExpanded, setPrinterExpanded] = useState(false);
+  const [showPrinterModal, setShowPrinterModal] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [devices, setDevices] = useState<Device[]>([]);
   const [connectedDeviceName, setConnectedDeviceName] = useState<string | null>(null);
   const [printingOrderId, setPrintingOrderId] = useState<string | null>(null);
+  const [lastPrinterId, setLastPrinterId] = useState<string | null>(null);
 
   // Route planning state
   const [showRouteModal, setShowRouteModal] = useState(false);
@@ -91,8 +95,9 @@ export default function DriverScreen() {
   const [routeStats, setRouteStats] = useState<{ distance: string; duration: string } | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
 
-  // Date filter for deliveries
+  // Date filters
   const [deliveryDateFilter, setDeliveryDateFilter] = useState<'today' | 'tomorrow' | 'all'>('today');
+  const [pickupDateFilter, setPickupDateFilter] = useState<'today' | 'tomorrow' | 'all'>('today');
 
   // Camera state for pickup photos
   const [permission, requestPermission] = useCameraPermissions();
@@ -132,9 +137,9 @@ export default function DriverScreen() {
     isDateMatch(order.deliverySchedule, deliveryDateFilter)
   );
 
-  // Filtered pickups based on date (use estimatedPickupDate for pickup orders)
+  // Filtered pickups based on date (use scheduledPickupTime for pickup orders)
   const filteredPickups = pickupOrders.filter(order =>
-    isDateMatch(order.estimatedPickupDate, deliveryDateFilter)
+    isDateMatch(order.scheduledPickupTime, pickupDateFilter)
   );
 
   const loadOrders = useCallback(async () => {
@@ -254,7 +259,7 @@ export default function DriverScreen() {
       Alert.alert(
         'Printer Not Connected',
         'Please connect a Bluetooth printer first',
-        [{ text: 'OK', onPress: () => setPrinterExpanded(true) }]
+        [{ text: 'OK', onPress: () => setShowPrinterModal(true) }]
       );
       return;
     }
@@ -951,6 +956,36 @@ export default function DriverScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Date Filter for Pickups */}
+      {activeTab === 'pickups' && (
+        <View style={styles.dateFilterContainer}>
+          <TouchableOpacity
+            style={[styles.dateFilterBtn, pickupDateFilter === 'today' && styles.dateFilterBtnActive]}
+            onPress={() => setPickupDateFilter('today')}
+          >
+            <Text style={[styles.dateFilterText, pickupDateFilter === 'today' && styles.dateFilterTextActive]}>
+              Today
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dateFilterBtn, pickupDateFilter === 'tomorrow' && styles.dateFilterBtnActive]}
+            onPress={() => setPickupDateFilter('tomorrow')}
+          >
+            <Text style={[styles.dateFilterText, pickupDateFilter === 'tomorrow' && styles.dateFilterTextActive]}>
+              Tomorrow
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.dateFilterBtn, pickupDateFilter === 'all' && styles.dateFilterBtnActive]}
+            onPress={() => setPickupDateFilter('all')}
+          >
+            <Text style={[styles.dateFilterText, pickupDateFilter === 'all' && styles.dateFilterTextActive]}>
+              All ({pickupOrders.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* Date Filter for Deliveries */}
       {activeTab === 'deliveries' && (
         <View style={styles.dateFilterContainer}>
@@ -981,119 +1016,21 @@ export default function DriverScreen() {
         </View>
       )}
 
-      {/* Printer Section */}
-      <View style={styles.printerSection}>
-        <TouchableOpacity
-          style={styles.printerHeader}
-          onPress={() => setPrinterExpanded(!printerExpanded)}
-        >
-          <View style={styles.printerHeaderLeft}>
-            <Ionicons
-              name={connectedDeviceName ? 'print' : 'print-outline'}
-              size={24}
-              color={connectedDeviceName ? '#10b981' : '#64748b'}
-            />
-            <View>
-              <Text style={styles.printerTitle}>Bluetooth Printer</Text>
-              <Text style={[styles.printerStatus, connectedDeviceName && styles.printerConnected]}>
-                {connectedDeviceName || 'Not connected'}
-              </Text>
-            </View>
-          </View>
-          <Ionicons
-            name={printerExpanded ? 'chevron-up' : 'chevron-down'}
-            size={24}
-            color="#64748b"
-          />
-        </TouchableOpacity>
-
-        {printerExpanded && (
-          <View style={styles.printerContent}>
-            {connectedDeviceName ? (
-              <View style={styles.connectedPrinter}>
-                <View style={styles.connectedPrinterInfo}>
-                  <Ionicons name="checkmark-circle" size={20} color="#10b981" />
-                  <Text style={styles.connectedPrinterName}>{connectedDeviceName}</Text>
-                </View>
-                <View style={styles.connectedPrinterActions}>
-                  <TouchableOpacity
-                    style={[styles.printerActionBtn, styles.testPrintBtn]}
-                    onPress={testPrint}
-                  >
-                    <Ionicons name="document-text-outline" size={16} color="#fff" />
-                    <Text style={styles.printerActionBtnText}>Test</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.printerActionBtn, styles.disconnectBtn]}
-                    onPress={disconnectPrinter}
-                  >
-                    <Ionicons name="close-circle-outline" size={16} color="#fff" />
-                    <Text style={styles.printerActionBtnText}>Disconnect</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ) : (
-              <>
-                <TouchableOpacity
-                  style={[styles.scanBtn, scanning && styles.scanBtnActive]}
-                  onPress={scanning ? stopScan : startScan}
-                  disabled={connecting}
-                >
-                  {scanning ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Ionicons name="bluetooth" size={20} color="#fff" />
-                  )}
-                  <Text style={styles.scanBtnText}>
-                    {scanning ? 'Scanning...' : 'Scan for Printers'}
-                  </Text>
-                </TouchableOpacity>
-
-                {connecting && (
-                  <View style={styles.connectingRow}>
-                    <ActivityIndicator size="small" color="#2563eb" />
-                    <Text style={styles.connectingText}>Connecting...</Text>
-                  </View>
-                )}
-
-                {devices.length > 0 && (
-                  <View style={styles.devicesList}>
-                    <ScrollView
-                      nestedScrollEnabled={true}
-                      showsVerticalScrollIndicator={true}
-                      keyboardShouldPersistTaps="handled"
-                      contentContainerStyle={{ paddingBottom: 8 }}
-                    >
-                      {devices.map((device) => (
-                        <TouchableOpacity
-                          key={device.id}
-                          style={styles.deviceItem}
-                          onPress={() => connectToDevice(device)}
-                          disabled={connecting}
-                          activeOpacity={0.7}
-                        >
-                          <Ionicons name="print-outline" size={20} color="#1e293b" />
-                          <View style={styles.deviceInfo}>
-                            <Text style={styles.deviceName}>{device.name || 'Unknown'}</Text>
-                            <Text style={styles.deviceId}>{device.id}</Text>
-                          </View>
-                          <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-
-                {!scanning && devices.length === 0 && (
-                  <Text style={styles.printerHint}>
-                    Make sure your printer is turned on and in pairing mode
-                  </Text>
-                )}
-              </>
-            )}
-          </View>
-        )}
-      </View>
+      {/* Compact Printer Button */}
+      <TouchableOpacity
+        style={styles.printerCompactBtn}
+        onPress={() => setShowPrinterModal(true)}
+      >
+        <Ionicons
+          name={connectedDeviceName ? 'print' : 'print-outline'}
+          size={18}
+          color={connectedDeviceName ? '#10b981' : '#64748b'}
+        />
+        <Text style={[styles.printerCompactText, connectedDeviceName && styles.printerCompactTextConnected]}>
+          {connectedDeviceName || 'Connect Printer'}
+        </Text>
+        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+      </TouchableOpacity>
 
       {/* Optimize Route Button - Shows all pickups + deliveries */}
       {(pickupOrders.length > 0 || deliveryOrders.length > 0) && (
@@ -1288,6 +1225,101 @@ export default function DriverScreen() {
             <Ionicons name="navigate" size={24} color="#fff" />
             <Text style={styles.startNavBtnText}>Start Navigation</Text>
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Bluetooth Printer Modal */}
+      <Modal
+        visible={showPrinterModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowPrinterModal(false)}
+      >
+        <View style={styles.printerModalOverlay}>
+          <View style={styles.printerModalContent}>
+            <View style={styles.printerModalHeader}>
+              <Text style={styles.printerModalTitle}>Bluetooth Printer</Text>
+              <TouchableOpacity onPress={() => setShowPrinterModal(false)}>
+                <Ionicons name="close" size={24} color="#1e293b" />
+              </TouchableOpacity>
+            </View>
+
+            {connectedDeviceName ? (
+              <View style={styles.printerModalConnected}>
+                <View style={styles.connectedPrinterInfo}>
+                  <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+                  <Text style={styles.connectedPrinterName}>{connectedDeviceName}</Text>
+                </View>
+                <View style={styles.connectedPrinterActions}>
+                  <TouchableOpacity
+                    style={[styles.printerActionBtn, styles.testPrintBtn]}
+                    onPress={testPrint}
+                  >
+                    <Ionicons name="document-text-outline" size={16} color="#fff" />
+                    <Text style={styles.printerActionBtnText}>Test</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.printerActionBtn, styles.disconnectBtn]}
+                    onPress={disconnectPrinter}
+                  >
+                    <Ionicons name="close-circle-outline" size={16} color="#fff" />
+                    <Text style={styles.printerActionBtnText}>Disconnect</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.printerModalScan}>
+                <TouchableOpacity
+                  style={[styles.scanBtn, scanning && styles.scanBtnActive]}
+                  onPress={scanning ? stopScan : startScan}
+                  disabled={connecting}
+                >
+                  {scanning ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="bluetooth" size={20} color="#fff" />
+                  )}
+                  <Text style={styles.scanBtnText}>
+                    {scanning ? 'Scanning...' : 'Scan for Printers'}
+                  </Text>
+                </TouchableOpacity>
+
+                {connecting && (
+                  <View style={styles.connectingRow}>
+                    <ActivityIndicator size="small" color="#2563eb" />
+                    <Text style={styles.connectingText}>Connecting...</Text>
+                  </View>
+                )}
+
+                {devices.length > 0 && (
+                  <ScrollView style={styles.devicesList} nestedScrollEnabled={true}>
+                    {devices.map((device) => (
+                      <TouchableOpacity
+                        key={device.id}
+                        style={styles.deviceItem}
+                        onPress={() => connectToDevice(device)}
+                        disabled={connecting}
+                        activeOpacity={0.7}
+                      >
+                        <Ionicons name="print-outline" size={20} color="#1e293b" />
+                        <View style={styles.deviceInfo}>
+                          <Text style={styles.deviceName}>{device.name || 'Unknown'}</Text>
+                          <Text style={styles.deviceId}>{device.id}</Text>
+                        </View>
+                        <Ionicons name="chevron-forward" size={16} color="#94a3b8" />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+
+                {!scanning && devices.length === 0 && (
+                  <Text style={styles.printerHint}>
+                    Make sure your printer is turned on and in pairing mode
+                  </Text>
+                )}
+              </View>
+            )}
+          </View>
         </View>
       </Modal>
 
@@ -1678,41 +1710,60 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 14,
   },
-  // Printer Section
-  printerSection: {
+  // Compact Printer Button
+  printerCompactBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff',
     marginHorizontal: 16,
     marginBottom: 8,
-    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 8,
+  },
+  printerCompactText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  printerCompactTextConnected: {
+    color: '#10b981',
+  },
+  // Printer Modal
+  printerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  printerModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '80%',
     overflow: 'hidden',
   },
-  printerHeader: {
+  printerModalHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 12,
-  },
-  printerHeaderLeft: {
-    flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
-  printerTitle: {
-    fontSize: 16,
+  printerModalTitle: {
+    fontSize: 18,
     fontWeight: '600',
     color: '#1e293b',
   },
-  printerStatus: {
-    fontSize: 12,
-    color: '#94a3b8',
-    marginTop: 2,
+  printerModalConnected: {
+    padding: 16,
   },
-  printerConnected: {
-    color: '#10b981',
-  },
-  printerContent: {
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+  printerModalScan: {
     padding: 16,
   },
   connectedPrinter: {
