@@ -635,13 +635,13 @@ export default function DriverScreen() {
     const cleanedAddress = cleanAddressForNavigation(address);
     const encodedAddress = encodeURIComponent(cleanedAddress);
 
-    // Always try Google Maps first as it handles Queens-style addresses better
-    const googleMapsAppUrl = `comgooglemaps://?daddr=${encodedAddress}&directionsmode=driving`;
-    const googleMapsWebUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
+    // Google Maps URLs - use saddr= for current location, daddr= for destination
+    const googleMapsAppUrl = `comgooglemaps://?saddr=&daddr=${encodedAddress}&directionsmode=driving`;
+    const googleMapsWebUrl = `https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=${encodedAddress}&travelmode=driving`;
 
     if (mapApp === 'google') {
       // Try Google Maps app first, fall back to web
-      Linking.canOpenURL(googleMapsAppUrl).then(supported => {
+      Linking.canOpenURL('comgooglemaps://').then(supported => {
         if (supported) {
           Linking.openURL(googleMapsAppUrl);
         } else {
@@ -654,7 +654,7 @@ export default function DriverScreen() {
     let url = '';
     switch (mapApp) {
       case 'apple':
-        url = `maps://maps.apple.com/?daddr=${encodedAddress}`;
+        url = `maps://maps.apple.com/?saddr=Current+Location&daddr=${encodedAddress}&dirflg=d`;
         break;
       case 'waze':
         url = `waze://?q=${encodedAddress}&navigate=yes`;
