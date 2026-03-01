@@ -631,42 +631,24 @@ export default function DriverScreen() {
     const cleanedAddress = cleanAddressForNavigation(address);
     const encodedAddress = encodeURIComponent(cleanedAddress);
 
-    // Google Maps URLs - use saddr= for current location, daddr= for destination
-    const googleMapsAppUrl = `comgooglemaps://?saddr=&daddr=${encodedAddress}&directionsmode=driving`;
-    const googleMapsWebUrl = `https://www.google.com/maps/dir/?api=1&origin=Current+Location&destination=${encodedAddress}&travelmode=driving`;
-
-    if (mapApp === 'google') {
-      // Try Google Maps app first, fall back to web
-      Linking.canOpenURL('comgooglemaps://').then(supported => {
-        if (supported) {
-          Linking.openURL(googleMapsAppUrl);
-        } else {
-          Linking.openURL(googleMapsWebUrl);
-        }
-      });
-      return;
-    }
-
+    // Build URL based on selected map app
     let url = '';
     switch (mapApp) {
       case 'apple':
-        url = `maps://maps.apple.com/?saddr=Current+Location&daddr=${encodedAddress}&dirflg=d`;
+        url = `http://maps.apple.com/?daddr=${encodedAddress}&dirflg=d`;
         break;
       case 'waze':
-        url = `waze://?q=${encodedAddress}&navigate=yes`;
+        url = `https://waze.com/ul?q=${encodedAddress}&navigate=yes`;
         break;
+      case 'google':
       default:
-        Linking.openURL(googleMapsWebUrl);
-        return;
+        url = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
+        break;
     }
 
-    Linking.canOpenURL(url).then(supported => {
-      if (supported) {
-        Linking.openURL(url);
-      } else {
-        // Fallback to Google Maps web
-        Linking.openURL(googleMapsWebUrl);
-      }
+    Linking.openURL(url).catch(err => {
+      console.error('Failed to open navigation:', err);
+      Alert.alert('Error', 'Could not open maps. Please try again.');
     });
   }
 
