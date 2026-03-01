@@ -634,8 +634,24 @@ export default function DriverScreen() {
     // Clean address to remove apt/unit/floor info for better navigation
     const cleanedAddress = cleanAddressForNavigation(address);
     const encodedAddress = encodeURIComponent(cleanedAddress);
-    let url = '';
 
+    // Always try Google Maps first as it handles Queens-style addresses better
+    const googleMapsAppUrl = `comgooglemaps://?daddr=${encodedAddress}&directionsmode=driving`;
+    const googleMapsWebUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
+
+    if (mapApp === 'google') {
+      // Try Google Maps app first, fall back to web
+      Linking.canOpenURL(googleMapsAppUrl).then(supported => {
+        if (supported) {
+          Linking.openURL(googleMapsAppUrl);
+        } else {
+          Linking.openURL(googleMapsWebUrl);
+        }
+      });
+      return;
+    }
+
+    let url = '';
     switch (mapApp) {
       case 'apple':
         url = `maps://maps.apple.com/?daddr=${encodedAddress}`;
@@ -643,10 +659,9 @@ export default function DriverScreen() {
       case 'waze':
         url = `waze://?q=${encodedAddress}&navigate=yes`;
         break;
-      case 'google':
       default:
-        url = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
-        break;
+        Linking.openURL(googleMapsWebUrl);
+        return;
     }
 
     Linking.canOpenURL(url).then(supported => {
@@ -654,8 +669,7 @@ export default function DriverScreen() {
         Linking.openURL(url);
       } else {
         // Fallback to Google Maps web
-        const fallbackUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
-        Linking.openURL(fallbackUrl);
+        Linking.openURL(googleMapsWebUrl);
       }
     });
   }
