@@ -745,6 +745,75 @@ export default function OrderDetailScreen() {
     }
   }
 
+  // Handle using customer credit to pay
+  async function handleUseCredit() {
+    if (!order || !order.customer) return;
+
+    const customerCredit = order.customer.credit || 0;
+    const amountDue = (order.totalAmount || 0) - (order.creditApplied || 0);
+
+    if (customerCredit <= 0) {
+      Alert.alert('No Credit', 'This customer has no credit available.');
+      return;
+    }
+
+    const creditToApply = Math.min(customerCredit, amountDue);
+    const remainingDue = amountDue - creditToApply;
+
+    Alert.alert(
+      'Use Credit',
+      `Apply $${creditToApply.toFixed(2)} credit to this order?\n\nCustomer credit: $${customerCredit.toFixed(2)}\nAmount due: $${amountDue.toFixed(2)}\nRemaining after credit: $${remainingDue.toFixed(2)}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Apply Credit',
+          onPress: async () => {
+            setUpdating(true);
+            try {
+              // Deduct credit from customer
+              await api.addCustomerCredit(
+                order.customer!._id,
+                -creditToApply,
+                `Applied to order #${order.orderId || order._id.slice(-6)}`
+              );
+
+              // Update order with credit applied
+              const updateData: any = {
+                creditApplied: (order.creditApplied || 0) + creditToApply,
+              };
+
+              // If credit covers full amount, mark as paid
+              if (remainingDue <= 0) {
+                updateData.isPaid = true;
+                updateData.paymentMethod = 'credit';
+                updateData.paymentStatus = 'paid';
+                updateData.amountPaid = order.totalAmount;
+              } else {
+                // Partial payment with credit
+                updateData.paymentStatus = 'partial';
+                updateData.amountPaid = creditToApply;
+              }
+
+              await api.updateOrder(order._id, updateData);
+
+              const successMessage = remainingDue <= 0
+                ? `$${creditToApply.toFixed(2)} credit applied. Order fully paid!`
+                : `$${creditToApply.toFixed(2)} credit applied. Remaining due: $${remainingDue.toFixed(2)}`;
+
+              Alert.alert('Success', successMessage);
+              await loadOrder();
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to apply credit';
+              Alert.alert('Error', errorMessage);
+            } finally {
+              setUpdating(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   // Folding Verification (order-level) - Verifies folding and moves to ready status
   async function handleVerifyFolding() {
     if (!order || !user) return;
@@ -2127,6 +2196,19 @@ export default function OrderDetailScreen() {
                       Balance Due: ${((order.totalAmount || 0) - (order.amountPaid || 0)).toFixed(2)}
                     </Text>
                   </View>
+                  {/* Show Use Credit button if customer has credit */}
+                  {(order.customer?.credit ?? 0) > 0 && (
+                    <TouchableOpacity
+                      style={[styles.useCreditButton, updating && styles.buttonDisabled]}
+                      onPress={handleUseCredit}
+                      disabled={updating}
+                    >
+                      <Ionicons name="wallet-outline" size={18} color="#fff" />
+                      <Text style={styles.useCreditButtonText}>
+                        Use Credit (${order.customer!.credit!.toFixed(2)} available)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.paymentMethodPicker}>
                     {PAYMENT_METHODS.map(method => (
                       <TouchableOpacity
@@ -2156,6 +2238,19 @@ export default function OrderDetailScreen() {
                 </View>
               ) : (
                 <View style={styles.paymentPending}>
+                  {/* Show Use Credit button if customer has credit */}
+                  {(order.customer?.credit ?? 0) > 0 && (
+                    <TouchableOpacity
+                      style={[styles.useCreditButton, updating && styles.buttonDisabled]}
+                      onPress={handleUseCredit}
+                      disabled={updating}
+                    >
+                      <Ionicons name="wallet-outline" size={18} color="#fff" />
+                      <Text style={styles.useCreditButtonText}>
+                        Use Credit (${order.customer!.credit!.toFixed(2)} available)
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                   <View style={styles.paymentMethodPicker}>
                     {PAYMENT_METHODS.map(method => (
                       <TouchableOpacity
@@ -3529,6 +3624,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   markPaidButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  useCreditButton: {
+    backgroundColor: '#8b5cf6',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  useCreditButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
