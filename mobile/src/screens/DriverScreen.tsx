@@ -103,21 +103,24 @@ function cleanAddressForNavigation(address: string): string {
 
   let cleaned = address;
 
-  // Remove common apartment/unit patterns
-  // #1a, #2B, Apt 3, Unit 4, Suite 5, etc.
+  // First, remove "number + floor indicator" patterns: "2 flr", "2nd floor", "3rd fl"
+  cleaned = cleaned.replace(/\s+\d+\s*(flr|floor|fl)\b/gi, '');
+  cleaned = cleaned.replace(/\s+\d+(st|nd|rd|th)\s*(floor|flr|fl)\b/gi, '');
+
+  // Remove floor descriptions: "second floor", "ground floor"
+  cleaned = cleaned.replace(/\s+(first|second|third|fourth|fifth|ground|basement)\s*(floor|flr)?\b/gi, '');
+
+  // Remove apartment/unit patterns: "Apt 3", "Unit 4B", "Suite 100"
+  cleaned = cleaned.replace(/\s+(apt|apartment|unit|suite|ste)\.?\s*\w+/gi, '');
+
+  // Remove hash patterns: "#1a", "# 2B"
   cleaned = cleaned.replace(/\s*#\s*\w+/gi, '');
-  cleaned = cleaned.replace(/\s*(apt|apartment|unit|suite|ste|fl|flr|floor)\s*\.?\s*\w*/gi, '');
 
-  // Remove floor descriptions like "2nd floor", "second floor", "ground floor"
-  cleaned = cleaned.replace(/\s*(first|second|third|fourth|fifth|ground|basement)\s*(floor|flr|fl)?/gi, '');
-  cleaned = cleaned.replace(/\s*\d+(st|nd|rd|th)\s*(floor|flr|fl)/gi, '');
-
-  // Remove "2 flr" pattern (number followed by flr/floor)
-  cleaned = cleaned.replace(/\s*\d+\s*(flr|fl|floor)/gi, '');
-
-  // Clean up extra spaces and commas
-  cleaned = cleaned.replace(/\s*,\s*,/g, ',');
+  // Clean up extra commas and spaces
+  cleaned = cleaned.replace(/,\s*,/g, ',');
+  cleaned = cleaned.replace(/\s+,/g, ',');
   cleaned = cleaned.replace(/,\s*$/g, '');
+  cleaned = cleaned.replace(/^\s*,/g, '');
   cleaned = cleaned.replace(/\s+/g, ' ');
   cleaned = cleaned.trim();
 
