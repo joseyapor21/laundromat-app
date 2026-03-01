@@ -57,6 +57,46 @@ function formatTimeWithFrames(date: Date | null | undefined): string {
   return `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
 }
 
+// Format date with time for driver cards
+function formatDateWithTime(date: Date | string | null | undefined): { date: string; time: string } | null {
+  if (!date) return null;
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return null;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const dateDay = new Date(d);
+  dateDay.setHours(0, 0, 0, 0);
+
+  let dateStr: string;
+  if (dateDay.getTime() === today.getTime()) {
+    dateStr = 'Today';
+  } else if (dateDay.getTime() === tomorrow.getTime()) {
+    dateStr = 'Tomorrow';
+  } else {
+    dateStr = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+
+  const timeStr = formatTimeWithFrames(d);
+  return { date: dateStr, time: timeStr };
+}
+
+// Format payment method for display
+function formatPaymentMethod(method: string | undefined): string {
+  if (!method) return '';
+  const methodMap: Record<string, string> = {
+    cash: 'Cash',
+    check: 'Check',
+    venmo: 'Venmo',
+    zelle: 'Zelle',
+    credit_card: 'Card',
+    credit: 'Credit',
+  };
+  return methodMap[method] || method;
+}
+
 type MapApp = 'google' | 'apple' | 'waze';
 
 interface RouteStop {
@@ -799,24 +839,39 @@ export default function DriverScreen() {
 
         {/* Customer Info */}
         <View style={styles.customerInfo}>
-          <Text style={styles.customerName}>{order.customerName}</Text>
+          <View style={styles.customerNameRow}>
+            <Text style={styles.customerName}>{order.customerName}</Text>
+            {order.isPaid && (
+              <View style={styles.paidBadge}>
+                <Ionicons name="checkmark-circle" size={12} color="#fff" />
+                <Text style={styles.paidBadgeText}>
+                  Paid{order.paymentMethod ? ` - ${formatPaymentMethod(order.paymentMethod)}` : ''}
+                </Text>
+              </View>
+            )}
+          </View>
           {order.customer?.address && (
             <Text style={styles.customerAddress}>{order.customer.address}</Text>
           )}
           {order.customer?.buzzerCode && (
             <Text style={styles.buzzerCode}>Buzzer: {order.customer.buzzerCode}</Text>
           )}
-          {/* Time Window */}
+          {/* Date + Time Window */}
           {(() => {
-            // For pickups (driver picking up from customer), use estimatedPickupDate
-            // For deliveries, use deliverySchedule
-            const timeStr = isPickup
-              ? formatTimeWithFrames(order.estimatedPickupDate)
-              : formatTimeWithFrames(order.deliverySchedule);
-            return timeStr ? (
-              <View style={styles.timeWindowRow}>
-                <Ionicons name="time-outline" size={14} color="#3b82f6" />
-                <Text style={styles.timeWindowText}>{timeStr}</Text>
+            // For pickups use scheduledPickupTime, for deliveries use deliverySchedule
+            const dateTime = isPickup
+              ? formatDateWithTime(order.scheduledPickupTime || order.estimatedPickupDate)
+              : formatDateWithTime(order.deliverySchedule);
+            return dateTime ? (
+              <View style={styles.dateTimeRow}>
+                <Ionicons name="calendar-outline" size={14} color="#3b82f6" />
+                <Text style={styles.dateText}>{dateTime.date}</Text>
+                {dateTime.time && (
+                  <>
+                    <Ionicons name="time-outline" size={14} color="#3b82f6" style={{ marginLeft: 8 }} />
+                    <Text style={styles.timeWindowText}>{dateTime.time}</Text>
+                  </>
+                )}
               </View>
             ) : null;
           })()}
@@ -1578,10 +1633,32 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
+  customerNameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
   customerName: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1e293b',
+    flex: 1,
+  },
+  paidBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#10b981',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  paidBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
   },
   customerPhone: {
     fontSize: 14,
@@ -1598,6 +1675,17 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#f59e0b',
     marginTop: 4,
+  },
+  dateTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 4,
+  },
+  dateText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3b82f6',
   },
   timeWindowRow: {
     flexDirection: 'row',
