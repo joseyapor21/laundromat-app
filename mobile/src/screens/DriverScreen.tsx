@@ -177,9 +177,9 @@ export default function DriverScreen() {
     isDateMatch(order.deliverySchedule, deliveryDateFilter)
   );
 
-  // Filtered pickups based on date (use scheduledPickupTime for pickup orders)
+  // Filtered pickups based on date (use estimatedPickupDate for pickup orders)
   const filteredPickups = pickupOrders.filter(order =>
-    isDateMatch(order.scheduledPickupTime, pickupDateFilter)
+    isDateMatch(order.estimatedPickupDate, pickupDateFilter)
   );
 
   const loadOrders = useCallback(async () => {
@@ -858,11 +858,12 @@ export default function DriverScreen() {
           )}
           {/* Date + Time Window */}
           {(() => {
-            // For pickups use scheduledPickupTime, for deliveries use deliverySchedule
-            const dateTime = isPickup
-              ? formatDateWithTime(order.scheduledPickupTime || order.estimatedPickupDate)
-              : formatDateWithTime(order.deliverySchedule);
-            return dateTime ? (
+            // For pickups use estimatedPickupDate, for deliveries use deliverySchedule
+            const rawDate = isPickup ? order.estimatedPickupDate : order.deliverySchedule;
+            if (!rawDate) return null;
+            const dateTime = formatDateWithTime(rawDate);
+            if (!dateTime) return null;
+            return (
               <View style={styles.dateTimeRow}>
                 <Ionicons name="calendar-outline" size={14} color="#3b82f6" />
                 <Text style={styles.dateText}>{dateTime.date}</Text>
@@ -873,7 +874,7 @@ export default function DriverScreen() {
                   </>
                 )}
               </View>
-            ) : null;
+            );
           })()}
         </View>
 
