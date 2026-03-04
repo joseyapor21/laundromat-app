@@ -23,6 +23,7 @@ import * as NavigationBar from 'expo-navigation-bar';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
+import POSView from '../components/pos/POSView';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { formatPhoneNumber } from '../utils/phoneFormat';
 import type { Order } from '../types';
@@ -88,6 +89,9 @@ export default function DashboardScreen() {
       }
     }
   }, [useWideLayout]);
+
+  // POS mode state
+  const [showPOS, setShowPOS] = useState(false);
 
   // QR Scanner state
   const [showScanner, setShowScanner] = useState(false);
@@ -479,6 +483,25 @@ export default function DashboardScreen() {
   }
 
   return (
+    <>
+    {/* POS Modal - Full Screen */}
+    <Modal
+      visible={showPOS}
+      animationType="slide"
+      statusBarTranslucent
+      supportedOrientations={['portrait', 'landscape', 'landscape-left', 'landscape-right']}
+    >
+      <POSView
+        orders={orders}
+        onOrderCreated={loadOrders}
+        onExit={() => setShowPOS(false)}
+        onOpenOrder={(orderId) => { setShowPOS(false); navigation.navigate('OrderDetail', { orderId }); }}
+        currentLocation={currentLocation}
+        availableLocations={[]}
+        onSelectLocation={async () => {}}
+      />
+    </Modal>
+
     <View style={styles.container}>
       {/* Hide status bar in landscape for full screen */}
       <StatusBar hidden={useWideLayout} />
@@ -486,6 +509,14 @@ export default function DashboardScreen() {
       {/* Board View for Landscape - Full Screen */}
       {useWideLayout ? (
         <View style={styles.boardContainerFullScreen}>
+          {/* POS Button for Landscape */}
+          <TouchableOpacity
+            style={styles.posButtonLandscape}
+            onPress={() => setShowPOS(true)}
+          >
+            <Ionicons name="cash-outline" size={20} color="#fff" />
+            <Text style={styles.posButtonText}>POS</Text>
+          </TouchableOpacity>
           <BoardColumn title="New" orders={newOrders} color="#3b82f6" />
           <BoardColumn title="Processing" orders={processingOrders} color="#f59e0b" />
           <BoardColumn title="Ready" orders={readyOrders} color="#10b981" />
@@ -498,6 +529,13 @@ export default function DashboardScreen() {
               <Text style={styles.headerTitle}>Dashboard</Text>
               <Text style={styles.headerSubtitle}>Welcome, {user?.firstName || 'User'}</Text>
             </View>
+            <TouchableOpacity
+              style={styles.posButtonPortrait}
+              onPress={() => setShowPOS(true)}
+            >
+              <Ionicons name="cash-outline" size={20} color="#fff" />
+              <Text style={styles.posButtonText}>POS</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Filter Tabs - Portrait only */}
@@ -667,6 +705,7 @@ export default function DashboardScreen() {
         </View>
       </Modal>
     </View>
+    </>
   );
 }
 
@@ -1189,5 +1228,33 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#1e293b',
+  },
+  // POS Button styles
+  posButtonLandscape: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 6,
+    zIndex: 100,
+  },
+  posButtonPortrait: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  posButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -9,6 +9,7 @@ import type { CurrentUser } from '@/lib/auth/server';
 import OrderCard from './orders/OrderCard';
 import CreateOrderModal from './orders/CreateOrderModal';
 import OrderDetailModal from './orders/OrderDetailModal';
+import POSLayout from './pos/POSLayout';
 
 interface DashboardClientProps {
   initialOrders: Order[];
@@ -34,6 +35,7 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
   const [showQRScanner, setShowQRScanner] = useState(false);
   const [manualOrderInput, setManualOrderInput] = useState('');
   const [isScanning, setIsScanning] = useState(false);
+  const [isPOSMode, setIsPOSMode] = useState(false);
   const html5QrCodeRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerRef = useRef<HTMLDivElement>(null);
   const hasScannedRef = useRef(false);
@@ -309,6 +311,20 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
                 Profile
               </button>
 
+              <button
+                onClick={() => setIsPOSMode(!isPOSMode)}
+                className={`px-3 py-2 text-sm rounded-lg transition-colors flex items-center gap-1 ${
+                  isPOSMode
+                    ? 'bg-purple-600 hover:bg-purple-700 text-white'
+                    : 'bg-purple-100 hover:bg-purple-200 text-purple-700 border border-purple-300'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+                {isPOSMode ? 'Exit POS' : 'POS'}
+              </button>
+
               {canManage && (
                 <>
                   <button
@@ -338,104 +354,113 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
       </header>
 
       {/* Content */}
-      <main className="p-4 md:p-6">
-        {/* Action Bar */}
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
-          {/* Filter Tabs */}
-          <div className="flex flex-wrap gap-2">
-            {[
-              { key: 'all', label: 'All' },
-              { key: 'in-store', label: 'In-Store' },
-              { key: 'delivery', label: 'Delivery' },
-              { key: 'new_order', label: 'New' },
-              { key: 'processing', label: 'Processing' },
-              { key: 'ready', label: 'Ready' },
-              { key: 'completed', label: 'Completed' },
-            ].map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setFilter(key as FilterType)}
-                className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
-                  filter === key
-                    ? key === 'completed'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-blue-600 text-white'
-                    : key === 'completed'
-                      ? 'bg-white text-green-700 border border-green-300 hover:border-green-500'
-                      : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300'
-                }`}
-              >
-                {label}
-                <span
-                  className={`px-2 py-0.5 text-xs rounded-full ${
+      {isPOSMode ? (
+        <POSLayout
+          orders={orders}
+          onOrderCreated={loadOrders}
+          onExitPOS={() => setIsPOSMode(false)}
+          currentUser={currentUser}
+        />
+      ) : (
+        <main className="p-4 md:p-6">
+          {/* Action Bar */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+            {/* Filter Tabs */}
+            <div className="flex flex-wrap gap-2">
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'in-store', label: 'In-Store' },
+                { key: 'delivery', label: 'Delivery' },
+                { key: 'new_order', label: 'New' },
+                { key: 'processing', label: 'Processing' },
+                { key: 'ready', label: 'Ready' },
+                { key: 'completed', label: 'Completed' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setFilter(key as FilterType)}
+                  className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors flex items-center gap-2 ${
                     filter === key
-                      ? 'bg-white/20 text-white'
+                      ? key === 'completed'
+                        ? 'bg-green-600 text-white'
+                        : 'bg-blue-600 text-white'
                       : key === 'completed'
-                        ? 'bg-green-100 text-green-600'
-                        : 'bg-slate-100 text-slate-600'
+                        ? 'bg-white text-green-700 border border-green-300 hover:border-green-500'
+                        : 'bg-white text-slate-700 border border-slate-200 hover:border-blue-300'
                   }`}
                 >
-                  {counts[key as keyof typeof counts]}
-                </span>
-              </button>
-            ))}
-          </div>
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            <button
-              onClick={() => setShowQRScanner(true)}
-              className="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-              </svg>
-              Scan QR
-            </button>
-
-            <button
-              onClick={() => loadOrders()}
-              disabled={loading}
-              className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors disabled:opacity-50"
-            >
-              {loading ? 'Refreshing...' : 'Refresh'}
-            </button>
-
-            <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              New Order
-            </button>
-          </div>
-        </div>
-
-        {/* Orders Grid */}
-        {filteredOrders.length === 0 ? (
-          <div className="bg-white rounded-xl p-8 text-center">
-            <div className="text-slate-400 mb-2">
-              <svg className="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
+                  {label}
+                  <span
+                    className={`px-2 py-0.5 text-xs rounded-full ${
+                      filter === key
+                        ? 'bg-white/20 text-white'
+                        : key === 'completed'
+                          ? 'bg-green-100 text-green-600'
+                          : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {counts[key as keyof typeof counts]}
+                  </span>
+                </button>
+              ))}
             </div>
-            <p className="text-slate-500">No orders found</p>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowQRScanner(true)}
+                className="px-4 py-2 text-sm bg-amber-500 hover:bg-amber-600 text-white rounded-lg transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                </svg>
+                Scan QR
+              </button>
+
+              <button
+                onClick={() => loadOrders()}
+                disabled={loading}
+                className="px-4 py-2 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors disabled:opacity-50"
+              >
+                {loading ? 'Refreshing...' : 'Refresh'}
+              </button>
+
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                New Order
+              </button>
+            </div>
           </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {filteredOrders.map(order => (
-              <OrderCard
-                key={order._id}
-                order={order}
-                onRefresh={loadOrders}
-                onSelect={() => setSelectedOrder(order)}
-              />
-            ))}
-          </div>
-        )}
-      </main>
+
+          {/* Orders Grid */}
+          {filteredOrders.length === 0 ? (
+            <div className="bg-white rounded-xl p-8 text-center">
+              <div className="text-slate-400 mb-2">
+                <svg className="w-12 h-12 mx-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+              <p className="text-slate-500">No orders found</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredOrders.map(order => (
+                <OrderCard
+                  key={order._id}
+                  order={order}
+                  onRefresh={loadOrders}
+                  onSelect={() => setSelectedOrder(order)}
+                />
+              ))}
+            </div>
+          )}
+        </main>
+      )}
 
       {/* Create Order Modal */}
       {showCreateModal && (

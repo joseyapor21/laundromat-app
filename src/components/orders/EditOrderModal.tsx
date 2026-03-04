@@ -58,24 +58,6 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
       setDeliveryPrice(parseFloat(order.customer.deliveryFee.replace('$', '')) || 0);
     }
 
-    // Populate existing extra items
-    if (order.extraItems) {
-      const extraItemsMap: Record<string, { quantity: number; price: number }> = {};
-      order.extraItems.forEach((item: any) => {
-        // Handle both item.item._id and item.itemId formats
-        const itemId = item.item?._id || item.itemId;
-        if (itemId) {
-          extraItemsMap[itemId] = {
-            quantity: item.quantity,
-            price: item.quantity > 0 ? item.price / item.quantity : item.price // Get per-unit price
-          };
-        }
-      });
-      setSelectedExtraItems(extraItemsMap);
-      // Show extra items section if there are existing items
-      setShowExtraItems(Object.values(extraItemsMap).some(data => data.quantity > 0));
-    }
-
     // Populate existing bags
     if (order.bags) {
       setBags(order.bags);
@@ -91,6 +73,35 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     // Same day service
     setIsSameDay(order.isSameDay || false);
   }, [order]);
+
+  // Populate extra items after extraItems list is loaded
+  // This ensures we can look up the original item definition
+  useEffect(() => {
+    if (extraItems.length > 0 && order.extraItems && order.extraItems.length > 0) {
+      const extraItemsMap: Record<string, { quantity: number; price: number }> = {};
+
+      order.extraItems.forEach((item: any) => {
+        const itemId = item.item?._id || item.itemId;
+        const extraItem = extraItems.find(e => e._id === itemId);
+
+        if (itemId && extraItem) {
+          const isWeightBased = extraItem.perWeightUnit && extraItem.perWeightUnit > 0;
+
+          if (isWeightBased) {
+            // Weight-based: enable toggle, use default per-unit price from definition
+            extraItemsMap[itemId] = { quantity: 1, price: extraItem.price };
+          } else {
+            // Quantity-based: calculate quantity from saved total / default price
+            const qty = extraItem.price > 0 ? Math.round(item.price / extraItem.price) || 1 : 1;
+            extraItemsMap[itemId] = { quantity: qty, price: extraItem.price };
+          }
+        }
+      });
+
+      setSelectedExtraItems(extraItemsMap);
+      setShowExtraItems(Object.keys(extraItemsMap).length > 0);
+    }
+  }, [extraItems, order.extraItems]);
 
   useEffect(() => {
     loadInitialData();

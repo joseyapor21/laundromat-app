@@ -37,7 +37,15 @@ export default function AdminPage() {
 
   // Extra Items state
   const [extraItems, setExtraItems] = useState<ExtraItem[]>([]);
-  const [newExtraItem, setNewExtraItem] = useState({ name: '', description: '', price: 0, perWeightUnit: null as number | null });
+  const [newExtraItem, setNewExtraItem] = useState({
+    name: '',
+    description: '',
+    price: 0,
+    minimumPrice: 0,
+    unitType: 'lb' as 'lb' | 'item' | 'each' | 'flat',
+    perWeightUnit: null as number | null,
+    category: 'service' as string,
+  });
   const [editingExtraItem, setEditingExtraItem] = useState<ExtraItem | null>(null);
 
   // Machines state
@@ -458,7 +466,7 @@ printer is configured correctly.
       if (!response.ok) throw new Error('Failed to create extra item');
 
       toast.success('Extra item created successfully');
-      setNewExtraItem({ name: '', description: '', price: 0, perWeightUnit: null });
+      setNewExtraItem({ name: '', description: '', price: 0, minimumPrice: 0, unitType: 'lb', perWeightUnit: null, category: 'service' });
       const extraItemsRes = await fetch('/api/extra-items');
       if (extraItemsRes.ok) setExtraItems(await extraItemsRes.json());
     } catch (error) {
@@ -1198,56 +1206,104 @@ printer is configured correctly.
             {/* Create Extra Item */}
             <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Create Extra Item</h2>
-              <form onSubmit={handleCreateExtraItem} className="grid grid-cols-1 md:grid-cols-5 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={newExtraItem.name}
-                    onChange={e => setNewExtraItem(i => ({ ...i, name: e.target.value }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  />
+              <form onSubmit={handleCreateExtraItem} className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newExtraItem.name}
+                      onChange={e => setNewExtraItem(i => ({ ...i, name: e.target.value }))}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                      placeholder="e.g. Separate Clothing"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      value={newExtraItem.category}
+                      onChange={e => setNewExtraItem(i => ({ ...i, category: e.target.value }))}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="service">Service</option>
+                      <option value="product">Product</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Unit Type</label>
+                    <select
+                      value={newExtraItem.unitType}
+                      onChange={e => setNewExtraItem(i => ({ ...i, unitType: e.target.value as 'lb' | 'item' | 'each' | 'flat' }))}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                    >
+                      <option value="lb">Per Pound (/lb)</option>
+                      <option value="item">Per Item</option>
+                      <option value="each">Each</option>
+                      <option value="flat">Flat Rate</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <input
+                      type="text"
+                      value={newExtraItem.description}
+                      onChange={e => setNewExtraItem(i => ({ ...i, description: e.target.value }))}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                      placeholder="Optional description"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                  <input
-                    type="text"
-                    value={newExtraItem.description}
-                    onChange={e => setNewExtraItem(i => ({ ...i, description: e.target.value }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={newExtraItem.price}
-                    onChange={e => setNewExtraItem(i => ({ ...i, price: parseFloat(e.target.value) || 0 }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Per Weight (lbs)</label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 15"
-                    value={newExtraItem.perWeightUnit || ''}
-                    onChange={e => setNewExtraItem(i => ({ ...i, perWeightUnit: e.target.value ? parseFloat(e.target.value) : null }))}
-                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">Leave empty for per-item pricing</p>
-                </div>
-                <div className="flex items-end">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    Create Item
-                  </button>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Price per Unit ($) *</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={newExtraItem.price}
+                      onChange={e => setNewExtraItem(i => ({ ...i, price: parseFloat(e.target.value) || 0 }))}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                      placeholder="0.20"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      {newExtraItem.unitType === 'lb' ? 'Price per pound' :
+                       newExtraItem.unitType === 'item' ? 'Price per item' :
+                       newExtraItem.unitType === 'each' ? 'Price each' : 'Flat rate price'}
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Price ($)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={newExtraItem.minimumPrice}
+                      onChange={e => setNewExtraItem(i => ({ ...i, minimumPrice: parseFloat(e.target.value) || 0 }))}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                      placeholder="3.00"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Minimum charge (0 = no minimum)</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Per Weight Unit (lbs)</label>
+                    <input
+                      type="number"
+                      placeholder="1"
+                      value={newExtraItem.perWeightUnit || ''}
+                      onChange={e => setNewExtraItem(i => ({ ...i, perWeightUnit: e.target.value ? parseFloat(e.target.value) : null }))}
+                      className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">1 = per 1 lb, 15 = per 15 lbs</p>
+                  </div>
+                  <div className="flex items-end">
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      Create Item
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -1255,15 +1311,30 @@ printer is configured correctly.
             {/* Extra Items List */}
             <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Extra Items ({extraItems.length})</h2>
-              <div className="space-y-3 max-h-96 overflow-y-auto">
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {extraItems.map(item => (
                   <div key={item._id} className="p-3 border border-gray-200 rounded-lg bg-gray-50">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="font-medium text-gray-900 truncate">{item.name}</div>
-                        <div className="text-sm text-gray-600">
-                          {item.description} - ${item.price.toFixed(2)}
-                          {item.perWeightUnit && <span className="ml-2 text-purple-600 font-medium">(per {item.perWeightUnit} lbs)</span>}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900">{item.name}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${item.category === 'product' ? 'bg-green-100 text-green-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {item.category === 'product' ? 'Product' : 'Service'}
+                          </span>
+                          {!item.isActive && <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Inactive</span>}
+                        </div>
+                        <div className="text-sm text-gray-600 mt-1">
+                          {item.description && <span>{item.description} - </span>}
+                          <span className="font-medium text-gray-900">${item.price.toFixed(2)}</span>
+                          <span className="text-gray-500">
+                            /{item.unitType === 'lb' ? 'lb' : item.unitType === 'item' ? 'item' : item.unitType === 'each' ? 'each' : 'flat'}
+                          </span>
+                          {(item.minimumPrice ?? 0) > 0 && (
+                            <span className="ml-2 text-amber-600 font-medium">(min ${(item.minimumPrice ?? 0).toFixed(2)})</span>
+                          )}
+                          {item.perWeightUnit && item.perWeightUnit > 1 && (
+                            <span className="ml-2 text-purple-600 font-medium">(per {item.perWeightUnit} lbs)</span>
+                          )}
                         </div>
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -1712,17 +1783,30 @@ printer is configured correctly.
       {/* Edit Extra Item Modal */}
       {editingExtraItem && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingExtraItem(null)}>
-          <div className="bg-white rounded-xl p-6 w-full max-w-md" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg" onClick={e => e.stopPropagation()}>
             <h2 className="text-xl font-bold text-gray-900 mb-4">Edit Extra Item</h2>
             <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
-                <input
-                  type="text"
-                  value={editingExtraItem.name}
-                  onChange={e => setEditingExtraItem(i => i ? { ...i, name: e.target.value } : i)}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                  <input
+                    type="text"
+                    value={editingExtraItem.name}
+                    onChange={e => setEditingExtraItem(i => i ? { ...i, name: e.target.value } : i)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <select
+                    value={editingExtraItem.category || 'service'}
+                    onChange={e => setEditingExtraItem(i => i ? { ...i, category: e.target.value } : i)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="service">Service</option>
+                    <option value="product">Product</option>
+                  </select>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
@@ -1733,30 +1817,54 @@ printer is configured correctly.
                   className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Price ($)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={editingExtraItem.price}
-                  onChange={e => setEditingExtraItem(i => i ? { ...i, price: parseFloat(e.target.value) || 0 } : i)}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit Type</label>
+                  <select
+                    value={editingExtraItem.unitType || 'lb'}
+                    onChange={e => setEditingExtraItem(i => i ? { ...i, unitType: e.target.value as 'lb' | 'item' | 'each' | 'flat' } : i)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="lb">Per Pound (/lb)</option>
+                    <option value="item">Per Item</option>
+                    <option value="each">Each</option>
+                    <option value="flat">Flat Rate</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Price per Unit ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingExtraItem.price}
+                    onChange={e => setEditingExtraItem(i => i ? { ...i, price: parseFloat(e.target.value) || 0 } : i)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Per Weight (lbs)</label>
-                <input
-                  type="number"
-                  placeholder="Leave empty for per-item pricing"
-                  value={editingExtraItem.perWeightUnit || ''}
-                  onChange={e => setEditingExtraItem(i => i ? { ...i, perWeightUnit: e.target.value ? parseFloat(e.target.value) : undefined } : i)}
-                  className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  {editingExtraItem.perWeightUnit
-                    ? `Price of $${editingExtraItem.price.toFixed(2)} applies per ${editingExtraItem.perWeightUnit} lbs`
-                    : 'Leave empty for per-item pricing (e.g., comforters)'}
-                </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Minimum Price ($)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={editingExtraItem.minimumPrice || 0}
+                    onChange={e => setEditingExtraItem(i => i ? { ...i, minimumPrice: parseFloat(e.target.value) || 0 } : i)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">0 = no minimum</p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Per Weight Unit (lbs)</label>
+                  <input
+                    type="number"
+                    placeholder="1"
+                    value={editingExtraItem.perWeightUnit || ''}
+                    onChange={e => setEditingExtraItem(i => i ? { ...i, perWeightUnit: e.target.value ? parseFloat(e.target.value) : undefined } : i)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">1 = per 1 lb</p>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <input

@@ -81,6 +81,17 @@ export default function EditOrderScreen() {
   const [extraItems, setExtraItems] = useState<ExtraItem[]>([]);
   const [selectedExtraItems, setSelectedExtraItems] = useState<Record<string, { quantity: number; price: number; overrideTotal?: number }>>({});
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
+  // Multi-instance extra items (same item with different prices)
+  const [extraItemInstances, setExtraItemInstances] = useState<Array<{
+    instanceId: string;
+    itemId: string;
+    itemName: string;
+    quantity: number;
+    price: number;
+  }>>([]);
+  const [showAddInstanceModal, setShowAddInstanceModal] = useState(false);
+  const [selectedItemForInstance, setSelectedItemForInstance] = useState<ExtraItem | null>(null);
+  const [instancePrice, setInstancePrice] = useState('');
 
   // Pricing
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -292,6 +303,11 @@ export default function EditOrderScreen() {
       return total + (data.price * data.quantity);
     }, 0);
 
+    // Add multi-instance extra items
+    const instancesTotal = extraItemInstances.reduce((total, instance) => {
+      return total + (instance.price * instance.quantity);
+    }, 0);
+
     let deliveryFee = 0;
     if (orderType === 'delivery' && deliveryPrice > 0) {
       deliveryFee = deliveryPrice;
@@ -301,7 +317,7 @@ export default function EditOrderScreen() {
       }
     }
 
-    return basePrice + extraItemsTotal + deliveryFee;
+    return basePrice + extraItemsTotal + instancesTotal + deliveryFee;
   };
 
   const getFinalPrice = () => {
@@ -346,6 +362,47 @@ export default function EditOrderScreen() {
     }));
   };
 
+  // Multi-instance extra item functions
+  const addExtraItemInstance = () => {
+    if (!selectedItemForInstance) return;
+    const price = parseFloat(instancePrice) || selectedItemForInstance.price;
+    setExtraItemInstances(prev => [
+      ...prev,
+      {
+        instanceId: `${selectedItemForInstance._id}-${Date.now()}`,
+        itemId: selectedItemForInstance._id,
+        itemName: selectedItemForInstance.name,
+        quantity: 1,
+        price,
+      },
+    ]);
+    setInstancePrice('');
+  };
+
+  const removeExtraItemInstance = (instanceId: string) => {
+    setExtraItemInstances(prev => prev.filter(i => i.instanceId !== instanceId));
+  };
+
+  const updateInstanceQuantity = (instanceId: string, delta: number) => {
+    setExtraItemInstances(prev =>
+      prev.map(i =>
+        i.instanceId === instanceId
+          ? { ...i, quantity: Math.max(1, i.quantity + delta) }
+          : i
+      )
+    );
+  };
+
+  const openAddInstanceModal = (item: ExtraItem) => {
+    setSelectedItemForInstance(item);
+    setInstancePrice(item.price.toString());
+    setShowAddInstanceModal(true);
+  };
+
+  const getInstanceCountForItem = (itemId: string) => {
+    return extraItemInstances.filter(i => i.itemId === itemId).length;
+  };
+
   // Save order
   const handleSave = async () => {
     if (showPriceOverride && !priceChangeNote.trim()) {
@@ -370,6 +427,17 @@ export default function EditOrderScreen() {
             overrideTotal: data.overrideTotal
           };
         });
+
+      // Add multi-instance extra items
+      extraItemInstances.forEach(instance => {
+        orderExtraItems.push({
+          itemId: instance.itemId,
+          name: instance.itemName,
+          quantity: instance.quantity,
+          price: instance.price,
+          overrideTotal: undefined
+        });
+      });
 
       // Calculate laundry subtotal (weight-based pricing only)
       let laundrySubtotal = 0;
@@ -1614,6 +1682,19 @@ export default function EditOrderScreen() {
                           trackColor={{ false: '#e2e8f0', true: '#c4b5fd' }}
                           thumbColor={isEnabled ? '#8b5cf6' : '#f4f4f5'}
                         />
+                      ) : item.allowMultiplePrices ? (
+                        // Items with multiple prices - button to add with custom prices
+                        <TouchableOpacity
+                          style={styles.addMultipleBtn}
+                          onPress={() => openAddInstanceModal(item)}
+                        >
+                          <Ionicons name="add-circle" size={20} color="#8b5cf6" />
+                          <Text style={styles.addMultipleBtnText}>
+                            {getInstanceCountForItem(item._id) > 0
+                              ? `${getInstanceCountForItem(item._id)} added`
+                              : 'Add'}
+                          </Text>
+                        </TouchableOpacity>
                       ) : (
                         // Regular items use +/- quantity controls
                         <View style={styles.modalQuantityControl}>
@@ -1789,6 +1870,109 @@ export default function EditOrderScreen() {
             </TouchableOpacity>
           </View>
         </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Multi-Instance Extra Item Modal */}
+      <Modal
+        visible={showAddInstanceModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAddInstanceModal(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.instanceModalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={styles.instanceModalContent}>
+            <View style={styles.instanceModalHeader}>
+              <Text style={styles.instanceModalTitle}>
+                {selectedItemForInstance?.name || 'Item'}
+              </Text>
+              <TouchableOpacity onPress={() => setShowAddInstanceModal(false)}>
+                <Ionicons name="close" size={24} color="#1e293b" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.instanceModalHint}>
+              Add multiple items with different prices
+            </Text>
+
+            {/* Add new instance */}
+            <View style={styles.addInstanceRow}>
+              <View style={styles.addInstancePriceContainer}>
+                <Text style={styles.addInstanceLabel}>Price: $</Text>
+                <TextInput
+                  style={styles.addInstancePriceInput}
+                  value={instancePrice}
+                  onChangeText={setInstancePrice}
+                  keyboardType="decimal-pad"
+                  placeholder="0.00"
+                />
+              </View>
+              <TouchableOpacity
+                style={styles.addInstanceButton}
+                onPress={addExtraItemInstance}
+              >
+                <Ionicons name="add" size={20} color="#fff" />
+                <Text style={styles.addInstanceButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* List of instances */}
+            <ScrollView style={styles.instancesList}>
+              {extraItemInstances
+                .filter(i => i.itemId === selectedItemForInstance?._id)
+                .map((instance) => (
+                  <View key={instance.instanceId} style={styles.instanceRow}>
+                    <View style={styles.instanceInfo}>
+                      <Text style={styles.instancePrice}>
+                        ${instance.price.toFixed(2)} × {instance.quantity}
+                      </Text>
+                      <Text style={styles.instanceTotal}>
+                        = ${(instance.price * instance.quantity).toFixed(2)}
+                      </Text>
+                    </View>
+                    <View style={styles.instanceActions}>
+                      <TouchableOpacity
+                        style={styles.instanceQtyBtn}
+                        onPress={() => updateInstanceQuantity(instance.instanceId, -1)}
+                      >
+                        <Ionicons name="remove" size={18} color="#2563eb" />
+                      </TouchableOpacity>
+                      <Text style={styles.instanceQtyText}>{instance.quantity}</Text>
+                      <TouchableOpacity
+                        style={styles.instanceQtyBtn}
+                        onPress={() => updateInstanceQuantity(instance.instanceId, 1)}
+                      >
+                        <Ionicons name="add" size={18} color="#2563eb" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.instanceDeleteBtn}
+                        onPress={() => removeExtraItemInstance(instance.instanceId)}
+                      >
+                        <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              {extraItemInstances.filter(i => i.itemId === selectedItemForInstance?._id).length === 0 && (
+                <Text style={styles.noInstancesText}>
+                  No items added yet. Enter a price and tap "Add".
+                </Text>
+              )}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.instanceDoneBtn}
+              onPress={() => {
+                Keyboard.dismiss();
+                setShowAddInstanceModal(false);
+              }}
+            >
+              <Text style={styles.instanceDoneBtnText}>Done</Text>
+            </TouchableOpacity>
+          </View>
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
@@ -2390,6 +2574,161 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalDoneButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  // Multi-instance modal styles
+  addMultipleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ede9fe',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  addMultipleBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#8b5cf6',
+  },
+  instanceModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  instanceModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: '70%',
+  },
+  instanceModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  instanceModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  instanceModalHint: {
+    fontSize: 14,
+    color: '#64748b',
+    marginBottom: 16,
+  },
+  addInstanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 16,
+  },
+  addInstancePriceContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  addInstanceLabel: {
+    fontSize: 16,
+    color: '#64748b',
+  },
+  addInstancePriceInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginLeft: 4,
+  },
+  addInstanceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#8b5cf6',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 10,
+    gap: 6,
+  },
+  addInstanceButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  instancesList: {
+    maxHeight: 200,
+    marginBottom: 16,
+  },
+  instanceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  instanceInfo: {
+    flex: 1,
+  },
+  instancePrice: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  instanceTotal: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  instanceActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  instanceQtyBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#e0e7ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  instanceQtyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    minWidth: 24,
+    textAlign: 'center',
+  },
+  instanceDeleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fee2e2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  noInstancesText: {
+    textAlign: 'center',
+    color: '#94a3b8',
+    fontSize: 14,
+    paddingVertical: 20,
+  },
+  instanceDoneBtn: {
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  instanceDoneBtnText: {
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',

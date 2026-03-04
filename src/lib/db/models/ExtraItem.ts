@@ -23,6 +23,18 @@ const extraItemSchema = new mongoose.Schema<ExtraItemDocument>({
     required: true,
     min: 0,
   },
+  // Minimum charge for this item (e.g., $3 minimum for Separate Clothing)
+  minimumPrice: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
+  // How the price is calculated: per lb, per item, each, or flat rate
+  unitType: {
+    type: String,
+    enum: ['lb', 'item', 'each', 'flat'],
+    default: 'lb',
+  },
   isActive: {
     type: Boolean,
     default: true,

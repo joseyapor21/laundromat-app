@@ -23,6 +23,7 @@ import { Device } from 'react-native-ble-plx';
 import { CameraView, useCameraPermissions, CameraType } from 'expo-camera';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as SecureStore from 'expo-secure-store';
+import * as Location from 'expo-location';
 import { api } from '../services/api';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
@@ -121,6 +122,22 @@ function cleanAddressForNavigation(address: string): string {
   cleaned = cleaned.replace(/\s+/g, ' ').trim();
 
   return cleaned;
+}
+
+// Geocode address to coordinates for precise navigation
+async function geocodeAddress(address: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    // Add NY context for better geocoding of Queens-style addresses
+    const addressWithContext = address.includes(', NY') ? address : `${address}, NY`;
+    const results = await Location.geocodeAsync(addressWithContext);
+    if (results.length > 0) {
+      return { lat: results[0].latitude, lng: results[0].longitude };
+    }
+    return null;
+  } catch (error) {
+    console.error('Geocoding failed:', error);
+    return null;
+  }
 }
 
 type MapApp = 'google' | 'apple' | 'waze';
@@ -626,24 +643,45 @@ export default function DriverScreen() {
     }
   }
 
-  function openNavigation(address: string, mapApp: MapApp = selectedMapApp) {
+  async function openNavigation(address: string, mapApp: MapApp = selectedMapApp) {
     // Clean address to remove apt/unit/floor info for better navigation
     const cleanedAddress = cleanAddressForNavigation(address);
-    const encodedAddress = encodeURIComponent(cleanedAddress);
+
+    // Try to geocode the address for precise navigation
+    const coords = await geocodeAddress(cleanedAddress);
 
     // Build URL based on selected map app
     let url = '';
-    switch (mapApp) {
-      case 'apple':
-        url = `http://maps.apple.com/?daddr=${encodedAddress}&dirflg=d`;
-        break;
-      case 'waze':
-        url = `https://waze.com/ul?q=${encodedAddress}&navigate=yes`;
-        break;
-      case 'google':
-      default:
-        url = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
-        break;
+    if (coords) {
+      // Use coordinates for precise navigation
+      switch (mapApp) {
+        case 'apple':
+          url = `http://maps.apple.com/?daddr=${coords.lat},${coords.lng}&dirflg=d`;
+          break;
+        case 'waze':
+          url = `https://waze.com/ul?ll=${coords.lat},${coords.lng}&navigate=yes`;
+          break;
+        case 'google':
+        default:
+          url = `https://www.google.com/maps/dir/?api=1&destination=${coords.lat},${coords.lng}&travelmode=driving`;
+          break;
+      }
+    } else {
+      // Fallback to text address if geocoding fails
+      const addressWithState = cleanedAddress.includes(', NY') ? cleanedAddress : `${cleanedAddress}, NY`;
+      const encodedAddress = encodeURIComponent(addressWithState);
+      switch (mapApp) {
+        case 'apple':
+          url = `http://maps.apple.com/?daddr=${encodedAddress}&dirflg=d`;
+          break;
+        case 'waze':
+          url = `https://waze.com/ul?q=${encodedAddress}&navigate=yes`;
+          break;
+        case 'google':
+        default:
+          url = `https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}&travelmode=driving`;
+          break;
+      }
     }
 
     Linking.openURL(url).catch(err => {
@@ -772,53 +810,92 @@ export default function DriverScreen() {
     }
   }
 
-  function startNavigation() {
+  async function startNavigation() {
     // Clean addresses for navigation - remove apt/unit/floor info
-    const addresses = routeStops.map(stop =>
+    const cleanedAddresses = routeStops.map(stop =>
       cleanAddressForNavigation(stop.editedAddress || stop.address)
     );
 
-    if (addresses.length === 1) {
-      openNavigation(addresses[0]);
+    if (cleanedAddresses.length === 1) {
+      openNavigation(cleanedAddresses[0]);
       setShowRouteModal(false);
       return;
     }
 
-    const formatAddress = (addr: string) => encodeURIComponent(addr);
+    // Geocode all addresses to coordinates for precise navigation
+    const coordsPromises = cleanedAddresses.map(addr => geocodeAddress(addr));
+    const coordsResults = await Promise.all(coordsPromises);
+
+    // Check if all geocoding succeeded
+    const allCoordsValid = coordsResults.every(c => c !== null);
 
     let url = '';
 
-    switch (selectedMapApp) {
-      case 'apple':
-        // Apple Maps with multiple stops
-        const appleAddresses = addresses.map(a => `daddr=${formatAddress(a)}`).join('&');
-        url = `maps://maps.apple.com/?${appleAddresses}`;
-        break;
+    if (allCoordsValid) {
+      // Use coordinates for precise navigation
+      const coords = coordsResults as { lat: number; lng: number }[];
 
-      case 'waze':
-        // Waze only supports single destination, use first address
-        url = `waze://?q=${formatAddress(addresses[0])}&navigate=yes`;
-        Alert.alert('Note', 'Waze only supports single destination. Opening first stop.');
-        break;
+      switch (selectedMapApp) {
+        case 'apple':
+          const appleCoords = coords.map(c => `daddr=${c.lat},${c.lng}`).join('&');
+          url = `maps://maps.apple.com/?${appleCoords}`;
+          break;
 
-      case 'google':
-      default:
-        // Google Maps with waypoints
-        const origin = formatAddress(addresses[0]);
-        const destination = formatAddress(addresses[addresses.length - 1]);
-        const waypoints = addresses.slice(1, -1).map(formatAddress).join('%7C');
-        url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
-        if (waypoints) {
-          url += `&waypoints=${waypoints}`;
-        }
-        break;
+        case 'waze':
+          url = `https://waze.com/ul?ll=${coords[0].lat},${coords[0].lng}&navigate=yes`;
+          Alert.alert('Note', 'Waze only supports single destination. Opening first stop.');
+          break;
+
+        case 'google':
+        default:
+          const origin = `${coords[0].lat},${coords[0].lng}`;
+          const destination = `${coords[coords.length - 1].lat},${coords[coords.length - 1].lng}`;
+          const waypoints = coords.slice(1, -1).map(c => `${c.lat},${c.lng}`).join('%7C');
+          url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+          if (waypoints) {
+            url += `&waypoints=${waypoints}`;
+          }
+          break;
+      }
+    } else {
+      // Fallback to text addresses if geocoding fails
+      const addresses = cleanedAddresses.map(addr =>
+        addr.includes(', NY') ? addr : `${addr}, NY`
+      );
+      const formatAddress = (addr: string) => encodeURIComponent(addr);
+
+      switch (selectedMapApp) {
+        case 'apple':
+          const appleAddresses = addresses.map(a => `daddr=${formatAddress(a)}`).join('&');
+          url = `maps://maps.apple.com/?${appleAddresses}`;
+          break;
+
+        case 'waze':
+          url = `waze://?q=${formatAddress(addresses[0])}&navigate=yes`;
+          Alert.alert('Note', 'Waze only supports single destination. Opening first stop.');
+          break;
+
+        case 'google':
+        default:
+          const origin = formatAddress(addresses[0]);
+          const destination = formatAddress(addresses[addresses.length - 1]);
+          const waypoints = addresses.slice(1, -1).map(formatAddress).join('%7C');
+          url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+          if (waypoints) {
+            url += `&waypoints=${waypoints}`;
+          }
+          break;
+      }
     }
 
     Linking.canOpenURL(url).then(supported => {
       if (supported) {
         Linking.openURL(url);
       } else {
-        // Fallback to Google Maps
+        // Fallback to Google Maps web
+        const addresses = cleanedAddresses.map(addr =>
+          addr.includes(', NY') ? addr : `${addr}, NY`
+        );
         const origin = encodeURIComponent(addresses[0]);
         const destination = encodeURIComponent(addresses[addresses.length - 1]);
         const waypoints = addresses.slice(1, -1).map(encodeURIComponent).join('%7C');

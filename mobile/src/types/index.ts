@@ -223,13 +223,17 @@ export interface Settings {
   updatedBy: string;
 }
 
+export type ExtraItemUnitType = 'lb' | 'item' | 'each' | 'flat';
+
 export interface ExtraItem {
   _id: string;
   name: string;
   description: string;
-  price: number;
+  price: number; // Price per unit
+  minimumPrice?: number; // Minimum charge for this item
+  unitType?: ExtraItemUnitType; // How the price is calculated: per lb, per item, each, or flat
   isActive: boolean;
-  category: string;
+  category: string; // 'service' or 'product'
   // Weight-based pricing: if set, price applies per X pounds (e.g., 15 = per 15 lbs)
   // Quantity is auto-calculated as ceil(totalWeight / perWeightUnit)
   perWeightUnit?: number | null;

@@ -260,6 +260,11 @@ class ApiService {
     });
   }
 
+  // Search customers in current location
+  async searchCustomers(query: string): Promise<Customer[]> {
+    return this.request<Customer[]>(`/customers/search?q=${encodeURIComponent(query)}`);
+  }
+
   // Search customers from other locations
   async searchCustomersOtherLocations(query: string): Promise<(Customer & { locationName: string })[]> {
     return this.request<(Customer & { locationName: string })[]>(`/customers/search-all?q=${encodeURIComponent(query)}`);
