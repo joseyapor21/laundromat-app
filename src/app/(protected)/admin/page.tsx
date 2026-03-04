@@ -453,6 +453,27 @@ printer is configured correctly.
   };
 
   // Extra Items
+  const handleSeedExtraItems = async () => {
+    if (!confirm('This will add/update extra items from the E&F price list. Continue?')) return;
+    setLoading(true);
+    try {
+      const response = await fetch('/api/extra-items/seed', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ updateExisting: true }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Failed to seed');
+      toast.success(`${data.message}`);
+      const extraItemsRes = await fetch('/api/extra-items');
+      if (extraItemsRes.ok) setExtraItems(await extraItemsRes.json());
+    } catch (error) {
+      toast.error('Failed to seed extra items');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleCreateExtraItem = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -1203,6 +1224,23 @@ printer is configured correctly.
         {/* Extra Items Tab */}
         {activeTab === 'extra-items' && (
           <div className="space-y-6">
+            {/* Seed from Price List */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-200">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <h3 className="font-semibold text-blue-900">E&F Price List</h3>
+                  <p className="text-sm text-blue-700">Add or update extra items from the standard price list (Services + Products)</p>
+                </div>
+                <button
+                  onClick={handleSeedExtraItems}
+                  disabled={loading}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 whitespace-nowrap"
+                >
+                  {loading ? 'Loading...' : 'Seed from Price List'}
+                </button>
+              </div>
+            </div>
+
             {/* Create Extra Item */}
             <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
               <h2 className="text-lg font-semibold text-gray-900 mb-4 border-b pb-2">Create Extra Item</h2>
