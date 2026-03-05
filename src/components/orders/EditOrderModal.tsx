@@ -180,11 +180,26 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
     const extraItemsTotal = Object.entries(selectedExtraItems).reduce((total, [itemId, data]) => {
       if (data.quantity > 0) {
         const item = extraItems.find(i => i._id === itemId);
-        const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
-        // For weight-based: calculate exact proportional cost (weight / perWeightUnit * price), then round
-        const itemTotal = isWeightBased
-          ? roundToQuarter((weight / item.perWeightUnit!) * data.price)
-          : data.price * data.quantity;
+        if (!item) return total;
+
+        let itemTotal = 0;
+        const unitType = item.unitType || 'lb';
+        const minimumPrice = item.minimumPrice || 0;
+
+        if (unitType === 'lb') {
+          const perWeightUnit = item.perWeightUnit || 1;
+          itemTotal = roundToQuarter((weight / perWeightUnit) * data.price);
+        } else if (unitType === 'item' || unitType === 'each') {
+          itemTotal = data.price * data.quantity;
+        } else if (unitType === 'flat') {
+          itemTotal = data.price;
+        }
+
+        // Apply minimum price if set
+        if (minimumPrice > 0 && itemTotal < minimumPrice) {
+          itemTotal = minimumPrice;
+        }
+
         return total + itemTotal;
       }
       return total;
@@ -606,10 +621,19 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                     const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                     const data = selectedExtraItems[item._id] || { quantity: 0, price: item.price };
                     const isEnabled = data.quantity > 0 || selectedExtraItems[item._id] !== undefined;
-                    // For weight-based: calculate exact proportional cost, then round to nearest quarter
-                    const itemTotal = isWeightBased && isEnabled && weight > 0
-                      ? roundToQuarter((weight / item.perWeightUnit!) * data.price)
-                      : data.price * data.quantity;
+                    const minimumPrice = item.minimumPrice || 0;
+
+                    // Calculate item total with minimum price
+                    let itemTotal = 0;
+                    if (isWeightBased && isEnabled && weight > 0) {
+                      itemTotal = roundToQuarter((weight / item.perWeightUnit!) * data.price);
+                    } else if (!isWeightBased) {
+                      itemTotal = data.price * data.quantity;
+                    }
+                    // Apply minimum
+                    if (minimumPrice > 0 && itemTotal > 0 && itemTotal < minimumPrice) {
+                      itemTotal = minimumPrice;
+                    }
 
                     return (
                       <div
@@ -622,10 +646,12 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                             <div className="text-sm text-gray-500">
                               {item.description && `${item.description} - `}
                               ${item.price.toFixed(2)}{isWeightBased ? ` per ${item.perWeightUnit} lbs` : ' each'}
+                              {minimumPrice > 0 && ` (min $${minimumPrice.toFixed(2)})`}
                             </div>
                             {isWeightBased && weight > 0 && isEnabled && (
                               <div className="text-sm text-purple-600 font-medium mt-1">
                                 {weight} lbs @ ${data.price}/{item.perWeightUnit} lbs = ${itemTotal.toFixed(2)}
+                                {minimumPrice > 0 && itemTotal === minimumPrice && ' (min applied)'}
                               </div>
                             )}
                             {isWeightBased && weight === 0 && (
@@ -838,10 +864,18 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                             const item = extraItems.find(i => i._id === itemId);
                             if (!item) return null;
                             const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
-                            // For weight-based: calculate exact proportional cost, then round to nearest quarter
-                            const itemTotal = isWeightBased
+                            const minimumPrice = item.minimumPrice || 0;
+
+                            // Calculate with minimum price
+                            let itemTotal = isWeightBased
                               ? roundToQuarter((weight / item.perWeightUnit!) * data.price)
                               : data.price * data.quantity;
+
+                            // Apply minimum
+                            if (minimumPrice > 0 && itemTotal < minimumPrice) {
+                              itemTotal = minimumPrice;
+                            }
+
                             return (
                               <div key={itemId} className="flex justify-between">
                                 <span>
@@ -849,7 +883,7 @@ export default function EditOrderModal({ order, onClose, onSuccess }: EditOrderM
                                     ? `${item.name} (${weight}lbs @ $${data.price}/${item.perWeightUnit}lbs):`
                                     : `${item.name} × ${data.quantity}:`}
                                 </span>
-                                <span>+${itemTotal.toFixed(2)}</span>
+                                <span>+${itemTotal.toFixed(2)}{minimumPrice > 0 && itemTotal === minimumPrice ? ' (min)' : ''}</span>
                               </div>
                             );
                           })}

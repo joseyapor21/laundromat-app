@@ -580,40 +580,6 @@ export default function AdminScreen() {
     }
   };
 
-  const handleSeedExtraItems = () => {
-    Alert.alert(
-      'Seed from Price List',
-      'This will add/update extra items from the E&F price list (Services + Products). Continue?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Seed Items',
-          onPress: async () => {
-            try {
-              setLoading(true);
-              const response = await fetch(`${api.getBaseUrl()}/api/extra-items/seed`, {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json',
-                  'Authorization': `Bearer ${api.getToken()}`,
-                },
-                body: JSON.stringify({ updateExisting: true }),
-              });
-              const data = await response.json();
-              if (!response.ok) throw new Error(data.error || 'Failed to seed');
-              Alert.alert('Success', data.message);
-              loadData();
-            } catch (error: any) {
-              Alert.alert('Error', error.message || 'Failed to seed extra items');
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
-  };
-
   const handleToggleExtraItem = async (item: ExtraItem) => {
     try {
       await api.updateExtraItem(item._id, { isActive: !item.isActive });
@@ -1762,17 +1728,6 @@ export default function AdminScreen() {
       {/* Extra Items Tab */}
       {activeTab === 'extras' && (
         <View style={{ flex: 1 }}>
-          {/* Seed from Price List Banner */}
-          <View style={styles.seedBanner}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.seedBannerTitle}>E&F Price List</Text>
-              <Text style={styles.seedBannerText}>Add services & products from price list</Text>
-            </View>
-            <TouchableOpacity style={styles.seedButton} onPress={handleSeedExtraItems}>
-              <Ionicons name="download-outline" size={18} color="#fff" />
-              <Text style={styles.seedButtonText}>Seed</Text>
-            </TouchableOpacity>
-          </View>
           <View style={styles.actionHeader}>
             <Text style={styles.countText}>{extraItems.length} items</Text>
             <TouchableOpacity style={styles.addButton} onPress={() => openExtraItemModal()}>
@@ -4425,39 +4380,6 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: '#fff',
-  },
-  seedBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#eff6ff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#bfdbfe',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 12,
-  },
-  seedBannerTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1e40af',
-  },
-  seedBannerText: {
-    fontSize: 12,
-    color: '#3b82f6',
-  },
-  seedButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#2563eb',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 6,
-  },
-  seedButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
   },
   actionHeader: {
     flexDirection: 'row',

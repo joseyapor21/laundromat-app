@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -69,6 +70,8 @@ export default function OrderDetailScreen() {
   const [permission, requestPermission] = useCameraPermissions();
   const [manualQRCode, setManualQRCode] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod>('cash');
+  const [paidAtDate, setPaidAtDate] = useState<Date>(new Date());
+  const [showPaidAtDatePicker, setShowPaidAtDatePicker] = useState(false);
   const [checkingMachine, setCheckingMachine] = useState<string | null>(null);
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
@@ -722,11 +725,11 @@ export default function OrderDetailScreen() {
         message = 'Payment status cleared';
       } else if (order.paymentStatus === 'partial') {
         // Marking a partially paid order as fully paid
-        updateData = { isPaid: true, paymentMethod: selectedPaymentMethod, paymentStatus: 'paid', amountPaid: order.totalAmount };
+        updateData = { isPaid: true, paymentMethod: selectedPaymentMethod, paymentStatus: 'paid', amountPaid: order.totalAmount, paidAt: paidAtDate.toISOString() };
         message = `Order marked as fully paid (${selectedPaymentMethod})`;
       } else {
         // Marking an unpaid order as paid
-        updateData = { isPaid: true, paymentMethod: selectedPaymentMethod, paymentStatus: 'paid', amountPaid: order.totalAmount };
+        updateData = { isPaid: true, paymentMethod: selectedPaymentMethod, paymentStatus: 'paid', amountPaid: order.totalAmount, paidAt: paidAtDate.toISOString() };
         message = `Order marked as paid (${selectedPaymentMethod})`;
       }
 
@@ -2251,6 +2254,16 @@ export default function OrderDetailScreen() {
                     ))}
                   </View>
                   <TouchableOpacity
+                    style={styles.paidAtDateBtn}
+                    onPress={() => setShowPaidAtDatePicker(true)}
+                  >
+                    <Ionicons name="calendar-outline" size={16} color="#64748b" />
+                    <Text style={styles.paidAtDateText}>
+                      Pay Date: {paidAtDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
                     style={[styles.markPaidButton, updating && styles.buttonDisabled]}
                     onPress={handlePaymentToggle}
                     disabled={updating}
@@ -2292,6 +2305,16 @@ export default function OrderDetailScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
+                  <TouchableOpacity
+                    style={styles.paidAtDateBtn}
+                    onPress={() => setShowPaidAtDatePicker(true)}
+                  >
+                    <Ionicons name="calendar-outline" size={16} color="#64748b" />
+                    <Text style={styles.paidAtDateText}>
+                      Pay Date: {paidAtDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={14} color="#94a3b8" />
+                  </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.markPaidButton, updating && styles.buttonDisabled]}
                     onPress={handlePaymentToggle}
@@ -2749,6 +2772,30 @@ export default function OrderDetailScreen() {
               />
             </ReactNativeZoomableView>
           )}
+        </View>
+      </Modal>
+
+      {/* Pay Date Picker Modal */}
+      <Modal visible={showPaidAtDatePicker} animationType="fade" transparent>
+        <View style={styles.datePickerModalOverlay}>
+          <View style={styles.datePickerModalContent}>
+            <View style={styles.datePickerModalHeader}>
+              <TouchableOpacity onPress={() => setShowPaidAtDatePicker(false)}>
+                <Text style={styles.datePickerCancel}>Cancel</Text>
+              </TouchableOpacity>
+              <Text style={styles.datePickerTitle}>Payment Date</Text>
+              <TouchableOpacity onPress={() => setShowPaidAtDatePicker(false)}>
+                <Text style={styles.datePickerDone}>Done</Text>
+              </TouchableOpacity>
+            </View>
+            <DateTimePicker
+              value={paidAtDate}
+              mode="date"
+              display="spinner"
+              onChange={(_, date) => date && setPaidAtDate(date)}
+              style={styles.datePickerSpinner}
+            />
+          </View>
         </View>
       </Modal>
 
@@ -4281,5 +4328,61 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
     marginTop: 2,
+  },
+  // Pay date picker styles
+  paidAtDateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  paidAtDateText: {
+    fontSize: 14,
+    color: '#1e293b',
+    flex: 1,
+  },
+  datePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  datePickerModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '90%',
+    maxWidth: 350,
+    paddingBottom: 20,
+  },
+  datePickerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  datePickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  datePickerCancel: {
+    fontSize: 16,
+    color: '#ef4444',
+  },
+  datePickerDone: {
+    fontSize: 16,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  datePickerSpinner: {
+    height: 200,
   },
 });

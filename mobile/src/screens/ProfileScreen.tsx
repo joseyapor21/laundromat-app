@@ -36,6 +36,7 @@ try {
 import { useTimeClock, BreakType } from '../contexts/TimeClockContext';
 import { useLocation } from '../contexts/LocationContext';
 import { api } from '../services/api';
+import { callerIDService } from '../services/callerID';
 import ClockInScreen from './ClockInScreen';
 import type { Location as LocationType, Settings } from '../types';
 
@@ -128,6 +129,11 @@ export default function ProfileScreen() {
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(true);
   const [togglingPush, setTogglingPush] = useState(false);
 
+  // Caller ID status (iOS only)
+  const [callerIDStatus, setCallerIDStatus] = useState<'checking' | 'enabled' | 'disabled' | 'unavailable'>('checking');
+  const [callerIDSyncing, setCallerIDSyncing] = useState(false);
+  const [callerIDLastSync, setCallerIDLastSync] = useState<string | null>(null);
+
   // Track app state to refresh when coming back to foreground
   const appStateRef = useRef(AppState.currentState);
 
@@ -135,6 +141,7 @@ export default function ProfileScreen() {
     checkPushNotificationStatus();
     loadNotificationPreference();
     loadSettings();
+    checkCallerIDStatus();
     // Load locations if not already loaded
     if (availableLocations.length === 0) {
       refreshLocations();
@@ -630,6 +637,84 @@ export default function ProfileScreen() {
     }
   };
 
+  // Caller ID functions (iOS only)
+  const checkCallerIDStatus = async () => {
+    if (!callerIDService.isAvailable()) {
+      setCallerIDStatus('unavailable');
+      return;
+    }
+    try {
+      const result = await callerIDService.getExtensionStatus();
+      setCallerIDStatus(result.status);
+    } catch (e) {
+      console.log('Caller ID check error:', e);
+      setCallerIDStatus('unavailable');
+    }
+  };
+
+  const handleSyncCallerID = async () => {
+    console.log('handleSyncCallerID button tapped!');
+    if (!callerIDService.isAvailable()) {
+      Alert.alert('Not Available', 'Caller ID is only available on iOS devices.');
+      return;
+    }
+
+    setCallerIDSyncing(true);
+    console.log('Starting CallerID sync...');
+    try {
+      // Fetch all customers
+      const customers = await api.getCustomers();
+
+      // Map to Caller ID format
+      const callerIDCustomers = customers
+        .filter((c: any) => c.phoneNumber && c.name)
+        .map((c: any) => ({
+          id: c._id,
+          name: c.name,
+          phoneNumber: c.phoneNumber,
+        }));
+
+      const result = await callerIDService.syncCustomers(callerIDCustomers);
+
+      if (result.error) {
+        if (result.synced > 0) {
+          // Partial success - data saved but extension not reloaded
+          Alert.alert(
+            'Sync Complete',
+            `Synced ${result.synced} customers.\n\n` +
+            'Note: The Caller ID extension needs to be enabled in iOS Settings > Phone > Call Blocking & Identification.',
+            [
+              { text: 'Open Settings', onPress: () => callerIDService.openSettings() },
+              { text: 'OK' },
+            ]
+          );
+        } else {
+          Alert.alert('Error', result.error);
+        }
+      } else {
+        Alert.alert('Success', `Synced ${result.synced} customers to Caller ID.`);
+        setCallerIDLastSync(new Date().toLocaleTimeString());
+      }
+
+      // Refresh status
+      checkCallerIDStatus();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to sync Caller ID');
+    } finally {
+      setCallerIDSyncing(false);
+    }
+  };
+
+  const handleOpenCallerIDSettings = async () => {
+    const opened = await callerIDService.openSettings();
+    if (!opened) {
+      Alert.alert(
+        'Settings',
+        'Go to Settings > Phone > Call Blocking & Identification to enable Laundromat Caller ID.'
+      );
+    }
+  };
+
   async function handleLogout() {
     Alert.alert(
       'Logout',
@@ -1044,6 +1129,62 @@ export default function ProfileScreen() {
             )}
           </View>
         </View>
+
+        {/* Caller ID - iOS only */}
+        {Platform.OS === 'ios' && (
+          <View style={styles.card}>
+            <View style={styles.cardRow}>
+              <View style={[styles.cardIcon, {
+                backgroundColor: callerIDStatus === 'enabled' ? '#dcfce7' :
+                               callerIDStatus === 'unavailable' ? '#fee2e2' : '#fef3c7'
+              }]}>
+                <Ionicons
+                  name="call"
+                  size={24}
+                  color={callerIDStatus === 'enabled' ? '#10b981' :
+                         callerIDStatus === 'unavailable' ? '#ef4444' : '#f59e0b'}
+                />
+              </View>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardValue}>Caller ID</Text>
+                <Text style={styles.cardLabel}>
+                  {callerIDStatus === 'checking' ? 'Checking...' :
+                   callerIDStatus === 'unavailable' ? 'Unavailable' :
+                   callerIDStatus === 'enabled' ? 'Enabled - showing customer names' :
+                   'Disabled - tap to enable in Settings'}
+                </Text>
+                {callerIDLastSync && (
+                  <Text style={[styles.cardLabel, { marginTop: 2 }]}>
+                    Last sync: {callerIDLastSync}
+                  </Text>
+                )}
+              </View>
+            </View>
+            <View style={styles.callerIDButtons}>
+              <TouchableOpacity
+                style={[styles.callerIDButton, callerIDSyncing && { opacity: 0.5 }]}
+                onPress={handleSyncCallerID}
+                disabled={callerIDSyncing}
+              >
+                {callerIDSyncing ? (
+                  <ActivityIndicator size="small" color="#2563eb" />
+                ) : (
+                  <>
+                    <Ionicons name="sync" size={16} color="#2563eb" />
+                    <Text style={styles.callerIDButtonText}>Sync Customers</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.callerIDButton}
+                onPress={handleOpenCallerIDSettings}
+              >
+                <Ionicons name="settings-outline" size={16} color="#2563eb" />
+                <Text style={styles.callerIDButtonText}>Settings</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* App Info */}
@@ -1528,6 +1669,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#22c55e',
+  },
+  callerIDButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  callerIDButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#eff6ff',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+  },
+  callerIDButtonText: {
+    color: '#2563eb',
+    fontWeight: '500',
+    fontSize: 13,
   },
   clockOutButton: {
     flex: 1,

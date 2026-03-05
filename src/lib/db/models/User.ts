@@ -6,6 +6,7 @@ export interface UserDoc {
   _id: Types.ObjectId;
   email: string;
   password: string;
+  pin?: string;  // 4-6 digit PIN for kiosk mode quick login
   firstName: string;
   lastName: string;
   role: UserRole;
@@ -26,6 +27,7 @@ export interface UserDoc {
   lastBreakEnd?: Date;
   currentLocationId?: Types.ObjectId;  // Track which location user is currently working at
   comparePassword(password: string): Promise<boolean>;
+  comparePin(pin: string): Promise<boolean>;
 }
 
 const userSchema = new mongoose.Schema<UserDoc>({
@@ -37,6 +39,10 @@ const userSchema = new mongoose.Schema<UserDoc>({
   password: {
     type: String,
     required: true,
+  },
+  pin: {
+    type: String,
+    default: null,  // 4-6 digit PIN for kiosk mode, hashed
   },
   firstName: {
     type: String,
@@ -133,6 +139,12 @@ userSchema.pre('save', async function(next) {
 // Compare password method
 userSchema.methods.comparePassword = async function(password: string): Promise<boolean> {
   return bcrypt.compare(password, this.password);
+};
+
+// Compare PIN method
+userSchema.methods.comparePin = async function(pin: string): Promise<boolean> {
+  if (!this.pin) return false;
+  return bcrypt.compare(pin, this.pin);
 };
 
 const User: Model<UserDoc> = mongoose.models.User || mongoose.model<UserDoc>('User', userSchema);

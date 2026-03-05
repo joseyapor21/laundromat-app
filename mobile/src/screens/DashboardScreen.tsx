@@ -24,9 +24,15 @@ import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
 import POSView from '../components/pos/POSView';
+import RecentCallerPopup from '../components/RecentCallerPopup';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { formatPhoneNumber } from '../utils/phoneFormat';
+import { recentCallerService, RecentCallerResult, Customer } from '../services/recentCaller';
+import { callerIDService } from '../services/callerID';
 import type { Order } from '../types';
+
+// Auto-sync Caller ID every 30 minutes
+const CALLER_ID_SYNC_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
 type FilterType = 'all' | 'in-store' | 'delivery' | 'new_order' | 'processing' | 'ready' | 'completed';
 
@@ -92,6 +98,14 @@ export default function DashboardScreen() {
 
   // POS mode state
   const [showPOS, setShowPOS] = useState(false);
+  const [posInitialCustomer, setPosInitialCustomer] = useState<Customer | null>(null);
+
+  // Recent caller popup state
+  const [recentCallerResult, setRecentCallerResult] = useState<RecentCallerResult | null>(null);
+  const [showRecentCallerPopup, setShowRecentCallerPopup] = useState(false);
+
+  // Recent call search prompt state
+  const [showRecentCallPrompt, setShowRecentCallPrompt] = useState(false);
 
   // QR Scanner state
   const [showScanner, setShowScanner] = useState(false);
@@ -141,19 +155,125 @@ export default function DashboardScreen() {
   }, [loadOrders, currentLocation?._id]);
 
   // Reload orders when screen comes into focus (e.g., after creating an order)
+  // Also check if there was a recent incoming call
   useFocusEffect(
     useCallback(() => {
       loadOrders();
-    }, [loadOrders])
+
+      // Check for recent incoming call
+      const checkRecentCall = async () => {
+        const hasRecent = await callerIDService.hasRecentIncomingCall();
+        if (hasRecent && !showPOS && !showRecentCallerPopup) {
+          setShowRecentCallPrompt(true);
+        }
+      };
+      checkRecentCall();
+    }, [loadOrders, showPOS, showRecentCallerPopup])
   );
 
   // Auto-refresh orders every 10 seconds
   useAutoRefresh(loadOrders);
 
+  // Auto-sync Caller ID on launch and periodically
+  useEffect(() => {
+    const syncCallerID = async () => {
+      if (!callerIDService.isAvailable()) return;
+
+      try {
+        // Fetch all customers
+        const customers = await api.getCustomers();
+
+        // Map to Caller ID format
+        const callerIDCustomers = customers
+          .filter((c: any) => c.phoneNumber && c.name)
+          .map((c: any) => ({
+            id: c._id,
+            name: c.name,
+            phoneNumber: c.phoneNumber,
+          }));
+
+        await callerIDService.syncCustomers(callerIDCustomers);
+        console.log('Caller ID auto-synced:', callerIDCustomers.length, 'customers');
+      } catch (error) {
+        console.log('Caller ID auto-sync failed:', error);
+      }
+    };
+
+    // Sync on mount
+    syncCallerID();
+
+    // Sync periodically
+    const interval = setInterval(syncCallerID, CALLER_ID_SYNC_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Initialize recent caller detection
+  useEffect(() => {
+    const initRecentCaller = async () => {
+      await recentCallerService.init();
+      recentCallerService.setOnRecentCallerFound((result) => {
+        if (result && !showPOS) {
+          setRecentCallerResult(result);
+          setShowRecentCallerPopup(true);
+        }
+      });
+      recentCallerService.startListening();
+    };
+
+    initRecentCaller();
+
+    return () => {
+      recentCallerService.stopListening();
+      recentCallerService.setOnRecentCallerFound(null);
+    };
+  }, [showPOS]);
+
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     loadOrders();
   }, [loadOrders]);
+
+  // Recent caller popup handlers
+  const handleRecentCallerDismiss = useCallback(() => {
+    setShowRecentCallerPopup(false);
+    setRecentCallerResult(null);
+  }, []);
+
+  const handleViewCustomer = useCallback((customer: Customer) => {
+    setShowRecentCallerPopup(false);
+    setRecentCallerResult(null);
+    // Navigate to customer details or admin screen
+    navigation.navigate('Admin', { screen: 'customers', customerId: customer._id });
+  }, [navigation]);
+
+  const handleCreateCustomerFromCaller = useCallback((phoneNumber: string) => {
+    setShowRecentCallerPopup(false);
+    setRecentCallerResult(null);
+    // Navigate to admin screen with customer creation
+    navigation.navigate('Admin', { screen: 'customers', newCustomerPhone: phoneNumber });
+  }, [navigation]);
+
+  const handleCreateOrderFromCaller = useCallback((customer: Customer) => {
+    setShowRecentCallerPopup(false);
+    setRecentCallerResult(null);
+    // Open POS with pre-selected customer
+    setPosInitialCustomer(customer);
+    setShowPOS(true);
+  }, []);
+
+  // Recent call prompt handlers
+  const handleRecentCallSearch = useCallback(async () => {
+    setShowRecentCallPrompt(false);
+    await callerIDService.clearRecentCall();
+    // Trigger the clipboard check which will show RecentCallerPopup if phone found
+    recentCallerService.checkClipboard();
+  }, []);
+
+  const handleRecentCallDismiss = useCallback(async () => {
+    setShowRecentCallPrompt(false);
+    await callerIDService.clearRecentCall();
+  }, []);
 
   // QR Scanner functions
   const openScanner = async () => {
@@ -494,11 +614,12 @@ export default function DashboardScreen() {
       <POSView
         orders={orders}
         onOrderCreated={loadOrders}
-        onExit={() => setShowPOS(false)}
-        onOpenOrder={(orderId) => { setShowPOS(false); navigation.navigate('OrderDetail', { orderId }); }}
+        onExit={() => { setShowPOS(false); setPosInitialCustomer(null); }}
+        onOpenOrder={(orderId) => { setShowPOS(false); setPosInitialCustomer(null); navigation.navigate('OrderDetail', { orderId }); }}
         currentLocation={currentLocation}
         availableLocations={[]}
         onSelectLocation={async () => {}}
+        initialCustomer={posInitialCustomer}
       />
     </Modal>
 
@@ -700,6 +821,51 @@ export default function DashboardScreen() {
                   <Text style={styles.recentOrderText}>#{order.orderId}</Text>
                 </TouchableOpacity>
               ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Recent Caller Popup */}
+      <RecentCallerPopup
+        visible={showRecentCallerPopup}
+        result={recentCallerResult}
+        onDismiss={handleRecentCallerDismiss}
+        onViewCustomer={handleViewCustomer}
+        onCreateCustomer={handleCreateCustomerFromCaller}
+        onCreateOrder={handleCreateOrderFromCaller}
+      />
+
+      {/* Recent Call Prompt - appears when user opens app after a call */}
+      <Modal
+        visible={showRecentCallPrompt}
+        transparent
+        animationType="fade"
+        onRequestClose={handleRecentCallDismiss}
+      >
+        <View style={styles.recentCallOverlay}>
+          <View style={styles.recentCallPrompt}>
+            <View style={styles.recentCallIcon}>
+              <Ionicons name="call" size={32} color="#2563eb" />
+            </View>
+            <Text style={styles.recentCallTitle}>Just finished a call?</Text>
+            <Text style={styles.recentCallSubtitle}>
+              Copy the phone number from Recent Calls, then tap Search to find the customer
+            </Text>
+            <View style={styles.recentCallButtons}>
+              <TouchableOpacity
+                style={styles.recentCallSearchButton}
+                onPress={handleRecentCallSearch}
+              >
+                <Ionicons name="search" size={20} color="#fff" />
+                <Text style={styles.recentCallSearchText}>Search Customer</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.recentCallDismissButton}
+                onPress={handleRecentCallDismiss}
+              >
+                <Text style={styles.recentCallDismissText}>Dismiss</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -1256,5 +1422,71 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
+  },
+  // Recent call prompt styles
+  recentCallOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  recentCallPrompt: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  recentCallIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#eff6ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  recentCallTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  recentCallSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 20,
+  },
+  recentCallButtons: {
+    width: '100%',
+    gap: 12,
+  },
+  recentCallSearchButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  recentCallSearchText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  recentCallDismissButton: {
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  recentCallDismissText: {
+    color: '#64748b',
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

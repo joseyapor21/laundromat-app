@@ -113,27 +113,83 @@ class ApiService {
   // Auth
   async login(email: string, password: string): Promise<{ token: string; user: User; locations: Location[] }> {
     const url = `${API_BASE_URL}/api/auth/login`;
+    console.log('Login attempt:', url, email);
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email, password }),
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      console.log('Login response status:', response.status);
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Login failed' }));
+        console.log('Login error:', error);
+        throw new Error(error.error || 'Login failed');
+      }
+
+      const data = await response.json();
+      console.log('Login success, user:', data.user?.email);
+
+      if (data.token) {
+        await this.setToken(data.token);
+      }
+
+      return { token: data.token, user: data.user, locations: data.locations || [] };
+    } catch (error) {
+      console.error('Login fetch error:', error);
+      throw error;
+    }
+  }
+
+  // PIN Login for Kiosk Mode
+  async pinLogin(pin: string, locationId: string): Promise<{ token: string; user: User; location: Location }> {
+    const url = `${API_BASE_URL}/api/auth/pin-login`;
+    console.log('PIN login attempt for location:', locationId);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ pin, locationId }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'PIN login failed' }));
+        throw new Error(error.error || 'PIN login failed');
+      }
+
+      const data = await response.json();
+      console.log('PIN login success, user:', data.user?.firstName);
+
+      if (data.token) {
+        await this.setToken(data.token);
+      }
+
+      // Set the location
+      if (data.location?._id) {
+        await this.setLocationId(data.location._id);
+      }
+
+      return { token: data.token, user: data.user, location: data.location };
+    } catch (error) {
+      console.error('PIN login error:', error);
+      throw error;
+    }
+  }
+
+  // Set user PIN
+  async setUserPin(userId: string, pin: string | null): Promise<void> {
+    return this.request(`/users/${userId}/pin`, {
+      method: 'PUT',
+      body: JSON.stringify({ pin }),
     });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({ error: 'Login failed' }));
-      throw new Error(error.error || 'Login failed');
-    }
-
-    const data = await response.json();
-
-    if (data.token) {
-      await this.setToken(data.token);
-    }
-
-    return { token: data.token, user: data.user, locations: data.locations || [] };
   }
 
   // Locations

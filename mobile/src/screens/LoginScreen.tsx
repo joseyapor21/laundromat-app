@@ -8,9 +8,11 @@ import {
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
+import KioskLoginScreen from './KioskLoginScreen';
 
 export default function LoginScreen() {
   const { login } = useAuth();
@@ -18,6 +20,7 @@ export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showKioskMode, setShowKioskMode] = useState(false);
 
   async function handleLogin() {
     if (!email.trim() || !password.trim()) {
@@ -44,6 +47,18 @@ export default function LoginScreen() {
     } finally {
       setIsLoading(false);
     }
+  }
+
+  // Show Kiosk Mode screen
+  if (showKioskMode) {
+    return (
+      <KioskLoginScreen
+        onBack={() => setShowKioskMode(false)}
+        onLoginSuccess={() => {
+          // Navigation will happen automatically via auth state
+        }}
+      />
+    );
   }
 
   return (
@@ -97,6 +112,20 @@ export default function LoginScreen() {
             ) : (
               <Text style={styles.buttonText}>Sign In</Text>
             )}
+          </TouchableOpacity>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <TouchableOpacity
+            style={styles.kioskButton}
+            onPress={() => setShowKioskMode(true)}
+          >
+            <Ionicons name="keypad-outline" size={20} color="#2563eb" />
+            <Text style={styles.kioskButtonText}>Kiosk Mode (PIN)</Text>
           </TouchableOpacity>
         </View>
 
@@ -189,5 +218,36 @@ const styles = StyleSheet.create({
     color: '#94a3b8',
     marginTop: 32,
     fontSize: 14,
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e5e7eb',
+  },
+  dividerText: {
+    marginHorizontal: 16,
+    color: '#94a3b8',
+    fontSize: 14,
+  },
+  kioskButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#eff6ff',
+    borderWidth: 2,
+    borderColor: '#2563eb',
+    borderRadius: 12,
+    padding: 16,
+  },
+  kioskButtonText: {
+    color: '#2563eb',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

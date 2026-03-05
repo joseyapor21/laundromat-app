@@ -13,6 +13,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Keyboard,
+  InteractionManager,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -72,7 +73,8 @@ export default function EditOrderScreen() {
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [orderType, setOrderType] = useState<OrderType>('storePickup');
   const [isSameDay, setIsSameDay] = useState(false);
-  const [keepSeparated, setKeepSeparated] = useState(false);
+  const [separationType, setSeparationType] = useState<'none' | 'wash_only' | 'all_the_way'>('none');
+  const [showSeparationModal, setShowSeparationModal] = useState(false);
 
   // Bags
   const [bags, setBags] = useState<Bag[]>([]);
@@ -92,6 +94,15 @@ export default function EditOrderScreen() {
   const [showAddInstanceModal, setShowAddInstanceModal] = useState(false);
   const [selectedItemForInstance, setSelectedItemForInstance] = useState<ExtraItem | null>(null);
   const [instancePrice, setInstancePrice] = useState('');
+
+  // Close extra items modal helper - use InteractionManager to ensure smooth close
+  const closeExtraItemsModal = useCallback(() => {
+    console.log('Closing extra items modal');
+    Keyboard.dismiss();
+    InteractionManager.runAfterInteractions(() => {
+      setShowExtraItemsModal(false);
+    });
+  }, []);
 
   // Pricing
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -149,7 +160,18 @@ export default function EditOrderScreen() {
 
       setOrderType(orderData.orderType || 'storePickup');
       setIsSameDay(orderData.isSameDay || false);
-      setKeepSeparated(orderData.keepSeparated || false);
+      // Detect separation type from special instructions
+      const specialInstr = orderData.specialInstructions || '';
+      if (specialInstr.includes('[SEPARATE ALL THE WAY]')) {
+        setSeparationType('all_the_way');
+      } else if (specialInstr.includes('[SEPARATE WASH]')) {
+        setSeparationType('wash_only');
+      } else if (orderData.keepSeparated) {
+        // Legacy: treat old keepSeparated as all_the_way
+        setSeparationType('all_the_way');
+      } else {
+        setSeparationType('none');
+      }
       setBags(orderData.bags || []);
 
       // Always use customer's original delivery fee as base price
@@ -453,11 +475,22 @@ export default function EditOrderScreen() {
       const finalPrice = getFinalPrice();
       const creditCoversOrder = applyCredit && creditToApply >= finalPrice;
 
+      // Remove old separation labels and add new one
+      let cleanedInstructions = specialInstructions
+        .replace(/\n?\[SEPARATE WASH\]/g, '')
+        .replace(/\n?\[SEPARATE ALL THE WAY\]/g, '')
+        .trim();
+      if (separationType === 'wash_only') {
+        cleanedInstructions += (cleanedInstructions ? '\n' : '') + '[SEPARATE WASH]';
+      } else if (separationType === 'all_the_way') {
+        cleanedInstructions += (cleanedInstructions ? '\n' : '') + '[SEPARATE ALL THE WAY]';
+      }
+
       const updates: any = {
         customerName,
         customerPhone,
         weight: calculateTotalWeight(),
-        specialInstructions,
+        specialInstructions: cleanedInstructions,
         totalAmount: finalPrice,
         subtotal: laundrySubtotal,
         sameDayFee: 0, // Same-day pricing is now standalone (included in subtotal)
@@ -467,7 +500,7 @@ export default function EditOrderScreen() {
         bags,
         orderType,
         isSameDay,
-        keepSeparated,
+        keepSeparated: separationType !== 'none',
         // Delivery fields
         deliveryType: orderType === 'delivery' ? deliveryType : null,
         deliveryFee: orderType === 'delivery' ? (deliveryType === 'pickupOnly' || deliveryType === 'deliveryOnly' ? deliveryPrice / 2 : deliveryPrice) : 0,
@@ -869,29 +902,45 @@ export default function EditOrderScreen() {
 
           {/* Keep Separated */}
           <View style={styles.section}>
-            <View style={[styles.sameDayCard, keepSeparated && { borderColor: '#8b5cf6', backgroundColor: '#f5f3ff' }]}>
+            <TouchableOpacity
+              style={[
+                styles.sameDayCard,
+                separationType !== 'none' && { borderColor: '#8b5cf6', backgroundColor: '#f5f3ff' }
+              ]}
+              onPress={() => setShowSeparationModal(true)}
+              activeOpacity={0.7}
+            >
               <View style={styles.sameDayRow}>
                 <View style={styles.sameDayInfo}>
                   <Ionicons
                     name="git-branch"
                     size={24}
-                    color={keepSeparated ? '#8b5cf6' : '#94a3b8'}
+                    color={separationType !== 'none' ? '#8b5cf6' : '#94a3b8'}
                   />
                   <View>
                     <Text style={styles.sameDayTitle}>Keep Separated</Text>
                     <Text style={styles.sameDaySubtitle}>
-                      Each bag washed & dried separately
+                      {separationType === 'none'
+                        ? 'Tap to select separation type'
+                        : separationType === 'wash_only'
+                        ? 'Separate Wash Only'
+                        : 'Separate All The Way'}
                     </Text>
                   </View>
                 </View>
-                <Switch
-                  value={keepSeparated}
-                  onValueChange={setKeepSeparated}
-                  trackColor={{ false: '#e2e8f0', true: '#c4b5fd' }}
-                  thumbColor={keepSeparated ? '#8b5cf6' : '#fff'}
-                />
+                <View style={[
+                  styles.separationBadge,
+                  separationType !== 'none' && styles.separationBadgeActive
+                ]}>
+                  <Text style={[
+                    styles.separationBadgeText,
+                    separationType !== 'none' && styles.separationBadgeTextActive
+                  ]}>
+                    {separationType === 'none' ? 'OFF' : separationType === 'wash_only' ? 'WASH' : 'ALL'}
+                  </Text>
+                </View>
               </View>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* Schedule Section */}
@@ -1251,13 +1300,16 @@ export default function EditOrderScreen() {
               <Text style={styles.sectionTitle}>Extra Items</Text>
               <TouchableOpacity
                 style={styles.addExtraItemsButton}
-                onPress={() => setShowExtraItemsModal(true)}
+                onPress={() => {
+                  console.log('Opening extra items modal');
+                  setShowExtraItemsModal(true);
+                }}
               >
                 <Ionicons name="add-circle" size={16} color="#fff" />
                 <Text style={styles.addExtraItemsButtonText}>Add Extra Item</Text>
               </TouchableOpacity>
             </View>
-            {Object.keys(selectedExtraItems).filter(id => selectedExtraItems[id]?.quantity > 0).length === 0 && (
+            {Object.keys(selectedExtraItems).filter(id => selectedExtraItems[id]?.quantity > 0).length === 0 && extraItemInstances.length === 0 && (
               <View style={styles.noExtrasCard}>
                 <Text style={styles.noExtrasText}>No extra items added</Text>
                 <Text style={styles.noExtrasHint}>Tap "Add Extra Item" to add items</Text>
@@ -1315,6 +1367,34 @@ export default function EditOrderScreen() {
                   </View>
                 );
               })}
+            {/* Multi-price item instances */}
+            {extraItemInstances.map(instance => (
+              <View key={instance.instanceId} style={styles.extraItemCard}>
+                <View style={styles.extraItemHeader}>
+                  <Text style={styles.extraItemTitle}>{instance.itemName}</Text>
+                  <TouchableOpacity
+                    onPress={() => removeExtraItemInstance(instance.instanceId)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={styles.extraItemDeleteButton}
+                  >
+                    <Ionicons name="trash-outline" size={20} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.extraItemRow}>
+                  <View style={styles.extraItemField}>
+                    <Text style={styles.extraItemFieldLabel}>
+                      ${instance.price.toFixed(2)} × {instance.quantity}
+                    </Text>
+                  </View>
+                  <View style={styles.extraItemTotalBox}>
+                    <Text style={styles.extraItemTotalLabel}>Total</Text>
+                    <Text style={styles.extraItemTotalValue}>
+                      ${(instance.price * instance.quantity).toFixed(2)}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
           </View>
 
           {/* Special Instructions */}
@@ -1611,266 +1691,147 @@ export default function EditOrderScreen() {
       <Modal
         visible={showExtraItemsModal}
         animationType="slide"
+        presentationStyle="fullScreen"
         onRequestClose={() => setShowExtraItemsModal(false)}
       >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        >
-        <View style={styles.modalContainer}>
-          <View style={[styles.modalHeader, { paddingTop: insets.top + 12 }]}>
-            <Text style={styles.modalTitle}>Select Extra Items</Text>
-            <TouchableOpacity onPress={() => setShowExtraItemsModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <Ionicons name="close" size={28} color="#1e293b" />
-            </TouchableOpacity>
-          </View>
+        <SafeAreaView style={styles.extraItemsModalOverlay}>
+          <View style={styles.extraItemsModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Extra Items</Text>
+              <TouchableOpacity onPress={() => setShowExtraItemsModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                <Ionicons name="close" size={28} color="#1e293b" />
+              </TouchableOpacity>
+            </View>
 
-          <ScrollView style={styles.modalContent}>
-            {extraItems.length === 0 ? (
-              <Text style={styles.modalEmptyText}>No extra items available</Text>
-            ) : (
-              extraItems.map((item) => {
-                const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
-                const totalWeight = calculateTotalWeight();
-                const autoQuantity = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : 0;
-                const data = selectedExtraItems[item._id] || { quantity: 0, price: item.price };
-                const quantity = isWeightBased ? (data.quantity > 0 ? autoQuantity : 0) : data.quantity;
-                const customPrice = data.price;
-                const isEnabled = data.quantity > 0 || (selectedExtraItems[item._id] !== undefined);
-                // Calculate price with minimum applied for weight-based items
-                const calculatedPrice = isWeightBased
-                  ? calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, customPrice)
-                  : 0;
+          <ScrollView style={styles.extraItemsModalScroll}>
+            {extraItems.map(item => {
+              const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
+              const isSelected = selectedExtraItems[item._id] !== undefined;
+              const data = selectedExtraItems[item._id] || { quantity: 0, price: item.price };
+              const quantity = data.quantity;
+              const instanceCount = extraItemInstances.filter(i => i.itemId === item._id).length;
 
-                return (
-                  <View key={item._id} style={[styles.modalItemCard, quantity > 0 && styles.modalItemCardSelected]}>
-                    <View style={styles.modalItemHeader}>
-                      <View style={styles.modalItemInfo}>
-                        <Text style={styles.modalItemName}>{item.name}</Text>
-                        <Text style={styles.modalItemBasePrice}>
-                          ${(item.price || 0).toFixed(2)}{isWeightBased ? ` per ${item.perWeightUnit} lbs` : ''}
-                        </Text>
-                        {item.description && (
-                          <Text style={styles.modalItemDescription}>{item.description}</Text>
-                        )}
-                        {isWeightBased && totalWeight > 0 && isEnabled && (
-                          <Text style={styles.modalWeightCalc}>
-                            {totalWeight} lbs ÷ {item.perWeightUnit} = {autoQuantity} unit{autoQuantity !== 1 ? 's' : ''}
-                          </Text>
-                        )}
-                        {isWeightBased && totalWeight === 0 && (
-                          <Text style={styles.modalWeightHint}>Add bag weight to calculate</Text>
-                        )}
-                      </View>
-                      {isWeightBased ? (
-                        // Weight-based items use a toggle switch
-                        <Switch
-                          value={isEnabled}
-                          onValueChange={(enabled) => {
-                            if (enabled) {
-                              setSelectedExtraItems(prev => ({
-                                ...prev,
-                                [item._id]: { quantity: autoQuantity, price: item.price }
-                              }));
-                            } else {
+              return (
+                <View key={item._id} style={[styles.extraItemsModalItem, (isSelected || instanceCount > 0) && styles.extraItemsModalItemSelected]}>
+                  <View style={styles.extraItemsModalItemInfo}>
+                    <Text style={styles.extraItemsModalItemName}>{item.name}</Text>
+                    <Text style={styles.extraItemsModalItemPrice}>
+                      ${item.price.toFixed(2)}{isWeightBased ? ` per ${item.perWeightUnit} lbs` : ''}
+                    </Text>
+                  </View>
+
+                  {isWeightBased ? (
+                    <Switch
+                      value={isSelected}
+                      onValueChange={(enabled) => {
+                        if (enabled) {
+                          setSelectedExtraItems(prev => ({
+                            ...prev,
+                            [item._id]: { quantity: 1, price: item.price }
+                          }));
+                        } else {
+                          setSelectedExtraItems(prev => {
+                            const { [item._id]: _, ...rest } = prev;
+                            return rest;
+                          });
+                        }
+                      }}
+                      trackColor={{ false: '#e2e8f0', true: '#c4b5fd' }}
+                      thumbColor={isSelected ? '#2563eb' : '#f4f4f5'}
+                    />
+                  ) : item.allowMultiplePrices ? (
+                    <TouchableOpacity
+                      style={styles.extraItemsAddMultipleBtn}
+                      onPress={() => {
+                        setShowExtraItemsModal(false);
+                        setTimeout(() => openAddInstanceModal(item), 300);
+                      }}
+                    >
+                      <Ionicons name="add-circle" size={20} color="#2563eb" />
+                      <Text style={styles.extraItemsAddMultipleBtnText}>
+                        {instanceCount > 0 ? `${instanceCount} added` : 'Add'}
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <View style={styles.extraItemsQuantityControl}>
+                      <TouchableOpacity
+                        style={[styles.extraItemsQtyBtn, quantity === 0 && styles.extraItemsQtyBtnDisabled]}
+                        onPress={() => {
+                          if (quantity > 0) {
+                            const newQty = quantity - 1;
+                            if (newQty === 0) {
                               setSelectedExtraItems(prev => {
                                 const { [item._id]: _, ...rest } = prev;
                                 return rest;
                               });
+                            } else {
+                              setSelectedExtraItems(prev => ({
+                                ...prev,
+                                [item._id]: { ...prev[item._id], quantity: newQty }
+                              }));
                             }
-                          }}
-                          trackColor={{ false: '#e2e8f0', true: '#c4b5fd' }}
-                          thumbColor={isEnabled ? '#8b5cf6' : '#f4f4f5'}
-                        />
-                      ) : item.allowMultiplePrices ? (
-                        // Items with multiple prices - button to add with custom prices
-                        <TouchableOpacity
-                          style={styles.addMultipleBtn}
-                          onPress={() => openAddInstanceModal(item)}
-                        >
-                          <Ionicons name="add-circle" size={20} color="#8b5cf6" />
-                          <Text style={styles.addMultipleBtnText}>
-                            {getInstanceCountForItem(item._id) > 0
-                              ? `${getInstanceCountForItem(item._id)} added`
-                              : 'Add'}
-                          </Text>
-                        </TouchableOpacity>
-                      ) : (
-                        // Regular items use +/- quantity controls
-                        <View style={styles.modalQuantityControl}>
-                          <TouchableOpacity
-                            style={[styles.modalQuantityButton, quantity === 0 && styles.modalQuantityButtonDisabled]}
-                            onPress={() => setSelectedExtraItems(prev => {
-                              const current = prev[item._id] || { quantity: 0, price: item.price };
-                              const newQty = Math.max(0, current.quantity - 1);
-                              if (newQty === 0) {
-                                const { [item._id]: _, ...rest } = prev;
-                                return rest;
-                              }
-                              return { ...prev, [item._id]: { ...current, quantity: newQty } };
-                            })}
-                            disabled={quantity === 0}
-                          >
-                            <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
-                          </TouchableOpacity>
-                          <Text style={styles.modalQuantityText}>{quantity}</Text>
-                          <TouchableOpacity
-                            style={styles.modalQuantityButton}
-                            onPress={() => setSelectedExtraItems(prev => {
-                              const current = prev[item._id] || { quantity: 0, price: item.price };
-                              return { ...prev, [item._id]: { ...current, quantity: current.quantity + 1 } };
-                            })}
-                          >
-                            <Ionicons name="add" size={20} color="#2563eb" />
-                          </TouchableOpacity>
-                        </View>
-                      )}
+                          }
+                        }}
+                        disabled={quantity === 0}
+                      >
+                        <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
+                      </TouchableOpacity>
+                      <Text style={styles.extraItemsQtyText}>{quantity}</Text>
+                      <TouchableOpacity
+                        style={styles.extraItemsQtyBtn}
+                        onPress={() => {
+                          setSelectedExtraItems(prev => ({
+                            ...prev,
+                            [item._id]: { quantity: (prev[item._id]?.quantity || 0) + 1, price: item.price }
+                          }));
+                        }}
+                      >
+                        <Ionicons name="add" size={20} color="#2563eb" />
+                      </TouchableOpacity>
                     </View>
-                    {quantity > 0 && (
-                      <View style={styles.modalPriceEditRow}>
-                        {isWeightBased ? (
-                          <>
-                            <Text style={styles.modalPriceLabel}>Final price:</Text>
-                            <View style={styles.modalPriceInputContainer}>
-                              <Text style={styles.modalPriceDollar}>$</Text>
-                              <TextInput
-                                style={[styles.modalPriceInput, data.overrideTotal !== undefined && styles.modalPriceInputOverride]}
-                                defaultValue={data.overrideTotal !== undefined && data.overrideTotal !== null ? data.overrideTotal.toString() : (calculatedPrice || 0).toFixed(2)}
-                                onChangeText={(text) => {
-                                  const newTotal = parseFloat(text) || 0;
-                                  if (newTotal !== calculatedPrice) {
-                                    setSelectedExtraItems(prev => ({
-                                      ...prev,
-                                      [item._id]: { ...prev[item._id], overrideTotal: newTotal }
-                                    }));
-                                  } else {
-                                    // If they enter the calculated price, remove override
-                                    setSelectedExtraItems(prev => ({
-                                      ...prev,
-                                      [item._id]: { ...prev[item._id], overrideTotal: undefined }
-                                    }));
-                                  }
-                                }}
-                                keyboardType="decimal-pad"
-                                returnKeyType="done"
-                                selectTextOnFocus={true}
-                                placeholder={(calculatedPrice || 0).toFixed(2)}
-                                placeholderTextColor="#94a3b8"
-                              />
-                            </View>
-                            {data.overrideTotal !== undefined && (
-                              <TouchableOpacity
-                                onPress={() => setSelectedExtraItems(prev => ({
-                                  ...prev,
-                                  [item._id]: { ...prev[item._id], overrideTotal: undefined }
-                                }))}
-                                style={styles.modalClearOverride}
-                              >
-                                <Ionicons name="close-circle" size={20} color="#ef4444" />
-                              </TouchableOpacity>
-                            )}
-                          </>
-                        ) : (
-                          <>
-                            <Text style={styles.modalPriceLabel}>Price per item:</Text>
-                            <View style={styles.modalPriceInputContainer}>
-                              <Text style={styles.modalPriceDollar}>$</Text>
-                              <TextInput
-                                style={styles.modalPriceInput}
-                                value={customPrice.toString()}
-                                onChangeText={(text) => {
-                                  const newPrice = parseFloat(text) || 0;
-                                  setSelectedExtraItems(prev => ({
-                                    ...prev,
-                                    [item._id]: { ...prev[item._id], price: newPrice }
-                                  }));
-                                }}
-                                keyboardType="decimal-pad"
-                                placeholder={(item.price || 0).toString()}
-                                placeholderTextColor="#94a3b8"
-                              />
-                            </View>
-                            <Text style={styles.modalItemTotal}>= ${(customPrice * quantity).toFixed(2)}</Text>
-                          </>
-                        )}
-                      </View>
-                    )}
-                  </View>
-                );
-              })
-            )}
+                  )}
+                </View>
+              );
+            })}
           </ScrollView>
 
-          {/* Selected items summary */}
-          {Object.keys(selectedExtraItems).filter(id => selectedExtraItems[id]?.quantity > 0).length > 0 && (
-            <View style={styles.modalSummary}>
-              <Text style={styles.modalSummaryTitle}>Selected Items:</Text>
-              {Object.entries(selectedExtraItems)
-                .filter(([_, data]) => data.quantity > 0)
-                .map(([itemId, data]) => {
-                  const item = extraItems.find(i => i._id === itemId);
-                  if (!item) return null;
-                  const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
-                  const totalWeight = calculateTotalWeight();
-                  const displayQty = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : data.quantity;
-                  // Use calculateWeightBasedPrice for weight-based items (applies minimum)
-                  const itemTotal = isWeightBased
-                    ? (data.overrideTotal !== undefined ? data.overrideTotal : calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price))
-                    : data.price * data.quantity;
-                  return (
-                    <View key={itemId} style={styles.modalSummaryRow}>
-                      <Text style={styles.modalSummaryText}>{item.name}</Text>
-                      <Text style={[styles.modalSummaryPrice, data.overrideTotal !== undefined && { color: '#ef4444' }]}>
-                        ${(itemTotal || 0).toFixed(2)}
-                      </Text>
-                    </View>
-                  );
-                })}
-              <View style={styles.modalSummaryTotal}>
-                <Text style={styles.modalSummaryTotalLabel}>Total:</Text>
-                <Text style={styles.modalSummaryTotalValue}>
-                  ${Object.entries(selectedExtraItems)
-                    .reduce((sum, [itemId, data]) => {
-                      const item = extraItems.find(i => i._id === itemId);
-                      const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
-                      const totalWeight = calculateTotalWeight();
-                      if (isWeightBased) {
-                        if (data.overrideTotal !== undefined) {
-                          return sum + data.overrideTotal;
-                        }
-                        return sum + calculateWeightBasedPrice(totalWeight, item.perWeightUnit!, data.price);
-                      }
-                      return sum + data.price * data.quantity;
-                    }, 0)
-                    .toFixed(2)}
-                </Text>
+            {/* Show instances for allowMultiplePrices items */}
+            {extraItemInstances.length > 0 && (
+              <View style={styles.extraItemsInstancesSection}>
+                <Text style={styles.extraItemsInstancesTitle}>Added Items:</Text>
+                {extraItemInstances.map(instance => (
+                  <View key={instance.instanceId} style={styles.extraItemsInstanceRow}>
+                    <Text style={styles.extraItemsInstanceName}>{instance.itemName}</Text>
+                    <Text style={styles.extraItemsInstancePrice}>
+                      ${instance.price.toFixed(2)} × {instance.quantity} = ${(instance.price * instance.quantity).toFixed(2)}
+                    </Text>
+                    <TouchableOpacity onPress={() => removeExtraItemInstance(instance.instanceId)}>
+                      <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
               </View>
-            </View>
-          )}
+            )}
 
-          <View style={styles.modalFooter}>
-            <TouchableOpacity
-              style={styles.modalClearButton}
-              onPress={() => {
-                Keyboard.dismiss();
-                setSelectedExtraItems({});
-                setTimeout(() => setShowExtraItemsModal(false), 100);
-              }}
-            >
-              <Text style={styles.modalClearButtonText}>Clear All</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.modalDoneButton}
-              onPress={() => {
-                Keyboard.dismiss();
-                setTimeout(() => setShowExtraItemsModal(false), 100);
-              }}
-            >
-              <Text style={styles.modalDoneButtonText}>Done</Text>
-            </TouchableOpacity>
+            <View style={styles.extraItemsModalFooter}>
+              <TouchableOpacity
+                style={styles.extraItemsClearBtn}
+                onPress={() => {
+                  setSelectedExtraItems({});
+                  setExtraItemInstances([]);
+                }}
+              >
+                <Text style={styles.extraItemsClearBtnText}>Clear All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.extraItemsDoneBtn}
+                onPress={() => setShowExtraItemsModal(false)}
+              >
+                <Text style={styles.extraItemsDoneBtnText}>Done</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-        </KeyboardAvoidingView>
+        </SafeAreaView>
       </Modal>
 
       {/* Multi-Instance Extra Item Modal */}
@@ -1974,6 +1935,96 @@ export default function EditOrderScreen() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Separation Type Modal */}
+      <Modal
+        visible={showSeparationModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSeparationModal(false)}
+      >
+        <View style={styles.separationModalOverlay}>
+          <View style={styles.separationModalContent}>
+            <View style={styles.separationModalHeader}>
+              <Text style={styles.separationModalTitle}>Separation Type</Text>
+              <TouchableOpacity onPress={() => setShowSeparationModal(false)}>
+                <Ionicons name="close" size={24} color="#1e293b" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.separationOptions}>
+              {/* Separate Wash Only */}
+              <TouchableOpacity
+                style={[
+                  styles.separationOption,
+                  separationType === 'wash_only' && styles.separationOptionSelected
+                ]}
+                onPress={() => {
+                  setSeparationType('wash_only');
+                  setShowSeparationModal(false);
+                }}
+              >
+                <View style={styles.separationOptionIcon}>
+                  <Ionicons
+                    name="water"
+                    size={32}
+                    color={separationType === 'wash_only' ? '#2563eb' : '#64748b'}
+                  />
+                </View>
+                <Text style={[
+                  styles.separationOptionTitle,
+                  separationType === 'wash_only' && styles.separationOptionTitleSelected
+                ]}>
+                  Separate Wash
+                </Text>
+                <Text style={styles.separationOptionDesc}>
+                  Wash separately, dry with other orders
+                </Text>
+              </TouchableOpacity>
+
+              {/* Separate All The Way */}
+              <TouchableOpacity
+                style={[
+                  styles.separationOption,
+                  separationType === 'all_the_way' && styles.separationOptionSelected
+                ]}
+                onPress={() => {
+                  setSeparationType('all_the_way');
+                  setShowSeparationModal(false);
+                }}
+              >
+                <View style={styles.separationOptionIcon}>
+                  <Ionicons
+                    name="git-branch"
+                    size={32}
+                    color={separationType === 'all_the_way' ? '#8b5cf6' : '#64748b'}
+                  />
+                </View>
+                <Text style={[
+                  styles.separationOptionTitle,
+                  separationType === 'all_the_way' && styles.separationOptionTitleSelected
+                ]}>
+                  Separate All The Way
+                </Text>
+                <Text style={styles.separationOptionDesc}>
+                  Wash AND dry separately
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* No Separation button */}
+            <TouchableOpacity
+              style={styles.separationClearBtn}
+              onPress={() => {
+                setSeparationType('none');
+                setShowSeparationModal(false);
+              }}
+            >
+              <Text style={styles.separationClearBtnText}>No Separation</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -2399,9 +2450,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    backgroundColor: '#fff',
+    padding: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
   },
@@ -2485,6 +2534,146 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#bfdbfe',
+  },
+  extraItemsModalOverlay: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  extraItemsModalContent: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  extraItemsModalScroll: {
+    flex: 1,
+    padding: 16,
+  },
+  extraItemsModalItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    padding: 14,
+    borderRadius: 10,
+    marginBottom: 10,
+  },
+  extraItemsModalItemSelected: {
+    backgroundColor: '#dbeafe',
+    borderWidth: 1,
+    borderColor: '#c4b5fd',
+  },
+  extraItemsModalItemInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  extraItemsModalItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  extraItemsModalItemPrice: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  extraItemsAddMultipleBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dbeafe',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  extraItemsAddMultipleBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  extraItemsQuantityControl: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  extraItemsQtyBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#e0e7ff',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  extraItemsQtyBtnDisabled: {
+    backgroundColor: '#f1f5f9',
+  },
+  extraItemsQtyText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    minWidth: 24,
+    textAlign: 'center',
+  },
+  extraItemsInstancesSection: {
+    backgroundColor: '#fef3c7',
+    padding: 12,
+    marginHorizontal: 16,
+    borderRadius: 10,
+    marginBottom: 12,
+  },
+  extraItemsInstancesTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400e',
+    marginBottom: 8,
+  },
+  extraItemsInstanceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: '#fde68a',
+  },
+  extraItemsInstanceName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#1e293b',
+    flex: 1,
+  },
+  extraItemsInstancePrice: {
+    fontSize: 14,
+    color: '#64748b',
+    marginRight: 12,
+  },
+  extraItemsModalFooter: {
+    flexDirection: 'row',
+    padding: 16,
+    gap: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  extraItemsClearBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  extraItemsClearBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  extraItemsDoneBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+  },
+  extraItemsDoneBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
   modalQuantityButtonDisabled: {
     backgroundColor: '#f1f5f9',
@@ -3089,5 +3278,90 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600' as const,
     color: '#10b981',
+  },
+  // Separation modal styles
+  separationBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: '#f1f5f9',
+  },
+  separationBadgeActive: {
+    backgroundColor: '#8b5cf6',
+  },
+  separationBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  separationBadgeTextActive: {
+    color: '#fff',
+  },
+  separationModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  separationModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '90%',
+    maxWidth: 400,
+  },
+  separationModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  separationModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  separationOptions: {
+    gap: 12,
+    marginBottom: 20,
+  },
+  separationOption: {
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+  },
+  separationOptionSelected: {
+    borderColor: '#8b5cf6',
+    backgroundColor: '#f5f3ff',
+  },
+  separationOptionIcon: {
+    marginBottom: 12,
+  },
+  separationOptionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  separationOptionTitleSelected: {
+    color: '#8b5cf6',
+  },
+  separationOptionDesc: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  separationClearBtn: {
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  separationClearBtnText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
   },
 });

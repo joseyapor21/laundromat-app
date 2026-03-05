@@ -64,6 +64,7 @@ interface POSViewProps {
   currentLocation: Location | null;
   availableLocations: Location[];
   onSelectLocation: (location: Location) => Promise<void>;
+  initialCustomer?: Customer | null;
 }
 
 const PAYMENT_METHODS = [
@@ -96,6 +97,7 @@ export default function POSView({
   currentLocation,
   availableLocations,
   onSelectLocation,
+  initialCustomer,
 }: POSViewProps) {
   // Screen dimensions for responsive layout
   const { width, height } = useWindowDimensions();
@@ -113,6 +115,13 @@ export default function POSView({
   const [customerSearch, setCustomerSearch] = useState('');
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
+
+  // Set initial customer from caller ID popup
+  useEffect(() => {
+    if (initialCustomer) {
+      setSelectedCustomer(initialCustomer);
+    }
+  }, [initialCustomer]);
 
   // Order state
   const [bags, setBags] = useState<Bag[]>([]);
@@ -136,11 +145,13 @@ export default function POSView({
   const [editingInstanceId, setEditingInstanceId] = useState<string | null>(null);
   const [showFullExtraItemsModal, setShowFullExtraItemsModal] = useState(false);
   const [isSameDay, setIsSameDay] = useState(false);
-  const [keepSeparated, setKeepSeparated] = useState(false);
+  const [separationType, setSeparationType] = useState<'none' | 'wash_only' | 'all_the_way'>('none');
+  const [showSeparationModal, setShowSeparationModal] = useState(false);
   const [notes, setNotes] = useState('');
 
   // Order type
   const [orderType, setOrderType] = useState<'storePickup' | 'delivery'>('storePickup');
+  const [deliveryType, setDeliveryType] = useState<'full' | 'pickupOnly' | 'deliveryOnly'>('full');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [deliveryFee, setDeliveryFee] = useState('');
 
@@ -416,9 +427,10 @@ export default function POSView({
     setSelectedExtraItems({});
     setExtraItemInstances([]);
     setIsSameDay(false);
-    setKeepSeparated(false);
+    setSeparationType('none');
     setNotes('');
     setOrderType('storePickup');
+    setDeliveryType('full');
     setDeliveryAddress('');
     setDeliveryFee('');
     setDropOffDate(new Date());
@@ -476,11 +488,17 @@ export default function POSView({
   // Calculate delivery fee
   const getDeliveryFeeAmount = (): number => {
     if (orderType !== 'delivery') return 0;
-    if (deliveryFee) return parseFloat(deliveryFee) || 0;
-    if (selectedCustomer?.deliveryFee) {
-      return parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
+    let fee = 0;
+    if (deliveryFee) {
+      fee = parseFloat(deliveryFee) || 0;
+    } else if (selectedCustomer?.deliveryFee) {
+      fee = parseFloat(selectedCustomer.deliveryFee.replace('$', '')) || 0;
     }
-    return 0;
+    // Half price for pickup only or delivery only
+    if (deliveryType === 'pickupOnly' || deliveryType === 'deliveryOnly') {
+      fee = fee / 2;
+    }
+    return fee;
   };
 
   // Calculate credit to apply
@@ -507,12 +525,32 @@ export default function POSView({
         .filter(([_, data]) => data.quantity > 0)
         .map(([itemId, data]) => {
           const item = extraItems.find(e => e._id === itemId);
-          const isWeightBased = item?.perWeightUnit && item.perWeightUnit > 0;
-          const totalPrice = isWeightBased
-            ? roundToQuarter((totalWeight / item!.perWeightUnit!) * data.price)
-            : data.price * data.quantity;
-          return { itemId, name: item?.name || '', price: totalPrice, quantity: 1 };
-        });
+          if (!item) return null;
+
+          let totalPrice = 0;
+          const unitType = item.unitType || 'lb';
+          const minimumPrice = item.minimumPrice || 0;
+
+          if (unitType === 'lb') {
+            // Price per pound - multiply by weight
+            const perWeightUnit = item.perWeightUnit || 1;
+            totalPrice = roundToQuarter((totalWeight / perWeightUnit) * data.price);
+          } else if (unitType === 'item' || unitType === 'each') {
+            // Price per item/each - multiply by quantity
+            totalPrice = data.price * data.quantity;
+          } else if (unitType === 'flat') {
+            // Flat rate - just the price
+            totalPrice = data.price;
+          }
+
+          // Apply minimum price if set
+          if (minimumPrice > 0 && totalPrice < minimumPrice) {
+            totalPrice = minimumPrice;
+          }
+
+          return { itemId, name: item.name || '', price: totalPrice, quantity: 1 };
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
 
       // Add multi-instance extra items
       extraItemInstances.forEach(instance => {
@@ -533,6 +571,7 @@ export default function POSView({
         customerName: selectedCustomer.name,
         customerPhone: selectedCustomer.phoneNumber,
         orderType,
+        deliveryType: orderType === 'delivery' ? deliveryType : undefined,
         deliveryAddress: orderType === 'delivery' ? (deliveryAddress || selectedCustomer.address) : undefined,
         deliveryFee: deliveryFeeAmount,
         status: 'new_order',
@@ -543,8 +582,8 @@ export default function POSView({
         extraItems: extraItemsData,
         dropOffDate: dropOffDate.toISOString(),
         estimatedPickupDate: pickupDate.toISOString(),
-        deliverySchedule: orderType === 'delivery' ? pickupDate.toISOString() : undefined,
-        specialInstructions: notes + (keepSeparated ? '\n[KEEP SEPARATED]' : ''),
+        deliverySchedule: (orderType === 'delivery' && (deliveryType === 'full' || deliveryType === 'deliveryOnly')) ? pickupDate.toISOString() : undefined,
+        specialInstructions: notes + (separationType === 'wash_only' ? '\n[SEPARATE WASH]' : separationType === 'all_the_way' ? '\n[SEPARATE ALL THE WAY]' : ''),
         isPaid: markAsPaid,
         paymentMethod: markAsPaid ? paymentMethod : undefined,
         paidAt: markAsPaid ? new Date().toISOString() : undefined,
@@ -615,26 +654,9 @@ export default function POSView({
       <View style={[styles.header, isPhoneLandscape && styles.headerCompact]}>
         <View style={styles.headerLeft}>
           <Text style={[styles.headerTitle, isPhoneLandscape && styles.headerTitleCompact]}>POS</Text>
-          {/* Active Orders Button */}
-          <TouchableOpacity
-            style={[styles.activeOrdersButton, isPhoneLandscape && styles.activeOrdersButtonCompact]}
-            onPress={() => setShowActiveOrdersModal(true)}
-          >
-            <Ionicons name="receipt" size={isPhoneLandscape ? 14 : 18} color="#fff" />
-            <Text style={[styles.activeOrdersButtonText, isPhoneLandscape && styles.activeOrdersButtonTextCompact]}>Orders</Text>
-            {activeOrders.length > 0 && (
-              <View style={[styles.activeOrdersBadge, isPhoneLandscape && styles.activeOrdersBadgeCompact]}>
-                <Text style={[styles.activeOrdersBadgeText, isPhoneLandscape && styles.activeOrdersBadgeTextCompact]}>{activeOrders.length}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
         </View>
-        {/* Store name in center for phone */}
-        {(isPortrait || isPhoneLandscape) && currentLocation && (
-          <Text style={[styles.headerStoreName, isPhoneLandscape && styles.headerStoreNameCompact]} numberOfLines={1}>@ {currentLocation.name}</Text>
-        )}
-        {/* Store selector for tablet */}
-        {isTabletLandscape && availableLocations.length > 1 && (
+        {/* Store selector - always visible when multiple locations */}
+        {availableLocations.length > 1 ? (
           <TouchableOpacity
             style={styles.storeButton}
             onPress={() => setShowStoreSelector(true)}
@@ -645,6 +667,8 @@ export default function POSView({
             </Text>
             <Ionicons name="chevron-down" size={16} color="#fff" />
           </TouchableOpacity>
+        ) : currentLocation && (
+          <Text style={[styles.headerStoreName, isPhoneLandscape && styles.headerStoreNameCompact]} numberOfLines={1}>@ {currentLocation.name}</Text>
         )}
         <TouchableOpacity style={[styles.exitButton, isPhoneLandscape && styles.exitButtonCompact]} onPress={onExit}>
           <Ionicons name="close" size={isPhoneLandscape ? 18 : 22} color="#fff" />
@@ -657,6 +681,7 @@ export default function POSView({
           <View style={styles.tabletLayout}>
             {/* LEFT COLUMN: Customer + Options */}
             <View style={styles.tabletColumnLeft}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContent}>
               {/* Customer Search */}
               <View style={styles.tabletSection}>
                 <Text style={styles.tabletSectionTitle}>Customer</Text>
@@ -742,6 +767,44 @@ export default function POSView({
                     </View>
                   </View>
                 )}
+                {/* Delivery Service Type - always show when delivery selected */}
+                {orderType === 'delivery' && (
+                  <View style={styles.deliveryTypeSection}>
+                    <Text style={styles.deliveryTypeLabel}>Delivery Service Type:</Text>
+                    <View style={styles.deliveryTypeRow}>
+                      <TouchableOpacity
+                        style={[styles.deliveryTypeBtn, deliveryType === 'full' && styles.deliveryTypeBtnActive]}
+                        onPress={() => setDeliveryType('full')}
+                      >
+                        <Ionicons name="swap-horizontal" size={18} color={deliveryType === 'full' ? '#fff' : '#64748b'} />
+                        <Text style={[styles.deliveryTypeText, deliveryType === 'full' && styles.deliveryTypeTextActive]}>Full Service</Text>
+                        <Text style={[styles.deliveryTypePrice, deliveryType === 'full' && styles.deliveryTypePriceActive]}>
+                          ${(parseFloat(selectedCustomer?.deliveryFee?.replace('$', '') || deliveryFee || '0') || 0).toFixed(2)}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.deliveryTypeBtn, deliveryType === 'pickupOnly' && styles.deliveryTypeBtnActive]}
+                        onPress={() => setDeliveryType('pickupOnly')}
+                      >
+                        <Ionicons name="arrow-up" size={18} color={deliveryType === 'pickupOnly' ? '#fff' : '#64748b'} />
+                        <Text style={[styles.deliveryTypeText, deliveryType === 'pickupOnly' && styles.deliveryTypeTextActive]}>Pickup Only</Text>
+                        <Text style={[styles.deliveryTypePrice, deliveryType === 'pickupOnly' && styles.deliveryTypePriceActive]}>
+                          ${((parseFloat(selectedCustomer?.deliveryFee?.replace('$', '') || deliveryFee || '0') || 0) / 2).toFixed(2)}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.deliveryTypeBtn, deliveryType === 'deliveryOnly' && styles.deliveryTypeBtnActive]}
+                        onPress={() => setDeliveryType('deliveryOnly')}
+                      >
+                        <Ionicons name="arrow-down" size={18} color={deliveryType === 'deliveryOnly' ? '#fff' : '#64748b'} />
+                        <Text style={[styles.deliveryTypeText, deliveryType === 'deliveryOnly' && styles.deliveryTypeTextActive]}>Delivery Only</Text>
+                        <Text style={[styles.deliveryTypePrice, deliveryType === 'deliveryOnly' && styles.deliveryTypePriceActive]}>
+                          ${((parseFloat(selectedCustomer?.deliveryFee?.replace('$', '') || deliveryFee || '0') || 0) / 2).toFixed(2)}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* Options Row */}
@@ -754,11 +817,13 @@ export default function POSView({
                   <Text style={[styles.tabletOptionText, isSameDay && styles.tabletOptionTextActive]}>Same Day</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.tabletOptionBtn, keepSeparated && styles.tabletOptionBtnBlue]}
-                  onPress={() => setKeepSeparated(!keepSeparated)}
+                  style={[styles.tabletOptionBtn, separationType !== 'none' && styles.tabletOptionBtnBlue]}
+                  onPress={() => setShowSeparationModal(true)}
                 >
-                  <Ionicons name="git-branch" size={18} color={keepSeparated ? '#fff' : '#3b82f6'} />
-                  <Text style={[styles.tabletOptionText, keepSeparated && styles.tabletOptionTextActive]}>Separated</Text>
+                  <Ionicons name="git-branch" size={18} color={separationType !== 'none' ? '#fff' : '#3b82f6'} />
+                  <Text style={[styles.tabletOptionText, separationType !== 'none' && styles.tabletOptionTextActive]}>
+                    {separationType === 'wash_only' ? 'Sep Wash' : separationType === 'all_the_way' ? 'Sep All' : 'Separated'}
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.tabletExtrasBtn}
@@ -780,10 +845,12 @@ export default function POSView({
                 placeholderTextColor="#94a3b8"
                 multiline
               />
+              </ScrollView>
             </View>
 
             {/* MIDDLE COLUMN: Numpad + Bags */}
             <View style={styles.tabletColumnMiddle}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContentCenter}>
               <View style={styles.tabletWeightDisplay}>
                 <Text style={styles.tabletWeightLabel}>Weight</Text>
                 <Text style={styles.tabletWeightValue}>{weightInput || '0'} lbs</Text>
@@ -819,8 +886,18 @@ export default function POSView({
                   ))}
                 </View>
                 <TextInput
+                  style={styles.tabletCustomColorInput}
+                  placeholder="Custom color..."
+                  value={colorInput}
+                  onChangeText={(text) => {
+                    setColorInput(text);
+                    if (text.trim()) setSelectedColor(text.trim());
+                  }}
+                  placeholderTextColor="#94a3b8"
+                />
+                <TextInput
                   style={styles.tabletBagDescInput}
-                  placeholder="Bag note/description..."
+                  placeholder="Special instructions..."
                   value={bagDescription}
                   onChangeText={setBagDescription}
                   placeholderTextColor="#94a3b8"
@@ -857,44 +934,48 @@ export default function POSView({
                   </View>
                 </View>
               )}
+              </ScrollView>
             </View>
 
             {/* RIGHT COLUMN: Dates + Payment + Total + Create */}
             <View style={styles.tabletColumnRight}>
-              {/* Drop Off Date */}
-              <View style={styles.tabletSection}>
-                <Text style={styles.tabletSectionTitle}>Drop Off Date</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {Array.from({ length: 7 }, (_, i) => {
-                    const date = new Date();
-                    date.setDate(date.getDate() + i);
-                    const isSelected = dropOffDate.toDateString() === date.toDateString();
-                    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-                    return (
-                      <TouchableOpacity
-                        key={i}
-                        style={[styles.tabletDateBtnSmall, isSelected && styles.tabletDateBtnSelected]}
-                        onPress={() => {
-                          const newDate = new Date();
-                          newDate.setDate(newDate.getDate() + i);
-                          setDropOffDate(newDate);
-                        }}
-                      >
-                        <Text style={[styles.tabletDateDaySmall, isSelected && styles.tabletDateTextSelected]}>
-                          {i === 0 ? 'Today' : dayNames[date.getDay()]}
-                        </Text>
-                        <Text style={[styles.tabletDateNumSmall, isSelected && styles.tabletDateTextSelected]}>{date.getDate()}</Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </ScrollView>
-              </View>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContent}>
+              {/* Pickup Date - only for delivery orders */}
+              {orderType === 'delivery' && (
+                <View style={styles.tabletSection}>
+                  <Text style={styles.tabletSectionTitle}>Pickup Date</Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    {Array.from({ length: 30 }, (_, i) => {
+                      const date = new Date();
+                      date.setDate(date.getDate() + i);
+                      const isSelected = dropOffDate.toDateString() === date.toDateString();
+                      const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+                      return (
+                        <TouchableOpacity
+                          key={i}
+                          style={[styles.tabletDateBtnSmall, isSelected && styles.tabletDateBtnSelected]}
+                          onPress={() => {
+                            const newDate = new Date();
+                            newDate.setDate(newDate.getDate() + i);
+                            setDropOffDate(newDate);
+                          }}
+                        >
+                          <Text style={[styles.tabletDateDaySmall, isSelected && styles.tabletDateTextSelected]}>
+                            {i === 0 ? 'Today' : dayNames[date.getDay()]}
+                          </Text>
+                          <Text style={[styles.tabletDateNumSmall, isSelected && styles.tabletDateTextSelected]}>{date.getDate()}</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
+              )}
 
               {/* Ready By / Delivery Date */}
               <View style={styles.tabletSection}>
                 <Text style={styles.tabletSectionTitle}>{orderType === 'delivery' ? 'Delivery Date' : 'Ready By'}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                  {Array.from({ length: 7 }, (_, i) => {
+                  {Array.from({ length: 30 }, (_, i) => {
                     const date = new Date();
                     date.setDate(date.getDate() + i);
                     const isSelected = pickupDate.toDateString() === date.toDateString();
@@ -918,8 +999,8 @@ export default function POSView({
                     );
                   })}
                 </ScrollView>
-                <View style={styles.tabletTimeRow}>
-                  {['10-12PM', '4-6PM'].map(slot => (
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabletTimeRow}>
+                  {['10-11AM', '11-12PM', '10-12PM', '4-5PM', '5-6PM', '4-6PM'].map(slot => (
                     <TouchableOpacity
                       key={slot}
                       style={[styles.tabletTimeBtn, !useExactTime && selectedTimeSlot === slot && styles.tabletTimeBtnSelected]}
@@ -928,7 +1009,16 @@ export default function POSView({
                       <Text style={[styles.tabletTimeText, !useExactTime && selectedTimeSlot === slot && styles.tabletTimeTextSelected]}>{slot}</Text>
                     </TouchableOpacity>
                   ))}
-                </View>
+                </ScrollView>
+                <TouchableOpacity
+                  style={[styles.tabletExactTimeBtn, useExactTime && styles.tabletExactTimeBtnActive]}
+                  onPress={() => { setUseExactTime(true); setShowTimePicker(true); }}
+                >
+                  <Ionicons name="time-outline" size={18} color={useExactTime ? '#fff' : '#2563eb'} />
+                  <Text style={[styles.tabletExactTimeText, useExactTime && styles.tabletExactTimeTextActive]}>
+                    {useExactTime ? pickupDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Custom Time'}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
               {/* Payment */}
@@ -938,17 +1028,19 @@ export default function POSView({
                   <Switch value={markAsPaid} onValueChange={setMarkAsPaid} />
                 </View>
                 {markAsPaid && (
-                  <View style={styles.tabletPaymentMethods}>
-                    {PAYMENT_METHODS.map(method => (
-                      <TouchableOpacity
-                        key={method.value}
-                        style={[styles.tabletPaymentBtn, paymentMethod === method.value && { backgroundColor: method.color }]}
-                        onPress={() => setPaymentMethod(method.value)}
-                      >
-                        <Text style={[styles.tabletPaymentText, paymentMethod === method.value && { color: '#fff' }]}>{method.label}</Text>
-                      </TouchableOpacity>
-                    ))}
-                  </View>
+                  <>
+                    <View style={styles.tabletPaymentMethods}>
+                      {PAYMENT_METHODS.map(method => (
+                        <TouchableOpacity
+                          key={method.value}
+                          style={[styles.tabletPaymentBtn, paymentMethod === method.value && { backgroundColor: method.color }]}
+                          onPress={() => setPaymentMethod(method.value as PaymentMethod)}
+                        >
+                          <Text style={[styles.tabletPaymentText, paymentMethod === method.value && { color: '#fff' }]}>{method.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </>
                 )}
                 {selectedCustomer && (selectedCustomer.credit || 0) > 0 && (
                   <View style={styles.tabletCreditRow}>
@@ -1000,6 +1092,7 @@ export default function POSView({
               <TouchableOpacity style={styles.tabletClearBtn} onPress={clearForm}>
                 <Text style={styles.tabletClearText}>Clear</Text>
               </TouchableOpacity>
+              </ScrollView>
             </View>
           </View>
         ) : (
@@ -1123,11 +1216,13 @@ export default function POSView({
                   <Text style={[styles.optionTextCompact, isSameDay && styles.optionTextActiveCompact]}>Same Day</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={[styles.optionButtonCompact, keepSeparated && styles.optionButtonActiveBlue]}
-                  onPress={() => setKeepSeparated(!keepSeparated)}
+                  style={[styles.optionButtonCompact, separationType !== 'none' && styles.optionButtonActiveBlue]}
+                  onPress={() => setShowSeparationModal(true)}
                 >
-                  <Ionicons name="git-branch" size={14} color={keepSeparated ? '#fff' : '#3b82f6'} />
-                  <Text style={[styles.optionTextCompact, keepSeparated && styles.optionTextActiveCompact]}>Separated</Text>
+                  <Ionicons name="git-branch" size={14} color={separationType !== 'none' ? '#fff' : '#3b82f6'} />
+                  <Text style={[styles.optionTextCompact, separationType !== 'none' && styles.optionTextActiveCompact]}>
+                    {separationType === 'wash_only' ? 'Sep Wash' : separationType === 'all_the_way' ? 'Sep All' : 'Separated'}
+                  </Text>
                 </TouchableOpacity>
                 {extraItems.length > 0 && (
                   <TouchableOpacity
@@ -1189,8 +1284,18 @@ export default function POSView({
                   ))}
                 </View>
                 <TextInput
+                  style={styles.customColorInputCompact}
+                  placeholder="Custom color..."
+                  value={colorInput}
+                  onChangeText={(text) => {
+                    setColorInput(text);
+                    if (text.trim()) setSelectedColor(text.trim());
+                  }}
+                  placeholderTextColor="#94a3b8"
+                />
+                <TextInput
                   style={styles.bagDescInputCompact}
-                  placeholder="Bag note..."
+                  placeholder="Special instructions..."
                   value={bagDescription}
                   onChangeText={setBagDescription}
                   placeholderTextColor="#94a3b8"
@@ -1224,7 +1329,7 @@ export default function POSView({
             <View style={[styles.sectionCompact, !isPortrait && { flex: 1 }]}>
               <Text style={styles.sectionTitleSmall}>{orderType === 'delivery' ? 'Delivery' : 'Ready By'}</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.weekCalendarCompact}>
-              {Array.from({ length: 14 }, (_, i) => {
+              {Array.from({ length: 30 }, (_, i) => {
                 const date = new Date();
                 date.setDate(date.getDate() + i);
                 const isSelected = pickupDate.toDateString() === date.toDateString();
@@ -1259,8 +1364,8 @@ export default function POSView({
               })}
             </ScrollView>
             {/* Time Slots - Compact */}
-            <View style={styles.timeSlotsCompact}>
-              {['10-12PM', '4-6PM'].map(slot => (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.timeSlotsCompact}>
+              {['10-11AM', '11-12PM', '10-12PM', '4-5PM', '5-6PM', '4-6PM'].map(slot => (
                 <TouchableOpacity
                   key={slot}
                   style={[styles.timeSlotButtonCompact, !useExactTime && selectedTimeSlot === slot && styles.timeSlotActiveCompact]}
@@ -1284,7 +1389,7 @@ export default function POSView({
                   {useExactTime ? pickupDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : 'Custom'}
                 </Text>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
             {/* Notes inline */}
             <TextInput
               style={styles.notesInputCompact}
@@ -1305,17 +1410,19 @@ export default function POSView({
                 <Switch value={markAsPaid} onValueChange={setMarkAsPaid} />
               </View>
               {markAsPaid && (
-                <View style={styles.paymentMethodsRowCompact}>
-                  {PAYMENT_METHODS.map(method => (
-                    <TouchableOpacity
-                      key={method.value}
-                      style={[styles.paymentMethodButtonCompact, paymentMethod === method.value && { backgroundColor: method.color }]}
-                      onPress={() => setPaymentMethod(method.value)}
-                    >
-                      <Text style={[styles.paymentMethodTextCompact, paymentMethod === method.value && { color: '#fff' }]}>{method.label}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
+                <>
+                  <View style={styles.paymentMethodsRowCompact}>
+                    {PAYMENT_METHODS.map(method => (
+                      <TouchableOpacity
+                        key={method.value}
+                        style={[styles.paymentMethodButtonCompact, paymentMethod === method.value && { backgroundColor: method.color }]}
+                        onPress={() => setPaymentMethod(method.value as PaymentMethod)}
+                      >
+                        <Text style={[styles.paymentMethodTextCompact, paymentMethod === method.value && { color: '#fff' }]}>{method.label}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </>
               )}
               {selectedCustomer && (selectedCustomer.credit || 0) > 0 && (
                 <View style={styles.creditRowCompact}>
@@ -1648,6 +1755,70 @@ export default function POSView({
                 <Text style={styles.instanceAddText}>{editingInstanceId ? 'Save' : 'Add'}</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Separation Type Modal */}
+      <Modal visible={showSeparationModal} animationType="fade" transparent>
+        <TouchableOpacity
+          style={styles.instanceModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSeparationModal(false)}
+        >
+          <View style={styles.separationModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.separationModalTitle}>Separation Type</Text>
+            <Text style={styles.separationModalSubtitle}>
+              How should this order be separated?
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.separationOption, separationType === 'wash_only' && styles.separationOptionActive]}
+              onPress={() => {
+                setSeparationType('wash_only');
+                setShowSeparationModal(false);
+              }}
+            >
+              <Ionicons name="water" size={24} color={separationType === 'wash_only' ? '#fff' : '#3b82f6'} />
+              <View style={styles.separationOptionText}>
+                <Text style={[styles.separationOptionTitle, separationType === 'wash_only' && styles.separationOptionTitleActive]}>
+                  Separate Wash Only
+                </Text>
+                <Text style={[styles.separationOptionDesc, separationType === 'wash_only' && styles.separationOptionDescActive]}>
+                  Wash separately, dry with other orders
+                </Text>
+              </View>
+              {separationType === 'wash_only' && <Ionicons name="checkmark-circle" size={24} color="#fff" />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.separationOption, separationType === 'all_the_way' && styles.separationOptionActive]}
+              onPress={() => {
+                setSeparationType('all_the_way');
+                setShowSeparationModal(false);
+              }}
+            >
+              <Ionicons name="git-branch" size={24} color={separationType === 'all_the_way' ? '#fff' : '#3b82f6'} />
+              <View style={styles.separationOptionText}>
+                <Text style={[styles.separationOptionTitle, separationType === 'all_the_way' && styles.separationOptionTitleActive]}>
+                  Separate All The Way
+                </Text>
+                <Text style={[styles.separationOptionDesc, separationType === 'all_the_way' && styles.separationOptionDescActive]}>
+                  Wash AND dry separately
+                </Text>
+              </View>
+              {separationType === 'all_the_way' && <Ionicons name="checkmark-circle" size={24} color="#fff" />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.separationClearBtn}
+              onPress={() => {
+                setSeparationType('none');
+                setShowSeparationModal(false);
+              }}
+            >
+              <Text style={styles.separationClearBtnText}>No Separation</Text>
+            </TouchableOpacity>
           </View>
         </TouchableOpacity>
       </Modal>
@@ -2565,6 +2736,67 @@ const styles = StyleSheet.create({
     color: '#64748b',
     textAlign: 'center',
     marginBottom: 16,
+  },
+  // Separation Modal Styles
+  separationModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: 320,
+  },
+  separationModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  separationModalSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  separationOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  separationOptionActive: {
+    backgroundColor: '#3b82f6',
+  },
+  separationOptionText: {
+    flex: 1,
+  },
+  separationOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  separationOptionTitleActive: {
+    color: '#fff',
+  },
+  separationOptionDesc: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  separationOptionDescActive: {
+    color: '#dbeafe',
+  },
+  separationClearBtn: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  separationClearBtnText: {
+    fontSize: 15,
+    color: '#64748b',
+    fontWeight: '500',
   },
   instancePriceRowInline: {
     flexDirection: 'row',
@@ -3666,6 +3898,18 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#2563eb',
   },
+  customColorInputCompact: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    fontSize: 12,
+    color: '#1e293b',
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+    width: 80,
+    marginRight: 8,
+  },
   bagDescInputCompact: {
     backgroundColor: '#f8fafc',
     borderRadius: 6,
@@ -3675,6 +3919,7 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     borderWidth: 1,
     borderColor: '#e2e8f0',
+    flex: 1,
   },
   addBagButtonCompact: {
     flexDirection: 'row',
@@ -3902,6 +4147,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     gap: 10,
+  },
+  tabletColumnContent: {
+    gap: 12,
+    paddingBottom: 20,
+  },
+  tabletColumnContentCenter: {
+    alignItems: 'center',
+    gap: 12,
+    paddingBottom: 20,
   },
   tabletSection: {
     marginBottom: 8,
@@ -4221,8 +4475,9 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   tabletTimeBtn: {
-    flex: 1,
     paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginRight: 8,
     backgroundColor: '#f1f5f9',
     borderRadius: 8,
     alignItems: 'center',
@@ -4236,6 +4491,30 @@ const styles = StyleSheet.create({
     color: '#64748b',
   },
   tabletTimeTextSelected: {
+    color: '#fff',
+  },
+  tabletExactTimeBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#e0f2fe',
+    borderRadius: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#2563eb',
+  },
+  tabletExactTimeBtnActive: {
+    backgroundColor: '#2563eb',
+  },
+  tabletExactTimeText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2563eb',
+  },
+  tabletExactTimeTextActive: {
     color: '#fff',
   },
   tabletPaymentRow: {
@@ -4406,6 +4685,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#2563eb',
   },
+  // Custom color input
+  tabletCustomColorInput: {
+    width: '100%',
+    maxWidth: 220,
+    backgroundColor: '#fef3c7',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#1e293b',
+    textAlign: 'center',
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#fcd34d',
+  },
   // Bag description input
   tabletBagDescInput: {
     width: '100%',
@@ -4438,5 +4732,126 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '700',
     color: '#1e293b',
+  },
+  // Pay date picker styles
+  paidAtDateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  paidAtDateText: {
+    fontSize: 14,
+    color: '#1e293b',
+    flex: 1,
+  },
+  paidAtDateBtnCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  paidAtDateTextCompact: {
+    fontSize: 12,
+    color: '#1e293b',
+  },
+  datePickerModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  datePickerModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    width: '90%',
+    maxWidth: 350,
+    paddingBottom: 20,
+  },
+  datePickerModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  datePickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  datePickerCancel: {
+    fontSize: 16,
+    color: '#ef4444',
+  },
+  datePickerDone: {
+    fontSize: 16,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  datePickerSpinner: {
+    height: 200,
+  },
+  // Delivery type selector styles
+  deliveryTypeSection: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+  },
+  deliveryTypeLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  deliveryTypeRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  deliveryTypeBtn: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  deliveryTypeBtnActive: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  deliveryTypeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1e293b',
+    marginTop: 4,
+  },
+  deliveryTypeTextActive: {
+    color: '#fff',
+  },
+  deliveryTypePrice: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginTop: 2,
+  },
+  deliveryTypePriceActive: {
+    color: '#fff',
   },
 });

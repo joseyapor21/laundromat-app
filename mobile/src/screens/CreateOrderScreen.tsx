@@ -98,7 +98,8 @@ export default function CreateOrderScreen() {
   const [manualDeliveryFee, setManualDeliveryFee] = useState('');
   const [bags, setBags] = useState<Bag[]>([]);
   const [isSameDay, setIsSameDay] = useState(false);
-  const [keepSeparated, setKeepSeparated] = useState(false);
+  const [separationType, setSeparationType] = useState<'none' | 'wash_only' | 'all_the_way'>('none');
+  const [showSeparationModal, setShowSeparationModal] = useState(false);
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [selectedExtras, setSelectedExtras] = useState<Record<string, { quantity: number; price: number; overrideTotal?: number }>>({});
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
@@ -881,8 +882,8 @@ export default function CreateOrderScreen() {
           description: bag.description || '',
         })),
         isSameDay,
-        keepSeparated,
-        specialInstructions,
+        keepSeparated: separationType !== 'none',
+        specialInstructions: specialInstructions + (separationType === 'wash_only' ? '\n[SEPARATE WASH]' : separationType === 'all_the_way' ? '\n[SEPARATE ALL THE WAY]' : ''),
         items: [],
         extraItems: extraItemsData,
         subtotal: laundrySubtotal,
@@ -1279,21 +1280,23 @@ export default function CreateOrderScreen() {
 
       {/* Keep Separated */}
       <View style={styles.section}>
-        <View style={[styles.switchRow, keepSeparated && styles.switchRowActive]}>
+        <TouchableOpacity
+          style={[styles.switchRow, separationType !== 'none' && styles.switchRowActive]}
+          onPress={() => setShowSeparationModal(true)}
+        >
           <View style={styles.switchContent}>
-            <Ionicons name="git-branch" size={24} color={keepSeparated ? '#8b5cf6' : '#64748b'} />
+            <Ionicons name="git-branch" size={24} color={separationType !== 'none' ? '#8b5cf6' : '#64748b'} />
             <View style={styles.switchTextContainer}>
-              <Text style={styles.switchLabel}>Keep Separated</Text>
-              <Text style={styles.switchHint}>Each bag washed & dried separately</Text>
+              <Text style={styles.switchLabel}>
+                {separationType === 'wash_only' ? 'Separate Wash' : separationType === 'all_the_way' ? 'Separate All The Way' : 'Keep Separated'}
+              </Text>
+              <Text style={styles.switchHint}>
+                {separationType === 'wash_only' ? 'Wash separately, dry with others' : separationType === 'all_the_way' ? 'Wash AND dry separately' : 'Tap to select separation type'}
+              </Text>
             </View>
           </View>
-          <Switch
-            value={keepSeparated}
-            onValueChange={setKeepSeparated}
-            trackColor={{ false: '#e2e8f0', true: '#c4b5fd' }}
-            thumbColor={keepSeparated ? '#8b5cf6' : '#f4f4f5'}
-          />
-        </View>
+          <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+        </TouchableOpacity>
       </View>
 
       {/* Pickup Date */}
@@ -2363,6 +2366,70 @@ export default function CreateOrderScreen() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      {/* Separation Type Modal */}
+      <Modal visible={showSeparationModal} animationType="fade" transparent>
+        <TouchableOpacity
+          style={styles.separationModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowSeparationModal(false)}
+        >
+          <View style={styles.separationModalContent} onStartShouldSetResponder={() => true}>
+            <Text style={styles.separationModalTitle}>Separation Type</Text>
+            <Text style={styles.separationModalSubtitle}>
+              How should this order be separated?
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.separationOption, separationType === 'wash_only' && styles.separationOptionActive]}
+              onPress={() => {
+                setSeparationType('wash_only');
+                setShowSeparationModal(false);
+              }}
+            >
+              <Ionicons name="water" size={24} color={separationType === 'wash_only' ? '#fff' : '#8b5cf6'} />
+              <View style={styles.separationOptionText}>
+                <Text style={[styles.separationOptionTitle, separationType === 'wash_only' && styles.separationOptionTitleActive]}>
+                  Separate Wash Only
+                </Text>
+                <Text style={[styles.separationOptionDesc, separationType === 'wash_only' && styles.separationOptionDescActive]}>
+                  Wash separately, dry with other orders
+                </Text>
+              </View>
+              {separationType === 'wash_only' && <Ionicons name="checkmark-circle" size={24} color="#fff" />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.separationOption, separationType === 'all_the_way' && styles.separationOptionActive]}
+              onPress={() => {
+                setSeparationType('all_the_way');
+                setShowSeparationModal(false);
+              }}
+            >
+              <Ionicons name="git-branch" size={24} color={separationType === 'all_the_way' ? '#fff' : '#8b5cf6'} />
+              <View style={styles.separationOptionText}>
+                <Text style={[styles.separationOptionTitle, separationType === 'all_the_way' && styles.separationOptionTitleActive]}>
+                  Separate All The Way
+                </Text>
+                <Text style={[styles.separationOptionDesc, separationType === 'all_the_way' && styles.separationOptionDescActive]}>
+                  Wash AND dry separately
+                </Text>
+              </View>
+              {separationType === 'all_the_way' && <Ionicons name="checkmark-circle" size={24} color="#fff" />}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.separationClearBtn}
+              onPress={() => {
+                setSeparationType('none');
+                setShowSeparationModal(false);
+              }}
+            >
+              <Text style={styles.separationClearBtnText}>No Separation</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* Quick Add Customer Modal - Full Screen like Admin */}
@@ -4140,6 +4207,73 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  // Separation Modal Styles
+  separationModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  separationModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    width: 320,
+  },
+  separationModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1e293b',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  separationModalSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  separationOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    gap: 12,
+  },
+  separationOptionActive: {
+    backgroundColor: '#8b5cf6',
+  },
+  separationOptionText: {
+    flex: 1,
+  },
+  separationOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  separationOptionTitleActive: {
+    color: '#fff',
+  },
+  separationOptionDesc: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  separationOptionDescActive: {
+    color: '#ede9fe',
+  },
+  separationClearBtn: {
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  separationClearBtnText: {
+    fontSize: 15,
+    color: '#64748b',
+    fontWeight: '500',
   },
   instanceQtyControls: {
     flexDirection: 'row',
