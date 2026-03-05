@@ -6,7 +6,7 @@ export interface UserDoc {
   _id: Types.ObjectId;
   email: string;
   password: string;
-  pin?: string;  // 4-6 digit PIN for kiosk mode quick login
+  pin?: string;  // 4 digit PIN for kiosk mode quick login
   firstName: string;
   lastName: string;
   role: UserRole;

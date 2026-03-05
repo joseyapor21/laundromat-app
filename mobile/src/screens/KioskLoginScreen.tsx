@@ -34,8 +34,9 @@ export default function KioskLoginScreen({ onBack, onLoginSuccess }: KioskLoginS
 
   async function loadLocations() {
     try {
-      const locs = await api.getLocations();
-      setLocations(locs.filter(l => l.isActive));
+      // Use public endpoint (no auth required)
+      const locs = await api.getPublicLocations();
+      setLocations(locs);
       if (locs.length === 1) {
         setSelectedLocation(locs[0]);
       }
@@ -52,7 +53,7 @@ export default function KioskLoginScreen({ onBack, onLoginSuccess }: KioskLoginS
       setPin('');
     } else if (key === '⌫') {
       setPin(prev => prev.slice(0, -1));
-    } else if (pin.length < 6) {
+    } else if (pin.length < 4) {
       setPin(prev => prev + key);
     }
   }
@@ -63,8 +64,8 @@ export default function KioskLoginScreen({ onBack, onLoginSuccess }: KioskLoginS
       return;
     }
 
-    if (pin.length < 4) {
-      Alert.alert('Error', 'PIN must be at least 4 digits');
+    if (pin.length !== 4) {
+      Alert.alert('Error', 'PIN must be 4 digits');
       return;
     }
 
@@ -137,7 +138,7 @@ export default function KioskLoginScreen({ onBack, onLoginSuccess }: KioskLoginS
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Enter Your PIN</Text>
           <View style={styles.pinDisplay}>
-            {[0, 1, 2, 3, 4, 5].map(i => (
+            {[0, 1, 2, 3].map(i => (
               <View
                 key={i}
                 style={[
@@ -177,9 +178,9 @@ export default function KioskLoginScreen({ onBack, onLoginSuccess }: KioskLoginS
 
         {/* Login Button */}
         <TouchableOpacity
-          style={[styles.loginButton, (!selectedLocation || pin.length < 4 || isLoading) && styles.loginButtonDisabled]}
+          style={[styles.loginButton, (!selectedLocation || pin.length !== 4 || isLoading) && styles.loginButtonDisabled]}
           onPress={handleLogin}
-          disabled={!selectedLocation || pin.length < 4 || isLoading}
+          disabled={!selectedLocation || pin.length !== 4 || isLoading}
         >
           {isLoading ? (
             <ActivityIndicator color="#fff" />

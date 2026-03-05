@@ -29,10 +29,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Not authorized to set PIN for other users' }, { status: 403 });
     }
 
-    // Validate PIN format (4-6 digits)
-    if (pin && (!/^\d{4,6}$/.test(pin))) {
+    // Validate PIN format (exactly 4 digits)
+    if (pin && (!/^\d{4}$/.test(pin))) {
       return NextResponse.json(
-        { error: 'PIN must be 4-6 digits' },
+        { error: 'PIN must be exactly 4 digits' },
         { status: 400 }
       );
     }

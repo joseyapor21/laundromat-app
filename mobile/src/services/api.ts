@@ -197,6 +197,16 @@ class ApiService {
     return this.request<Location[]>('/locations');
   }
 
+  // Get public locations (no auth required - for kiosk mode)
+  async getPublicLocations(): Promise<Location[]> {
+    const url = `${API_BASE_URL}/api/locations/public`;
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error('Failed to get locations');
+    }
+    return response.json();
+  }
+
   async createLocation(data: Partial<Location>): Promise<Location> {
     return this.request<Location>('/locations', {
       method: 'POST',
