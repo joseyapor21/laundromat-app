@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Types } from 'mongoose';
 import { connectDB } from '@/lib/db/connection';
 import { Order, Customer, ActivityLog, getNextOrderSequence } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
@@ -53,9 +54,11 @@ export async function GET(request: NextRequest) {
       deletedAt: { $eq: null },
     };
 
-    // Filter by location if specified
+    // Filter by location if specified (convert to ObjectId for proper comparison)
     if (currentUser.locationId) {
-      query.locationId = currentUser.locationId;
+      query.locationId = Types.ObjectId.isValid(currentUser.locationId)
+        ? new Types.ObjectId(currentUser.locationId)
+        : currentUser.locationId;
     }
 
     if (status && status !== 'all') {
