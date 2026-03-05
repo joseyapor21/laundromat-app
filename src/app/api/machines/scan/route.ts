@@ -235,9 +235,18 @@ export async function POST(request: NextRequest) {
     let newStatus = order.status;
     if (machine.type === 'washer' && order.status !== 'in_washer') {
       newStatus = 'in_washer';
-    } else if (machine.type === 'dryer' && order.status !== 'in_dryer') {
-      // Allow dryer assignment from any status (preferably transfer_checked or transferred)
-      newStatus = 'in_dryer';
+    } else if (machine.type === 'dryer') {
+      // Block dryer scanning if transfer hasn't been verified yet
+      if (order.status === 'transferred') {
+        console.log('Scan error: Transfer not verified yet');
+        return NextResponse.json(
+          { error: 'Please verify the transfer first before scanning dryers. Another person must check that all items were transferred correctly.' },
+          { status: 400 }
+        );
+      }
+      if (order.status !== 'in_dryer') {
+        newStatus = 'in_dryer';
+      }
     }
 
     // Update order status if changed
