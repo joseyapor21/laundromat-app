@@ -57,7 +57,7 @@ export async function GET(request: NextRequest) {
           },
           // Exclude refunds - only include actual money deposits
           'creditHistory.description': {
-            $not: { $regex: /refund/i }
+            $not: /refund/i
           },
         },
       },
