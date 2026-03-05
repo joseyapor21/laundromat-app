@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import { connectDB } from '@/lib/db/connection';
 import { Customer } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
@@ -35,65 +36,51 @@ export async function GET(request: NextRequest) {
     const endOfDay = new Date(targetDate);
     endOfDay.setHours(23, 59, 59, 999);
 
-    // Build query
-    const query: Record<string, unknown> = {
-      'creditHistory.type': 'add',
-      'creditHistory.createdAt': {
-        $gte: startOfDay,
-        $lte: endOfDay,
-      },
+    // Use aggregation to properly filter creditHistory array
+    const matchStage: Record<string, unknown> = {
+      'creditHistory.0': { $exists: true }, // Has at least one credit history entry
     };
 
     if (locationId) {
-      query.locationId = locationId;
+      matchStage.locationId = new mongoose.Types.ObjectId(locationId);
     }
 
-    // Find customers with credit additions on this date
-    const customers = await Customer.find(query).lean();
+    const results = await Customer.aggregate([
+      { $match: matchStage },
+      { $unwind: '$creditHistory' },
+      {
+        $match: {
+          'creditHistory.type': 'add',
+          'creditHistory.createdAt': {
+            $gte: startOfDay,
+            $lte: endOfDay,
+          },
+        },
+      },
+      {
+        $project: {
+          customerId: '$_id',
+          customerName: '$name',
+          amount: '$creditHistory.amount',
+          description: '$creditHistory.description',
+          paymentMethod: { $ifNull: ['$creditHistory.paymentMethod', 'cash'] },
+          addedBy: { $ifNull: ['$creditHistory.addedBy', 'Unknown'] },
+          createdAt: '$creditHistory.createdAt',
+        },
+      },
+      { $sort: { createdAt: -1 } },
+    ]);
 
-    // Extract credit additions for the target date
-    const creditAdditions: Array<{
-      customerId: string;
-      customerName: string;
-      amount: number;
-      description: string;
-      paymentMethod: string;
-      addedBy: string;
-      createdAt: Date;
-    }> = [];
-
-    customers.forEach(customer => {
-      if (customer.creditHistory) {
-        customer.creditHistory.forEach((tx: {
-          type: string;
-          amount: number;
-          description?: string;
-          paymentMethod?: string;
-          addedBy?: string;
-          createdAt: Date;
-        }) => {
-          if (tx.type === 'add') {
-            const txDate = new Date(tx.createdAt);
-            if (txDate >= startOfDay && txDate <= endOfDay) {
-              creditAdditions.push({
-                customerId: customer._id.toString(),
-                customerName: customer.name,
-                amount: tx.amount,
-                description: tx.description || 'Credit added',
-                paymentMethod: tx.paymentMethod || 'cash',
-                addedBy: tx.addedBy || 'Unknown',
-                createdAt: tx.createdAt,
-              });
-            }
-          }
-        });
-      }
-    });
-
-    // Sort by createdAt descending
-    creditAdditions.sort((a, b) =>
-      new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    );
+    // Format the results
+    const creditAdditions = results.map(tx => ({
+      customerId: tx.customerId.toString(),
+      customerName: tx.customerName,
+      amount: tx.amount,
+      description: tx.description || 'Credit added',
+      paymentMethod: tx.paymentMethod,
+      addedBy: tx.addedBy,
+      createdAt: tx.createdAt,
+    }));
 
     // Calculate totals by payment method
     const totalsByMethod: Record<string, { count: number; total: number }> = {
