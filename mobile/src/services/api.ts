@@ -1,5 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
-import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog, OrderStatus, PaymentMethod, TimeEntry, ClockStatus, Location, LocationVaultItem, VaultDocument } from '../types';
+import type { Order, Customer, User, Settings, ExtraItem, Machine, ActivityLog, OrderStatus, PaymentMethod, TimeEntry, ClockStatus, Location, LocationVaultItem, VaultDocument, InventoryItem, StockStatus } from '../types';
 
 const API_BASE_URL = 'https://cloud.homation.us';
 
@@ -939,6 +939,50 @@ class ApiService {
     return this.request('/app-version', {
       method: 'POST',
       body: JSON.stringify({ platform, fileName, base64 }),
+    });
+  }
+
+  // Inventory
+  async getInventory(filters?: { category?: string; status?: string; needsOrder?: boolean }): Promise<{
+    items: InventoryItem[];
+    lowStockCount: number;
+    categories: string[];
+  }> {
+    const params = new URLSearchParams();
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.needsOrder) params.append('needsOrder', 'true');
+    const query = params.toString();
+    return this.request(`/inventory${query ? `?${query}` : ''}`);
+  }
+
+  async createInventoryItem(data: {
+    name: string;
+    quantity?: number;
+    status?: StockStatus;
+    lowStockThreshold?: number;
+    unit?: string;
+    category?: string;
+    notes?: string;
+    needsOrder?: boolean;
+    orderQuantity?: number;
+  }): Promise<InventoryItem> {
+    return this.request<InventoryItem>('/inventory', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateInventoryItem(id: string, data: Partial<InventoryItem>): Promise<InventoryItem> {
+    return this.request<InventoryItem>(`/inventory/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteInventoryItem(id: string): Promise<{ success: boolean; message: string }> {
+    return this.request<{ success: boolean; message: string }>(`/inventory/${id}`, {
+      method: 'DELETE',
     });
   }
 }

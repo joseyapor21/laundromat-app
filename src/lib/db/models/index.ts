@@ -9,10 +9,12 @@ export { default as Machine } from './Machine';
 export { default as TimeEntry } from './TimeEntry';
 export { default as Location } from './Location';
 export { default as LocationVaultItem } from './LocationVault';
+export { default as InventoryItem } from './InventoryItem';
 export { AppVersion } from './AppVersion';
 export { OrderCounter, CustomerCounter, getNextOrderSequence, getNextCustomerSequence } from './Counter';
 
 export type { UserDocument } from './User';
+export type { InventoryItemDoc, StockStatus } from './InventoryItem';
 export type { OrderDocument } from './Order';
 export type { CustomerDocument } from './Customer';
 export type { SettingsDocument } from './Settings';

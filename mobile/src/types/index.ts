@@ -410,3 +410,21 @@ export interface LocationVaultItem {
   updatedBy?: string;
   updatedByName?: string;
 }
+
+// Inventory types
+export type StockStatus = 'full' | 'good' | 'half' | 'low' | 'out';
+
+export interface InventoryItem {
+  _id: string;
+  name: string;
+  quantity: number;
+  status: StockStatus;
+  lowStockThreshold: number;
+  unit?: string;
+  category?: string;
+  notes?: string;
+  needsOrder: boolean;
+  orderQuantity?: number;
+  lastUpdated: Date;
+  lastUpdatedBy?: string;
+}

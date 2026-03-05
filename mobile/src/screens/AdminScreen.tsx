@@ -29,10 +29,10 @@ import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import { useAuth } from '../contexts/AuthContext';
-import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location, LocationVaultItem, VaultItemType, VaultDocument } from '../types';
+import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location, LocationVaultItem, VaultItemType, VaultDocument, InventoryItem, StockStatus } from '../types';
 import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
-type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault' | 'appupdates';
+type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault' | 'appupdates' | 'inventory';
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
@@ -125,6 +125,27 @@ export default function AdminScreen() {
   });
   const [uploadingApp, setUploadingApp] = useState<'ios' | 'android' | null>(null);
 
+  // Inventory state
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
+  const [inventoryLowStockCount, setInventoryLowStockCount] = useState(0);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [editingInventoryItem, setEditingInventoryItem] = useState<InventoryItem | null>(null);
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState<string>('all');
+  const [inventoryStatusFilter, setInventoryStatusFilter] = useState<string>('all');
+  const [inventoryForm, setInventoryForm] = useState({
+    name: '',
+    quantity: '',
+    status: 'good' as StockStatus,
+    lowStockThreshold: '2',
+    unit: 'items',
+    category: 'General',
+    notes: '',
+    needsOrder: false,
+    orderQuantity: '',
+  });
+
   // Printer state
   const [printerScanning, setPrinterScanning] = useState(false);
   const [printerConnecting, setPrinterConnecting] = useState(false);
@@ -183,7 +204,7 @@ export default function AdminScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, customersData, extraItemsData, settingsData, machinesData, activityData, locationsData] = await Promise.all([
+      const [usersData, customersData, extraItemsData, settingsData, machinesData, activityData, locationsData, inventoryData] = await Promise.all([
         api.getUsers().catch(() => []),
         api.getCustomers(),
         api.getExtraItems().catch(() => []),
@@ -191,6 +212,7 @@ export default function AdminScreen() {
         api.getMachines().catch(() => []),
         api.getActivityLogs({ limit: 50 }).catch(() => ({ logs: [], total: 0 })),
         api.getLocations().catch(() => []),
+        api.getInventory().catch(() => ({ items: [], lowStockCount: 0, categories: [] })),
       ]);
       setUsers(usersData);
       setCustomers(customersData);
@@ -200,6 +222,9 @@ export default function AdminScreen() {
       setActivityLogs(activityData.logs);
       setActivityTotal(activityData.total);
       setLocations(locationsData);
+      setInventoryItems(inventoryData.items);
+      setInventoryLowStockCount(inventoryData.lowStockCount);
+      setInventoryCategories(inventoryData.categories);
     } catch (error) {
       console.error('Failed to load admin data:', error);
     } finally {
@@ -271,6 +296,32 @@ export default function AdminScreen() {
       setTimeEntriesLoading(false);
     }
   };
+
+  // Load inventory items with filters
+  const loadInventory = useCallback(async () => {
+    setInventoryLoading(true);
+    try {
+      const filters: { category?: string; status?: string; needsOrder?: boolean } = {};
+      if (inventoryCategoryFilter !== 'all') filters.category = inventoryCategoryFilter;
+      if (inventoryStatusFilter !== 'all') filters.status = inventoryStatusFilter;
+
+      const data = await api.getInventory(filters);
+      setInventoryItems(data.items);
+      setInventoryLowStockCount(data.lowStockCount);
+      setInventoryCategories(data.categories);
+    } catch (error) {
+      console.error('Failed to load inventory:', error);
+    } finally {
+      setInventoryLoading(false);
+    }
+  }, [inventoryCategoryFilter, inventoryStatusFilter]);
+
+  // Load inventory when tab is active or filters change
+  useEffect(() => {
+    if (activeTab === 'inventory' && isAdmin) {
+      loadInventory();
+    }
+  }, [activeTab, isAdmin, loadInventory]);
 
   // Printer functions
   async function checkPrinterConnection() {
@@ -586,6 +637,115 @@ export default function AdminScreen() {
       loadData();
     } catch (error) {
       Alert.alert('Error', 'Failed to update extra item');
+    }
+  };
+
+  // Inventory actions
+  const openInventoryModal = (item?: InventoryItem) => {
+    if (item) {
+      setEditingInventoryItem(item);
+      setInventoryForm({
+        name: item.name,
+        quantity: item.quantity.toString(),
+        status: item.status,
+        lowStockThreshold: item.lowStockThreshold.toString(),
+        unit: item.unit || 'items',
+        category: item.category || 'General',
+        notes: item.notes || '',
+        needsOrder: item.needsOrder,
+        orderQuantity: item.orderQuantity?.toString() || '',
+      });
+    } else {
+      setEditingInventoryItem(null);
+      setInventoryForm({
+        name: '',
+        quantity: '',
+        status: 'good',
+        lowStockThreshold: '2',
+        unit: 'items',
+        category: 'General',
+        notes: '',
+        needsOrder: false,
+        orderQuantity: '',
+      });
+    }
+    setShowInventoryModal(true);
+  };
+
+  const handleSaveInventoryItem = async () => {
+    if (!inventoryForm.name) {
+      Alert.alert('Error', 'Please enter an item name');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const data = {
+        name: inventoryForm.name,
+        quantity: inventoryForm.quantity ? parseInt(inventoryForm.quantity) : 0,
+        status: inventoryForm.status,
+        lowStockThreshold: parseInt(inventoryForm.lowStockThreshold) || 2,
+        unit: inventoryForm.unit,
+        category: inventoryForm.category,
+        notes: inventoryForm.notes || undefined,
+        needsOrder: inventoryForm.needsOrder,
+        orderQuantity: inventoryForm.orderQuantity ? parseInt(inventoryForm.orderQuantity) : undefined,
+      };
+
+      if (editingInventoryItem) {
+        await api.updateInventoryItem(editingInventoryItem._id, data);
+        Alert.alert('Success', 'Inventory item updated');
+      } else {
+        await api.createInventoryItem(data);
+        Alert.alert('Success', 'Inventory item created');
+      }
+      setShowInventoryModal(false);
+      loadInventory();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to save inventory item');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteInventoryItem = (item: InventoryItem) => {
+    Alert.alert('Delete Item', `Delete "${item.name}"?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await api.deleteInventoryItem(item._id);
+            Alert.alert('Success', 'Inventory item deleted');
+            loadInventory();
+          } catch (error: any) {
+            Alert.alert('Error', error.message || 'Failed to delete item');
+          }
+        },
+      },
+    ]);
+  };
+
+  const getStockStatusColor = (status: StockStatus) => {
+    switch (status) {
+      case 'full': return '#10b981';
+      case 'good': return '#3b82f6';
+      case 'half': return '#f59e0b';
+      case 'low': return '#f97316';
+      case 'out': return '#ef4444';
+      default: return '#64748b';
+    }
+  };
+
+  const getStockStatusLabel = (status: StockStatus) => {
+    switch (status) {
+      case 'full': return 'Full';
+      case 'good': return 'Good';
+      case 'half': return 'Half';
+      case 'low': return 'Low';
+      case 'out': return 'Out';
+      default: return status;
     }
   };
 
@@ -1590,6 +1750,7 @@ export default function AdminScreen() {
     { key: 'extras', label: 'Extras', icon: 'pricetags', adminOnly: false },
     { key: 'settings', label: 'Settings', icon: 'settings', adminOnly: true },
     { key: 'machines', label: 'Machines', icon: 'hardware-chip', adminOnly: true },
+    { key: 'inventory', label: 'Inventory', icon: 'cube', adminOnly: true, badge: inventoryLowStockCount > 0 ? inventoryLowStockCount : undefined },
     { key: 'vault', label: 'Vault', icon: 'lock-closed', adminOnly: true },
     { key: 'printers', label: 'Printers', icon: 'print', adminOnly: true },
     { key: 'reports', label: 'Reports', icon: 'document-text', adminOnly: false },
@@ -1638,6 +1799,11 @@ export default function AdminScreen() {
               <Text style={[styles.tabText, activeTab === tab.key && styles.tabTextActive]}>
                 {tab.label}
               </Text>
+              {tab.badge && tab.badge > 0 && (
+                <View style={styles.tabBadge}>
+                  <Text style={styles.tabBadgeText}>{tab.badge}</Text>
+                </View>
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -2110,6 +2276,110 @@ export default function AdminScreen() {
               </View>
             }
           />
+        </View>
+      )}
+
+      {/* Inventory Tab */}
+      {activeTab === 'inventory' && (
+        <View style={{ flex: 1 }}>
+          <View style={styles.actionHeader}>
+            <View style={styles.inventoryHeaderLeft}>
+              <Text style={styles.countText}>{inventoryItems.length} items</Text>
+              {inventoryLowStockCount > 0 && (
+                <View style={styles.lowStockBadge}>
+                  <Ionicons name="warning" size={14} color="#fff" />
+                  <Text style={styles.lowStockBadgeText}>{inventoryLowStockCount} low</Text>
+                </View>
+              )}
+            </View>
+            <TouchableOpacity style={styles.addButton} onPress={() => openInventoryModal()}>
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.addButtonText}>Add Item</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Filters */}
+          <View style={styles.inventoryFilterRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScrollView}>
+              <TouchableOpacity
+                style={[styles.filterChip, inventoryStatusFilter === 'all' && styles.filterChipActive]}
+                onPress={() => setInventoryStatusFilter('all')}
+              >
+                <Text style={[styles.filterChipText, inventoryStatusFilter === 'all' && styles.filterChipTextActive]}>All</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.filterChip, inventoryStatusFilter === 'low' && styles.filterChipActive, { backgroundColor: inventoryStatusFilter === 'low' ? '#f97316' : undefined }]}
+                onPress={() => setInventoryStatusFilter(inventoryStatusFilter === 'low' ? 'all' : 'low')}
+              >
+                <Text style={[styles.filterChipText, inventoryStatusFilter === 'low' && styles.filterChipTextActive]}>Low Stock</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.filterChip, inventoryStatusFilter === 'out' && styles.filterChipActive, { backgroundColor: inventoryStatusFilter === 'out' ? '#ef4444' : undefined }]}
+                onPress={() => setInventoryStatusFilter(inventoryStatusFilter === 'out' ? 'all' : 'out')}
+              >
+                <Text style={[styles.filterChipText, inventoryStatusFilter === 'out' && styles.filterChipTextActive]}>Out of Stock</Text>
+              </TouchableOpacity>
+              {inventoryCategories.map(cat => (
+                <TouchableOpacity
+                  key={cat}
+                  style={[styles.filterChip, inventoryCategoryFilter === cat && styles.filterChipActive]}
+                  onPress={() => setInventoryCategoryFilter(inventoryCategoryFilter === cat ? 'all' : cat)}
+                >
+                  <Text style={[styles.filterChipText, inventoryCategoryFilter === cat && styles.filterChipTextActive]}>{cat}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {inventoryLoading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#2563eb" />
+            </View>
+          ) : (
+            <FlatList
+              data={inventoryItems}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={styles.listContent}
+              maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadInventory} />}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={styles.inventoryCard} onPress={() => openInventoryModal(item)}>
+                  <View style={styles.inventoryCardLeft}>
+                    <View style={[styles.stockIndicator, { backgroundColor: getStockStatusColor(item.status) }]} />
+                    <View style={styles.inventoryCardInfo}>
+                      <Text style={styles.inventoryItemName}>{item.name}</Text>
+                      <Text style={styles.inventoryItemMeta}>
+                        {item.quantity} {item.unit} • {item.category}
+                      </Text>
+                      {item.notes && (
+                        <Text style={styles.inventoryItemNotes} numberOfLines={1}>{item.notes}</Text>
+                      )}
+                    </View>
+                  </View>
+                  <View style={styles.inventoryCardRight}>
+                    <View style={[styles.stockBadge, { backgroundColor: getStockStatusColor(item.status) + '20', borderColor: getStockStatusColor(item.status) }]}>
+                      <Text style={[styles.stockBadgeText, { color: getStockStatusColor(item.status) }]}>
+                        {getStockStatusLabel(item.status)}
+                      </Text>
+                    </View>
+                    {item.needsOrder && (
+                      <View style={styles.needsOrderBadge}>
+                        <Ionicons name="cart" size={12} color="#f59e0b" />
+                        <Text style={styles.needsOrderText}>Order</Text>
+                      </View>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="cube-outline" size={48} color="#94a3b8" />
+                  <Text style={styles.emptyText}>No inventory items</Text>
+                  <Text style={styles.emptySubtext}>Tap "Add Item" to get started</Text>
+                </View>
+              }
+            />
+          )}
         </View>
       )}
 
@@ -3521,6 +3791,170 @@ export default function AdminScreen() {
         </View>
       </Modal>
 
+      {/* Inventory Modal */}
+      <Modal visible={showInventoryModal} animationType="slide">
+        <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top }}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {editingInventoryItem ? 'Edit Item' : 'Add Item'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowInventoryModal(false)}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          <KeyboardAwareScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.modalBody}
+            enableOnAndroid={true}
+            extraScrollHeight={20}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={inventoryForm.name}
+                onChangeText={(text) => setInventoryForm({ ...inventoryForm, name: text })}
+                placeholder="Item name"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+            <View style={styles.inputRow}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                <Text style={styles.inputLabel}>Quantity</Text>
+                <TextInput
+                  style={styles.input}
+                  value={inventoryForm.quantity}
+                  onChangeText={(text) => setInventoryForm({ ...inventoryForm, quantity: text })}
+                  placeholder="0"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                <Text style={styles.inputLabel}>Unit</Text>
+                <TextInput
+                  style={styles.input}
+                  value={inventoryForm.unit}
+                  onChangeText={(text) => setInventoryForm({ ...inventoryForm, unit: text })}
+                  placeholder="items"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Stock Status</Text>
+              <View style={styles.statusButtonsRow}>
+                {(['full', 'good', 'half', 'low', 'out'] as StockStatus[]).map((status) => (
+                  <TouchableOpacity
+                    key={status}
+                    style={[
+                      styles.statusButton,
+                      inventoryForm.status === status && { backgroundColor: getStockStatusColor(status), borderColor: getStockStatusColor(status) }
+                    ]}
+                    onPress={() => setInventoryForm({ ...inventoryForm, status })}
+                  >
+                    <Text style={[
+                      styles.statusButtonText,
+                      inventoryForm.status === status && { color: '#fff' }
+                    ]}>
+                      {getStockStatusLabel(status)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <View style={styles.inputRow}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                <Text style={styles.inputLabel}>Category</Text>
+                <TextInput
+                  style={styles.input}
+                  value={inventoryForm.category}
+                  onChangeText={(text) => setInventoryForm({ ...inventoryForm, category: text })}
+                  placeholder="General"
+                  placeholderTextColor="#94a3b8"
+                />
+              </View>
+              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                <Text style={styles.inputLabel}>Low Stock Threshold</Text>
+                <TextInput
+                  style={styles.input}
+                  value={inventoryForm.lowStockThreshold}
+                  onChangeText={(text) => setInventoryForm({ ...inventoryForm, lowStockThreshold: text })}
+                  placeholder="2"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Notes</Text>
+              <TextInput
+                style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+                value={inventoryForm.notes}
+                onChangeText={(text) => setInventoryForm({ ...inventoryForm, notes: text })}
+                placeholder="Additional notes..."
+                placeholderTextColor="#94a3b8"
+                multiline
+              />
+            </View>
+            <View style={[styles.inputGroup, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+              <View>
+                <Text style={styles.inputLabel}>Needs Ordering</Text>
+                <Text style={styles.inputHelp}>Flag this item for reorder</Text>
+              </View>
+              <Switch
+                value={inventoryForm.needsOrder}
+                onValueChange={(value) => setInventoryForm({ ...inventoryForm, needsOrder: value })}
+                trackColor={{ false: '#e2e8f0', true: '#fcd34d' }}
+                thumbColor={inventoryForm.needsOrder ? '#f59e0b' : '#94a3b8'}
+              />
+            </View>
+            {inventoryForm.needsOrder && (
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Order Quantity</Text>
+                <TextInput
+                  style={styles.input}
+                  value={inventoryForm.orderQuantity}
+                  onChangeText={(text) => setInventoryForm({ ...inventoryForm, orderQuantity: text })}
+                  placeholder="How many to order"
+                  placeholderTextColor="#94a3b8"
+                  keyboardType="numeric"
+                />
+              </View>
+            )}
+            {editingInventoryItem && (
+              <TouchableOpacity
+                style={styles.deleteButton}
+                onPress={() => {
+                  setShowInventoryModal(false);
+                  handleDeleteInventoryItem(editingInventoryItem);
+                }}
+              >
+                <Ionicons name="trash" size={20} color="#ef4444" />
+                <Text style={styles.deleteButtonText}>Delete Item</Text>
+              </TouchableOpacity>
+            )}
+          </KeyboardAwareScrollView>
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.saveBtn}
+              onPress={handleSaveInventoryItem}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveBtnText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Location Modal */}
       <Modal visible={showLocationModal} animationType="slide">
         <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top }}>
@@ -4381,6 +4815,19 @@ const styles = StyleSheet.create({
   tabTextActive: {
     color: '#fff',
   },
+  tabBadge: {
+    backgroundColor: '#f97316',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 18,
+    alignItems: 'center',
+  },
+  tabBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
   actionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -4568,6 +5015,169 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     color: '#94a3b8',
+  },
+  emptySubtext: {
+    fontSize: 14,
+    color: '#cbd5e1',
+    marginTop: 4,
+  },
+  // Inventory styles
+  inventoryHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  lowStockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#f97316',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  lowStockBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  inventoryFilterRow: {
+    paddingHorizontal: 16,
+    marginBottom: 8,
+  },
+  filterScrollView: {
+    flexGrow: 0,
+  },
+  filterChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#fff',
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  filterChipActive: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  inventoryCard: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 8,
+  },
+  inventoryCardLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  stockIndicator: {
+    width: 4,
+    height: 48,
+    borderRadius: 2,
+    marginRight: 12,
+  },
+  inventoryCardInfo: {
+    flex: 1,
+  },
+  inventoryItemName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  inventoryItemMeta: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  inventoryItemNotes: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  inventoryCardRight: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
+  stockBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  stockBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  needsOrderBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  needsOrderText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#f59e0b',
+  },
+  statusButtonsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  statusButton: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#fff',
+  },
+  statusButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#64748b',
+  },
+  inputRow: {
+    flexDirection: 'row',
+  },
+  inputHelp: {
+    fontSize: 12,
+    color: '#94a3b8',
+  },
+  deleteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    marginTop: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+  },
+  deleteButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#ef4444',
   },
   // Modal styles
   modalOverlay: {
