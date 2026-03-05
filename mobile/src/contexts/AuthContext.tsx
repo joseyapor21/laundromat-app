@@ -23,6 +23,7 @@ interface AuthContextType {
   isLoading: boolean;
   isAuthenticated: boolean;
   login: (email: string, password: string) => Promise<Location[]>;
+  pinLogin: (pin: string, locationId: string) => Promise<{ user: User; location: Location }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -135,6 +136,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return locations;
   }
 
+  async function pinLogin(pin: string, locationId: string): Promise<{ user: User; location: Location }> {
+    const result = await api.pinLogin(pin, locationId);
+    setUser(result.user);
+    // Cache user for offline access
+    await cacheUser(result.user);
+    // Set the location
+    await api.setLocationId(locationId);
+
+    // Register for push notifications after login
+    if (pushNotificationService) {
+      try {
+        await pushNotificationService.setupAndroidChannel();
+        await pushNotificationService.registerForPushNotifications();
+      } catch (e) {
+        console.log('Push notifications not available');
+      }
+    }
+
+    return result;
+  }
+
   async function logout() {
     try {
       // Unregister push notifications before logout
@@ -169,6 +191,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         isAuthenticated: !!user,
         login,
+        pinLogin,
         logout,
         refreshUser,
       }}

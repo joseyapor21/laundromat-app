@@ -37,9 +37,17 @@ export async function GET() {
     // Fall back to auth database
     const db = await getAuthDatabase();
 
-    const user = await db.collection('v5users').findOne({
+    // Check v5users first (regular login)
+    let user = await db.collection('v5users').findOne({
       _id: new ObjectId(currentUser.userId)
     });
+
+    // Also check users collection (kiosk PIN login)
+    if (!user) {
+      user = await db.collection('users').findOne({
+        _id: new ObjectId(currentUser.userId)
+      });
+    }
 
     if (!user) {
       return NextResponse.json(
@@ -64,14 +72,18 @@ export async function GET() {
       role = user.appRole;
     }
 
+    // Handle both v5users (has 'name') and users (has 'firstName'/'lastName') formats
+    const firstName = user.firstName || user.name?.split(' ')[0] || '';
+    const lastName = user.lastName || user.name?.split(' ').slice(1).join(' ') || '';
+
     return NextResponse.json({
       _id: userId,
       email: user.email,
-      firstName: user.name?.split(' ')[0] || '',
-      lastName: user.name?.split(' ').slice(1).join(' ') || '',
-      role: role,
+      firstName,
+      lastName,
+      role: user.role || role,
       isDriver: user.isDriver || false,
-      isActive: true,
+      isActive: user.isActive !== false,
       isSuperUser: isSuperUser,
       isDeptAdmin: isAdmin,
     });

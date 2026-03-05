@@ -20,7 +20,7 @@ interface KioskLoginScreenProps {
 }
 
 export default function KioskLoginScreen({ onBack, onLoginSuccess }: KioskLoginScreenProps) {
-  const { login } = useAuth();
+  const { pinLogin } = useAuth();
   const { selectLocation } = useLocation();
   const [pin, setPin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -78,8 +78,8 @@ export default function KioskLoginScreen({ onBack, onLoginSuccess }: KioskLoginS
 
     setIsLoading(true);
     try {
-      const result = await api.pinLogin(pin, selectedLocation._id);
-      await selectLocation(selectedLocation);
+      const result = await pinLogin(pin, selectedLocation._id);
+      await selectLocation(result.location);
       onLoginSuccess();
     } catch (error) {
       Alert.alert(
@@ -111,7 +111,11 @@ export default function KioskLoginScreen({ onBack, onLoginSuccess }: KioskLoginS
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        showsVerticalScrollIndicator={true}
+        keyboardShouldPersistTaps="handled"
+      >
         {/* Location Selection */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Select Store</Text>
@@ -229,6 +233,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 24,
+    paddingBottom: 100,
     alignItems: 'center',
   },
   section: {
