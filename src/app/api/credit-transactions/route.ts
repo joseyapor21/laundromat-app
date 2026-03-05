@@ -30,11 +30,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Parse the date (expects YYYY-MM-DD format)
-    const targetDate = new Date(dateStr);
-    const startOfDay = new Date(targetDate);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(targetDate);
-    endOfDay.setHours(23, 59, 59, 999);
+    // Use date parts to avoid timezone issues
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
+    const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
 
     // Use aggregation to properly filter creditHistory array
     const matchStage: Record<string, unknown> = {
