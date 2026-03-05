@@ -1207,7 +1207,7 @@ export default function ProfileScreen() {
 
       {/* Time Clock Section - Hidden in Kiosk Mode */}
       {!isKioskMode && (
-      <View style={styles.section}>
+        <View style={styles.section}>
         <Text style={styles.sectionTitle}>Time Clock</Text>
 
         <View style={styles.card}>
@@ -1351,7 +1351,7 @@ export default function ProfileScreen() {
             </View>
           </View>
         )}
-      </View>
+        </View>
       )}
 
       {/* Logout Button */}
