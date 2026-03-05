@@ -54,11 +54,21 @@ export async function GET(request: NextRequest) {
             $gte: startOfDay,
             $lte: endOfDay,
           },
-          // Exclude refunds - only include actual money deposits
-          'creditHistory.description': {
-            $not: /refund/i
-          },
         },
+      },
+      // Exclude refunds - only include actual money deposits
+      {
+        $match: {
+          $expr: {
+            $not: {
+              $regexMatch: {
+                input: { $ifNull: ['$creditHistory.description', ''] },
+                regex: 'refund',
+                options: 'i'
+              }
+            }
+          }
+        }
       },
       {
         $project: {
