@@ -28,6 +28,7 @@ export interface User {
   isActive: boolean;
   isSuperUser?: boolean;
   isDeptAdmin?: boolean;
+  isKioskMode?: boolean;
 }
 
 export interface Customer {

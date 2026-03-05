@@ -93,6 +93,7 @@ export default function ProfileScreen() {
   const { user, logout, refreshUser } = useAuth();
   const { isClockedIn, isOnBreak, breakType, lastClockIn, lastBreakStart, startBreak, endBreak, isLoading: isClockLoading } = useTimeClock();
   const { currentLocation, availableLocations, selectLocation, refreshLocations } = useLocation();
+  const isKioskMode = user?.isKioskMode;
 
   // Clock out modal
   const [showClockOutModal, setShowClockOutModal] = useState(false);
@@ -1204,7 +1205,8 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Time Clock Section */}
+      {/* Time Clock Section - Hidden in Kiosk Mode */}
+      {!isKioskMode && (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Time Clock</Text>
 
@@ -1350,6 +1352,7 @@ export default function ProfileScreen() {
           </View>
         )}
       </View>
+      )}
 
       {/* Logout Button */}
       <View style={styles.section}>
@@ -1486,18 +1489,20 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* Clock Out Modal */}
-      <Modal
-        visible={showClockOutModal}
-        animationType="slide"
-        presentationStyle="fullScreen"
-      >
-        <ClockInScreen
-          mode="clock_out"
-          onComplete={() => setShowClockOutModal(false)}
-          onDismiss={() => setShowClockOutModal(false)}
-        />
-      </Modal>
+      {/* Clock Out Modal - Hidden in Kiosk Mode */}
+      {!isKioskMode && (
+        <Modal
+          visible={showClockOutModal}
+          animationType="slide"
+          presentationStyle="fullScreen"
+        >
+          <ClockInScreen
+            mode="clock_out"
+            onComplete={() => setShowClockOutModal(false)}
+            onDismiss={() => setShowClockOutModal(false)}
+          />
+        </Modal>
+      )}
 
       {/* Location Picker Modal */}
       <Modal visible={showLocationModal} animationType="slide" transparent>

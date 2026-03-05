@@ -227,6 +227,19 @@ function ClockInPrompt() {
 }
 
 function AuthenticatedApp() {
+  const { user } = useAuth();
+  const isKioskMode = user?.isKioskMode;
+
+  // Kiosk mode: skip time clock provider and clock-in prompt
+  if (isKioskMode) {
+    return (
+      <ScannerProvider>
+        <MainStack />
+        <FloatingActionButtons />
+      </ScannerProvider>
+    );
+  }
+
   return (
     <TimeClockProvider>
       <ScannerProvider>

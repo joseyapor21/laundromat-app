@@ -366,10 +366,33 @@ export function TimeClockProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// Default values for kiosk mode (when not wrapped in TimeClockProvider)
+const kioskModeDefaults: TimeClockContextType = {
+  isClockedIn: false,
+  isOnBreak: false,
+  breakType: null,
+  isLoading: false,
+  lastClockIn: null,
+  lastClockOut: null,
+  lastBreakStart: null,
+  lastBreakEnd: null,
+  todayEntries: [],
+  showClockInPrompt: false,
+  dismissedClockInPrompt: true,
+  checkClockStatus: async () => {},
+  clockIn: async () => { throw new Error('Clock-in not available in kiosk mode'); },
+  clockOut: async () => { throw new Error('Clock-out not available in kiosk mode'); },
+  startBreak: async () => { throw new Error('Break not available in kiosk mode'); },
+  endBreak: async () => { throw new Error('Break not available in kiosk mode'); },
+  dismissClockInPrompt: () => {},
+  resetDismissed: () => {},
+};
+
 export function useTimeClock() {
   const context = useContext(TimeClockContext);
+  // Return defaults for kiosk mode (not wrapped in TimeClockProvider)
   if (context === undefined) {
-    throw new Error('useTimeClock must be used within a TimeClockProvider');
+    return kioskModeDefaults;
   }
   return context;
 }

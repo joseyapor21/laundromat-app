@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 import { connectDB, getAuthDatabase } from '@/lib/db/connection';
 import { User } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
@@ -9,6 +10,8 @@ const DEPARTMENT_NAME = 'Laundromat Department';
 export async function GET() {
   try {
     const currentUser = await getCurrentUser();
+    const headersList = await headers();
+    const isKioskMode = headersList.get('x-is-kiosk-mode') === 'true';
 
     if (!currentUser) {
       return NextResponse.json(
@@ -31,6 +34,7 @@ export async function GET() {
         isDriver: appUser.isDriver || false,
         isActive: appUser.isActive,
         isSuperUser: false,
+        isKioskMode,
       });
     }
 
@@ -86,6 +90,7 @@ export async function GET() {
       isActive: user.isActive !== false,
       isSuperUser: isSuperUser,
       isDeptAdmin: isAdmin,
+      isKioskMode,
     });
   } catch (error) {
     console.error('Get current user error:', error);

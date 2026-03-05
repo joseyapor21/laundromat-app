@@ -73,6 +73,9 @@ export async function middleware(request: NextRequest) {
     requestHeaders.set('x-user-email', payload.email as string);
     requestHeaders.set('x-user-role', payload.role as string);
     requestHeaders.set('x-user-name', `${payload.firstName} ${payload.lastName}`);
+    if (payload.isKioskMode) {
+      requestHeaders.set('x-is-kiosk-mode', 'true');
+    }
 
     return NextResponse.next({
       request: {
