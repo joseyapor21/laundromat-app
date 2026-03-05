@@ -1718,8 +1718,8 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Process History - Machines, Transfer, Layering, Folding */}
-        {(allMachineAssignments.length > 0 || order.transferredBy || order.transferCheckedBy || order.layeringCheckedBy || order.foldingStartedBy || order.foldedBy || order.foldingCheckedBy) && (
+        {/* Process History - Machines, Transfer, Layering, Folding, Final Check */}
+        {(allMachineAssignments.length > 0 || order.transferredBy || order.transferCheckedBy || order.layeringCheckedBy || order.foldingStartedBy || order.foldedBy || order.foldingCheckedBy || order.finalCheckedBy) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Process History</Text>
             <View style={styles.historyCard}>
@@ -1765,6 +1765,18 @@ export default function OrderDetailScreen() {
                       <Text style={styles.historyDetail}>
                         Checked by: {assignment.checkedBy}{assignment.checkedByInitials ? ` (${assignment.checkedByInitials})` : ''} - {formatDate(assignment.checkedAt)}
                       </Text>
+                    )}
+                    {assignment.verificationPhoto && (
+                      <TouchableOpacity
+                        style={styles.historyPhotoButton}
+                        onPress={() => setExpandedVerificationPhoto(`${api.getBaseUrl()}/api/uploads/${assignment.verificationPhoto}?token=${api.getToken()}`)}
+                      >
+                        <Image
+                          source={{ uri: `${api.getBaseUrl()}/api/uploads/${assignment.verificationPhoto}?token=${api.getToken()}` }}
+                          style={styles.historyPhotoThumb}
+                        />
+                        <Text style={styles.historyPhotoText}>View Photo</Text>
+                      </TouchableOpacity>
                     )}
                   </View>
                 ))}
@@ -1876,6 +1888,21 @@ export default function OrderDetailScreen() {
                       Checked by: {order.foldingCheckedBy} ({order.foldingCheckedByInitials}) - {formatDate(order.foldingCheckedAt)}
                     </Text>
                   )}
+                </View>
+              )}
+
+              {/* Final Check History */}
+              {order.finalCheckedBy && (
+                <View style={[styles.historyItem, styles.historyItemChecked]}>
+                  <View style={styles.historyHeader}>
+                    <Text style={styles.historyMachine}>🏁 Final Check</Text>
+                    <View style={[styles.historyBadge, styles.historyBadgeChecked]}>
+                      <Text style={styles.historyBadgeText}>Complete</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.historyDetail}>
+                    Checked by: {order.finalCheckedBy}{order.finalCheckedByInitials ? ` (${order.finalCheckedByInitials})` : ''} - {formatDate(order.finalCheckedAt)}
+                  </Text>
                 </View>
               )}
             </View>
@@ -3359,6 +3386,26 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
     marginTop: 2,
+  },
+  historyPhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: '#f1f5f9',
+    padding: 6,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  historyPhotoThumb: {
+    width: 40,
+    height: 40,
+    borderRadius: 4,
+    marginRight: 8,
+  },
+  historyPhotoText: {
+    fontSize: 12,
+    color: '#3b82f6',
+    fontWeight: '500',
   },
   // Status grid
   statusGrid: {
