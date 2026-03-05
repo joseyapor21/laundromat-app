@@ -61,6 +61,7 @@ export default function AdminScreen() {
   const [activityEntityFilter, setActivityEntityFilter] = useState<string>('all');
   const [activityLocationFilter, setActivityLocationFilter] = useState<string>('all');
   const [showActivityFilterModal, setShowActivityFilterModal] = useState(false);
+  const [activitySearch, setActivitySearch] = useState('');
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
   const [timeEntriesLoading, setTimeEntriesLoading] = useState(false);
   const [selectedTimeEntry, setSelectedTimeEntry] = useState<TimeEntry | null>(null);
@@ -134,6 +135,8 @@ export default function AdminScreen() {
   const [editingInventoryItem, setEditingInventoryItem] = useState<InventoryItem | null>(null);
   const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState<string>('all');
   const [inventoryStatusFilter, setInventoryStatusFilter] = useState<string>('all');
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [updatingInventoryId, setUpdatingInventoryId] = useState<string | null>(null);
   const [inventoryForm, setInventoryForm] = useState({
     name: '',
     quantity: '',
@@ -748,6 +751,73 @@ export default function AdminScreen() {
       default: return status;
     }
   };
+
+  // Quick inventory update (use/add)
+  const handleQuickInventoryUpdate = async (item: InventoryItem, delta: number) => {
+    const newQuantity = Math.max(0, item.quantity + delta);
+
+    // Determine new status based on quantity and threshold
+    let newStatus: StockStatus = item.status;
+    if (newQuantity === 0) {
+      newStatus = 'out';
+    } else if (newQuantity <= item.lowStockThreshold) {
+      newStatus = 'low';
+    } else if (newQuantity <= item.lowStockThreshold * 2) {
+      newStatus = 'half';
+    } else if (newQuantity <= item.lowStockThreshold * 4) {
+      newStatus = 'good';
+    } else {
+      newStatus = 'full';
+    }
+
+    setUpdatingInventoryId(item._id);
+    try {
+      await api.updateInventoryItem(item._id, {
+        quantity: newQuantity,
+        status: newStatus,
+        needsOrder: newQuantity <= item.lowStockThreshold,
+      });
+      // Update local state immediately for responsiveness
+      setInventoryItems(prev => prev.map(i =>
+        i._id === item._id
+          ? { ...i, quantity: newQuantity, status: newStatus, needsOrder: newQuantity <= item.lowStockThreshold }
+          : i
+      ));
+      // Update low stock count
+      const lowCount = inventoryItems.filter(i =>
+        i._id === item._id
+          ? (newStatus === 'low' || newStatus === 'out' || newQuantity <= item.lowStockThreshold)
+          : (i.status === 'low' || i.status === 'out' || i.needsOrder)
+      ).length;
+      setInventoryLowStockCount(lowCount);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update quantity');
+    } finally {
+      setUpdatingInventoryId(null);
+    }
+  };
+
+  // Filter inventory items by search
+  const filteredInventoryItems = inventoryItems.filter(item => {
+    if (!inventorySearch.trim()) return true;
+    const search = inventorySearch.toLowerCase();
+    return (
+      item.name.toLowerCase().includes(search) ||
+      item.category?.toLowerCase().includes(search) ||
+      item.notes?.toLowerCase().includes(search)
+    );
+  });
+
+  // Filter activity logs by search (order number, details, user name)
+  const filteredActivityLogs = activityLogs.filter(log => {
+    if (!activitySearch.trim()) return true;
+    const search = activitySearch.toLowerCase();
+    return (
+      log.details?.toLowerCase().includes(search) ||
+      log.userName?.toLowerCase().includes(search) ||
+      log.action?.toLowerCase().includes(search)
+    );
+  });
 
   // Machine actions
   const openMachineModal = async (machine?: Machine) => {
@@ -2284,7 +2354,7 @@ export default function AdminScreen() {
         <View style={{ flex: 1 }}>
           <View style={styles.actionHeader}>
             <View style={styles.inventoryHeaderLeft}>
-              <Text style={styles.countText}>{inventoryItems.length} items</Text>
+              <Text style={styles.countText}>{filteredInventoryItems.length} items</Text>
               {inventoryLowStockCount > 0 && (
                 <View style={styles.lowStockBadge}>
                   <Ionicons name="warning" size={14} color="#fff" />
@@ -2296,6 +2366,23 @@ export default function AdminScreen() {
               <Ionicons name="add" size={20} color="#fff" />
               <Text style={styles.addButtonText}>Add Item</Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Search */}
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#94a3b8" />
+            <TextInput
+              style={styles.searchInput}
+              value={inventorySearch}
+              onChangeText={setInventorySearch}
+              placeholder="Search inventory..."
+              placeholderTextColor="#94a3b8"
+            />
+            {inventorySearch.length > 0 && (
+              <TouchableOpacity onPress={() => setInventorySearch('')}>
+                <Ionicons name="close-circle" size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Filters */}
@@ -2337,14 +2424,14 @@ export default function AdminScreen() {
             </View>
           ) : (
             <FlatList
-              data={inventoryItems}
+              data={filteredInventoryItems}
               keyExtractor={(item) => item._id}
               contentContainerStyle={styles.listContent}
               maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadInventory} />}
               renderItem={({ item }) => (
-                <TouchableOpacity style={styles.inventoryCard} onPress={() => openInventoryModal(item)}>
-                  <View style={styles.inventoryCardLeft}>
+                <View style={styles.inventoryCard}>
+                  <TouchableOpacity style={styles.inventoryCardLeft} onPress={() => openInventoryModal(item)}>
                     <View style={[styles.stockIndicator, { backgroundColor: getStockStatusColor(item.status) }]} />
                     <View style={styles.inventoryCardInfo}>
                       <Text style={styles.inventoryItemName}>{item.name}</Text>
@@ -2355,8 +2442,34 @@ export default function AdminScreen() {
                         <Text style={styles.inventoryItemNotes} numberOfLines={1}>{item.notes}</Text>
                       )}
                     </View>
-                  </View>
+                  </TouchableOpacity>
                   <View style={styles.inventoryCardRight}>
+                    {/* Quick quantity buttons */}
+                    <View style={styles.quantityButtonsRow}>
+                      <TouchableOpacity
+                        style={[styles.quantityButton, styles.quantityButtonMinus]}
+                        onPress={() => handleQuickInventoryUpdate(item, -1)}
+                        disabled={updatingInventoryId === item._id || item.quantity === 0}
+                      >
+                        {updatingInventoryId === item._id ? (
+                          <ActivityIndicator size="small" color="#ef4444" />
+                        ) : (
+                          <Ionicons name="remove" size={18} color="#ef4444" />
+                        )}
+                      </TouchableOpacity>
+                      <Text style={styles.quantityDisplay}>{item.quantity}</Text>
+                      <TouchableOpacity
+                        style={[styles.quantityButton, styles.quantityButtonPlus]}
+                        onPress={() => handleQuickInventoryUpdate(item, 1)}
+                        disabled={updatingInventoryId === item._id}
+                      >
+                        {updatingInventoryId === item._id ? (
+                          <ActivityIndicator size="small" color="#10b981" />
+                        ) : (
+                          <Ionicons name="add" size={18} color="#10b981" />
+                        )}
+                      </TouchableOpacity>
+                    </View>
                     <View style={[styles.stockBadge, { backgroundColor: getStockStatusColor(item.status) + '20', borderColor: getStockStatusColor(item.status) }]}>
                       <Text style={[styles.stockBadgeText, { color: getStockStatusColor(item.status) }]}>
                         {getStockStatusLabel(item.status)}
@@ -2369,7 +2482,7 @@ export default function AdminScreen() {
                       </View>
                     )}
                   </View>
-                </TouchableOpacity>
+                </View>
               )}
               ListEmptyComponent={
                 <View style={styles.emptyContainer}>
@@ -2418,6 +2531,22 @@ export default function AdminScreen() {
 
       {activeTab === 'activity' && (
         <View style={{ flex: 1 }}>
+          {/* Search Bar */}
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#94a3b8" style={{ marginRight: 8 }} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search by order #, user, or details..."
+              value={activitySearch}
+              onChangeText={setActivitySearch}
+              placeholderTextColor="#94a3b8"
+            />
+            {activitySearch.length > 0 && (
+              <TouchableOpacity onPress={() => setActivitySearch('')}>
+                <Ionicons name="close-circle" size={20} color="#94a3b8" />
+              </TouchableOpacity>
+            )}
+          </View>
           {/* Filter Bar */}
           <View style={styles.activityFilterBar}>
             <TouchableOpacity
@@ -2436,11 +2565,13 @@ export default function AdminScreen() {
                 </View>
               )}
             </TouchableOpacity>
-            <Text style={styles.countText}>{activityTotal} activities</Text>
+            <Text style={styles.countText}>
+              {activitySearch ? `${filteredActivityLogs.length} of ${activityTotal}` : `${activityTotal} activities`}
+            </Text>
             {activityLoading && <ActivityIndicator size="small" color="#2563eb" />}
           </View>
           <FlatList
-            data={activityLogs}
+            data={filteredActivityLogs}
             keyExtractor={(item) => item._id}
             contentContainerStyle={styles.listContent}
             maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
@@ -5135,6 +5266,35 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '500',
     color: '#f59e0b',
+  },
+  quantityButtonsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  quantityButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  quantityButtonMinus: {
+    backgroundColor: '#fef2f2',
+    borderColor: '#fecaca',
+  },
+  quantityButtonPlus: {
+    backgroundColor: '#f0fdf4',
+    borderColor: '#bbf7d0',
+  },
+  quantityDisplay: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+    minWidth: 32,
+    textAlign: 'center',
   },
   statusButtonsRow: {
     flexDirection: 'row',

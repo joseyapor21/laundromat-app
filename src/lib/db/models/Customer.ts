@@ -6,6 +6,7 @@ export interface CreditTransactionDoc {
   description: string;
   orderId?: string;
   addedBy: string;
+  paymentMethod?: 'cash' | 'check' | 'venmo' | 'zelle';
   createdAt: Date;
 }
 
@@ -44,6 +45,11 @@ const creditTransactionSchema = new mongoose.Schema({
   addedBy: {
     type: String,
     required: true,
+  },
+  paymentMethod: {
+    type: String,
+    enum: ['cash', 'check', 'venmo', 'zelle'],
+    default: null,
   },
   createdAt: {
     type: Date,

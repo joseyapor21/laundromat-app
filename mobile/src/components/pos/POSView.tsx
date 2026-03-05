@@ -4128,7 +4128,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   tabletColumnLeft: {
-    width: 280,
+    width: 260,
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 12,
@@ -4139,21 +4139,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 12,
-    alignItems: 'center',
   },
   tabletColumnRight: {
-    width: 260,
+    width: 220,
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 12,
-    gap: 10,
+    padding: 10,
+    gap: 8,
   },
   tabletColumnContent: {
     gap: 12,
     paddingBottom: 20,
   },
   tabletColumnContentCenter: {
-    alignItems: 'center',
     gap: 12,
     paddingBottom: 20,
   },
@@ -4322,10 +4320,12 @@ const styles = StyleSheet.create({
   },
   tabletWeightDisplay: {
     alignItems: 'center',
+    alignSelf: 'center',
     backgroundColor: '#f1f5f9',
     padding: 16,
     borderRadius: 12,
     width: '100%',
+    maxWidth: 300,
     marginBottom: 12,
   },
   tabletWeightLabel: {
@@ -4345,6 +4345,7 @@ const styles = StyleSheet.create({
     gap: 8,
     marginBottom: 12,
     maxWidth: 260,
+    alignSelf: 'center',
   },
   tabletNumpadKey: {
     width: 70,
@@ -4367,7 +4368,9 @@ const styles = StyleSheet.create({
   },
   tabletBagSection: {
     width: '100%',
+    maxWidth: 400,
     alignItems: 'center',
+    alignSelf: 'center',
     gap: 10,
   },
   tabletColorRow: {
@@ -4599,14 +4602,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#10b981',
-    paddingVertical: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 12,
     borderRadius: 12,
-    gap: 8,
+    gap: 6,
     marginTop: 'auto',
   },
   tabletCreateText: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: '700',
   },
   tabletClearBtn: {

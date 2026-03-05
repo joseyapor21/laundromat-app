@@ -24,7 +24,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const { id } = await params;
     const body = await request.json();
 
-    const { amount, type, description, orderId } = body;
+    const { amount, type, description, orderId, paymentMethod } = body;
 
     if (!amount || amount <= 0) {
       return NextResponse.json(
@@ -81,6 +81,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       description: description || (type === 'add' ? 'Credit added' : 'Credit used'),
       orderId: orderId || null,
       addedBy: currentUser.name,
+      paymentMethod: type === 'add' ? (paymentMethod || 'cash') : null,
       createdAt: new Date(),
     };
 

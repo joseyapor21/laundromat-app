@@ -45,6 +45,7 @@ export default function EditCustomerScreen() {
   const [showAddCredit, setShowAddCredit] = useState(false);
   const [creditAmount, setCreditAmount] = useState('');
   const [creditDescription, setCreditDescription] = useState('');
+  const [creditPaymentMethod, setCreditPaymentMethod] = useState<'cash' | 'check' | 'venmo' | 'zelle'>('cash');
   const [printing, setPrinting] = useState(false);
 
   // Orders
@@ -155,10 +156,11 @@ export default function EditCustomerScreen() {
 
     setSaving(true);
     try {
-      await api.addCustomerCredit(customer!._id, amount, creditDescription.trim());
-      Alert.alert('Success', `$${amount.toFixed(2)} credit added`);
+      await api.addCustomerCredit(customer!._id, amount, creditDescription.trim(), creditPaymentMethod);
+      Alert.alert('Success', `$${amount.toFixed(2)} credit added (${creditPaymentMethod})`);
       setCreditAmount('');
       setCreditDescription('');
+      setCreditPaymentMethod('cash');
       setShowAddCredit(false);
       loadCustomer();
     } catch (error) {
@@ -376,6 +378,28 @@ export default function EditCustomerScreen() {
                   placeholder="e.g., Refund, Loyalty bonus"
                   placeholderTextColor="#94a3b8"
                 />
+              </View>
+              <View style={styles.inputGroup}>
+                <Text style={styles.inputLabel}>Payment Method</Text>
+                <View style={styles.paymentMethodRow}>
+                  {(['cash', 'check', 'venmo', 'zelle'] as const).map((method) => (
+                    <TouchableOpacity
+                      key={method}
+                      style={[
+                        styles.paymentMethodBtn,
+                        creditPaymentMethod === method && styles.paymentMethodBtnActive
+                      ]}
+                      onPress={() => setCreditPaymentMethod(method)}
+                    >
+                      <Text style={[
+                        styles.paymentMethodText,
+                        creditPaymentMethod === method && styles.paymentMethodTextActive
+                      ]}>
+                        {method.charAt(0).toUpperCase() + method.slice(1)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               </View>
               <TouchableOpacity
                 style={[styles.addCreditConfirmButton, saving && styles.buttonDisabled]}
@@ -796,6 +820,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  paymentMethodRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  paymentMethodBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  paymentMethodBtnActive: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#2563eb',
+  },
+  paymentMethodText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  paymentMethodTextActive: {
+    color: '#2563eb',
   },
   section: {
     marginHorizontal: 16,

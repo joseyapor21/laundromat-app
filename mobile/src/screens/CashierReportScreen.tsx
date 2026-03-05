@@ -41,30 +41,46 @@ const PAYMENT_METHODS: { key: DisplayPaymentMethod; label: string; color: string
   { key: 'zelle', label: 'Zelle', color: '#f59e0b' },
 ];
 
+interface CreditTransaction {
+  customerId: string;
+  customerName: string;
+  amount: number;
+  description: string;
+  paymentMethod: string;
+  addedBy: string;
+  createdAt: string;
+}
+
 export default function CashierReportScreen() {
   const { currentLocation } = useLocation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [printing, setPrinting] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [creditTransactions, setCreditTransactions] = useState<CreditTransaction[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [settings, setSettings] = useState<Settings | null>(null);
 
   const loadOrders = useCallback(async () => {
     try {
-      const [allOrders, settingsData] = await Promise.all([
+      // Format date as YYYY-MM-DD for API
+      const dateStr = selectedDate.toISOString().split('T')[0];
+
+      const [allOrders, settingsData, creditData] = await Promise.all([
         api.getOrders(),
         api.getSettings(),
+        api.getCreditTransactions(dateStr, currentLocation?._id),
       ]);
       setOrders(allOrders);
       setSettings(settingsData);
+      setCreditTransactions(creditData.transactions || []);
     } catch (error) {
       console.error('Failed to load orders:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [selectedDate, currentLocation?._id]);
 
   useEffect(() => {
     loadOrders();
@@ -76,8 +92,10 @@ export default function CashierReportScreen() {
   };
 
   // Filter orders by paidAt date (when payment was collected)
+  // EXCLUDE orders paid with credit - those don't involve money changing hands
   const paidOrdersToday = orders.filter(order => {
     if (!order.isPaid || !order.paidAt) return false;
+    if (order.paymentMethod === 'credit') return false; // Exclude credit payments
     const paidDate = new Date(order.paidAt);
     return (
       paidDate.getFullYear() === selectedDate.getFullYear() &&
@@ -86,33 +104,52 @@ export default function CashierReportScreen() {
     );
   });
 
-  // Calculate totals by payment method (credit counts as cash)
+  // Calculate totals by payment method
   const getDisplayMethod = (paymentMethod: PaymentMethod | undefined): DisplayPaymentMethod => {
-    if (paymentMethod === 'credit') return 'cash';
     if (!paymentMethod || !['cash', 'check', 'venmo', 'zelle'].includes(paymentMethod)) return 'cash';
     return paymentMethod as DisplayPaymentMethod;
   };
 
-  // Track credit separately for display
-  const creditOrders = paidOrdersToday.filter(o => o.paymentMethod === 'credit');
-  const creditCount = creditOrders.length;
-  const creditTotal = creditOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-
-  const totalsByMethod = PAYMENT_METHODS.map(method => {
+  // Calculate order totals by payment method
+  const orderTotalsByMethod = PAYMENT_METHODS.map(method => {
     const methodOrders = paidOrdersToday.filter(o => getDisplayMethod(o.paymentMethod) === method.key);
     const total = methodOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
     return {
       ...method,
-      count: methodOrders.length,
-      total,
-      // Add credit info for cash method
-      creditCount: method.key === 'cash' ? creditCount : 0,
-      creditTotal: method.key === 'cash' ? creditTotal : 0,
+      orderCount: methodOrders.length,
+      orderTotal: total,
+    };
+  });
+
+  // Calculate credit addition totals by payment method
+  const creditTotalsByMethod = PAYMENT_METHODS.map(method => {
+    const methodCredits = creditTransactions.filter(tx => (tx.paymentMethod || 'cash') === method.key);
+    const total = methodCredits.reduce((sum, tx) => sum + tx.amount, 0);
+    return {
+      key: method.key,
+      creditCount: methodCredits.length,
+      creditTotal: total,
+    };
+  });
+
+  // Combine totals
+  const totalsByMethod = PAYMENT_METHODS.map(method => {
+    const orderData = orderTotalsByMethod.find(o => o.key === method.key) || { orderCount: 0, orderTotal: 0 };
+    const creditData = creditTotalsByMethod.find(c => c.key === method.key) || { creditCount: 0, creditTotal: 0 };
+    return {
+      ...method,
+      count: orderData.orderCount + creditData.creditCount,
+      total: orderData.orderTotal + creditData.creditTotal,
+      orderCount: orderData.orderCount,
+      orderTotal: orderData.orderTotal,
+      creditCount: creditData.creditCount,
+      creditTotal: creditData.creditTotal,
     };
   });
 
   const grandTotal = totalsByMethod.reduce((sum, m) => sum + m.total, 0);
   const totalOrderCount = paidOrdersToday.length;
+  const totalCreditCount = creditTransactions.length;
 
   // Date navigation
   const goToPreviousDay = () => {
@@ -233,26 +270,18 @@ export default function CashierReportScreen() {
       r += ESC.BOLD_OFF;
       r += '------------------------------------------------\n';
 
-      const cashMethod = totalsByMethod.find(m => m.key === 'cash');
-      r += leftRightAlign(`Cash (${cashMethod?.count || 0} orders)`, `$${(cashMethod?.total || 0).toFixed(2)}`) + '\n';
-      if (creditCount > 0) {
-        r += `  (${creditCount} from credit)\n`;
-      }
-
-      const checkMethod = totalsByMethod.find(m => m.key === 'check');
-      r += leftRightAlign(`Check (${checkMethod?.count || 0} orders)`, `$${(checkMethod?.total || 0).toFixed(2)}`) + '\n';
-
-      const venmoMethod = totalsByMethod.find(m => m.key === 'venmo');
-      r += leftRightAlign(`Venmo (${venmoMethod?.count || 0} orders)`, `$${(venmoMethod?.total || 0).toFixed(2)}`) + '\n';
-
-      const zelleMethod = totalsByMethod.find(m => m.key === 'zelle');
-      r += leftRightAlign(`Zelle (${zelleMethod?.count || 0} orders)`, `$${(zelleMethod?.total || 0).toFixed(2)}`) + '\n';
+      totalsByMethod.forEach(method => {
+        r += leftRightAlign(`${method.label} (${method.count})`, `$${method.total.toFixed(2)}`) + '\n';
+        if (method.orderCount > 0 && method.creditCount > 0) {
+          r += `  ${method.orderCount} orders + ${method.creditCount} credit\n`;
+        }
+      });
 
       r += '================================================\n';
       r += ESC.DOUBLE_HEIGHT_ON;
       r += ESC.BOLD_ON;
       r += leftRightAlign('TOTAL', `$${grandTotal.toFixed(2)}`) + '\n';
-      r += leftRightAlign('Orders', totalOrderCount.toString()) + '\n';
+      r += leftRightAlign('Items', `${totalOrderCount} orders + ${totalCreditCount} credit`) + '\n';
       r += ESC.BOLD_OFF;
       r += ESC.NORMAL_SIZE;
       r += '================================================\n';
@@ -267,13 +296,28 @@ export default function CashierReportScreen() {
       r += '------------------------------------------------\n';
 
       paidOrdersToday.forEach(order => {
-        const method = order.paymentMethod === 'credit'
-          ? 'CASH (Credit)'
-          : (order.paymentMethod?.toUpperCase() || 'CASH');
+        const method = order.paymentMethod?.toUpperCase() || 'CASH';
         const weightStr = order.weight ? `${order.weight} lbs` : '';
         r += leftRightAlign(`#${order.orderId} ${order.customerName?.substring(0, 18) || ''}`, `$${order.totalAmount.toFixed(2)}`) + '\n';
         r += `  ${method}${weightStr ? ` - ${weightStr}` : ''}\n`;
       });
+
+      // Credit deposits
+      if (creditTransactions.length > 0) {
+        r += '\n';
+        r += ESC.CENTER;
+        r += ESC.BOLD_ON;
+        r += 'CREDIT DEPOSITS\n';
+        r += ESC.BOLD_OFF;
+        r += ESC.LEFT;
+        r += '------------------------------------------------\n';
+
+        creditTransactions.forEach(tx => {
+          const method = (tx.paymentMethod || 'cash').toUpperCase();
+          r += leftRightAlign(`${tx.customerName.substring(0, 20)}`, `+$${tx.amount.toFixed(2)}`) + '\n';
+          r += `  ${method} - ${tx.description.substring(0, 30)}\n`;
+        });
+      }
 
       r += '================================================\n';
       r += ESC.CENTER;
@@ -299,9 +343,9 @@ export default function CashierReportScreen() {
   // Share report
   const handleShare = async () => {
     let summaryLines = totalsByMethod.map(m => {
-      let line = `${m.label}: ${m.count} orders - $${m.total.toFixed(2)}`;
-      if (m.creditCount > 0) {
-        line += `\n  - ${m.creditCount} from credit: $${m.creditTotal.toFixed(2)}`;
+      let line = `${m.label}: ${m.count} items - $${m.total.toFixed(2)}`;
+      if (m.orderCount > 0 && m.creditCount > 0) {
+        line += `\n  (${m.orderCount} orders + ${m.creditCount} credit deposits)`;
       }
       return line;
     }).join('\n');
@@ -315,6 +359,17 @@ export default function CashierReportScreen() {
       storeHeader += '----------------------------------------\n';
     }
 
+    // Credit deposits section
+    const creditSection = creditTransactions.length > 0
+      ? `\nCREDIT DEPOSITS
+${creditTransactions.map(tx => {
+  const method = (tx.paymentMethod || 'cash').toUpperCase();
+  return `${tx.customerName} - +$${tx.amount.toFixed(2)} (${method})`;
+}).join('\n')}
+
+----------------------------------------`
+      : '';
+
     const report = `${storeHeader}CASHIER REPORT
 ${formatDate(selectedDate)}
 ----------------------------------------
@@ -324,16 +379,15 @@ ${summaryLines}
 
 ----------------------------------------
 TOTAL: $${grandTotal.toFixed(2)}
-Orders: ${totalOrderCount}
+Items: ${totalOrderCount} orders + ${totalCreditCount} credit deposits
 ----------------------------------------
 
 ORDER DETAILS
 ${paidOrdersToday.map(o => {
-  const method = o.paymentMethod === 'credit' ? 'Credit' : (o.paymentMethod?.toUpperCase() || 'CASH');
+  const method = o.paymentMethod?.toUpperCase() || 'CASH';
   return `#${o.orderId} ${o.customerName} - $${o.totalAmount.toFixed(2)} (${method})`;
-}).join('\n')}
+}).join('\n')}${creditSection}
 
-----------------------------------------
 Generated: ${formatDateTimeASCII(new Date())}`.trim();
 
     try {
@@ -389,7 +443,9 @@ Generated: ${formatDateTimeASCII(new Date())}`.trim();
           <View style={styles.totalCard}>
             <Text style={styles.totalLabel}>Total Revenue</Text>
             <Text style={styles.totalAmount}>${grandTotal.toFixed(2)}</Text>
-            <Text style={styles.totalOrders}>{totalOrderCount} paid orders</Text>
+            <Text style={styles.totalOrders}>
+              {totalOrderCount} orders + {totalCreditCount} credit deposits
+            </Text>
           </View>
         </View>
 
@@ -402,13 +458,17 @@ Generated: ${formatDateTimeASCII(new Date())}`.trim();
                 <View style={[styles.methodDot, { backgroundColor: method.color }]} />
                 <View>
                   <Text style={styles.methodLabel}>{method.label}</Text>
-                  {method.creditCount > 0 && (
-                    <Text style={styles.creditNote}>({method.creditCount} credit = ${method.creditTotal.toFixed(2)})</Text>
+                  {(method.orderCount > 0 || method.creditCount > 0) && (
+                    <Text style={styles.creditNote}>
+                      {method.orderCount > 0 && `${method.orderCount} orders`}
+                      {method.orderCount > 0 && method.creditCount > 0 && ' + '}
+                      {method.creditCount > 0 && `${method.creditCount} credit`}
+                    </Text>
                   )}
                 </View>
               </View>
               <View style={styles.methodStats}>
-                <Text style={styles.methodCount}>{method.count} orders</Text>
+                <Text style={styles.methodCount}>{method.count} items</Text>
                 <Text style={styles.methodTotal}>${method.total.toFixed(2)}</Text>
               </View>
             </View>
@@ -424,7 +484,6 @@ Generated: ${formatDateTimeASCII(new Date())}`.trim();
             </View>
           ) : (
             paidOrdersToday.map(order => {
-              const isCredit = order.paymentMethod === 'credit';
               const displayMethod = getDisplayMethod(order.paymentMethod);
               return (
                 <View key={order._id} style={styles.orderCard}>
@@ -438,9 +497,38 @@ Generated: ${formatDateTimeASCII(new Date())}`.trim();
                       styles.paymentBadge,
                       { backgroundColor: PAYMENT_METHODS.find(m => m.key === displayMethod)?.color || '#94a3b8' }
                     ]}>
-                      <Text style={styles.paymentBadgeText}>
-                        {isCredit ? 'Cash (Credit)' : displayMethod}
-                      </Text>
+                      <Text style={styles.paymentBadgeText}>{displayMethod}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </View>
+
+        {/* Credit Deposits */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Credit Deposits ({creditTransactions.length})</Text>
+          {creditTransactions.length === 0 ? (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyText}>No credit deposits for this date</Text>
+            </View>
+          ) : (
+            creditTransactions.map((tx, index) => {
+              const method = (tx.paymentMethod || 'cash') as DisplayPaymentMethod;
+              return (
+                <View key={`credit-${index}`} style={styles.orderCard}>
+                  <View style={styles.orderInfo}>
+                    <Text style={styles.orderNumber}>{tx.customerName}</Text>
+                    <Text style={styles.orderCustomer}>{tx.description}</Text>
+                  </View>
+                  <View style={styles.orderPayment}>
+                    <Text style={[styles.orderAmount, { color: '#10b981' }]}>+${tx.amount.toFixed(2)}</Text>
+                    <View style={[
+                      styles.paymentBadge,
+                      { backgroundColor: PAYMENT_METHODS.find(m => m.key === method)?.color || '#94a3b8' }
+                    ]}>
+                      <Text style={styles.paymentBadgeText}>{method}</Text>
                     </View>
                   </View>
                 </View>
