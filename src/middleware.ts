@@ -9,6 +9,8 @@ const AUTH_COOKIE_NAME = 'auth-token';
 const publicPaths = [
   '/login',
   '/api/auth/login',
+  '/api/auth/pin-login',
+  '/api/locations/public',
   '/api/health',
   '/api/orders/*/ticket-preview',
 ];

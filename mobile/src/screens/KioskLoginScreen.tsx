@@ -33,6 +33,12 @@ export default function KioskLoginScreen({ onBack, onLoginSuccess }: KioskLoginS
   }, []);
 
   async function loadLocations() {
+    // Fallback locations in case API is not deployed yet
+    const fallbackLocations: Location[] = [
+      { _id: '698a50c70e0b495ff489e1ee', name: 'E&F Laundromat #1', code: 'OG#1', address: '' },
+      { _id: '698a55eae28eb750c51148c0', name: 'E&F Laundromat #2', code: 'DL#2', address: '' },
+    ];
+
     try {
       // Use public endpoint (no auth required)
       const locs = await api.getPublicLocations();
@@ -41,8 +47,9 @@ export default function KioskLoginScreen({ onBack, onLoginSuccess }: KioskLoginS
         setSelectedLocation(locs[0]);
       }
     } catch (error) {
-      console.error('Failed to load locations:', error);
-      Alert.alert('Error', 'Failed to load locations');
+      console.error('Failed to load locations, using fallback:', error);
+      // Use fallback locations
+      setLocations(fallbackLocations);
     } finally {
       setLoadingLocations(false);
     }

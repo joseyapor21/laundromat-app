@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db/connection';
-import { User, Location } from '@/lib/db/models';
+import { connectDB, getAuthDatabase } from '@/lib/db/connection';
+import { Location } from '@/lib/db/models';
 import { createToken, getTokenExpiry, setAuthCookie } from '@/lib/auth';
+import bcrypt from 'bcryptjs';
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,13 +22,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
+    // Get users from auth database (emergency)
+    const authDb = await getAuthDatabase();
 
     // Find all active users with a PIN set
-    const usersWithPin = await User.find({
+    const usersWithPin = await authDb.collection('users').find({
       pin: { $ne: null, $exists: true },
       isActive: true
-    });
+    }).toArray();
 
     if (usersWithPin.length === 0) {
       return NextResponse.json(
@@ -39,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Check each user's PIN
     let matchedUser = null;
     for (const user of usersWithPin) {
-      const isMatch = await user.comparePin(pin);
+      const isMatch = await bcrypt.compare(pin, user.pin);
       if (isMatch) {
         matchedUser = user;
         break;
@@ -52,6 +54,9 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Connect to app database for locations
+    await connectDB();
 
     // Verify location exists
     const location = await Location.findById(locationId);
@@ -66,10 +71,10 @@ export async function POST(request: NextRequest) {
     const userPayload = {
       _id: matchedUser._id.toString(),
       email: matchedUser.email,
-      firstName: matchedUser.firstName,
-      lastName: matchedUser.lastName,
-      role: matchedUser.role,
-      isDriver: matchedUser.isDriver,
+      firstName: matchedUser.firstName || '',
+      lastName: matchedUser.lastName || '',
+      role: matchedUser.role || 'employee',
+      isDriver: matchedUser.isDriver || false,
       isActive: true,
       isKioskMode: true,  // Flag to indicate kiosk mode login
     };
