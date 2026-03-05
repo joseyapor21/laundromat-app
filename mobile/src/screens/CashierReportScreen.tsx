@@ -92,10 +92,9 @@ export default function CashierReportScreen() {
   };
 
   // Filter orders by paidAt date (when payment was collected)
-  // EXCLUDE orders paid with credit - those don't involve money changing hands
-  const paidOrdersToday = orders.filter(order => {
+  // Separate cash/check/etc orders (count as income) from credit orders (don't count - already collected)
+  const allPaidOrdersToday = orders.filter(order => {
     if (!order.isPaid || !order.paidAt) return false;
-    if (order.paymentMethod === 'credit') return false; // Exclude credit payments
     const paidDate = new Date(order.paidAt);
     return (
       paidDate.getFullYear() === selectedDate.getFullYear() &&
@@ -103,6 +102,12 @@ export default function CashierReportScreen() {
       paidDate.getDate() === selectedDate.getDate()
     );
   });
+
+  // Orders paid with cash/check/venmo/zelle - these count as income
+  const paidOrdersToday = allPaidOrdersToday.filter(o => o.paymentMethod !== 'credit');
+
+  // Orders paid with credit - show but don't count as income (money was collected when credit was added)
+  const creditPaidOrdersToday = allPaidOrdersToday.filter(o => o.paymentMethod === 'credit');
 
   // Calculate totals by payment method
   const getDisplayMethod = (paymentMethod: PaymentMethod | undefined): DisplayPaymentMethod => {
@@ -150,6 +155,7 @@ export default function CashierReportScreen() {
   const grandTotal = totalsByMethod.reduce((sum, m) => sum + m.total, 0);
   const totalOrderCount = paidOrdersToday.length;
   const totalCreditCount = creditTransactions.length;
+  const creditPaidTotal = creditPaidOrdersToday.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 
   // Date navigation
   const goToPreviousDay = () => {
@@ -319,6 +325,23 @@ export default function CashierReportScreen() {
         });
       }
 
+      // Credit-paid orders (not in revenue)
+      if (creditPaidOrdersToday.length > 0) {
+        r += '\n';
+        r += ESC.CENTER;
+        r += ESC.BOLD_ON;
+        r += 'PAID WITH CREDIT\n';
+        r += ESC.BOLD_OFF;
+        r += '(Not in revenue - already collected)\n';
+        r += ESC.LEFT;
+        r += '------------------------------------------------\n';
+
+        creditPaidOrdersToday.forEach(order => {
+          r += leftRightAlign(`#${order.orderId} ${order.customerName?.substring(0, 18) || ''}`, `$${order.totalAmount.toFixed(2)}`) + '\n';
+        });
+        r += leftRightAlign('Credit payments total:', `$${creditPaidTotal.toFixed(2)}`) + '\n';
+      }
+
       r += '================================================\n';
       r += ESC.CENTER;
       r += `Printed: ${formatDateTimeASCII(new Date())}\n`;
@@ -370,6 +393,17 @@ ${creditTransactions.map(tx => {
 ----------------------------------------`
       : '';
 
+    // Credit-paid orders section
+    const creditPaidSection = creditPaidOrdersToday.length > 0
+      ? `\nPAID WITH CREDIT (Not in revenue - already collected)
+${creditPaidOrdersToday.map(o => {
+  return `#${o.orderId} ${o.customerName} - $${o.totalAmount.toFixed(2)}`;
+}).join('\n')}
+Credit payments total: $${creditPaidTotal.toFixed(2)}
+
+----------------------------------------`
+      : '';
+
     const report = `${storeHeader}CASHIER REPORT
 ${formatDate(selectedDate)}
 ----------------------------------------
@@ -386,7 +420,7 @@ ORDER DETAILS
 ${paidOrdersToday.map(o => {
   const method = o.paymentMethod?.toUpperCase() || 'CASH';
   return `#${o.orderId} ${o.customerName} - $${o.totalAmount.toFixed(2)} (${method})`;
-}).join('\n')}${creditSection}
+}).join('\n')}${creditSection}${creditPaidSection}
 
 Generated: ${formatDateTimeASCII(new Date())}`.trim();
 
@@ -536,6 +570,35 @@ Generated: ${formatDateTimeASCII(new Date())}`.trim();
             })
           )}
         </View>
+
+        {/* Orders Paid with Credit - shown but not counted as income */}
+        {creditPaidOrdersToday.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Paid with Credit ({creditPaidOrdersToday.length})</Text>
+            <Text style={styles.creditPaidNote}>
+              Not counted in totals - money was collected when credit was added
+            </Text>
+            {creditPaidOrdersToday.map(order => (
+              <View key={order._id} style={[styles.orderCard, styles.creditPaidCard]}>
+                <View style={styles.orderInfo}>
+                  <Text style={styles.orderNumber}>#{order.orderId}</Text>
+                  <Text style={styles.orderCustomer}>{order.customerName}</Text>
+                </View>
+                <View style={styles.orderPayment}>
+                  <Text style={[styles.orderAmount, { color: '#94a3b8' }]}>${order.totalAmount.toFixed(2)}</Text>
+                  <View style={[styles.paymentBadge, { backgroundColor: '#94a3b8' }]}>
+                    <Text style={styles.paymentBadgeText}>credit</Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+            <View style={styles.creditPaidSummary}>
+              <Text style={styles.creditPaidSummaryText}>
+                Credit payments total: ${creditPaidTotal.toFixed(2)} (not in revenue)
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Print & Share Buttons */}
         <View style={styles.buttonRow}>
@@ -778,5 +841,28 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  creditPaidCard: {
+    backgroundColor: '#f8fafc',
+    borderStyle: 'dashed',
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+  },
+  creditPaidNote: {
+    fontSize: 12,
+    color: '#64748b',
+    fontStyle: 'italic',
+    marginBottom: 12,
+  },
+  creditPaidSummary: {
+    backgroundColor: '#f1f5f9',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  creditPaidSummaryText: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
   },
 });
