@@ -31,17 +31,23 @@ export async function POST(request: NextRequest) {
       isActive: { $ne: false }
     }).lean();
 
-    // Also check auth database users collection
+    // Also check auth database users and v5users collections
     const authDb = await getAuthDatabase();
     const authUsersWithPin = await authDb.collection('users').find({
       pin: { $ne: null, $exists: true },
       isActive: true
     }).toArray();
 
-    // Combine both lists
+    // Also check v5users collection
+    const v5UsersWithPin = await authDb.collection('v5users').find({
+      pin: { $ne: null, $exists: true }
+    }).toArray();
+
+    // Combine all lists
     const allUsersWithPin: any[] = [
       ...appUsersWithPin.map(u => ({ ...u, source: 'app' })),
-      ...authUsersWithPin.map(u => ({ ...u, source: 'auth' }))
+      ...authUsersWithPin.map(u => ({ ...u, source: 'auth' })),
+      ...v5UsersWithPin.map(u => ({ ...u, source: 'v5users' }))
     ];
 
     if (allUsersWithPin.length === 0) {
