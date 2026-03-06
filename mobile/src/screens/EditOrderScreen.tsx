@@ -145,20 +145,9 @@ export default function EditOrderScreen() {
       setCustomerPhone(formatPhoneNumber(orderData.customerPhone) || '');
       setCustomerAddress(orderData.customer?.address || '');
 
-      // Always use latest customer instructions, with any additional order-specific instructions
-      const customerNotes = orderData.customer?.notes || '';
-      const orderInstructions = orderData.specialInstructions || '';
-      // If customer has notes, use those as the base (they may have been updated)
-      // Only add order instructions if they contain something not in customer notes
-      let instructions = customerNotes;
-      if (orderInstructions && orderInstructions !== customerNotes && !customerNotes.includes(orderInstructions)) {
-        // There are additional order-specific instructions
-        const additionalInstructions = orderInstructions.replace(customerNotes, '').trim();
-        if (additionalInstructions) {
-          instructions = customerNotes + (customerNotes ? '\n' : '') + additionalInstructions;
-        }
-      }
-      setSpecialInstructions(instructions);
+      // Use order's specialInstructions directly - this is the source of truth
+      // It contains both customer notes and any order-specific instructions
+      setSpecialInstructions(orderData.specialInstructions || '');
 
       setOrderType(orderData.orderType || 'storePickup');
       setIsSameDay(orderData.isSameDay || false);
