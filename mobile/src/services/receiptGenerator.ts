@@ -231,66 +231,13 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
     r += `${formatPhoneNumber(order.customerPhone)}\n`;
   }
 
-  // Get all instructions - order.specialInstructions contains combined customer notes + order-specific
-  const customerNotes = order.customer?.notes || '';
-  const allInstructions = order.specialInstructions || '';
-
-  // Extract order-specific instructions by removing customer notes from the beginning
-  let orderOnlyInstructions = allInstructions;
-  if (customerNotes && allInstructions.trim().startsWith(customerNotes.trim())) {
-    // Remove customer notes from the beginning to get order-only instructions
-    orderOnlyInstructions = allInstructions.trim().slice(customerNotes.trim().length).trim();
-  } else if (customerNotes && allInstructions.trim() === customerNotes.trim()) {
-    // They're identical, no order-specific instructions
-    orderOnlyInstructions = '';
-  }
-
-  // Print customer delivery notes
-  if (customerNotes) {
-    r += ESC.DOUBLE_SIZE_ON;
-    r += ESC.INVERT_ON;
-    r += ` Delivery Notes: \n`;
-    const cleanCustomerNotes = customerNotes
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2013\u2014]/g, '-')
-      .replace(/[^\x00-\x7F]/g, '');
-    const customerItems = cleanCustomerNotes.split(/[\n,]+/).filter(item => item.trim());
-    for (const item of customerItems) {
-      const wrappedLines = wordWrap(item.trim(), 18);
-      for (let i = 0; i < wrappedLines.length; i++) {
-        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
-      }
-    }
-    r += ESC.INVERT_OFF;
-    r += ESC.NORMAL_SIZE;
-  }
-
-  // Print order-specific instructions (the additional instructions beyond customer notes)
-  if (orderOnlyInstructions) {
-    r += ESC.DOUBLE_SIZE_ON;
-    r += ESC.INVERT_ON;
-    r += ` Order Instructions: \n`;
-    const notes = orderOnlyInstructions
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2013\u2014]/g, '-')
-      .replace(/[^\x00-\x7F]/g, '');
-    const items = notes.split(/[\n,]+/).filter(item => item.trim());
-    for (const item of items) {
-      const wrappedLines = wordWrap(item.trim(), 18);
-      for (let i = 0; i < wrappedLines.length; i++) {
-        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
-      }
-    }
-    r += ESC.INVERT_OFF;
-    r += ESC.NORMAL_SIZE;
-  } else if (allInstructions && !customerNotes) {
-    // Only order instructions exist (no customer notes)
+  // Print all instructions from order.specialInstructions
+  // This contains combined customer notes + order-specific instructions
+  if (order.specialInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` Instructions: \n`;
-    const notes = allInstructions
+    const notes = order.specialInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
@@ -533,66 +480,13 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
     r += `${formatPhoneNumber(order.customerPhone)}\n`;
   }
 
-  // Get all instructions - order.specialInstructions contains combined customer notes + order-specific
-  const storeCustomerNotes = order.customer?.notes || '';
-  const storeAllInstructions = order.specialInstructions || '';
-
-  // Extract order-specific instructions by removing customer notes from the beginning
-  let storeOrderOnlyInstructions = storeAllInstructions;
-  if (storeCustomerNotes && storeAllInstructions.trim().startsWith(storeCustomerNotes.trim())) {
-    // Remove customer notes from the beginning to get order-only instructions
-    storeOrderOnlyInstructions = storeAllInstructions.trim().slice(storeCustomerNotes.trim().length).trim();
-  } else if (storeCustomerNotes && storeAllInstructions.trim() === storeCustomerNotes.trim()) {
-    // They're identical, no order-specific instructions
-    storeOrderOnlyInstructions = '';
-  }
-
-  // Print customer delivery notes
-  if (storeCustomerNotes) {
-    r += ESC.DOUBLE_SIZE_ON;
-    r += ESC.INVERT_ON;
-    r += ` Delivery Notes: \n`;
-    const cleanCustomerNotes = storeCustomerNotes
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2013\u2014]/g, '-')
-      .replace(/[^\x00-\x7F]/g, '');
-    const customerItems = cleanCustomerNotes.split(/[\n,]+/).filter(item => item.trim());
-    for (const item of customerItems) {
-      const wrappedLines = wordWrap(item.trim(), 18);
-      for (let i = 0; i < wrappedLines.length; i++) {
-        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
-      }
-    }
-    r += ESC.INVERT_OFF;
-    r += ESC.NORMAL_SIZE;
-  }
-
-  // Print order-specific instructions (the additional instructions beyond customer notes)
-  if (storeOrderOnlyInstructions) {
-    r += ESC.DOUBLE_SIZE_ON;
-    r += ESC.INVERT_ON;
-    r += ` Order Instructions: \n`;
-    const notes = storeOrderOnlyInstructions
-      .replace(/[\u2018\u2019]/g, "'")
-      .replace(/[\u201C\u201D]/g, '"')
-      .replace(/[\u2013\u2014]/g, '-')
-      .replace(/[^\x00-\x7F]/g, '');
-    const items = notes.split(/[\n,]+/).filter(item => item.trim());
-    for (const item of items) {
-      const wrappedLines = wordWrap(item.trim(), 18);
-      for (let i = 0; i < wrappedLines.length; i++) {
-        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
-      }
-    }
-    r += ESC.INVERT_OFF;
-    r += ESC.NORMAL_SIZE;
-  } else if (storeAllInstructions && !storeCustomerNotes) {
-    // Only order instructions exist (no customer notes)
+  // Print all instructions from order.specialInstructions
+  // This contains combined customer notes + order-specific instructions
+  if (order.specialInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` Instructions: \n`;
-    const notes = storeAllInstructions
+    const notes = order.specialInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
