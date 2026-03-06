@@ -231,18 +231,37 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
     r += `${formatPhoneNumber(order.customerPhone)}\n`;
   }
 
-  // Notes (inverted, double size, ASCII-safe)
+  // Customer delivery notes (general customer preferences)
+  if (order.customer?.notes) {
+    r += ESC.DOUBLE_SIZE_ON;
+    r += ESC.INVERT_ON;
+    r += ` Delivery Notes: \n`;
+    const customerNotes = order.customer.notes
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[^\x00-\x7F]/g, '');
+    const customerItems = customerNotes.split(/[\n,]+/).filter(item => item.trim());
+    for (const item of customerItems) {
+      const wrappedLines = wordWrap(item.trim(), 18);
+      for (let i = 0; i < wrappedLines.length; i++) {
+        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
+      }
+    }
+    r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
+  }
+
+  // Order special instructions (specific to this order)
   if (order.specialInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` Instructions: \n`;
-    // Convert to ASCII-safe (replace smart quotes, etc)
+    r += ` Order Instructions: \n`;
     const notes = order.specialInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
       .replace(/[^\x00-\x7F]/g, '');
-    // Split by newlines or commas to create bullet points
     const items = notes.split(/[\n,]+/).filter(item => item.trim());
     for (const item of items) {
       const wrappedLines = wordWrap(item.trim(), 18);
@@ -481,18 +500,37 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
     r += `${formatPhoneNumber(order.customerPhone)}\n`;
   }
 
-  // Notes (inverted, double size, ASCII-safe)
+  // Customer delivery notes (general customer preferences)
+  if (order.customer?.notes) {
+    r += ESC.DOUBLE_SIZE_ON;
+    r += ESC.INVERT_ON;
+    r += ` Delivery Notes: \n`;
+    const customerNotes = order.customer.notes
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[^\x00-\x7F]/g, '');
+    const customerItems = customerNotes.split(/[\n,]+/).filter(item => item.trim());
+    for (const item of customerItems) {
+      const wrappedLines = wordWrap(item.trim(), 18);
+      for (let i = 0; i < wrappedLines.length; i++) {
+        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
+      }
+    }
+    r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
+  }
+
+  // Order special instructions (specific to this order)
   if (order.specialInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
-    r += ` Instructions: \n`;
-    // Convert to ASCII-safe (replace smart quotes, etc)
+    r += ` Order Instructions: \n`;
     const notes = order.specialInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
       .replace(/[^\x00-\x7F]/g, '');
-    // Split by newlines or commas to create bullet points
     const items = notes.split(/[\n,]+/).filter(item => item.trim());
     for (const item of items) {
       const wrappedLines = wordWrap(item.trim(), 18);
