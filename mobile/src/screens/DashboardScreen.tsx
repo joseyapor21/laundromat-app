@@ -64,7 +64,7 @@ function formatOrderDate(dateStr: string | Date | undefined): string {
 // Status groups matching web app
 const STATUS_GROUPS: Record<string, string[]> = {
   new_order: ['new_order', 'received', 'scheduled_pickup', 'picked_up'],
-  processing: ['in_washer', 'in_dryer', 'laid_on_cart', 'folding'],
+  processing: ['in_washer', 'in_dryer', 'on_cart', 'folding', 'folded', 'transferred', 'transfer_checked'],
   ready: ['ready_for_pickup', 'ready_for_delivery'],
 };
 

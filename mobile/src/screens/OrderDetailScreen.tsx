@@ -1628,7 +1628,7 @@ export default function OrderDetailScreen() {
   const isPreWashStage = order ? preWashStatuses.includes(order.status) : false;
 
   // Active washing/processing stages
-  const processingStatuses: OrderStatus[] = ['in_washer', 'in_dryer', 'laid_on_cart', 'folding', 'folded'];
+  const processingStatuses: OrderStatus[] = ['in_washer', 'in_dryer', 'on_cart', 'folding', 'folded', 'transferred', 'transfer_checked'];
   const isProcessingStage = order ? processingStatuses.includes(order.status) : false;
 
   // Ready/completed stages
