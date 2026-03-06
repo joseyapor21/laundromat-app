@@ -55,9 +55,16 @@ export default function AdminScreen() {
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const isCashier = currentUser?.role === 'cashier';
 
-  // Cashiers default to customers tab, admins to users tab
-  const [activeTab, setActiveTab] = useState<Tab>(isCashier ? 'customers' : 'users');
+  // Cashiers and store phone mode default to customers tab, admins to users tab
+  const [activeTab, setActiveTab] = useState<Tab>(isCashier || isStorePhoneMode ? 'customers' : 'users');
   const [loading, setLoading] = useState(true);
+
+  // Ensure store phone mode users are always on customers tab
+  useEffect(() => {
+    if (isStorePhoneMode && activeTab !== 'customers') {
+      setActiveTab('customers');
+    }
+  }, [isStorePhoneMode, activeTab]);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
 
