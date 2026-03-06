@@ -103,11 +103,35 @@ export async function PUT(request: NextRequest) {
 
       isAuthDbUser = true;
 
-      // For auth-only users, we can only update pushNotificationsEnabled
+      // For auth-only users, handle pushNotificationsEnabled and PIN
+      const updateFields: any = {};
+
       if (typeof pushNotificationsEnabled === 'boolean') {
+        updateFields.pushNotificationsEnabled = pushNotificationsEnabled;
+      }
+
+      // Handle PIN update for auth-only users
+      let hashedPin: string | null = null;
+      if (pin !== undefined) {
+        if (pin === null) {
+          updateFields.pin = null;
+        } else if (typeof pin === 'string' && pin.length >= 4 && pin.length <= 6) {
+          hashedPin = await bcrypt.hash(pin, 10);
+          updateFields.pin = hashedPin;
+        }
+      }
+
+      if (Object.keys(updateFields).length > 0) {
+        // Update in v5users
         await db.collection('v5users').updateOne(
           { _id: new ObjectId(currentUser.userId) },
-          { $set: { pushNotificationsEnabled } }
+          { $set: updateFields }
+        );
+
+        // Also update in users collection (for kiosk login)
+        await db.collection('users').updateOne(
+          { email: authUser.email.toLowerCase() },
+          { $set: updateFields }
         );
       }
 
@@ -120,8 +144,8 @@ export async function PUT(request: NextRequest) {
           lastName: authUser.lastName || '',
           role: authUser.role || 'employee',
           mustChangePassword: authUser.mustChangePassword || false,
-          pushNotificationsEnabled: pushNotificationsEnabled ?? authUser.pushNotificationsEnabled ?? true,
-          hasPin: !!authUser.pin,
+          pushNotificationsEnabled: updateFields.pushNotificationsEnabled ?? authUser.pushNotificationsEnabled ?? true,
+          hasPin: !!(updateFields.pin ?? authUser.pin),
         },
       });
     }
@@ -157,29 +181,54 @@ export async function PUT(request: NextRequest) {
     }
 
     // Handle PIN update
+    let hashedPin: string | null = null;
     if (pin !== undefined) {
       if (pin === null) {
         // Remove PIN
         (user as any).pin = undefined;
+        hashedPin = null;
       } else if (typeof pin === 'string' && pin.length >= 4 && pin.length <= 6) {
         // Hash and save PIN
-        (user as any).pin = await bcrypt.hash(pin, 10);
+        hashedPin = await bcrypt.hash(pin, 10);
+        (user as any).pin = hashedPin;
       }
     }
 
     await user.save();
 
-    // Also update in auth database if pushNotificationsEnabled changed
-    if (typeof pushNotificationsEnabled === 'boolean') {
-      try {
-        const db = await getAuthDatabase();
+    // Sync to auth database
+    try {
+      const db = await getAuthDatabase();
+      const updateFields: any = {};
+
+      if (typeof pushNotificationsEnabled === 'boolean') {
+        updateFields.pushNotificationsEnabled = pushNotificationsEnabled;
+      }
+
+      // Sync PIN to auth database users collection (for kiosk login)
+      if (pin !== undefined) {
+        if (hashedPin === null) {
+          updateFields.pin = null;
+        } else if (hashedPin) {
+          updateFields.pin = hashedPin;
+        }
+      }
+
+      if (Object.keys(updateFields).length > 0) {
+        // Update in v5users
         await db.collection('v5users').updateOne(
           { email: user.email.toLowerCase() },
-          { $set: { pushNotificationsEnabled } }
+          { $set: updateFields }
         );
-      } catch (e) {
-        console.error('Failed to sync notification preference to auth db:', e);
+
+        // Also update in users collection (where kiosk login checks)
+        await db.collection('users').updateOne(
+          { email: user.email.toLowerCase() },
+          { $set: updateFields }
+        );
       }
+    } catch (e) {
+      console.error('Failed to sync to auth db:', e);
     }
 
     // Log the profile update

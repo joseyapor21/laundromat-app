@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB, getAuthDatabase } from '@/lib/db/connection';
-import { Location } from '@/lib/db/models';
+import { Location, User } from '@/lib/db/models';
 import { createToken, getTokenExpiry, setAuthCookie } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
@@ -22,16 +22,29 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get users from auth database (emergency)
-    const authDb = await getAuthDatabase();
+    // Connect to app database first
+    await connectDB();
 
-    // Find all active users with a PIN set
-    const usersWithPin = await authDb.collection('users').find({
+    // Check main app User model for users with PIN
+    const appUsersWithPin = await User.find({
+      pin: { $ne: null, $exists: true },
+      isActive: { $ne: false }
+    }).lean();
+
+    // Also check auth database users collection
+    const authDb = await getAuthDatabase();
+    const authUsersWithPin = await authDb.collection('users').find({
       pin: { $ne: null, $exists: true },
       isActive: true
     }).toArray();
 
-    if (usersWithPin.length === 0) {
+    // Combine both lists
+    const allUsersWithPin = [
+      ...appUsersWithPin.map(u => ({ ...u, source: 'app' })),
+      ...authUsersWithPin.map(u => ({ ...u, source: 'auth' }))
+    ];
+
+    if (allUsersWithPin.length === 0) {
       return NextResponse.json(
         { error: 'No users configured for PIN login' },
         { status: 404 }
@@ -40,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     // Check each user's PIN
     let matchedUser = null;
-    for (const user of usersWithPin) {
+    for (const user of allUsersWithPin) {
       const isMatch = await bcrypt.compare(pin, user.pin);
       if (isMatch) {
         matchedUser = user;
