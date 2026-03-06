@@ -20,6 +20,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { api } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatPhoneNumber, formatPhoneInput } from '../../utils/phoneFormat';
@@ -804,7 +805,7 @@ export default function POSView({
           <View style={styles.tabletLayout}>
             {/* LEFT COLUMN: Customer + Options */}
             <View style={styles.tabletColumnLeft}>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContent} keyboardShouldPersistTaps="handled">
+              <KeyboardAwareScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContent} keyboardShouldPersistTaps="handled" bottomOffset={20}>
               {/* Customer Search */}
               <View style={styles.tabletSection}>
                 <Text style={styles.tabletSectionTitle}>Customer</Text>
@@ -843,7 +844,7 @@ export default function POSView({
                         <Text style={styles.tabletCredit}>${(selectedCustomer.credit || 0).toFixed(2)} credit</Text>
                       )}
                     </View>
-                    <TouchableOpacity onPress={() => { setSelectedCustomer(null); setCustomerSearch(''); }}>
+                    <TouchableOpacity onPress={() => { setSelectedCustomer(null); setCustomerSearch(''); setNotes(''); }}>
                       <Ionicons name="close-circle" size={28} color="#ef4444" />
                     </TouchableOpacity>
                   </View>
@@ -968,7 +969,7 @@ export default function POSView({
                 placeholderTextColor="#94a3b8"
                 multiline
               />
-              </ScrollView>
+              </KeyboardAwareScrollView>
             </View>
 
             {/* MIDDLE COLUMN: Numpad + Bags */}
@@ -1220,11 +1221,12 @@ export default function POSView({
           </View>
         ) : (
         /* Portrait / Phone Landscape Layout */
-        <ScrollView
+        <KeyboardAwareScrollView
           style={styles.leftPanelPortrait}
           contentContainerStyle={styles.leftPanelPortraitContent}
           showsVerticalScrollIndicator={true}
           keyboardShouldPersistTaps="handled"
+          bottomOffset={20}
         >
           {/* Top Row: Customer + Order Type */}
           <View>
@@ -1303,7 +1305,7 @@ export default function POSView({
                       </>
                     )}
                   </View>
-                  <TouchableOpacity onPress={() => { setSelectedCustomer(null); setCustomerSearch(''); }}>
+                  <TouchableOpacity onPress={() => { setSelectedCustomer(null); setCustomerSearch(''); setNotes(''); }}>
                     <Ionicons name="close-circle" size={24} color="#ef4444" />
                   </TouchableOpacity>
                 </View>
@@ -1600,7 +1602,7 @@ export default function POSView({
               </TouchableOpacity>
             </View>
           </View>
-        </ScrollView>
+        </KeyboardAwareScrollView>
         )}
       </View>
 
@@ -1700,7 +1702,7 @@ export default function POSView({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.fullExtrasModalScroll} keyboardShouldPersistTaps="handled">
+            <KeyboardAwareScrollView style={styles.fullExtrasModalScroll} keyboardShouldPersistTaps="handled" bottomOffset={20}>
               {extraItems.map(item => {
                 const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                 const isSelected = selectedExtraItems[item._id] !== undefined;
@@ -1752,48 +1754,68 @@ export default function POSView({
                         </Text>
                       </TouchableOpacity>
                     ) : (
-                      // Regular items use +/- quantity controls
-                      <View style={styles.fullExtrasQuantityControl}>
-                        <TouchableOpacity
-                          style={[styles.fullExtrasQtyBtn, quantity === 0 && styles.fullExtrasQtyBtnDisabled]}
-                          onPress={() => {
-                            if (quantity > 0) {
-                              const newQty = quantity - 1;
-                              if (newQty === 0) {
-                                setSelectedExtraItems(prev => {
-                                  const { [item._id]: _, ...rest } = prev;
-                                  return rest;
-                                });
-                              } else {
+                      // Regular items use +/- quantity controls with editable price
+                      <View style={styles.fullExtrasControlsRow}>
+                        {isSelected && (
+                          <View style={styles.fullExtrasPriceEdit}>
+                            <Text style={styles.fullExtrasPriceLabel}>$</Text>
+                            <TextInput
+                              style={styles.fullExtrasPriceInput}
+                              value={data.price.toString()}
+                              onChangeText={(text) => {
+                                const price = parseFloat(text) || 0;
                                 setSelectedExtraItems(prev => ({
                                   ...prev,
-                                  [item._id]: { ...prev[item._id], quantity: newQty }
+                                  [item._id]: { ...prev[item._id], price }
                                 }));
+                              }}
+                              keyboardType="decimal-pad"
+                              selectTextOnFocus
+                            />
+                          </View>
+                        )}
+                        <View style={styles.fullExtrasQuantityControl}>
+                          <TouchableOpacity
+                            style={[styles.fullExtrasQtyBtn, quantity === 0 && styles.fullExtrasQtyBtnDisabled]}
+                            onPress={() => {
+                              if (quantity > 0) {
+                                const newQty = quantity - 1;
+                                if (newQty === 0) {
+                                  setSelectedExtraItems(prev => {
+                                    const { [item._id]: _, ...rest } = prev;
+                                    return rest;
+                                  });
+                                } else {
+                                  setSelectedExtraItems(prev => ({
+                                    ...prev,
+                                    [item._id]: { ...prev[item._id], quantity: newQty }
+                                  }));
+                                }
                               }
-                            }
-                          }}
-                          disabled={quantity === 0}
-                        >
-                          <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
-                        </TouchableOpacity>
-                        <Text style={styles.fullExtrasQtyText}>{quantity}</Text>
-                        <TouchableOpacity
-                          style={styles.fullExtrasQtyBtn}
-                          onPress={() => {
-                            setSelectedExtraItems(prev => ({
-                              ...prev,
-                              [item._id]: { quantity: (prev[item._id]?.quantity || 0) + 1, price: item.price }
-                            }));
-                          }}
-                        >
-                          <Ionicons name="add" size={20} color="#2563eb" />
-                        </TouchableOpacity>
+                            }}
+                            disabled={quantity === 0}
+                          >
+                            <Ionicons name="remove" size={20} color={quantity === 0 ? '#94a3b8' : '#2563eb'} />
+                          </TouchableOpacity>
+                          <Text style={styles.fullExtrasQtyText}>{quantity}</Text>
+                          <TouchableOpacity
+                            style={styles.fullExtrasQtyBtn}
+                            onPress={() => {
+                              setSelectedExtraItems(prev => ({
+                                ...prev,
+                                [item._id]: { quantity: (prev[item._id]?.quantity || 0) + 1, price: prev[item._id]?.price || item.price }
+                              }));
+                            }}
+                          >
+                            <Ionicons name="add" size={20} color="#2563eb" />
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     )}
                   </View>
                 );
               })}
-            </ScrollView>
+            </KeyboardAwareScrollView>
 
             {/* Show instances for allowMultiplePrices items */}
             {extraItemInstances.length > 0 && (
@@ -1836,6 +1858,10 @@ export default function POSView({
 
       {/* Add Instance Modal */}
       <Modal visible={showAddInstanceModal} animationType="fade" transparent>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
         <TouchableOpacity
           style={styles.instanceModalOverlay}
           activeOpacity={1}
@@ -1880,6 +1906,7 @@ export default function POSView({
             </View>
           </View>
         </TouchableOpacity>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Separation Type Modal */}
@@ -2861,6 +2888,32 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#2563eb',
+  },
+  fullExtrasControlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  fullExtrasPriceEdit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  fullExtrasPriceLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  fullExtrasPriceInput: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+    minWidth: 50,
+    textAlign: 'center',
+    paddingVertical: 4,
   },
   fullExtrasQuantityControl: {
     flexDirection: 'row',

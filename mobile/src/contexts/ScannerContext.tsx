@@ -14,6 +14,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
 import { useTimeClock } from './TimeClockContext';
+import { useAuth } from './AuthContext';
 import ClockInScreen from '../screens/ClockInScreen';
 
 interface ScannerContextType {
@@ -143,6 +144,7 @@ export function ScannerProvider({ children }: ScannerProviderProps) {
 export function FloatingActionButtons() {
   const { openScanner } = useScanner();
   const { isClockedIn, isLoading: isClockLoading } = useTimeClock();
+  const { user } = useAuth();
   const navigation = useNavigation<any>();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showClockInModal, setShowClockInModal] = useState(false);
@@ -150,6 +152,12 @@ export function FloatingActionButtons() {
 
   // Detect landscape mode (tab bar hidden)
   const isLandscape = width > height && width >= 700;
+
+  // Hide floating buttons entirely in kiosk/POS mode
+  const isKioskMode = user?.isKioskMode;
+  if (isKioskMode) {
+    return null;
+  }
 
   const handleAddOrder = () => {
     setIsExpanded(false);

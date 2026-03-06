@@ -69,7 +69,7 @@ const STATUS_GROUPS: Record<string, string[]> = {
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { currentLocation } = useLocation();
   const { width, height } = useWindowDimensions();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -155,27 +155,32 @@ export default function DashboardScreen() {
   }, [loadOrders, currentLocation?._id]);
 
   // Reload orders when screen comes into focus (e.g., after creating an order)
-  // Also check if there was a recent incoming call
+  // Also check if there was a recent incoming call (skip in kiosk/POS mode)
   useFocusEffect(
     useCallback(() => {
       loadOrders();
 
-      // Check for recent incoming call
+      // Check for recent incoming call (skip in kiosk/POS mode)
       const checkRecentCall = async () => {
+        if (user?.isKioskMode) return;
         const hasRecent = await callerIDService.hasRecentIncomingCall();
         if (hasRecent && !showPOS && !showRecentCallerPopup) {
           setShowRecentCallPrompt(true);
         }
       };
       checkRecentCall();
-    }, [loadOrders, showPOS, showRecentCallerPopup])
+    }, [loadOrders, showPOS, showRecentCallerPopup, user?.isKioskMode])
   );
 
   // Auto-refresh orders every 10 seconds
   useAutoRefresh(loadOrders);
 
-  // Auto-sync Caller ID on launch and periodically
+  // Auto-sync Caller ID on launch and periodically (skip in kiosk/POS mode)
+  const isKioskMode = user?.isKioskMode;
   useEffect(() => {
+    // Skip CallerID sync in kiosk/POS mode
+    if (isKioskMode) return;
+
     const syncCallerID = async () => {
       if (!callerIDService.isAvailable()) return;
 
@@ -206,7 +211,7 @@ export default function DashboardScreen() {
     const interval = setInterval(syncCallerID, CALLER_ID_SYNC_INTERVAL);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isKioskMode]);
 
   // Initialize recent caller detection
   useEffect(() => {
@@ -620,6 +625,13 @@ export default function DashboardScreen() {
         availableLocations={[]}
         onSelectLocation={async () => {}}
         initialCustomer={posInitialCustomer}
+        userName={user?.firstName || user?.email?.split('@')[0]}
+        onSwitchUser={async () => {
+          // Logout first, then close modal - this ensures proper navigation
+          await logout();
+          setShowPOS(false);
+          setPosInitialCustomer(null);
+        }}
       />
     </Modal>
 
@@ -630,14 +642,16 @@ export default function DashboardScreen() {
       {/* Board View for Landscape - Full Screen */}
       {useWideLayout ? (
         <View style={styles.boardContainerFullScreen}>
-          {/* POS Button for Landscape */}
-          <TouchableOpacity
-            style={styles.posButtonLandscape}
-            onPress={() => setShowPOS(true)}
-          >
-            <Ionicons name="cash-outline" size={20} color="#fff" />
-            <Text style={styles.posButtonText}>POS</Text>
-          </TouchableOpacity>
+          {/* POS Button for Landscape - Only for admin/cashier */}
+          {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
+            <TouchableOpacity
+              style={styles.posButtonLandscape}
+              onPress={() => setShowPOS(true)}
+            >
+              <Ionicons name="cash-outline" size={20} color="#fff" />
+              <Text style={styles.posButtonText}>POS</Text>
+            </TouchableOpacity>
+          )}
           <BoardColumn title="New" orders={newOrders} color="#3b82f6" />
           <BoardColumn title="Processing" orders={processingOrders} color="#f59e0b" />
           <BoardColumn title="Ready" orders={readyOrders} color="#10b981" />
@@ -650,13 +664,16 @@ export default function DashboardScreen() {
               <Text style={styles.headerTitle}>Dashboard</Text>
               <Text style={styles.headerSubtitle}>Welcome, {user?.firstName || 'User'}</Text>
             </View>
-            <TouchableOpacity
-              style={styles.posButtonPortrait}
-              onPress={() => setShowPOS(true)}
-            >
-              <Ionicons name="cash-outline" size={20} color="#fff" />
-              <Text style={styles.posButtonText}>POS</Text>
-            </TouchableOpacity>
+            {/* POS Button - Only for admin/cashier */}
+            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
+              <TouchableOpacity
+                style={styles.posButtonPortrait}
+                onPress={() => setShowPOS(true)}
+              >
+                <Ionicons name="cash-outline" size={20} color="#fff" />
+                <Text style={styles.posButtonText}>POS</Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Filter Tabs - Portrait only */}

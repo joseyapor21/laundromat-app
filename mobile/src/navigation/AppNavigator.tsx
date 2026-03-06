@@ -230,12 +230,12 @@ function AuthenticatedApp() {
   const { user } = useAuth();
   const isKioskMode = user?.isKioskMode;
 
-  // Kiosk mode: skip time clock provider and clock-in prompt
+  // Kiosk mode: skip time clock provider, clock-in prompt, and floating buttons
   if (isKioskMode) {
     return (
       <ScannerProvider>
         <MainStack />
-        <FloatingActionButtons />
+        {/* No FloatingActionButtons or ClockInPrompt in kiosk/POS mode */}
       </ScannerProvider>
     );
   }

@@ -149,7 +149,10 @@ export default function ProfileScreen() {
     checkPushNotificationStatus();
     loadNotificationPreference();
     loadSettings();
-    checkCallerIDStatus();
+    // Skip CallerID check in kiosk/POS mode
+    if (!isKioskMode) {
+      checkCallerIDStatus();
+    }
     checkPinStatus();
     // Load locations if not already loaded
     if (availableLocations.length === 0) {
@@ -1141,25 +1144,28 @@ export default function ProfileScreen() {
           </View>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.card} onPress={() => setShowPinModal(true)}>
-          <View style={styles.cardRow}>
-            <View style={[styles.cardIcon, { backgroundColor: hasExistingPin ? '#dcfce7' : '#e0e7ff' }]}>
-              <Ionicons name="keypad" size={24} color={hasExistingPin ? '#22c55e' : '#6366f1'} />
-            </View>
-            <View style={styles.cardContent}>
-              <Text style={styles.cardValue}>POS PIN</Text>
-              <Text style={styles.cardLabel}>
-                {hasExistingPin ? 'PIN is set - tap to change' : 'Set a PIN for quick POS access'}
-              </Text>
-            </View>
-            {hasExistingPin && (
-              <View style={styles.pinSetBadge}>
-                <Text style={styles.pinSetBadgeText}>Set</Text>
+        {/* POS PIN - Only for admin/cashier */}
+        {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
+          <TouchableOpacity style={styles.card} onPress={() => setShowPinModal(true)}>
+            <View style={styles.cardRow}>
+              <View style={[styles.cardIcon, { backgroundColor: hasExistingPin ? '#dcfce7' : '#e0e7ff' }]}>
+                <Ionicons name="keypad" size={24} color={hasExistingPin ? '#22c55e' : '#6366f1'} />
               </View>
-            )}
-            <Ionicons name="chevron-forward" size={20} color="#94a3b8" style={{ marginLeft: 8 }} />
-          </View>
-        </TouchableOpacity>
+              <View style={styles.cardContent}>
+                <Text style={styles.cardValue}>POS PIN</Text>
+                <Text style={styles.cardLabel}>
+                  {hasExistingPin ? 'PIN is set - tap to change' : 'Set a PIN for quick POS access'}
+                </Text>
+              </View>
+              {hasExistingPin && (
+                <View style={styles.pinSetBadge}>
+                  <Text style={styles.pinSetBadgeText}>Set</Text>
+                </View>
+              )}
+              <Ionicons name="chevron-forward" size={20} color="#94a3b8" style={{ marginLeft: 8 }} />
+            </View>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Location Section */}
@@ -1230,8 +1236,8 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Caller ID - iOS only */}
-        {Platform.OS === 'ios' && (
+        {/* Caller ID - iOS only, hidden in Kiosk Mode */}
+        {Platform.OS === 'ios' && !isKioskMode && (
           <View style={styles.card}>
             <View style={styles.cardRow}>
               <View style={[styles.cardIcon, {
