@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     }).toArray();
 
     // Combine both lists
-    const allUsersWithPin = [
+    const allUsersWithPin: any[] = [
       ...appUsersWithPin.map(u => ({ ...u, source: 'app' })),
       ...authUsersWithPin.map(u => ({ ...u, source: 'auth' }))
     ];
@@ -52,9 +52,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Check each user's PIN
-    let matchedUser = null;
+    let matchedUser: any = null;
     for (const user of allUsersWithPin) {
-      const isMatch = await bcrypt.compare(pin, user.pin);
+      const isMatch = await bcrypt.compare(pin, user.pin as string);
       if (isMatch) {
         matchedUser = user;
         break;
