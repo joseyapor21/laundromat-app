@@ -57,6 +57,7 @@ export async function GET() {
       role: user.role,
       mustChangePassword: user.mustChangePassword,
       pushNotificationsEnabled: user.pushNotificationsEnabled ?? true,
+      hasPin: !!(user as any).pin,
     });
   } catch (error) {
     console.error('Get profile error:', error);
@@ -80,7 +81,7 @@ export async function PUT(request: NextRequest) {
 
     await connectDB();
 
-    const { firstName, lastName, currentPassword, newPassword, pushNotificationsEnabled } = await request.json();
+    const { firstName, lastName, currentPassword, newPassword, pushNotificationsEnabled, pin } = await request.json();
 
     // Try to find user in app User model first
     let user = await User.findById(currentUser.userId);
@@ -120,6 +121,7 @@ export async function PUT(request: NextRequest) {
           role: authUser.role || 'employee',
           mustChangePassword: authUser.mustChangePassword || false,
           pushNotificationsEnabled: pushNotificationsEnabled ?? authUser.pushNotificationsEnabled ?? true,
+          hasPin: !!authUser.pin,
         },
       });
     }
@@ -152,6 +154,17 @@ export async function PUT(request: NextRequest) {
     if (lastName) user.lastName = lastName;
     if (typeof pushNotificationsEnabled === 'boolean') {
       user.pushNotificationsEnabled = pushNotificationsEnabled;
+    }
+
+    // Handle PIN update
+    if (pin !== undefined) {
+      if (pin === null) {
+        // Remove PIN
+        (user as any).pin = undefined;
+      } else if (typeof pin === 'string' && pin.length >= 4 && pin.length <= 6) {
+        // Hash and save PIN
+        (user as any).pin = await bcrypt.hash(pin, 10);
+      }
     }
 
     await user.save();

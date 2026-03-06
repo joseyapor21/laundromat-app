@@ -125,6 +125,13 @@ export default function ProfileScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // POS PIN modal
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [posPin, setPosPin] = useState('');
+  const [confirmPosPin, setConfirmPosPin] = useState('');
+  const [hasExistingPin, setHasExistingPin] = useState(false);
+  const [savingPin, setSavingPin] = useState(false);
+
   // Push notification status
   const [pushStatus, setPushStatus] = useState<'checking' | 'enabled' | 'disabled' | 'unavailable'>('checking');
   const [pushNotificationsEnabled, setPushNotificationsEnabled] = useState(true);
@@ -143,6 +150,7 @@ export default function ProfileScreen() {
     loadNotificationPreference();
     loadSettings();
     checkCallerIDStatus();
+    checkPinStatus();
     // Load locations if not already loaded
     if (availableLocations.length === 0) {
       refreshLocations();
@@ -958,6 +966,77 @@ export default function ProfileScreen() {
 
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
+  // Check if user has a POS PIN set
+  const checkPinStatus = async () => {
+    try {
+      const profile = await api.getProfile();
+      setHasExistingPin(!!profile.hasPin);
+    } catch (e) {
+      console.log('Failed to check PIN status');
+    }
+  };
+
+  // Handle saving POS PIN
+  const handleSavePin = async () => {
+    if (!posPin || posPin.length < 4) {
+      Alert.alert('Error', 'PIN must be at least 4 digits');
+      return;
+    }
+    if (posPin.length > 6) {
+      Alert.alert('Error', 'PIN must be 6 digits or less');
+      return;
+    }
+    if (!/^\d+$/.test(posPin)) {
+      Alert.alert('Error', 'PIN must contain only numbers');
+      return;
+    }
+    if (posPin !== confirmPosPin) {
+      Alert.alert('Error', 'PINs do not match');
+      return;
+    }
+
+    setSavingPin(true);
+    try {
+      await api.updateProfile({ pin: posPin });
+      setHasExistingPin(true);
+      setShowPinModal(false);
+      setPosPin('');
+      setConfirmPosPin('');
+      Alert.alert('Success', 'POS PIN has been set. You can now use it for quick access to POS.');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to save PIN');
+    } finally {
+      setSavingPin(false);
+    }
+  };
+
+  // Handle removing POS PIN
+  const handleRemovePin = async () => {
+    Alert.alert(
+      'Remove PIN',
+      'Are you sure you want to remove your POS PIN?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            setSavingPin(true);
+            try {
+              await api.updateProfile({ pin: null });
+              setHasExistingPin(false);
+              Alert.alert('Success', 'POS PIN has been removed');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to remove PIN');
+            } finally {
+              setSavingPin(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleSwitchLocation = async (location: LocationType) => {
     // Don't do anything if selecting the same location
     if (currentLocation?._id === location._id) {
@@ -1059,6 +1138,26 @@ export default function ProfileScreen() {
               <Text style={styles.cardLabel}>Update your account password</Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={styles.card} onPress={() => setShowPinModal(true)}>
+          <View style={styles.cardRow}>
+            <View style={[styles.cardIcon, { backgroundColor: hasExistingPin ? '#dcfce7' : '#e0e7ff' }]}>
+              <Ionicons name="keypad" size={24} color={hasExistingPin ? '#22c55e' : '#6366f1'} />
+            </View>
+            <View style={styles.cardContent}>
+              <Text style={styles.cardValue}>POS PIN</Text>
+              <Text style={styles.cardLabel}>
+                {hasExistingPin ? 'PIN is set - tap to change' : 'Set a PIN for quick POS access'}
+              </Text>
+            </View>
+            {hasExistingPin && (
+              <View style={styles.pinSetBadge}>
+                <Text style={styles.pinSetBadgeText}>Set</Text>
+              </View>
+            )}
+            <Ionicons name="chevron-forward" size={20} color="#94a3b8" style={{ marginLeft: 8 }} />
           </View>
         </TouchableOpacity>
       </View>
@@ -1483,6 +1582,81 @@ export default function ProfileScreen() {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <Text style={styles.saveBtnText}>Change Password</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* POS PIN Modal */}
+      <Modal visible={showPinModal} animationType="slide">
+        <View style={{ flex: 1, backgroundColor: '#fff' }}>
+          <View style={[styles.modalHeader, { paddingTop: insets.top + 12 }]}>
+            <Text style={styles.modalTitle}>{hasExistingPin ? 'Change POS PIN' : 'Set POS PIN'}</Text>
+            <TouchableOpacity onPress={() => { setShowPinModal(false); setPosPin(''); setConfirmPosPin(''); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          <KeyboardAwareScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={{ padding: 20 }}
+            enableOnAndroid={true}
+            extraScrollHeight={20}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.pinInfoBox}>
+              <Ionicons name="information-circle" size={20} color="#6366f1" />
+              <Text style={styles.pinInfoText}>
+                Your POS PIN allows quick access to the Point of Sale without entering your full password.
+                Use 4-6 digits.
+              </Text>
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>New PIN (4-6 digits)</Text>
+              <TextInput
+                style={[styles.input, styles.pinInput]}
+                value={posPin}
+                onChangeText={setPosPin}
+                placeholder="Enter PIN"
+                placeholderTextColor="#94a3b8"
+                keyboardType="number-pad"
+                maxLength={6}
+                secureTextEntry
+              />
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Confirm PIN</Text>
+              <TextInput
+                style={[styles.input, styles.pinInput]}
+                value={confirmPosPin}
+                onChangeText={setConfirmPosPin}
+                placeholder="Confirm PIN"
+                placeholderTextColor="#94a3b8"
+                keyboardType="number-pad"
+                maxLength={6}
+                secureTextEntry
+              />
+            </View>
+            {hasExistingPin && (
+              <TouchableOpacity style={styles.removePinButton} onPress={handleRemovePin}>
+                <Ionicons name="trash-outline" size={18} color="#ef4444" />
+                <Text style={styles.removePinButtonText}>Remove PIN</Text>
+              </TouchableOpacity>
+            )}
+          </KeyboardAwareScrollView>
+          <View style={styles.modalFooter}>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => { setShowPinModal(false); setPosPin(''); setConfirmPosPin(''); }}>
+              <Text style={styles.cancelBtnText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.saveBtn, savingPin && styles.saveBtnDisabled]}
+              onPress={handleSavePin}
+              disabled={savingPin}
+            >
+              {savingPin ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveBtnText}>Save PIN</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -2042,5 +2216,50 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748b',
     marginTop: 2,
+  },
+  // POS PIN styles
+  pinSetBadge: {
+    backgroundColor: '#dcfce7',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  pinSetBadgeText: {
+    color: '#22c55e',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  pinInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#eef2ff',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    gap: 12,
+  },
+  pinInfoText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#4338ca',
+    lineHeight: 20,
+  },
+  pinInput: {
+    fontSize: 24,
+    textAlign: 'center',
+    letterSpacing: 8,
+  },
+  removePinButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    marginTop: 16,
+  },
+  removePinButtonText: {
+    color: '#ef4444',
+    fontSize: 16,
+    fontWeight: '500',
   },
 });

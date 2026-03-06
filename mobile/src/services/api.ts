@@ -239,8 +239,8 @@ class ApiService {
   }
 
   // Profile
-  async getProfile(): Promise<User & { pushNotificationsEnabled?: boolean }> {
-    return this.request<User & { pushNotificationsEnabled?: boolean }>('/profile');
+  async getProfile(): Promise<User & { pushNotificationsEnabled?: boolean; hasPin?: boolean }> {
+    return this.request<User & { pushNotificationsEnabled?: boolean; hasPin?: boolean }>('/profile');
   }
 
   async updateProfile(data: {
@@ -249,6 +249,7 @@ class ApiService {
     currentPassword?: string;
     newPassword?: string;
     pushNotificationsEnabled?: boolean;
+    pin?: string | null;
   }): Promise<{ message: string; user: User }> {
     return this.request<{ message: string; user: User }>('/profile', {
       method: 'PUT',
