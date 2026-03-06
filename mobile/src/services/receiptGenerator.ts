@@ -232,16 +232,24 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
   }
 
   // Customer delivery notes (general customer preferences)
-  if (order.customer?.notes) {
+  const customerNotes = order.customer?.notes || '';
+  const orderInstructions = order.specialInstructions || '';
+
+  // Check if order instructions are different from customer notes (not just a copy)
+  const orderHasUniqueInstructions = orderInstructions &&
+    orderInstructions.trim() !== customerNotes.trim() &&
+    !orderInstructions.trim().startsWith(customerNotes.trim());
+
+  if (customerNotes) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` Delivery Notes: \n`;
-    const customerNotes = order.customer.notes
+    const cleanCustomerNotes = customerNotes
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
       .replace(/[^\x00-\x7F]/g, '');
-    const customerItems = customerNotes.split(/[\n,]+/).filter(item => item.trim());
+    const customerItems = cleanCustomerNotes.split(/[\n,]+/).filter(item => item.trim());
     for (const item of customerItems) {
       const wrappedLines = wordWrap(item.trim(), 18);
       for (let i = 0; i < wrappedLines.length; i++) {
@@ -252,12 +260,31 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
     r += ESC.NORMAL_SIZE;
   }
 
-  // Order special instructions (specific to this order)
-  if (order.specialInstructions) {
+  // Order special instructions (only if different from customer notes)
+  if (orderHasUniqueInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` Order Instructions: \n`;
-    const notes = order.specialInstructions
+    const notes = orderInstructions
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[^\x00-\x7F]/g, '');
+    const items = notes.split(/[\n,]+/).filter(item => item.trim());
+    for (const item of items) {
+      const wrappedLines = wordWrap(item.trim(), 18);
+      for (let i = 0; i < wrappedLines.length; i++) {
+        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
+      }
+    }
+    r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
+  } else if (orderInstructions && !customerNotes) {
+    // Only order instructions exist (no customer notes to compare)
+    r += ESC.DOUBLE_SIZE_ON;
+    r += ESC.INVERT_ON;
+    r += ` Instructions: \n`;
+    const notes = orderInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
@@ -501,16 +528,24 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
   }
 
   // Customer delivery notes (general customer preferences)
-  if (order.customer?.notes) {
+  const storeCustomerNotes = order.customer?.notes || '';
+  const storeOrderInstructions = order.specialInstructions || '';
+
+  // Check if order instructions are different from customer notes (not just a copy)
+  const storeOrderHasUniqueInstructions = storeOrderInstructions &&
+    storeOrderInstructions.trim() !== storeCustomerNotes.trim() &&
+    !storeOrderInstructions.trim().startsWith(storeCustomerNotes.trim());
+
+  if (storeCustomerNotes) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` Delivery Notes: \n`;
-    const customerNotes = order.customer.notes
+    const cleanCustomerNotes = storeCustomerNotes
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
       .replace(/[^\x00-\x7F]/g, '');
-    const customerItems = customerNotes.split(/[\n,]+/).filter(item => item.trim());
+    const customerItems = cleanCustomerNotes.split(/[\n,]+/).filter(item => item.trim());
     for (const item of customerItems) {
       const wrappedLines = wordWrap(item.trim(), 18);
       for (let i = 0; i < wrappedLines.length; i++) {
@@ -521,12 +556,31 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
     r += ESC.NORMAL_SIZE;
   }
 
-  // Order special instructions (specific to this order)
-  if (order.specialInstructions) {
+  // Order special instructions (only if different from customer notes)
+  if (storeOrderHasUniqueInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` Order Instructions: \n`;
-    const notes = order.specialInstructions
+    const notes = storeOrderInstructions
+      .replace(/[\u2018\u2019]/g, "'")
+      .replace(/[\u201C\u201D]/g, '"')
+      .replace(/[\u2013\u2014]/g, '-')
+      .replace(/[^\x00-\x7F]/g, '');
+    const items = notes.split(/[\n,]+/).filter(item => item.trim());
+    for (const item of items) {
+      const wrappedLines = wordWrap(item.trim(), 18);
+      for (let i = 0; i < wrappedLines.length; i++) {
+        r += i === 0 ? ` * ${wrappedLines[i]} \n` : `   ${wrappedLines[i]} \n`;
+      }
+    }
+    r += ESC.INVERT_OFF;
+    r += ESC.NORMAL_SIZE;
+  } else if (storeOrderInstructions && !storeCustomerNotes) {
+    // Only order instructions exist (no customer notes to compare)
+    r += ESC.DOUBLE_SIZE_ON;
+    r += ESC.INVERT_ON;
+    r += ` Instructions: \n`;
+    const notes = storeOrderInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
