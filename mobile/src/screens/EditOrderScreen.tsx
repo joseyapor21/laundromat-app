@@ -61,6 +61,8 @@ export default function EditOrderScreen() {
   const { user } = useAuth();
   const { currentLocation } = useLocation();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isCashier = user?.role === 'cashier';
+  const canEditOrder = isAdmin || isCashier;
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -667,6 +669,24 @@ export default function EditOrderScreen() {
       ]
     );
   };
+
+  // Only admin and cashier can edit orders
+  if (!canEditOrder) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="lock-closed" size={48} color="#9ca3af" />
+        <Text style={{ fontSize: 18, color: '#6b7280', marginTop: 16, textAlign: 'center' }}>
+          Only cashiers and admins can edit orders
+        </Text>
+        <TouchableOpacity
+          style={{ marginTop: 20, padding: 12, backgroundColor: '#2563eb', borderRadius: 8 }}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (loading) {
     return (

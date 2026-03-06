@@ -30,6 +30,7 @@ import { localPrinter } from '../services/LocalPrinter';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
+import { useStorePhone } from '../contexts/StorePhoneContext';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText, generateCustomerTagText } from '../services/receiptGenerator';
 import type { Order, OrderStatus, MachineAssignment, PaymentMethod, Bag, Settings, AirDryItem } from '../types';
 import { formatPhoneNumber } from '../utils/phoneFormat';
@@ -65,7 +66,11 @@ export default function OrderDetailScreen() {
   const navigation = useNavigation();
   const { user } = useAuth();
   const { currentLocation } = useLocation();
+  const { isStorePhoneMode } = useStorePhone();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isCashier = user?.role === 'cashier';
+  // Only admin and cashier can edit orders
+  const canEditOrder = isAdmin || isCashier;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
@@ -1687,13 +1692,15 @@ export default function OrderDetailScreen() {
                 </View>
               ) : null}
             </View>
-            <TouchableOpacity
-              style={styles.editButton}
-              onPress={() => navigation.navigate('EditOrder' as never, { orderId: order._id } as never)}
-            >
-              <Ionicons name="pencil" size={18} color="#fff" />
-              <Text style={styles.editButtonText}>Edit</Text>
-            </TouchableOpacity>
+            {canEditOrder && (
+              <TouchableOpacity
+                style={styles.editButton}
+                onPress={() => navigation.navigate('EditOrder' as never, { orderId: order._id } as never)}
+              >
+                <Ionicons name="pencil" size={18} color="#fff" />
+                <Text style={styles.editButtonText}>Edit</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -1784,7 +1791,7 @@ export default function OrderDetailScreen() {
         )}
 
         {/* Action Required - Add Weights First (for delivery orders) */}
-        {needsWeightsFirst && (
+        {needsWeightsFirst && canEditOrder && (
           <View style={styles.section}>
             <View style={styles.actionRequiredCard}>
               <View style={styles.actionRequiredHeader}>
@@ -1834,14 +1841,16 @@ export default function OrderDetailScreen() {
               <Ionicons name="cube" size={20} color="#fff" />
               <Text style={styles.printButtonText}>Print Bag Labels ({order?.bags?.length || 0})</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.printButton, styles.shareButton, { marginTop: 10 }]}
-              onPress={() => setShowShareOptions(true)}
-            >
-              <Ionicons name="share-outline" size={20} color="#fff" />
-              <Text style={styles.printButtonText}>Share Order Details</Text>
-              <Ionicons name="chevron-down" size={16} color="#fff" />
-            </TouchableOpacity>
+            {!isStorePhoneMode && (
+              <TouchableOpacity
+                style={[styles.printButton, styles.shareButton, { marginTop: 10 }]}
+                onPress={() => setShowShareOptions(true)}
+              >
+                <Ionicons name="share-outline" size={20} color="#fff" />
+                <Text style={styles.printButtonText}>Share Order Details</Text>
+                <Ionicons name="chevron-down" size={16} color="#fff" />
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -2373,38 +2382,40 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Status Update - Show relevant statuses based on workflow */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Process Status</Text>
-          <View style={styles.statusGrid}>
-            {STATUS_OPTIONS
-              .filter(option => {
-                // If no orderTypes specified, show for all order types
-                if (!option.orderTypes) return true;
-                // Filter based on order type
-                const orderTypeKey = order.orderType === 'delivery' ? 'delivery' : 'storePickup';
-                return option.orderTypes.includes(orderTypeKey);
-              })
-              .map(option => (
-              <TouchableOpacity
-                key={option.value}
-                style={[
-                  styles.statusButton,
-                  order.status === option.value && { backgroundColor: option.color },
-                ]}
-                onPress={() => updateStatus(option.value)}
-                disabled={updating || order.status === option.value}
-              >
-                <Text style={[
-                  styles.statusButtonText,
-                  order.status === option.value && styles.statusButtonTextActive,
-                ]}>
-                  {option.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
+        {/* Status Update - Show relevant statuses based on workflow (hidden in store phone mode) */}
+        {!isStorePhoneMode && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Process Status</Text>
+            <View style={styles.statusGrid}>
+              {STATUS_OPTIONS
+                .filter(option => {
+                  // If no orderTypes specified, show for all order types
+                  if (!option.orderTypes) return true;
+                  // Filter based on order type
+                  const orderTypeKey = order.orderType === 'delivery' ? 'delivery' : 'storePickup';
+                  return option.orderTypes.includes(orderTypeKey);
+                })
+                .map(option => (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.statusButton,
+                    order.status === option.value && { backgroundColor: option.color },
+                  ]}
+                  onPress={() => updateStatus(option.value)}
+                  disabled={updating || order.status === option.value}
+                >
+                  <Text style={[
+                    styles.statusButtonText,
+                    order.status === option.value && styles.statusButtonTextActive,
+                  ]}>
+                    {option.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Air Dry Items */}
         <View style={styles.section}>

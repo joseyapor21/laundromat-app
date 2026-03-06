@@ -23,6 +23,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { useLocation } from '../contexts/LocationContext';
+import { useAuth } from '../contexts/AuthContext';
 import { generateCustomerReceiptText, generateStoreCopyText, generateBagLabelText } from '../services/receiptGenerator';
 import AddressInput from '../components/AddressInput';
 import type { Customer, Settings, ExtraItem, PaymentMethod } from '../types';
@@ -81,6 +82,10 @@ export default function CreateOrderScreen() {
   const route = useRoute<RouteProp<{ params: CreateOrderParams }, 'params'>>();
   const insets = useSafeAreaInsets();
   const { currentLocation } = useLocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isCashier = user?.role === 'cashier';
+  const canCreateOrder = isAdmin || isCashier;
   const scrollViewRef = useRef<ScrollView>(null);
   const orderCreatedRef = useRef(false); // Track if order was successfully created
   const [loading, setLoading] = useState(true);
@@ -944,6 +949,24 @@ export default function CreateOrderScreen() {
     c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
     c.phoneNumber.includes(customerSearch)
   );
+
+  // Only admin and cashier can create orders
+  if (!canCreateOrder) {
+    return (
+      <View style={styles.loadingContainer}>
+        <Ionicons name="lock-closed" size={48} color="#9ca3af" />
+        <Text style={{ fontSize: 18, color: '#6b7280', marginTop: 16, textAlign: 'center' }}>
+          Only cashiers and admins can create orders
+        </Text>
+        <TouchableOpacity
+          style={{ marginTop: 20, padding: 12, backgroundColor: '#2563eb', borderRadius: 8 }}
+          onPress={() => navigation.goBack()}
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (loading) {
     return (

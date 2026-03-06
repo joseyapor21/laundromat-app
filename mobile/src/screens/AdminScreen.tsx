@@ -29,6 +29,7 @@ import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
 import { useAuth } from '../contexts/AuthContext';
+import { useStorePhone } from '../contexts/StorePhoneContext';
 import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location, LocationVaultItem, VaultItemType, VaultDocument, InventoryItem, StockStatus } from '../types';
 import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
@@ -50,6 +51,7 @@ export default function AdminScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation<any>();
   const { user: currentUser } = useAuth();
+  const { isStorePhoneMode } = useStorePhone();
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'super_admin';
   const isCashier = currentUser?.role === 'cashier';
 
@@ -1940,8 +1942,15 @@ export default function AdminScreen() {
     { key: 'appupdates', label: 'App Updates', icon: 'cloud-download', adminOnly: true },
   ];
 
-  // Filter tabs based on role - cashiers only see non-admin tabs
-  const tabs = isAdmin ? allTabs : allTabs.filter(tab => !tab.adminOnly);
+  // Filter tabs based on role and mode
+  // Store phone mode: only show customers tab
+  // Cashiers: only see non-admin tabs
+  // Admins: see all tabs
+  const tabs = isStorePhoneMode
+    ? allTabs.filter(tab => tab.key === 'customers')
+    : isAdmin
+      ? allTabs
+      : allTabs.filter(tab => !tab.adminOnly);
 
   if (loading) {
     return (
