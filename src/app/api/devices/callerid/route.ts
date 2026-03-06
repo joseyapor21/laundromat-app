@@ -126,7 +126,7 @@ export async function POST(request: NextRequest) {
       existingDevice.isActive = true;
       existingDevice.isStorePhone = isStorePhone;
       existingDevice.registeredBy = currentUser.email;
-      existingDevice.registeredByName = `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim();
+      existingDevice.registeredByName = currentUser.name || currentUser.email;
       existingDevice.registeredAt = new Date();
       await existingDevice.save();
 
@@ -142,7 +142,7 @@ export async function POST(request: NextRequest) {
       locationName,
       isStorePhone,
       registeredBy: currentUser.email,
-      registeredByName: `${currentUser.firstName || ''} ${currentUser.lastName || ''}`.trim(),
+      registeredByName: currentUser.name || currentUser.email,
     });
 
     await device.save();
