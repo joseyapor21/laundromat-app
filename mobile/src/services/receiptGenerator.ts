@@ -231,15 +231,21 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
     r += `${formatPhoneNumber(order.customerPhone)}\n`;
   }
 
-  // Customer delivery notes (general customer preferences)
+  // Get all instructions - order.specialInstructions contains combined customer notes + order-specific
   const customerNotes = order.customer?.notes || '';
-  const orderInstructions = order.specialInstructions || '';
+  const allInstructions = order.specialInstructions || '';
 
-  // Check if order instructions are different from customer notes (not just a copy)
-  const orderHasUniqueInstructions = orderInstructions &&
-    orderInstructions.trim() !== customerNotes.trim() &&
-    !orderInstructions.trim().startsWith(customerNotes.trim());
+  // Extract order-specific instructions by removing customer notes from the beginning
+  let orderOnlyInstructions = allInstructions;
+  if (customerNotes && allInstructions.trim().startsWith(customerNotes.trim())) {
+    // Remove customer notes from the beginning to get order-only instructions
+    orderOnlyInstructions = allInstructions.trim().slice(customerNotes.trim().length).trim();
+  } else if (customerNotes && allInstructions.trim() === customerNotes.trim()) {
+    // They're identical, no order-specific instructions
+    orderOnlyInstructions = '';
+  }
 
+  // Print customer delivery notes
   if (customerNotes) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
@@ -260,12 +266,12 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
     r += ESC.NORMAL_SIZE;
   }
 
-  // Order special instructions (only if different from customer notes)
-  if (orderHasUniqueInstructions) {
+  // Print order-specific instructions (the additional instructions beyond customer notes)
+  if (orderOnlyInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` Order Instructions: \n`;
-    const notes = orderInstructions
+    const notes = orderOnlyInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
@@ -279,12 +285,12 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
     }
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
-  } else if (orderInstructions && !customerNotes) {
-    // Only order instructions exist (no customer notes to compare)
+  } else if (allInstructions && !customerNotes) {
+    // Only order instructions exist (no customer notes)
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` Instructions: \n`;
-    const notes = orderInstructions
+    const notes = allInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
@@ -527,15 +533,21 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
     r += `${formatPhoneNumber(order.customerPhone)}\n`;
   }
 
-  // Customer delivery notes (general customer preferences)
+  // Get all instructions - order.specialInstructions contains combined customer notes + order-specific
   const storeCustomerNotes = order.customer?.notes || '';
-  const storeOrderInstructions = order.specialInstructions || '';
+  const storeAllInstructions = order.specialInstructions || '';
 
-  // Check if order instructions are different from customer notes (not just a copy)
-  const storeOrderHasUniqueInstructions = storeOrderInstructions &&
-    storeOrderInstructions.trim() !== storeCustomerNotes.trim() &&
-    !storeOrderInstructions.trim().startsWith(storeCustomerNotes.trim());
+  // Extract order-specific instructions by removing customer notes from the beginning
+  let storeOrderOnlyInstructions = storeAllInstructions;
+  if (storeCustomerNotes && storeAllInstructions.trim().startsWith(storeCustomerNotes.trim())) {
+    // Remove customer notes from the beginning to get order-only instructions
+    storeOrderOnlyInstructions = storeAllInstructions.trim().slice(storeCustomerNotes.trim().length).trim();
+  } else if (storeCustomerNotes && storeAllInstructions.trim() === storeCustomerNotes.trim()) {
+    // They're identical, no order-specific instructions
+    storeOrderOnlyInstructions = '';
+  }
 
+  // Print customer delivery notes
   if (storeCustomerNotes) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
@@ -556,12 +568,12 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
     r += ESC.NORMAL_SIZE;
   }
 
-  // Order special instructions (only if different from customer notes)
-  if (storeOrderHasUniqueInstructions) {
+  // Print order-specific instructions (the additional instructions beyond customer notes)
+  if (storeOrderOnlyInstructions) {
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` Order Instructions: \n`;
-    const notes = storeOrderInstructions
+    const notes = storeOrderOnlyInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
@@ -575,12 +587,12 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
     }
     r += ESC.INVERT_OFF;
     r += ESC.NORMAL_SIZE;
-  } else if (storeOrderInstructions && !storeCustomerNotes) {
-    // Only order instructions exist (no customer notes to compare)
+  } else if (storeAllInstructions && !storeCustomerNotes) {
+    // Only order instructions exist (no customer notes)
     r += ESC.DOUBLE_SIZE_ON;
     r += ESC.INVERT_ON;
     r += ` Instructions: \n`;
-    const notes = storeOrderInstructions
+    const notes = storeAllInstructions
       .replace(/[\u2018\u2019]/g, "'")
       .replace(/[\u201C\u201D]/g, '"')
       .replace(/[\u2013\u2014]/g, '-')
