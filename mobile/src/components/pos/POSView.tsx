@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -14,13 +14,19 @@ import {
   Platform,
   useWindowDimensions,
   StatusBar,
+  PanResponder,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { api } from '../../services/api';
+import { useAuth } from '../../contexts/AuthContext';
 import { formatPhoneNumber, formatPhoneInput } from '../../utils/phoneFormat';
 import type { Order, Customer, PaymentMethod } from '../../types';
+
+// Inactivity timeout in milliseconds (5 minutes)
+const INACTIVITY_TIMEOUT = 5 * 60 * 1000;
 
 interface ExtraItem {
   _id: string;
@@ -65,6 +71,10 @@ interface POSViewProps {
   availableLocations: Location[];
   onSelectLocation: (location: Location) => Promise<void>;
   initialCustomer?: Customer | null;
+  userName?: string;
+  onSwitchUser?: () => void;
+  onUserSwitched?: (newUserName: string) => void;
+  onInactivityLogout?: () => void;
 }
 
 const PAYMENT_METHODS = [
@@ -98,7 +108,14 @@ export default function POSView({
   availableLocations,
   onSelectLocation,
   initialCustomer,
+  userName: initialUserName,
+  onSwitchUser,
+  onUserSwitched,
+  onInactivityLogout,
 }: POSViewProps) {
+  // Auth context for PIN login
+  const { pinLogin } = useAuth();
+
   // Screen dimensions for responsive layout
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -106,6 +123,90 @@ export default function POSView({
   // Phone landscape: not portrait but height is limited (< 500) or width < 1000
   const isPhoneLandscape = !isPortrait && (height < 500 || width < 1000);
   const isTabletLandscape = !isPortrait && !isPhoneLandscape;
+
+  // Current user name (can change when switching users)
+  const [currentUserName, setCurrentUserName] = useState(initialUserName || '');
+
+  // PIN switch modal state
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [switchPin, setSwitchPin] = useState('');
+  const [isPinLoading, setIsPinLoading] = useState(false);
+
+  // Inactivity timer
+  const inactivityTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastActivityRef = useRef<number>(Date.now());
+
+  // Update current user name when prop changes
+  useEffect(() => {
+    if (initialUserName) {
+      setCurrentUserName(initialUserName);
+    }
+  }, [initialUserName]);
+
+  // Reset inactivity timer on any touch/activity
+  const resetInactivityTimer = useCallback(() => {
+    lastActivityRef.current = Date.now();
+
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+    }
+
+    inactivityTimerRef.current = setTimeout(() => {
+      // Show PIN modal for re-authentication after inactivity
+      setShowPinModal(true);
+      setSwitchPin('');
+    }, INACTIVITY_TIMEOUT);
+  }, []);
+
+  // Set up inactivity timer on mount
+  useEffect(() => {
+    resetInactivityTimer();
+
+    return () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+      }
+    };
+  }, [resetInactivityTimer]);
+
+  // Handle PIN numpad input
+  const handlePinNumpad = (key: string) => {
+    if (key === 'C') {
+      setSwitchPin('');
+    } else if (key === '⌫') {
+      setSwitchPin(prev => prev.slice(0, -1));
+    } else if (switchPin.length < 4) {
+      setSwitchPin(prev => prev + key);
+    }
+  };
+
+  // Handle PIN login for user switch
+  const handlePinLogin = async () => {
+    if (!currentLocation) {
+      Alert.alert('Error', 'No location selected');
+      return;
+    }
+    if (switchPin.length !== 4) {
+      Alert.alert('Error', 'PIN must be 4 digits');
+      return;
+    }
+
+    setIsPinLoading(true);
+    try {
+      const result = await pinLogin(switchPin, currentLocation._id);
+      const newUserName = result.user?.firstName || result.user?.email?.split('@')[0] || 'User';
+      setCurrentUserName(newUserName);
+      setShowPinModal(false);
+      setSwitchPin('');
+      resetInactivityTimer();
+      onUserSwitched?.(newUserName);
+    } catch (error) {
+      Alert.alert('Invalid PIN', 'Please try again');
+      setSwitchPin('');
+    } finally {
+      setIsPinLoading(false);
+    }
+  };
 
   // Store selector state
   const [showStoreSelector, setShowStoreSelector] = useState(false);
@@ -638,15 +739,23 @@ export default function POSView({
   }
 
   return (
-    <View style={[
-      styles.container,
-      {
-        paddingTop: isPhoneLandscape ? Math.min(insets.top, 8) : insets.top,
-        paddingBottom: isPhoneLandscape ? 0 : insets.bottom,
-        paddingLeft: isPhoneLandscape ? insets.left : 0,
-        paddingRight: isPhoneLandscape ? insets.right : 0,
-      }
-    ]}>
+    <KeyboardAvoidingView
+      style={{ flex: 1 }}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
+    >
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: isPhoneLandscape ? Math.min(insets.top, 8) : insets.top,
+          paddingBottom: isPhoneLandscape ? 0 : insets.bottom,
+          paddingLeft: isPhoneLandscape ? insets.left : 0,
+          paddingRight: isPhoneLandscape ? insets.right : 0,
+        }
+      ]}
+      onTouchStart={resetInactivityTimer}
+    >
       {/* Full screen mode */}
       <StatusBar barStyle="light-content" backgroundColor="#2563eb" />
 
@@ -670,6 +779,20 @@ export default function POSView({
         ) : currentLocation && (
           <Text style={[styles.headerStoreName, isPhoneLandscape && styles.headerStoreNameCompact]} numberOfLines={1}>@ {currentLocation.name}</Text>
         )}
+        {/* User info and switch button */}
+        {currentUserName && (
+          <TouchableOpacity
+            style={styles.userButton}
+            onPress={() => { setShowPinModal(true); setSwitchPin(''); }}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="person-circle" size={isPhoneLandscape ? 18 : 22} color="#fff" />
+            <Text style={[styles.userButtonText, isPhoneLandscape && styles.userButtonTextCompact]} numberOfLines={1}>
+              {currentUserName}
+            </Text>
+            <Ionicons name="swap-horizontal" size={isPhoneLandscape ? 14 : 16} color="rgba(255,255,255,0.8)" />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity style={[styles.exitButton, isPhoneLandscape && styles.exitButtonCompact]} onPress={onExit}>
           <Ionicons name="close" size={isPhoneLandscape ? 18 : 22} color="#fff" />
         </TouchableOpacity>
@@ -681,7 +804,7 @@ export default function POSView({
           <View style={styles.tabletLayout}>
             {/* LEFT COLUMN: Customer + Options */}
             <View style={styles.tabletColumnLeft}>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContent}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContent} keyboardShouldPersistTaps="handled">
               {/* Customer Search */}
               <View style={styles.tabletSection}>
                 <Text style={styles.tabletSectionTitle}>Customer</Text>
@@ -850,7 +973,7 @@ export default function POSView({
 
             {/* MIDDLE COLUMN: Numpad + Bags */}
             <View style={styles.tabletColumnMiddle}>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContentCenter}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContentCenter} keyboardShouldPersistTaps="handled">
               <View style={styles.tabletWeightDisplay}>
                 <Text style={styles.tabletWeightLabel}>Weight</Text>
                 <Text style={styles.tabletWeightValue}>{weightInput || '0'} lbs</Text>
@@ -939,7 +1062,7 @@ export default function POSView({
 
             {/* RIGHT COLUMN: Dates + Payment + Total + Create */}
             <View style={styles.tabletColumnRight}>
-              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContent}>
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.tabletColumnContent} keyboardShouldPersistTaps="handled">
               {/* Pickup Date - only for delivery orders */}
               {orderType === 'delivery' && (
                 <View style={styles.tabletSection}>
@@ -1122,7 +1245,7 @@ export default function POSView({
               />
               {isLoadingCustomers && <ActivityIndicator size="small" color="#2563eb" />}
               {customerSearch.length > 0 && !selectedCustomer && (
-                <ScrollView style={styles.searchResultsCompact} nestedScrollEnabled>
+                <ScrollView style={styles.searchResultsCompact} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                   {filteredCustomers.slice(0, 4).map(customer => (
                     <TouchableOpacity
                       key={customer._id}
@@ -1577,7 +1700,7 @@ export default function POSView({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.fullExtrasModalScroll}>
+            <ScrollView style={styles.fullExtrasModalScroll} keyboardShouldPersistTaps="handled">
               {extraItems.map(item => {
                 const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                 const isSelected = selectedExtraItems[item._id] !== undefined;
@@ -1834,7 +1957,7 @@ export default function POSView({
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.activeOrdersModalScroll}>
+            <ScrollView style={styles.activeOrdersModalScroll} keyboardShouldPersistTaps="handled">
               {/* New Orders */}
               <View style={styles.orderGroupModal}>
                 <View style={[styles.orderGroupHeader, { backgroundColor: '#3b82f6' }]}>
@@ -1965,7 +2088,100 @@ export default function POSView({
           </View>
         </TouchableOpacity>
       </Modal>
+
+      {/* PIN Switch Modal */}
+      <Modal visible={showPinModal} animationType="fade" transparent>
+        <View style={styles.pinModalOverlay}>
+          <View style={styles.pinModalContent}>
+            <View style={styles.pinModalHeader}>
+              <Text style={styles.pinModalTitle}>Enter PIN</Text>
+              {currentUserName && (
+                <Text style={styles.pinModalSubtitle}>
+                  Current: {currentUserName}
+                </Text>
+              )}
+            </View>
+
+            {/* PIN Display */}
+            <View style={styles.pinDisplay}>
+              {[0, 1, 2, 3].map(i => (
+                <View
+                  key={i}
+                  style={[
+                    styles.pinDot,
+                    i < switchPin.length && styles.pinDotFilled,
+                  ]}
+                />
+              ))}
+            </View>
+
+            {/* Numpad */}
+            <View style={styles.pinNumpad}>
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'C', '0', '⌫'].map(key => (
+                <TouchableOpacity
+                  key={key}
+                  style={[
+                    styles.pinKey,
+                    key === 'C' && styles.pinKeyClear,
+                    key === '⌫' && styles.pinKeyBackspace,
+                  ]}
+                  onPress={() => handlePinNumpad(key)}
+                >
+                  {key === '⌫' ? (
+                    <Ionicons name="backspace-outline" size={24} color="#1e293b" />
+                  ) : (
+                    <Text style={[
+                      styles.pinKeyText,
+                      key === 'C' && styles.pinKeyTextClear,
+                    ]}>
+                      {key}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.pinActions}>
+              <TouchableOpacity
+                style={styles.pinCancelButton}
+                onPress={() => {
+                  setShowPinModal(false);
+                  setSwitchPin('');
+                  resetInactivityTimer();
+                }}
+              >
+                <Text style={styles.pinCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.pinSubmitButton, switchPin.length < 4 && styles.pinSubmitButtonDisabled]}
+                onPress={handlePinLogin}
+                disabled={switchPin.length < 4 || isPinLoading}
+              >
+                {isPinLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.pinSubmitButtonText}>Switch User</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            {/* Logout option */}
+            <TouchableOpacity
+              style={styles.pinLogoutButton}
+              onPress={() => {
+                setShowPinModal(false);
+                onSwitchUser?.();
+              }}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#ef4444" />
+              <Text style={styles.pinLogoutButtonText}>Logout & Exit</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -2045,6 +2261,26 @@ const styles = StyleSheet.create({
   storeLabelText: {
     color: 'rgba(255,255,255,0.8)',
     fontSize: 14,
+  },
+  userButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    gap: 6,
+    marginRight: 8,
+  },
+  userButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    maxWidth: 100,
+  },
+  userButtonTextCompact: {
+    fontSize: 12,
+    maxWidth: 80,
   },
   exitButton: {
     alignItems: 'center',
@@ -4857,5 +5093,129 @@ const styles = StyleSheet.create({
   },
   deliveryTypePriceActive: {
     color: '#fff',
+  },
+  // PIN Modal Styles
+  pinModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  pinModalContent: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+    alignItems: 'center',
+  },
+  pinModalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  pinModalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  pinModalSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 4,
+  },
+  pinDisplay: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 12,
+    marginBottom: 24,
+  },
+  pinDot: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#cbd5e1',
+    backgroundColor: 'transparent',
+  },
+  pinDotFilled: {
+    backgroundColor: '#2563eb',
+    borderColor: '#2563eb',
+  },
+  pinNumpad: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    width: 240,
+    gap: 12,
+  },
+  pinKey: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#f1f5f9',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pinKeyClear: {
+    backgroundColor: '#fee2e2',
+  },
+  pinKeyBackspace: {
+    backgroundColor: '#fef3c7',
+  },
+  pinKeyText: {
+    fontSize: 28,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  pinKeyTextClear: {
+    color: '#ef4444',
+    fontSize: 18,
+  },
+  pinActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+    width: '100%',
+  },
+  pinCancelButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  pinCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  pinSubmitButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#2563eb',
+    alignItems: 'center',
+  },
+  pinSubmitButtonDisabled: {
+    backgroundColor: '#94a3b8',
+  },
+  pinSubmitButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  pinLogoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  pinLogoutButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#ef4444',
   },
 });
