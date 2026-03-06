@@ -21,6 +21,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import * as Device from 'expo-device';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
@@ -141,6 +142,13 @@ export default function ProfileScreen() {
   const [callerIDStatus, setCallerIDStatus] = useState<'checking' | 'enabled' | 'disabled' | 'unavailable'>('checking');
   const [callerIDSyncing, setCallerIDSyncing] = useState(false);
   const [callerIDLastSync, setCallerIDLastSync] = useState<string | null>(null);
+
+  // Caller ID Device Registration
+  const [callerIdDeviceRegistered, setCallerIdDeviceRegistered] = useState<boolean | null>(null);
+  const [callerIdDeviceName, setCallerIdDeviceName] = useState('');
+  const [showDeviceRegisterModal, setShowDeviceRegisterModal] = useState(false);
+  const [deviceRegisterLoading, setDeviceRegisterLoading] = useState(false);
+  const [deviceId, setDeviceId] = useState<string | null>(null);
 
   // Track app state to refresh when coming back to foreground
   const appStateRef = useRef(AppState.currentState);
@@ -727,6 +735,95 @@ export default function ProfileScreen() {
     }
   };
 
+  // Device Registration for Caller ID
+  const getOrCreateDeviceId = async (): Promise<string> => {
+    const DEVICE_ID_KEY = 'callerid_device_id';
+    let storedId = await SecureStore.getItemAsync(DEVICE_ID_KEY);
+    if (!storedId) {
+      // Generate a unique ID using device info + random UUID
+      const deviceInfo = `${Device.modelName || 'unknown'}-${Device.osVersion || 'unknown'}`;
+      const randomPart = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      storedId = `${deviceInfo}-${randomPart}`;
+      await SecureStore.setItemAsync(DEVICE_ID_KEY, storedId);
+    }
+    return storedId;
+  };
+
+  const checkCallerIdDeviceRegistration = async () => {
+    try {
+      const id = await getOrCreateDeviceId();
+      setDeviceId(id);
+      const result = await api.checkCallerIdDevice(id);
+      setCallerIdDeviceRegistered(result.isRegistered);
+      if (result.device?.deviceName) {
+        setCallerIdDeviceName(result.device.deviceName);
+      }
+    } catch (error) {
+      console.log('Error checking device registration:', error);
+      setCallerIdDeviceRegistered(false);
+    }
+  };
+
+  const handleRegisterDevice = async () => {
+    if (!callerIdDeviceName.trim()) {
+      Alert.alert('Error', 'Please enter a device name');
+      return;
+    }
+
+    setDeviceRegisterLoading(true);
+    try {
+      const id = deviceId || await getOrCreateDeviceId();
+      await api.registerCallerIdDevice({
+        deviceId: id,
+        deviceName: callerIdDeviceName.trim(),
+        locationId: currentLocation?._id,
+        locationName: currentLocation?.name,
+      });
+      setCallerIdDeviceRegistered(true);
+      setShowDeviceRegisterModal(false);
+      Alert.alert('Success', 'Device registered for Caller ID. Customers will now be synced to this device.');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to register device');
+    } finally {
+      setDeviceRegisterLoading(false);
+    }
+  };
+
+  const handleUnregisterDevice = async () => {
+    Alert.alert(
+      'Unregister Device',
+      'Are you sure you want to unregister this device from Caller ID? Customers will no longer be synced.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unregister',
+          style: 'destructive',
+          onPress: async () => {
+            setDeviceRegisterLoading(true);
+            try {
+              const id = deviceId || await getOrCreateDeviceId();
+              await api.unregisterCallerIdDevice(id);
+              setCallerIdDeviceRegistered(false);
+              setCallerIdDeviceName('');
+              Alert.alert('Success', 'Device unregistered from Caller ID.');
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to unregister device');
+            } finally {
+              setDeviceRegisterLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Check device registration on mount (for admins only)
+  useEffect(() => {
+    if (user?.role === 'admin' || user?.role === 'super_admin') {
+      checkCallerIdDeviceRegistration();
+    }
+  }, [user?.role]);
+
   async function handleLogout() {
     Alert.alert(
       'Logout',
@@ -1270,14 +1367,14 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 style={[styles.callerIDButton, callerIDSyncing && { opacity: 0.5 }]}
                 onPress={handleSyncCallerID}
-                disabled={callerIDSyncing}
+                disabled={callerIDSyncing || !callerIdDeviceRegistered}
               >
                 {callerIDSyncing ? (
                   <ActivityIndicator size="small" color="#2563eb" />
                 ) : (
                   <>
-                    <Ionicons name="sync" size={16} color="#2563eb" />
-                    <Text style={styles.callerIDButtonText}>Sync Customers</Text>
+                    <Ionicons name="sync" size={16} color={callerIdDeviceRegistered ? '#2563eb' : '#94a3b8'} />
+                    <Text style={[styles.callerIDButtonText, !callerIdDeviceRegistered && { color: '#94a3b8' }]}>Sync Customers</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -1289,6 +1386,53 @@ export default function ProfileScreen() {
                 <Text style={styles.callerIDButtonText}>Settings</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Device Registration - Admin only */}
+            {(user?.role === 'admin' || user?.role === 'super_admin') && (
+              <View style={styles.deviceRegistrationSection}>
+                <View style={styles.deviceRegistrationHeader}>
+                  <Ionicons name="phone-portrait-outline" size={18} color="#64748b" />
+                  <Text style={styles.deviceRegistrationTitle}>Device Registration</Text>
+                </View>
+                {callerIdDeviceRegistered === null ? (
+                  <ActivityIndicator size="small" color="#2563eb" />
+                ) : callerIdDeviceRegistered ? (
+                  <View style={styles.deviceRegisteredInfo}>
+                    <View style={styles.deviceRegisteredBadge}>
+                      <Ionicons name="checkmark-circle" size={16} color="#10b981" />
+                      <Text style={styles.deviceRegisteredText}>Registered: {callerIdDeviceName}</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.deviceUnregisterBtn}
+                      onPress={handleUnregisterDevice}
+                      disabled={deviceRegisterLoading}
+                    >
+                      {deviceRegisterLoading ? (
+                        <ActivityIndicator size="small" color="#ef4444" />
+                      ) : (
+                        <Text style={styles.deviceUnregisterText}>Unregister</Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.deviceNotRegistered}>
+                    <Text style={styles.deviceNotRegisteredText}>
+                      This device is not registered for Caller ID. Register it to enable customer name display on incoming calls.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.deviceRegisterBtn}
+                      onPress={() => {
+                        setCallerIdDeviceName(Device.modelName || 'My Device');
+                        setShowDeviceRegisterModal(true);
+                      }}
+                    >
+                      <Ionicons name="add-circle" size={18} color="#fff" />
+                      <Text style={styles.deviceRegisterBtnText}>Register This Device</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
         )}
       </View>
@@ -1669,6 +1813,60 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
+      {/* Device Registration Modal */}
+      <Modal visible={showDeviceRegisterModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.deviceRegisterModalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Register Device for Caller ID</Text>
+              <TouchableOpacity onPress={() => setShowDeviceRegisterModal(false)}>
+                <Ionicons name="close" size={28} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.deviceRegisterDescription}>
+              Registering this device will enable Caller ID customer lookup. Only registered devices will show customer names on incoming calls.
+            </Text>
+
+            <Text style={styles.inputLabel}>Device Name</Text>
+            <TextInput
+              style={styles.input}
+              value={callerIdDeviceName}
+              onChangeText={setCallerIdDeviceName}
+              placeholder="e.g., Store Phone, Front Desk iPad"
+              placeholderTextColor="#94a3b8"
+            />
+
+            {currentLocation && (
+              <View style={styles.deviceLocationInfo}>
+                <Ionicons name="location" size={16} color="#2563eb" />
+                <Text style={styles.deviceLocationText}>Location: {currentLocation.name}</Text>
+              </View>
+            )}
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                onPress={() => setShowDeviceRegisterModal(false)}
+              >
+                <Text style={styles.cancelBtnText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.saveBtn, deviceRegisterLoading && styles.saveBtnDisabled]}
+                onPress={handleRegisterDevice}
+                disabled={deviceRegisterLoading}
+              >
+                {deviceRegisterLoading ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.saveBtnText}>Register Device</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Clock Out Modal - Hidden in Kiosk Mode */}
       {!isKioskMode && (
         <Modal
@@ -1876,6 +2074,110 @@ const styles = StyleSheet.create({
     color: '#2563eb',
     fontWeight: '500',
     fontSize: 13,
+  },
+  // Device Registration Styles
+  deviceRegistrationSection: {
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    marginTop: 8,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  deviceRegistrationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  deviceRegistrationTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  deviceRegisteredInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  deviceRegisteredBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#dcfce7',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  deviceRegisteredText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#166534',
+  },
+  deviceUnregisterBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  deviceUnregisterText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#ef4444',
+  },
+  deviceNotRegistered: {
+    backgroundColor: '#fef3c7',
+    padding: 12,
+    borderRadius: 8,
+  },
+  deviceNotRegisteredText: {
+    fontSize: 13,
+    color: '#92400e',
+    marginBottom: 10,
+    lineHeight: 18,
+  },
+  deviceRegisterBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: '#2563eb',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+  },
+  deviceRegisterBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  deviceRegisterModalContent: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 30,
+    maxHeight: '60%',
+  },
+  deviceRegisterDescription: {
+    fontSize: 14,
+    color: '#64748b',
+    lineHeight: 20,
+    marginBottom: 20,
+  },
+  deviceLocationInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#eff6ff',
+    padding: 10,
+    borderRadius: 8,
+    marginTop: 12,
+    marginBottom: 20,
+  },
+  deviceLocationText: {
+    fontSize: 14,
+    color: '#2563eb',
+    fontWeight: '500',
   },
   clockOutButton: {
     flex: 1,
@@ -2125,6 +2427,11 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 16,
     color: '#1e293b',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 20,
   },
   cancelBtn: {
     flex: 1,

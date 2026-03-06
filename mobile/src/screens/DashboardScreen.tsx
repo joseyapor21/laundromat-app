@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as NavigationBar from 'expo-navigation-bar';
+import * as SecureStore from 'expo-secure-store';
 import { api } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
@@ -29,6 +30,7 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { formatPhoneNumber } from '../utils/phoneFormat';
 import { recentCallerService, RecentCallerResult, Customer } from '../services/recentCaller';
 import { callerIDService } from '../services/callerID';
+import { useStorePhone } from '../contexts/StorePhoneContext';
 import type { Order } from '../types';
 
 // Auto-sync Caller ID every 30 minutes
@@ -71,6 +73,7 @@ export default function DashboardScreen() {
   const navigation = useNavigation<any>();
   const { user, logout } = useAuth();
   const { currentLocation } = useLocation();
+  const { isStorePhoneMode } = useStorePhone();
   const { width, height } = useWindowDimensions();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -185,6 +188,19 @@ export default function DashboardScreen() {
       if (!callerIDService.isAvailable()) return;
 
       try {
+        // Check if this device is registered for Caller ID
+        const deviceId = await SecureStore.getItemAsync('callerid_device_id');
+        if (!deviceId) {
+          console.log('Caller ID sync skipped: device not registered');
+          return;
+        }
+
+        const deviceCheck = await api.checkCallerIdDevice(deviceId);
+        if (!deviceCheck.isRegistered) {
+          console.log('Caller ID sync skipped: device not registered on server');
+          return;
+        }
+
         // Fetch all customers
         const customers = await api.getCustomers();
 
@@ -642,8 +658,9 @@ export default function DashboardScreen() {
       {/* Board View for Landscape - Full Screen */}
       {useWideLayout ? (
         <View style={styles.boardContainerFullScreen}>
-          {/* POS Button for Landscape - Only for admin/cashier */}
-          {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
+          {/* POS Button for Landscape - Only for admin/cashier (hidden in store phone mode unless cashier) */}
+          {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') &&
+           (!isStorePhoneMode || user?.role === 'cashier') && (
             <TouchableOpacity
               style={styles.posButtonLandscape}
               onPress={() => setShowPOS(true)}
@@ -664,8 +681,9 @@ export default function DashboardScreen() {
               <Text style={styles.headerTitle}>Dashboard</Text>
               <Text style={styles.headerSubtitle}>Welcome, {user?.firstName || 'User'}</Text>
             </View>
-            {/* POS Button - Only for admin/cashier */}
-            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
+            {/* POS Button - Only for admin/cashier (hidden in store phone mode unless cashier) */}
+            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') &&
+             (!isStorePhoneMode || user?.role === 'cashier') && (
               <TouchableOpacity
                 style={styles.posButtonPortrait}
                 onPress={() => setShowPOS(true)}

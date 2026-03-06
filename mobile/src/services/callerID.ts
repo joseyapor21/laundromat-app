@@ -22,15 +22,16 @@ export interface ExtensionStatus {
 
 class CallerIDService {
   /**
-   * Check if Caller ID is available (iOS only)
+   * Check if Caller ID is available (iOS and Android)
    */
   isAvailable(): boolean {
-    return Platform.OS === 'ios' && CallerIDModule !== null;
+    return (Platform.OS === 'ios' || Platform.OS === 'android') && CallerIDModule !== null;
   }
 
   /**
-   * Sync customer phone numbers to the iOS Call Directory Extension
-   * This allows iOS to display customer names on incoming calls
+   * Sync customer phone numbers to the Caller ID system
+   * On iOS: Uses Call Directory Extension to display names in native caller ID
+   * On Android: Stores in SharedPreferences and shows notification on incoming calls
    */
   async syncCustomers(customers: CallerIDCustomer[]): Promise<SyncResult> {
     console.log('CallerID syncCustomers called with', customers.length, 'customers');

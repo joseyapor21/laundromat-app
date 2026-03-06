@@ -14,6 +14,7 @@ import {
   Dimensions,
   KeyboardAvoidingView,
   Platform,
+  Share,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { ReactNativeZoomableView } from '@openspacelabs/react-native-zoomable-view';
@@ -21,6 +22,9 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
@@ -75,6 +79,7 @@ export default function OrderDetailScreen() {
   const [checkingMachine, setCheckingMachine] = useState<string | null>(null);
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [showShareOptions, setShowShareOptions] = useState(false);
   const [verifyingFolding, setVerifyingFolding] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [verifyingTransfer, setVerifyingTransfer] = useState(false);
@@ -179,6 +184,457 @@ export default function OrderDetailScreen() {
 
   function showPrintMenu() {
     setShowPrintOptions(true);
+  }
+
+  // Generate and share PDF invoice
+  async function handleSharePDF() {
+    if (!order) return;
+
+    try {
+      const storeName = currentLocation?.name || 'Laundromat';
+      const storeAddress = currentLocation?.address || '';
+      const storePhone = currentLocation?.phone || '';
+      const customerName = order.customer?.name || 'Customer';
+      const customerPhone = order.customer?.phoneNumber ? formatPhoneNumber(order.customer.phoneNumber) : '';
+      const orderNumber = order.orderId || order._id?.slice(-6).toUpperCase() || 'N/A';
+      const totalPounds = order.weight || order.totalWeight || 0;
+      const totalBags = order.bags?.length || 0;
+      const orderDate = order.createdAt ? new Date(order.createdAt).toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }) : 'N/A';
+      // Ready by date (estimatedPickupDate)
+      const readyByDate = order.estimatedPickupDate ? new Date(order.estimatedPickupDate).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }) : null;
+      // Delivery date (deliverySchedule) - only for delivery orders
+      const deliveryByDate = order.deliverySchedule ? new Date(order.deliverySchedule).toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }) : null;
+
+      // Build line items - calculate from stored order values to ensure totals match
+      let lineItemsHtml = '';
+
+      // Get total from order first (needed for calculations)
+      const total = order.totalAmount || 0;
+      const paid = order.amountPaid || 0;
+
+      // Calculate extra items total from stored prices (use overrideTotal if set)
+      let extraItemsTotal = 0;
+      if (order.extraItems && order.extraItems.length > 0) {
+        order.extraItems.forEach((item: any) => {
+          const hasOverride = item.overrideTotal !== undefined && item.overrideTotal !== null;
+          const itemTotal = hasOverride ? item.overrideTotal : (item.price || 0) * (item.quantity || 1);
+          extraItemsTotal += itemTotal;
+        });
+      }
+
+      // Calculate fees
+      const deliveryFee = (order.orderType === 'delivery' && order.deliveryFee) ? order.deliveryFee : 0;
+      const sameDayFee = (order.isSameDay && order.sameDayFee) ? order.sameDayFee : 0;
+
+      // Calculate wash & fold amount by working backwards from total
+      const washFoldAmount = total - extraItemsTotal - deliveryFee - sameDayFee;
+
+      // Weight-based charges with base + extra breakdown
+      const orderWeight = order.weight || order.totalWeight || 0;
+
+      console.log('PDF Debug:', {
+        total,
+        extraItemsTotal,
+        deliveryFee,
+        sameDayFee,
+        washFoldAmount,
+        orderWeight,
+        'order.weight': order.weight,
+        'order.totalWeight': order.totalWeight,
+        totalBags,
+        settings: settings ? 'loaded' : 'null'
+      });
+
+      if (orderWeight > 0 && washFoldAmount > 0) {
+        // Get pricing settings
+        const minimumWeight = settings?.minimumWeight || 7;
+        const minimumPrice = settings?.minimumPrice || 10;
+        const pricePerPound = settings?.pricePerPound || 1.25;
+
+        // Calculate breakdown to match order display
+        const extraPounds = Math.max(0, orderWeight - minimumWeight);
+
+        // Show base price line
+        lineItemsHtml += `
+          <tr>
+            <td>Base (first ${minimumWeight} lbs)${totalBags > 0 ? ` - ${totalBags} bag${totalBags > 1 ? 's' : ''}` : ''}</td>
+            <td style="text-align: center;">${Math.min(orderWeight, minimumWeight)} lbs</td>
+            <td style="text-align: right;">-</td>
+            <td style="text-align: right; font-weight: 500;">$${minimumPrice.toFixed(2)}</td>
+          </tr>
+        `;
+
+        // Show extra pounds line if applicable
+        if (extraPounds > 0) {
+          const extraAmount = washFoldAmount - minimumPrice;
+          lineItemsHtml += `
+            <tr>
+              <td>Extra ${extraPounds.toFixed(1)} lbs × $${pricePerPound.toFixed(2)}</td>
+              <td style="text-align: center;">${extraPounds.toFixed(1)} lbs</td>
+              <td style="text-align: right;">$${pricePerPound.toFixed(2)}/lb</td>
+              <td style="text-align: right; font-weight: 500;">$${extraAmount.toFixed(2)}</td>
+            </tr>
+          `;
+        }
+      }
+
+      // Extra items
+      if (order.extraItems && order.extraItems.length > 0) {
+        order.extraItems.forEach((item: any) => {
+          const originalTotal = (item.price || 0) * (item.quantity || 1);
+          const hasOverride = item.overrideTotal !== undefined && item.overrideTotal !== null;
+          const itemTotal = hasOverride ? item.overrideTotal : originalTotal;
+          const isReduced = hasOverride && item.overrideTotal < originalTotal;
+
+          lineItemsHtml += `
+            <tr>
+              <td>${item.name}</td>
+              <td style="text-align: center;">${item.quantity || 1}</td>
+              <td style="text-align: right;">${isReduced
+                ? `<span style="text-decoration: line-through; color: #9ca3af;">$${(item.price || 0).toFixed(2)}</span>`
+                : `$${(item.price || 0).toFixed(2)}`}</td>
+              <td style="text-align: right; font-weight: 500; ${isReduced ? 'color: #ef4444;' : ''}">$${itemTotal.toFixed(2)}</td>
+            </tr>
+          `;
+        });
+      }
+
+      // Delivery fee as line item
+      if (deliveryFee > 0) {
+        lineItemsHtml += `
+          <tr>
+            <td>Delivery Fee</td>
+            <td style="text-align: center;">1</td>
+            <td style="text-align: right;">-</td>
+            <td style="text-align: right; font-weight: 500;">$${deliveryFee.toFixed(2)}</td>
+          </tr>
+        `;
+      }
+
+      // Same day fee as line item
+      if (sameDayFee > 0) {
+        lineItemsHtml += `
+          <tr>
+            <td>Same Day Service</td>
+            <td style="text-align: center;">1</td>
+            <td style="text-align: right;">-</td>
+            <td style="text-align: right; font-weight: 500;">$${sameDayFee.toFixed(2)}</td>
+          </tr>
+        `;
+      }
+
+      // If no line items but there's a total, add a generic service line
+      if (!lineItemsHtml && total > 0) {
+        lineItemsHtml = `
+          <tr>
+            <td>Laundry Service</td>
+            <td style="text-align: center;">1</td>
+            <td style="text-align: right;">-</td>
+            <td style="text-align: right; font-weight: 500;">$${total.toFixed(2)}</td>
+          </tr>
+        `;
+      }
+      const balance = total - paid;
+      const statusLabel = STATUS_OPTIONS.find(s => s.value === order.status)?.label || order.status;
+      const statusColor = STATUS_OPTIONS.find(s => s.value === order.status)?.color || '#6b7280';
+
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Invoice - ${customerName}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; color: #1f2937; line-height: 1.3; font-size: 12px; }
+            .invoice { max-width: 800px; margin: 0 auto; padding: 20px; }
+            .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid #2563eb; }
+            .logo-section { display: flex; align-items: center; gap: 8px; }
+            .logo-text-container { }
+            .logo-text { font-size: 20px; font-weight: 700; color: #2563eb; }
+            .invoice-title { text-align: right; }
+            .invoice-title h1 { font-size: 24px; color: #1f2937; font-weight: 300; }
+            .invoice-number { font-size: 12px; color: #6b7280; margin-top: 2px; }
+            .status-badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; color: white; margin-top: 4px; }
+            .info-section { display: flex; justify-content: space-between; margin-bottom: 15px; }
+            .info-box { }
+            .info-box h3 { font-size: 9px; text-transform: uppercase; letter-spacing: 1px; color: #6b7280; margin-bottom: 4px; }
+            .info-box p { font-size: 11px; color: #374151; margin-bottom: 1px; }
+            .info-box .name { font-size: 13px; font-weight: 600; color: #1f2937; }
+            .dates-section { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; padding: 10px; background: #f9fafb; border-radius: 6px; }
+            .date-item { min-width: 80px; }
+            .date-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; }
+            .date-value { font-size: 11px; font-weight: 500; color: #1f2937; margin-top: 2px; }
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
+            .items-table th { background: #f3f4f6; padding: 6px 8px; text-align: left; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; color: #6b7280; }
+            .items-table th:nth-child(2), .items-table th:nth-child(3), .items-table th:nth-child(4) { text-align: right; }
+            .items-table th:nth-child(2) { text-align: center; }
+            .items-table td { padding: 6px 8px; font-size: 11px; border-bottom: 1px solid #e5e7eb; }
+            .totals-section { margin-left: auto; width: 250px; }
+            .totals-table { width: 100%; }
+            .totals-table td { padding: 4px 8px; font-size: 11px; }
+            .total-row { font-size: 16px; font-weight: 700; border-top: 2px solid #1f2937; background: #f3f4f6; }
+            .total-row td { padding-top: 8px; padding-bottom: 8px; }
+            .paid-row { color: #10b981; }
+            .balance-row { color: #ef4444; font-weight: 600; }
+            .balance-paid { color: #10b981; font-weight: 600; }
+            .notes-section { margin-top: 15px; padding: 10px; background: #fef3c7; border-radius: 6px; border-left: 3px solid #f59e0b; }
+            .notes-title { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #92400e; margin-bottom: 4px; }
+            .notes-text { font-size: 11px; color: #78350f; }
+            .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #e5e7eb; text-align: center; }
+            .footer p { font-size: 10px; color: #9ca3af; }
+            .footer .thank-you { font-size: 13px; color: #2563eb; font-weight: 500; margin-bottom: 4px; }
+          </style>
+        </head>
+        <body>
+          <div class="invoice">
+            <div class="header">
+              <div class="logo-section">
+                <div class="logo-text-container">
+                  <div class="logo-text">${storeName}</div>
+                </div>
+              </div>
+              <div class="invoice-title">
+                <h1>INVOICE</h1>
+                <div class="invoice-number">Order #${orderNumber}</div>
+                <div class="status-badge" style="background-color: ${statusColor};">${statusLabel}</div>
+              </div>
+            </div>
+
+            <div class="info-section">
+              <div class="info-box">
+                <h3>Bill To</h3>
+                <p class="name">${customerName}</p>
+                ${customerPhone ? `<p>${customerPhone}</p>` : ''}
+                ${order.customer?.address ? `<p>${order.customer.address}</p>` : ''}
+              </div>
+              <div class="info-box" style="text-align: right;">
+                <h3>From</h3>
+                <p class="name">${storeName}</p>
+                ${storeAddress ? `<p>${storeAddress}</p>` : ''}
+                ${storePhone ? `<p>${storePhone}</p>` : ''}
+              </div>
+            </div>
+
+            <div class="dates-section">
+              ${readyByDate ? `
+              <div class="date-item">
+                <div class="date-label">${order.orderType === 'delivery' ? 'Pickup' : 'Ready by'}</div>
+                <div class="date-value">${readyByDate}</div>
+              </div>
+              ` : ''}
+              ${order.orderType === 'delivery' && deliveryByDate ? `
+              <div class="date-item">
+                <div class="date-label">Delivery by</div>
+                <div class="date-value">${deliveryByDate}</div>
+              </div>
+              ` : ''}
+              <div class="date-item">
+                <div class="date-label">Service Type</div>
+                <div class="date-value">${order.orderType === 'delivery' ? '🚗 Delivery' : '🏪 Store Pickup'}${order.isSameDay ? ' (Same Day)' : ''}</div>
+              </div>
+              ${totalPounds > 0 ? `
+              <div class="date-item">
+                <div class="date-label">Total Weight</div>
+                <div class="date-value" style="font-size: 18px; font-weight: 700; color: #2563eb;">${totalPounds} lbs</div>
+              </div>
+              ` : ''}
+              ${totalBags > 0 ? `
+              <div class="date-item">
+                <div class="date-label">Bags</div>
+                <div class="date-value" style="font-size: 18px; font-weight: 700; color: #6366f1;">${totalBags}</div>
+              </div>
+              ` : ''}
+            </div>
+
+            <table class="items-table">
+              <thead>
+                <tr>
+                  <th style="width: 50%;">Description</th>
+                  <th style="width: 15%;">Qty</th>
+                  <th style="width: 15%;">Rate</th>
+                  <th style="width: 20%;">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${lineItemsHtml}
+              </tbody>
+            </table>
+
+            <div class="totals-section">
+              <table class="totals-table">
+                <tr class="total-row">
+                  <td colspan="3" style="text-align: right; color: #1f2937;">TOTAL:</td>
+                  <td style="text-align: right; color: #2563eb; font-size: 22px;">$${total.toFixed(2)}</td>
+                </tr>
+                ${paid > 0 ? `
+                <tr class="paid-row">
+                  <td colspan="3" style="text-align: right;">Amount Paid:</td>
+                  <td style="text-align: right;">-$${paid.toFixed(2)}</td>
+                </tr>
+                ` : ''}
+                <tr class="${balance <= 0 ? 'balance-paid' : 'balance-row'}">
+                  <td colspan="3" style="text-align: right; font-size: 16px;">${balance <= 0 ? 'PAID IN FULL' : 'Balance Due:'}</td>
+                  <td style="text-align: right; font-size: 16px;">${balance > 0 ? '$' + balance.toFixed(2) : '✓'}</td>
+                </tr>
+              </table>
+            </div>
+
+            ${(order.specialInstructions || order.customer?.notes) ? `
+            <div class="notes-section">
+              <div class="notes-title">Special Instructions</div>
+              <div class="notes-text">${order.specialInstructions || order.customer?.notes}</div>
+            </div>
+            ` : ''}
+
+            <div class="footer">
+              <p class="thank-you">Thank you for your business!</p>
+              <p>Questions? Contact us at ${storePhone || storeName}</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // Generate PDF
+      const { uri } = await Print.printToFileAsync({ html });
+
+      // Create proper filename: CustomerName_OrderNumber_Invoice.pdf
+      const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '_').replace(/_+/g, '_');
+      const sanitizedOrderNumber = String(orderNumber).replace(/[^a-zA-Z0-9]/g, '_');
+      const newFileName = `${sanitizedCustomerName}_${sanitizedOrderNumber}_Invoice.pdf`;
+      const newUri = `${FileSystem.cacheDirectory}${newFileName}`;
+
+      // Move file to new location with proper name
+      await FileSystem.moveAsync({ from: uri, to: newUri });
+
+      // Share the PDF
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(newUri, {
+          mimeType: 'application/pdf',
+          dialogTitle: `Invoice - ${customerName}`,
+          UTI: 'com.adobe.pdf',
+        });
+      } else {
+        Alert.alert('Error', 'Sharing is not available on this device');
+      }
+    } catch (error: any) {
+      console.error('PDF generation error:', error);
+      Alert.alert('Error', 'Failed to generate PDF invoice');
+    }
+  }
+
+  // Share order details with customer (text format)
+  async function handleShareOrder() {
+    if (!order) return;
+
+    try {
+      // Format order breakdown
+      const storeName = currentLocation?.name || 'Laundromat';
+      const customerName = order.customer?.name || 'Customer';
+      const orderDate = order.createdAt ? new Date(order.createdAt).toLocaleDateString() : 'N/A';
+      const pickupDate = order.pickupDate ? new Date(order.pickupDate).toLocaleDateString('en-US', {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }) : 'TBD';
+
+      // Build order breakdown
+      let breakdown = '';
+
+      // Weight-based charges
+      const orderWeight = order.weight || order.totalWeight || 0;
+      if (orderWeight > 0) {
+        const pricePerLb = order.isSameDay ? (settings?.sameDayPricePerPound || settings?.pricePerPound || 0) : (settings?.pricePerPound || 0);
+        breakdown += `Wash & Fold (${orderWeight} lbs): $${(orderWeight * pricePerLb).toFixed(2)}\n`;
+      }
+
+      // Extra items
+      if (order.extraItems && order.extraItems.length > 0) {
+        order.extraItems.forEach((item: any) => {
+          const itemTotal = (item.price || 0) * (item.quantity || 1);
+          breakdown += `${item.name}${item.quantity > 1 ? ` x${item.quantity}` : ''}: $${itemTotal.toFixed(2)}\n`;
+        });
+      }
+
+      // Same day fee
+      if (order.isSameDay && order.sameDayFee && order.sameDayFee > 0) {
+        breakdown += `Same Day Service: $${order.sameDayFee.toFixed(2)}\n`;
+      }
+
+      // Delivery fee
+      if (order.orderType === 'delivery' && order.deliveryFee && order.deliveryFee > 0) {
+        breakdown += `Delivery Fee: $${order.deliveryFee.toFixed(2)}\n`;
+      }
+
+      // Calculate total
+      const total = order.totalAmount || 0;
+      const paid = order.amountPaid || 0;
+      const balance = total - paid;
+
+      // Status message
+      const statusLabel = STATUS_OPTIONS.find(s => s.value === order.status)?.label || order.status;
+
+      // Build share message
+      let message = `📋 *Order from ${storeName}*\n`;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `👤 ${customerName}\n`;
+      message += `📅 Order Date: ${orderDate}\n`;
+      message += `📦 Status: ${statusLabel}\n`;
+      if (order.orderType === 'delivery') {
+        message += `🚗 Delivery: ${pickupDate}\n`;
+      } else {
+        message += `🏪 Pickup: ${pickupDate}\n`;
+      }
+      message += `\n`;
+      message += `*Order Details:*\n`;
+      message += breakdown;
+      message += `━━━━━━━━━━━━━━━━━━━━\n`;
+      message += `💰 *Total: $${total.toFixed(2)}*\n`;
+      if (paid > 0) {
+        message += `✅ Paid: $${paid.toFixed(2)}\n`;
+      }
+      if (balance > 0) {
+        message += `⚠️ *Balance Due: $${balance.toFixed(2)}*\n`;
+      } else if (balance <= 0 && paid > 0) {
+        message += `✅ *PAID IN FULL*\n`;
+      }
+
+      if (order.specialInstructions || order.customer?.notes) {
+        message += `\n📝 Notes: ${order.specialInstructions || order.customer?.notes}\n`;
+      }
+
+      message += `\nThank you for choosing ${storeName}! 🧺`;
+
+      await Share.share({
+        message,
+        title: `Order Details - ${customerName}`,
+      });
+    } catch (error: any) {
+      if (error.message !== 'User did not share') {
+        Alert.alert('Error', 'Failed to share order details');
+      }
+    }
   }
 
   // Print using local POS thermal printer via TCP with ESC/POS formatting
@@ -1377,6 +1833,14 @@ export default function OrderDetailScreen() {
             >
               <Ionicons name="cube" size={20} color="#fff" />
               <Text style={styles.printButtonText}>Print Bag Labels ({order?.bags?.length || 0})</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.printButton, styles.shareButton, { marginTop: 10 }]}
+              onPress={() => setShowShareOptions(true)}
+            >
+              <Ionicons name="share-outline" size={20} color="#fff" />
+              <Text style={styles.printButtonText}>Share Order Details</Text>
+              <Ionicons name="chevron-down" size={16} color="#fff" />
             </TouchableOpacity>
           </View>
         </View>
@@ -2639,6 +3103,60 @@ export default function OrderDetailScreen() {
         </TouchableOpacity>
       </Modal>
 
+      {/* Share Options Modal */}
+      <Modal
+        visible={showShareOptions}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowShareOptions(false)}
+      >
+        <TouchableOpacity
+          style={styles.printModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowShareOptions(false)}
+        >
+          <View style={styles.printModalContent}>
+            <Text style={styles.printModalTitle}>Share Order Details</Text>
+            <TouchableOpacity
+              style={styles.printOptionButton}
+              onPress={() => {
+                setShowShareOptions(false);
+                handleSharePDF();
+              }}
+            >
+              <View style={[styles.printOptionIcon, { backgroundColor: '#fce7f3' }]}>
+                <Ionicons name="document-text" size={20} color="#db2777" />
+              </View>
+              <View style={styles.printOptionTextContainer}>
+                <Text style={styles.printOptionLabel}>PDF Invoice</Text>
+                <Text style={styles.printOptionDescription}>Professional invoice with logo</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.printOptionButton}
+              onPress={() => {
+                setShowShareOptions(false);
+                handleShareOrder();
+              }}
+            >
+              <View style={[styles.printOptionIcon, { backgroundColor: '#d1fae5' }]}>
+                <Ionicons name="chatbubble-ellipses" size={20} color="#059669" />
+              </View>
+              <View style={styles.printOptionTextContainer}>
+                <Text style={styles.printOptionLabel}>Text Message</Text>
+                <Text style={styles.printOptionDescription}>Simple text format for SMS/WhatsApp</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.printCancelButton}
+              onPress={() => setShowShareOptions(false)}
+            >
+              <Text style={styles.printCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
       {/* Photo Viewer Modal */}
       <Modal
         visible={selectedPhotoIndex !== null}
@@ -3040,6 +3558,9 @@ const styles = StyleSheet.create({
   },
   printButtonOrange: {
     backgroundColor: '#f97316',
+  },
+  shareButton: {
+    backgroundColor: '#10b981',
   },
   noBagWeightsText: {
     fontSize: 13,

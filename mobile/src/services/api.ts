@@ -703,6 +703,55 @@ class ApiService {
     });
   }
 
+  // Caller ID Device Registration
+  async checkCallerIdDevice(deviceId: string): Promise<{
+    isRegistered: boolean;
+    isStorePhone?: boolean;
+    device?: {
+      deviceId: string;
+      deviceName: string;
+      locationName?: string;
+      registeredAt: string;
+      isStorePhone?: boolean;
+    };
+  }> {
+    return this.request(`/devices/callerid?deviceId=${encodeURIComponent(deviceId)}`);
+  }
+
+  async registerCallerIdDevice(data: {
+    deviceId: string;
+    deviceName: string;
+    locationId?: string;
+    locationName?: string;
+    isStorePhone?: boolean;
+  }): Promise<{ success: boolean; message: string; device?: unknown }> {
+    return this.request('/devices/callerid', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async unregisterCallerIdDevice(deviceId: string): Promise<{ success: boolean; message: string }> {
+    return this.request(`/devices/callerid?deviceId=${encodeURIComponent(deviceId)}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async listCallerIdDevices(): Promise<{
+    devices: Array<{
+      deviceId: string;
+      deviceName: string;
+      registeredBy: string;
+      registeredByName?: string;
+      locationName?: string;
+      registeredAt: string;
+      isActive: boolean;
+      isStorePhone?: boolean;
+    }>;
+  }> {
+    return this.request('/devices/callerid?listAll=true');
+  }
+
   // Activity Logs
   async getActivityLogs(params?: {
     limit?: number;

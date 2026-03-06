@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
 import { ScannerProvider, FloatingActionButtons } from '../contexts/ScannerContext';
 import { TimeClockProvider, useTimeClock } from '../contexts/TimeClockContext';
+import { StorePhoneProvider, useStorePhone } from '../contexts/StorePhoneContext';
 import pushNotificationService from '../services/pushNotifications';
 
 // Navigation ref for use outside of components (e.g., notification handling)
@@ -41,6 +42,72 @@ import ClockInScreen from '../screens/ClockInScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+// Store Phone tabs - simplified view with only Orders and Customers
+function StorePhoneTabs() {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+
+  // Detect landscape mode
+  const isLandscape = width > height && width >= 700;
+
+  // Calculate tab bar style
+  const getTabBarStyle = () => {
+    if (isLandscape) {
+      return { display: 'none' as const };
+    }
+
+    if (Platform.OS === 'android') {
+      const bottomPadding = Math.max(insets.bottom, 24);
+      return {
+        paddingBottom: bottomPadding,
+        paddingTop: 8,
+        height: 60 + bottomPadding,
+      };
+    }
+    return {
+      paddingBottom: 8,
+      paddingTop: 8,
+      height: 60,
+    };
+  };
+
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          let iconName: keyof typeof Ionicons.glyphMap = 'home';
+
+          if (route.name === 'Orders') {
+            iconName = focused ? 'receipt' : 'receipt-outline';
+          } else if (route.name === 'Customers') {
+            iconName = focused ? 'people' : 'people-outline';
+          } else if (route.name === 'Profile') {
+            iconName = focused ? 'person' : 'person-outline';
+          }
+
+          return <Ionicons name={iconName} size={size} color={color} />;
+        },
+        tabBarActiveTintColor: '#2563eb',
+        tabBarInactiveTintColor: '#94a3b8',
+        tabBarStyle: getTabBarStyle(),
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: '500',
+        },
+        headerShown: false,
+      })}
+    >
+      <Tab.Screen name="Orders" component={DashboardScreen} />
+      <Tab.Screen
+        name="Customers"
+        component={AdminScreen}
+        initialParams={{ screen: 'customers' }}
+      />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
+    </Tab.Navigator>
+  );
+}
 
 function MainTabs() {
   const { user } = useAuth();
@@ -127,11 +194,13 @@ function AuthStack() {
 }
 
 function MainStack() {
+  const { isStorePhoneMode } = useStorePhone();
+
   return (
     <Stack.Navigator>
       <Stack.Screen
         name="Main"
-        component={MainTabs}
+        component={isStorePhoneMode ? StorePhoneTabs : MainTabs}
         options={{ headerShown: false }}
       />
       <Stack.Screen
@@ -226,16 +295,17 @@ function ClockInPrompt() {
   );
 }
 
-function AuthenticatedApp() {
+function AuthenticatedAppContent() {
   const { user } = useAuth();
+  const { isStorePhoneMode } = useStorePhone();
   const isKioskMode = user?.isKioskMode;
 
-  // Kiosk mode: skip time clock provider, clock-in prompt, and floating buttons
-  if (isKioskMode) {
+  // Kiosk mode or store phone mode: skip time clock provider, clock-in prompt, and floating buttons
+  if (isKioskMode || isStorePhoneMode) {
     return (
       <ScannerProvider>
         <MainStack />
-        {/* No FloatingActionButtons or ClockInPrompt in kiosk/POS mode */}
+        {/* No FloatingActionButtons or ClockInPrompt in kiosk/POS/store phone mode */}
       </ScannerProvider>
     );
   }
@@ -248,6 +318,14 @@ function AuthenticatedApp() {
         <ClockInPrompt />
       </ScannerProvider>
     </TimeClockProvider>
+  );
+}
+
+function AuthenticatedApp() {
+  return (
+    <StorePhoneProvider>
+      <AuthenticatedAppContent />
+    </StorePhoneProvider>
   );
 }
 

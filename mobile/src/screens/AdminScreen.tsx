@@ -32,7 +32,19 @@ import { useAuth } from '../contexts/AuthContext';
 import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location, LocationVaultItem, VaultItemType, VaultDocument, InventoryItem, StockStatus } from '../types';
 import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
-type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault' | 'appupdates' | 'inventory';
+type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault' | 'appupdates' | 'inventory' | 'devices';
+
+interface CallerIDDevice {
+  deviceId: string;
+  deviceName: string;
+  registeredBy: string;
+  registeredByName?: string;
+  locationId?: string;
+  locationName?: string;
+  registeredAt: string;
+  isActive: boolean;
+  isStorePhone?: boolean;
+}
 
 export default function AdminScreen() {
   const insets = useSafeAreaInsets();
@@ -155,6 +167,19 @@ export default function AdminScreen() {
   const [printerDevices, setPrinterDevices] = useState<Device[]>([]);
   const [connectedPrinterName, setConnectedPrinterName] = useState<string | null>(null);
 
+  // Devices (CallerID/Store Phone) state
+  const [callerIdDevices, setCallerIdDevices] = useState<CallerIDDevice[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
+  const [showDeviceModal, setShowDeviceModal] = useState(false);
+  const [editingDevice, setEditingDevice] = useState<CallerIDDevice | null>(null);
+  const [deviceForm, setDeviceForm] = useState({
+    deviceId: '',
+    deviceName: '',
+    locationId: '',
+    locationName: '',
+    isStorePhone: true,
+  });
+
   // Search
   const [customerSearch, setCustomerSearch] = useState('');
 
@@ -207,7 +232,7 @@ export default function AdminScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, customersData, extraItemsData, settingsData, machinesData, activityData, locationsData, inventoryData] = await Promise.all([
+      const [usersData, customersData, extraItemsData, settingsData, machinesData, activityData, locationsData, inventoryData, devicesData] = await Promise.all([
         api.getUsers().catch(() => []),
         api.getCustomers(),
         api.getExtraItems().catch(() => []),
@@ -216,6 +241,7 @@ export default function AdminScreen() {
         api.getActivityLogs({ limit: 50 }).catch(() => ({ logs: [], total: 0 })),
         api.getLocations().catch(() => []),
         api.getInventory().catch(() => ({ items: [], lowStockCount: 0, categories: [] })),
+        api.listCallerIdDevices().catch(() => ({ devices: [] })),
       ]);
       setUsers(usersData);
       setCustomers(customersData);
@@ -226,6 +252,7 @@ export default function AdminScreen() {
       setActivityTotal(activityData.total);
       setLocations(locationsData);
       setInventoryItems(inventoryData.items);
+      setCallerIdDevices(devicesData.devices);
       setInventoryLowStockCount(inventoryData.lowStockCount);
       setInventoryCategories(inventoryData.categories);
     } catch (error) {
@@ -961,6 +988,88 @@ export default function AdminScreen() {
               loadData();
             } catch (error) {
               const errorMessage = error instanceof Error ? error.message : 'Failed to delete location';
+              Alert.alert('Error', errorMessage);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Device (CallerID/Store Phone) actions
+  const openDeviceModal = (device?: CallerIDDevice) => {
+    if (device) {
+      setEditingDevice(device);
+      setDeviceForm({
+        deviceId: device.deviceId,
+        deviceName: device.deviceName,
+        locationId: device.locationId || '',
+        locationName: device.locationName || '',
+        isStorePhone: device.isStorePhone ?? true,
+      });
+    } else {
+      setEditingDevice(null);
+      setDeviceForm({
+        deviceId: '',
+        deviceName: '',
+        locationId: '',
+        locationName: '',
+        isStorePhone: true,
+      });
+    }
+    setShowDeviceModal(true);
+  };
+
+  const handleSaveDevice = async () => {
+    if (!deviceForm.deviceId || !deviceForm.deviceName) {
+      Alert.alert('Error', 'Please fill in device ID and name');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Find location name if locationId is provided
+      let locationName = deviceForm.locationName;
+      if (deviceForm.locationId && !locationName) {
+        const loc = locations.find(l => l._id === deviceForm.locationId);
+        locationName = loc?.name || '';
+      }
+
+      await api.registerCallerIdDevice({
+        deviceId: deviceForm.deviceId,
+        deviceName: deviceForm.deviceName,
+        locationId: deviceForm.locationId || undefined,
+        locationName: locationName || undefined,
+        isStorePhone: deviceForm.isStorePhone,
+      });
+
+      Alert.alert('Success', editingDevice ? 'Device updated' : 'Device registered');
+      setShowDeviceModal(false);
+      loadData();
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save device';
+      Alert.alert('Error', errorMessage);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteDevice = (device: CallerIDDevice) => {
+    Alert.alert(
+      'Unregister Device',
+      `Are you sure you want to unregister "${device.deviceName}"?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unregister',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.unregisterCallerIdDevice(device.deviceId);
+              Alert.alert('Success', 'Device unregistered');
+              loadData();
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to unregister device';
               Alert.alert('Error', errorMessage);
             }
           },
@@ -1821,6 +1930,7 @@ export default function AdminScreen() {
     { key: 'settings', label: 'Settings', icon: 'settings', adminOnly: true },
     { key: 'machines', label: 'Machines', icon: 'hardware-chip', adminOnly: true },
     { key: 'inventory', label: 'Inventory', icon: 'cube', adminOnly: true, badge: inventoryLowStockCount > 0 ? inventoryLowStockCount : undefined },
+    { key: 'devices', label: 'Devices', icon: 'phone-portrait', adminOnly: true },
     { key: 'vault', label: 'Vault', icon: 'lock-closed', adminOnly: true },
     { key: 'printers', label: 'Printers', icon: 'print', adminOnly: true },
     { key: 'reports', label: 'Reports', icon: 'document-text', adminOnly: false },
@@ -3046,6 +3156,111 @@ export default function AdminScreen() {
         </View>
       )}
 
+      {/* Devices Tab */}
+      {activeTab === 'devices' && (
+        <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12 }}>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#1e293b' }}>
+              Registered Devices ({callerIdDevices.length})
+            </Text>
+            <TouchableOpacity
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                backgroundColor: '#2563eb',
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 8,
+                gap: 4,
+              }}
+              onPress={() => openDeviceModal()}
+            >
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={{ color: '#fff', fontWeight: '600' }}>Add Device</Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={{ paddingHorizontal: 16, paddingBottom: 12 }}>
+            <View style={{ backgroundColor: '#eff6ff', padding: 12, borderRadius: 8, flexDirection: 'row', gap: 8 }}>
+              <Ionicons name="information-circle" size={20} color="#2563eb" />
+              <Text style={{ flex: 1, fontSize: 13, color: '#1e40af' }}>
+                Register devices for Caller ID and Store Phone mode. Store phones show a simplified view with only Orders and Customers.
+              </Text>
+            </View>
+          </View>
+
+          <FlatList
+            data={callerIdDevices}
+            keyExtractor={(item) => item.deviceId}
+            contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
+            ItemSeparatorComponent={() => <View style={{ height: 12 }} />}
+            renderItem={({ item }) => (
+              <View style={{
+                backgroundColor: '#fff',
+                borderRadius: 12,
+                padding: 16,
+                borderWidth: 1,
+                borderColor: '#e2e8f0',
+              }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <Ionicons name="phone-portrait" size={20} color="#2563eb" />
+                      <Text style={{ fontSize: 16, fontWeight: '600', color: '#1e293b' }}>{item.deviceName}</Text>
+                    </View>
+                    <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{item.deviceId}</Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity
+                      onPress={() => openDeviceModal(item)}
+                      style={{ padding: 8 }}
+                    >
+                      <Ionicons name="create-outline" size={20} color="#2563eb" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => handleDeleteDevice(item)}
+                      style={{ padding: 8 }}
+                    >
+                      <Ionicons name="trash-outline" size={20} color="#dc2626" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={{ marginTop: 12, flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                  {item.isStorePhone && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#dcfce7', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 }}>
+                      <Ionicons name="storefront" size={14} color="#16a34a" />
+                      <Text style={{ fontSize: 12, fontWeight: '500', color: '#16a34a' }}>Store Phone</Text>
+                    </View>
+                  )}
+                  {item.locationName && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, gap: 4 }}>
+                      <Ionicons name="location" size={14} color="#64748b" />
+                      <Text style={{ fontSize: 12, fontWeight: '500', color: '#64748b' }}>{item.locationName}</Text>
+                    </View>
+                  )}
+                </View>
+
+                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9' }}>
+                  <Text style={{ fontSize: 12, color: '#94a3b8' }}>
+                    Registered by {item.registeredByName || item.registeredBy} on {new Date(item.registeredAt).toLocaleDateString()}
+                  </Text>
+                </View>
+              </View>
+            )}
+            ListEmptyComponent={
+              <View style={{ alignItems: 'center', paddingVertical: 40 }}>
+                <Ionicons name="phone-portrait-outline" size={48} color="#cbd5e1" />
+                <Text style={{ color: '#94a3b8', fontSize: 16, marginTop: 12 }}>No devices registered</Text>
+                <Text style={{ color: '#cbd5e1', fontSize: 14, textAlign: 'center', marginTop: 4 }}>
+                  Tap "Add Device" to register a device for{'\n'}Caller ID or Store Phone mode
+                </Text>
+              </View>
+            }
+          />
+        </View>
+      )}
+
       {/* Vault Tab */}
       {activeTab === 'vault' && (
         <View style={{ flex: 1 }}>
@@ -4183,6 +4398,125 @@ export default function AdminScreen() {
                 <ActivityIndicator color="#fff" size="small" />
               ) : (
                 <Text style={styles.saveBtnText}>Save</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Device Modal */}
+      <Modal visible={showDeviceModal} animationType="slide">
+        <View style={{ flex: 1, backgroundColor: '#fff', paddingTop: insets.top }}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>
+              {editingDevice ? 'Edit Device' : 'Register Device'}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setShowDeviceModal(false)}
+              hitSlop={{ top: 15, bottom: 15, left: 15, right: 15 }}
+            >
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+          <KeyboardAwareScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.modalBody}
+            enableOnAndroid={true}
+            extraScrollHeight={20}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Device ID *</Text>
+              <TextInput
+                style={styles.input}
+                value={deviceForm.deviceId}
+                onChangeText={(text) => setDeviceForm({ ...deviceForm, deviceId: text })}
+                placeholder="Unique device identifier"
+                placeholderTextColor="#94a3b8"
+                editable={!editingDevice}
+              />
+              <Text style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>
+                Get this from the device's Profile screen under "Caller ID"
+              </Text>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Device Name *</Text>
+              <TextInput
+                style={styles.input}
+                value={deviceForm.deviceName}
+                onChangeText={(text) => setDeviceForm({ ...deviceForm, deviceName: text })}
+                placeholder="e.g., Store Phone 1, Front Counter iPad"
+                placeholderTextColor="#94a3b8"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Location</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={() => setDeviceForm({ ...deviceForm, locationId: '', locationName: '' })}
+                    style={{
+                      paddingHorizontal: 14,
+                      paddingVertical: 8,
+                      borderRadius: 8,
+                      backgroundColor: !deviceForm.locationId ? '#2563eb' : '#f1f5f9',
+                    }}
+                  >
+                    <Text style={{
+                      fontSize: 14,
+                      fontWeight: '600',
+                      color: !deviceForm.locationId ? '#fff' : '#64748b',
+                    }}>All Locations</Text>
+                  </TouchableOpacity>
+                  {locations.map(loc => (
+                    <TouchableOpacity
+                      key={loc._id}
+                      onPress={() => setDeviceForm({ ...deviceForm, locationId: loc._id, locationName: loc.name })}
+                      style={{
+                        paddingHorizontal: 14,
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                        backgroundColor: deviceForm.locationId === loc._id ? '#2563eb' : '#f1f5f9',
+                      }}
+                    >
+                      <Text style={{
+                        fontSize: 14,
+                        fontWeight: '600',
+                        color: deviceForm.locationId === loc._id ? '#fff' : '#64748b',
+                      }}>{loc.name}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            <View style={[styles.inputGroup, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Store Phone Mode</Text>
+                <Text style={{ fontSize: 12, color: '#64748b' }}>
+                  Shows simplified view with only Orders and Customers
+                </Text>
+              </View>
+              <Switch
+                value={deviceForm.isStorePhone}
+                onValueChange={(value) => setDeviceForm({ ...deviceForm, isStorePhone: value })}
+                trackColor={{ false: '#e2e8f0', true: '#93c5fd' }}
+                thumbColor={deviceForm.isStorePhone ? '#2563eb' : '#94a3b8'}
+              />
+            </View>
+          </KeyboardAwareScrollView>
+          <View style={styles.modalFooter}>
+            <TouchableOpacity
+              style={styles.saveBtn}
+              onPress={handleSaveDevice}
+              disabled={saving}
+            >
+              {saving ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.saveBtnText}>{editingDevice ? 'Update' : 'Register'}</Text>
               )}
             </TouchableOpacity>
           </View>
