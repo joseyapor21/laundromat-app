@@ -658,9 +658,8 @@ export default function DashboardScreen() {
       {/* Board View for Landscape - Full Screen */}
       {useWideLayout ? (
         <View style={styles.boardContainerFullScreen}>
-          {/* POS Button for Landscape - Only for admin/cashier (hidden in store phone mode unless cashier) */}
-          {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') &&
-           (!isStorePhoneMode || user?.role === 'cashier') && (
+          {/* POS Button for Landscape - Only for admin/cashier (visible in store phone mode too) */}
+          {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
             <TouchableOpacity
               style={styles.posButtonLandscape}
               onPress={() => setShowPOS(true)}
@@ -681,9 +680,8 @@ export default function DashboardScreen() {
               <Text style={styles.headerTitle}>Dashboard</Text>
               <Text style={styles.headerSubtitle}>Welcome, {user?.firstName || 'User'}</Text>
             </View>
-            {/* POS Button - Only for admin/cashier (hidden in store phone mode unless cashier) */}
-            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') &&
-             (!isStorePhoneMode || user?.role === 'cashier') && (
+            {/* POS Button - Only for admin/cashier (visible in store phone mode too) */}
+            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
               <TouchableOpacity
                 style={styles.posButtonPortrait}
                 onPress={() => setShowPOS(true)}
