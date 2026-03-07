@@ -126,9 +126,15 @@ export async function fetchPaymentEmails(gmail: gmail_v1.Gmail): Promise<ParsedP
   // Check emails from the last 7 days (not just unread)
   // Include queries for forwarded emails (search by subject/content, not just from)
   const queries = [
-    // Zelle queries - direct
+    // Zelle queries - direct from Zelle
     'from:alerts@notify.zelle.com subject:"sent you" newer_than:7d',
     'from:alerts@notify.zelle.com subject:"received" newer_than:7d',
+    // Zelle queries - TD Bank format
+    'from:tdbank subject:"Zelle" subject:"deposited" newer_than:7d',
+    'from:tdbank "Send Money with Zelle" newer_than:7d',
+    // Zelle queries - Chase, Wells Fargo, Bank of America (common banks)
+    'subject:"Zelle" subject:"payment" newer_than:7d',
+    'subject:"Zelle" subject:"deposited" newer_than:7d',
     // Venmo queries - direct
     'from:venmo@venmo.com subject:"paid you" newer_than:7d',
     // Forwarded emails - search by subject pattern
@@ -211,7 +217,14 @@ function parsePaymentEmail(message: gmail_v1.Schema$Message, emailId: string): P
 
   // Detect payment type and parse accordingly
   // Check both 'from' header and body content (for forwarded emails)
-  const isZelle = from.includes('zelle') || from.includes('notify.zelle.com') || body.includes('notify.zelle.com') || body.includes('zelle.com');
+  // Detect Zelle - from Zelle directly or from banks that use Zelle
+  const isZelle = from.includes('zelle') ||
+    from.includes('notify.zelle.com') ||
+    body.includes('notify.zelle.com') ||
+    body.includes('zelle.com') ||
+    body.toLowerCase().includes('send money with zelle') ||
+    body.toLowerCase().includes('zelle service') ||
+    (subject.toLowerCase().includes('zelle') && body.toLowerCase().includes('payment'));
   const isVenmo = from.includes('venmo') || from.includes('venmo.com') || body.includes('venmo@venmo.com') || body.includes('venmo.com');
 
   if (isZelle) {
@@ -247,9 +260,11 @@ function parsePaymentEmail(message: gmail_v1.Schema$Message, emailId: string): P
 
 /**
  * Parse Zelle notification email
- * Example subjects:
+ * Example formats:
  * - "John Smith sent you $25.00"
  * - "You received $50.00 from Jane Doe"
+ * - TD Bank: "the $45.50 payment from MICHELLE CHACKO"
+ * - "deposited the $XX.XX payment from [Name]"
  */
 function parseZelleEmail(subject: string, body: string): { senderName: string; amount: number } | null {
   // Pattern 1: "[Name] sent you $XX.XX"
@@ -280,6 +295,25 @@ function parseZelleEmail(subject: string, body: string): { senderName: string; a
   }
 
   match = body.match(/received\s+\$?([\d,]+\.?\d*)\s+from\s+(.+?)[\.\n]/i);
+  if (match) {
+    return {
+      senderName: match[2].trim(),
+      amount: parseAmount(match[1]),
+    };
+  }
+
+  // Pattern 3: TD Bank format - "the $XX.XX payment from [Name]"
+  // Also matches: "deposited the $45.50 payment from MICHELLE CHACKO"
+  match = body.match(/(?:deposited\s+)?the\s+\$?([\d,]+\.?\d*)\s+payment\s+from\s+([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z]+)*)/i);
+  if (match) {
+    return {
+      senderName: match[2].trim(),
+      amount: parseAmount(match[1]),
+    };
+  }
+
+  // Pattern 4: Generic "payment from [Name]" with amount nearby
+  match = body.match(/\$?([\d,]+\.?\d*)\s+(?:payment|transfer)\s+from\s+([A-Za-z]+(?:\s+[A-Za-z]+)*)/i);
   if (match) {
     return {
       senderName: match[2].trim(),
