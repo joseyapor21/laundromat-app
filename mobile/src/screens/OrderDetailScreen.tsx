@@ -2911,27 +2911,48 @@ export default function OrderDetailScreen() {
               </View>
             ) : (
               <ScrollView style={styles.bagPickerList}>
-                {availableBags.map((bag, index) => (
-                  <TouchableOpacity
-                    key={bag.identifier}
-                    style={styles.bagPickerItem}
-                    onPress={() => handleBagSelected(bag)}
-                  >
-                    <View style={styles.bagPickerItemLeft}>
-                      <View style={styles.bagPickerIcon}>
-                        <Ionicons name="cube" size={24} color="#8b5cf6" />
+                {availableBags.map((bag, index) => {
+                  const activeAssignments = bag.assignedMachines?.filter(a => !a.isChecked) || [];
+                  const hasAssignments = activeAssignments.length > 0;
+                  return (
+                    <TouchableOpacity
+                      key={bag.identifier}
+                      style={styles.bagPickerItem}
+                      onPress={() => handleBagSelected(bag)}
+                    >
+                      <View style={styles.bagPickerItemLeft}>
+                        <View style={[styles.bagPickerIcon, hasAssignments && { backgroundColor: '#fef3c7' }]}>
+                          <Ionicons name="cube" size={24} color={hasAssignments ? '#f59e0b' : '#8b5cf6'} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.bagPickerItemTitle}>{bag.identifier}</Text>
+                          <Text style={styles.bagPickerItemSubtitle}>
+                            {bag.weight ? `${bag.weight} lbs` : 'No weight'}
+                            {bag.color ? ` • ${bag.color}` : ''}
+                          </Text>
+                          {hasAssignments && (
+                            <View style={styles.bagAssignmentsRow}>
+                              {activeAssignments.map((assignment, idx) => (
+                                <View key={idx} style={[
+                                  styles.bagAssignmentBadge,
+                                  assignment.machineType === 'washer' ? styles.washerBadge : styles.dryerBadge
+                                ]}>
+                                  <Ionicons
+                                    name={assignment.machineType === 'washer' ? 'water' : 'flame'}
+                                    size={10}
+                                    color="#fff"
+                                  />
+                                  <Text style={styles.bagAssignmentText}>{assignment.machineName}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
                       </View>
-                      <View>
-                        <Text style={styles.bagPickerItemTitle}>{bag.identifier}</Text>
-                        <Text style={styles.bagPickerItemSubtitle}>
-                          {bag.weight ? `${bag.weight} lbs` : 'No weight'}
-                          {bag.color ? ` • ${bag.color}` : ''}
-                        </Text>
-                      </View>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
-                  </TouchableOpacity>
-                ))}
+                      <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             )}
           </View>
@@ -4884,6 +4905,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748b',
     marginTop: 2,
+  },
+  bagAssignmentsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
+    marginTop: 6,
+  },
+  bagAssignmentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  washerBadge: {
+    backgroundColor: '#3b82f6',
+  },
+  dryerBadge: {
+    backgroundColor: '#f97316',
+  },
+  bagAssignmentText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#fff',
   },
   // Pay date picker styles
   paidAtDateBtn: {

@@ -61,9 +61,29 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // allow the same bag to be assigned to multiple machines of the same type
     // This is needed when splitting a bag (e.g., whites in one washer, colors in another)
     const allBags = order.bags || [];
+    const machineAssignments = order.machineAssignments || [];
 
-    // Return all bags - let the user assign the same bag to multiple machines if needed
-    return NextResponse.json(allBags);
+    // Enrich bags with their current machine assignments
+    const bagsWithAssignments = allBags.map((bag: { identifier: string; weight?: number; color?: string }) => {
+      // Find all active assignments for this bag
+      const assignments = machineAssignments
+        .filter((a: { bagIdentifier?: string; removedAt?: Date; isChecked?: boolean }) =>
+          a.bagIdentifier === bag.identifier && !a.removedAt
+        )
+        .map((a: { machineName: string; machineType: string; isChecked?: boolean }) => ({
+          machineName: a.machineName,
+          machineType: a.machineType,
+          isChecked: a.isChecked || false,
+        }));
+
+      return {
+        ...bag,
+        assignedMachines: assignments,
+      };
+    });
+
+    // Return all bags with their assignments
+    return NextResponse.json(bagsWithAssignments);
   } catch (error) {
     console.error('Get available bags error:', error);
     return NextResponse.json(

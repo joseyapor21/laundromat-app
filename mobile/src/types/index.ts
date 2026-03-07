@@ -107,6 +107,12 @@ export interface Bag {
   foldingCheckedAt?: Date;
   foldingCheckedBy?: string;
   foldingCheckedByInitials?: string;
+  // Machine assignments for this bag
+  assignedMachines?: Array<{
+    machineName: string;
+    machineType: 'washer' | 'dryer';
+    isChecked?: boolean;
+  }>;
 }
 
 export interface StatusHistoryEntry {
