@@ -24,13 +24,13 @@ export async function GET() {
 
     await connectDB();
 
-    // First, let's debug - find all drivers regardless of GPS
-    const allDrivers = await User.find({
-      isDriver: true,
-      isActive: true,
-    })
-      .select('firstName lastName email currentGpsLocation isClockedIn isOnBreak')
+    // First, let's debug - find all users to check isDriver field
+    const allUsers = await User.find({})
+      .select('firstName lastName email isDriver isActive currentGpsLocation')
       .lean();
+
+    // Filter to drivers
+    const allDrivers = allUsers.filter(u => u.isDriver && u.isActive);
 
     console.log('All drivers found:', allDrivers.length);
     allDrivers.forEach(d => {
@@ -52,14 +52,20 @@ export async function GET() {
       isOnBreak: driver.isOnBreak,
     }));
 
-    // Debug: include all drivers info
-    const debug = allDrivers.map(d => ({
-      email: d.email,
-      hasGps: !!d.currentGpsLocation,
-      gps: d.currentGpsLocation,
+    // Debug: show all users with their driver status
+    const debug = allUsers.map(u => ({
+      email: u.email,
+      isDriver: u.isDriver,
+      isActive: u.isActive,
+      hasGps: !!u.currentGpsLocation,
     }));
 
-    return NextResponse.json({ drivers: driverLocations, debug, totalDrivers: allDrivers.length });
+    return NextResponse.json({
+      drivers: driverLocations,
+      debug,
+      totalUsers: allUsers.length,
+      totalDrivers: allDrivers.length
+    });
   } catch (error) {
     console.error('Get driver locations error:', error);
     return NextResponse.json(
