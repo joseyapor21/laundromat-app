@@ -24,14 +24,21 @@ export async function GET() {
 
     await connectDB();
 
-    // Get all active drivers who have GPS location
-    const drivers = await User.find({
+    // First, let's debug - find all drivers regardless of GPS
+    const allDrivers = await User.find({
       isDriver: true,
       isActive: true,
-      'currentGpsLocation.latitude': { $exists: true },
     })
-      .select('firstName lastName currentGpsLocation isClockedIn isOnBreak')
+      .select('firstName lastName email currentGpsLocation isClockedIn isOnBreak')
       .lean();
+
+    console.log('All drivers found:', allDrivers.length);
+    allDrivers.forEach(d => {
+      console.log(`Driver ${d.email}: GPS=${JSON.stringify(d.currentGpsLocation)}`);
+    });
+
+    // Filter to only those with GPS location
+    const drivers = allDrivers.filter(d => d.currentGpsLocation && d.currentGpsLocation.latitude);
 
     const driverLocations = drivers.map((driver) => ({
       userId: driver._id.toString(),
