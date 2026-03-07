@@ -22,6 +22,10 @@ export interface CustomerDoc {
   notes: string;
   credit: number;
   creditHistory: CreditTransactionDoc[];
+  // Payment identifiers for auto-matching
+  venmoUsername?: string;
+  zelleEmail?: string;
+  zellePhone?: string;
 }
 
 const creditTransactionSchema = new mongoose.Schema({
@@ -99,6 +103,22 @@ const customerSchema = new mongoose.Schema({
   creditHistory: {
     type: [creditTransactionSchema],
     default: [],
+  },
+  // Payment identifiers for auto-matching
+  venmoUsername: {
+    type: String,
+    default: null,
+    sparse: true,
+  },
+  zelleEmail: {
+    type: String,
+    default: null,
+    sparse: true,
+  },
+  zellePhone: {
+    type: String,
+    default: null,
+    sparse: true,
   },
 }, {
   collection: 'customers',

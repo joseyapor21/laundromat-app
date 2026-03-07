@@ -1,5 +1,5 @@
 import { connectDB } from '@/lib/db/connection';
-import { Order, ActivityLog } from '@/lib/db/models';
+import { Order, ActivityLog, Customer } from '@/lib/db/models';
 import { notifyPaymentReceived } from './pushNotifications';
 import type { ParsedPayment } from './gmailPayments';
 
@@ -67,30 +67,184 @@ function calculateNameSimilarity(name1: string, name2: string): number {
 }
 
 /**
+ * Find customer by payment identifier (Venmo username or Zelle email/phone)
+ * Searches across ALL locations
+ */
+async function findCustomerByPaymentId(
+  paymentMethod: 'venmo' | 'zelle',
+  senderName: string
+): Promise<typeof Customer.prototype | null> {
+  await connectDB();
+
+  if (paymentMethod === 'venmo') {
+    // Venmo username might be in format "@username" or just the name
+    const normalizedName = senderName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const customer = await Customer.findOne({
+      venmoUsername: { $regex: new RegExp(normalizedName, 'i') }
+    });
+    return customer;
+  } else {
+    // Zelle uses email or phone
+    const customer = await Customer.findOne({
+      $or: [
+        { zelleEmail: { $regex: new RegExp(senderName.replace(/[^a-z0-9@.]/gi, ''), 'i') } },
+        { zellePhone: { $regex: new RegExp(senderName.replace(/[^0-9]/g, ''), 'i') } }
+      ]
+    });
+    return customer;
+  }
+}
+
+/**
+ * Find customer by name (searches across ALL locations)
+ */
+async function findCustomerByName(name: string): Promise<typeof Customer.prototype | null> {
+  await connectDB();
+
+  const normalizedName = normalizeName(name);
+
+  // Try exact match first
+  let customer = await Customer.findOne({
+    name: { $regex: new RegExp(`^${normalizedName}$`, 'i') }
+  });
+
+  if (customer) return customer;
+
+  // Try partial match
+  const nameParts = normalizedName.split(' ').filter(p => p.length > 2);
+  if (nameParts.length >= 2) {
+    customer = await Customer.findOne({
+      $and: nameParts.map(part => ({
+        name: { $regex: new RegExp(part, 'i') }
+      }))
+    });
+  }
+
+  return customer;
+}
+
+/**
+ * Save payment identifier on customer for future auto-matching
+ */
+async function savePaymentIdentifier(
+  customerId: string,
+  paymentMethod: 'venmo' | 'zelle',
+  senderName: string
+): Promise<void> {
+  await connectDB();
+
+  const updateData: Record<string, string> = {};
+
+  if (paymentMethod === 'venmo') {
+    updateData.venmoUsername = senderName;
+  } else {
+    // Determine if it's email or phone
+    if (senderName.includes('@')) {
+      updateData.zelleEmail = senderName;
+    } else {
+      updateData.zellePhone = senderName;
+    }
+  }
+
+  await Customer.findByIdAndUpdate(customerId, { $set: updateData });
+  console.log(`Saved ${paymentMethod} identifier "${senderName}" for customer ${customerId}`);
+}
+
+/**
+ * Find unpaid orders for a specific customer
+ */
+async function findUnpaidOrdersForCustomer(customerId: string): Promise<typeof Order.prototype[]> {
+  await connectDB();
+
+  return Order.find({
+    customerId: customerId,
+    isPaid: false,
+    status: { $nin: ['completed', 'cancelled'] },
+  }).sort({ createdAt: -1 }).lean();
+}
+
+/**
  * Find unpaid orders matching the payment amount and customer name
  */
 export async function findMatchingOrder(
   senderName: string,
   amount: number,
+  paymentMethod: 'venmo' | 'zelle' = 'venmo',
   tolerance: number = 0.01
 ): Promise<MatchResult> {
   await connectDB();
 
-  // Find unpaid orders with matching amount (within tolerance)
+  // STEP 1: Try to find customer by saved payment identifier
+  let customer = await findCustomerByPaymentId(paymentMethod, senderName);
+  let matchedByPaymentId = !!customer;
+
+  // STEP 2: If not found, try to find customer by name
+  if (!customer) {
+    customer = await findCustomerByName(senderName);
+  }
+
+  // If we found a customer, look for their unpaid orders
+  if (customer) {
+    const unpaidOrders = await findUnpaidOrdersForCustomer(customer._id.toString());
+
+    // Save payment identifier for future matching (if not already saved)
+    if (!matchedByPaymentId) {
+      await savePaymentIdentifier(customer._id.toString(), paymentMethod, senderName);
+    }
+
+    if (unpaidOrders.length === 0) {
+      return {
+        success: false,
+        matchType: 'no_match',
+        message: `Found customer "${customer.name}" but no unpaid orders`,
+      };
+    }
+
+    // Find order with matching amount
+    const matchingOrder = unpaidOrders.find(o =>
+      Math.abs(o.totalAmount - amount) <= tolerance
+    );
+
+    if (matchingOrder) {
+      return {
+        success: true,
+        orderId: matchingOrder._id.toString(),
+        orderNumber: matchingOrder.orderId,
+        customerName: customer.name,
+        matchType: matchedByPaymentId ? 'exact' : 'fuzzy',
+        message: `Matched to Order #${matchingOrder.orderId} for ${customer.name}`,
+      };
+    }
+
+    // No exact amount match, but we have the customer - show their unpaid orders
+    return {
+      success: false,
+      matchType: 'amount_only',
+      message: `Found customer "${customer.name}" but amount $${amount.toFixed(2)} doesn't match any unpaid order`,
+      candidates: unpaidOrders.slice(0, 5).map(o => ({
+        orderId: o._id.toString(),
+        orderNumber: o.orderId,
+        customerName: customer.name,
+        totalAmount: o.totalAmount,
+      })),
+    };
+  }
+
+  // STEP 3: Fall back to original logic - find by amount across all orders
   const minAmount = amount - tolerance;
   const maxAmount = amount + tolerance;
 
   const candidates = await Order.find({
     isPaid: false,
     totalAmount: { $gte: minAmount, $lte: maxAmount },
-    status: { $ne: 'completed' }, // Don't match completed orders
+    status: { $nin: ['completed', 'cancelled'] },
   }).lean();
 
   if (candidates.length === 0) {
     return {
       success: false,
       matchType: 'no_match',
-      message: `No unpaid orders found with amount $${amount.toFixed(2)}`,
+      message: `No customer or unpaid order found for "${senderName}" with amount $${amount.toFixed(2)}`,
     };
   }
 
@@ -281,7 +435,7 @@ export async function logPaymentMatch(
  * Process a single payment and try to match it to an order
  */
 export async function processPayment(payment: ParsedPayment): Promise<PaymentProcessResult> {
-  const match = await findMatchingOrder(payment.senderName, payment.amount);
+  const match = await findMatchingOrder(payment.senderName, payment.amount, payment.paymentMethod);
 
   const result: PaymentProcessResult = {
     emailId: payment.emailId,

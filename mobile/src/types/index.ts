@@ -44,6 +44,10 @@ export interface Customer {
   notes?: string;
   createdAt: Date;
   updatedAt: Date;
+  // Payment identifiers for auto-matching
+  venmoUsername?: string;
+  zelleEmail?: string;
+  zellePhone?: string;
 }
 
 export interface CreditTransaction {
