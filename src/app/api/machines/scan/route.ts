@@ -139,21 +139,10 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Check if this bag already has a machine of this type assigned
+      // Allow same bag to be assigned to multiple machines of same type
+      // This is needed for separate wash orders where a bag needs to be split
+      // (e.g., whites in one washer, colors in another)
       const machineAssignmentsArray = order.machineAssignments || [];
-      const existingBagAssignment = machineAssignmentsArray.find(
-        (a: { bagIdentifier?: string; machineType: string; removedAt?: Date }) =>
-          a.bagIdentifier === bagIdentifier &&
-          a.machineType === machine.type &&
-          !a.removedAt
-      );
-      if (existingBagAssignment) {
-        console.log('Scan error: Bag already has this machine type:', bagIdentifier, machine.type);
-        return NextResponse.json(
-          { error: `"${bagIdentifier}" already has a ${machine.type} assigned` },
-          { status: 400 }
-        );
-      }
 
       // Block different bags from using the same machine (unless checked/released)
       const machineUsedByOtherBag = machineAssignmentsArray.find(

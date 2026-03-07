@@ -57,21 +57,13 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json([]);
     }
 
-    // Get bag identifiers that already have this machine type assigned (and not removed)
-    const machineAssignments = order.machineAssignments || [];
-    const assignedBagIdentifiers = machineAssignments
-      .filter((a: { machineType: string; bagIdentifier?: string; removedAt?: Date }) =>
-        a.machineType === machineType && a.bagIdentifier && !a.removedAt
-      )
-      .map((a: { bagIdentifier?: string }) => a.bagIdentifier);
-
-    // Filter bags to only include those without an assignment for this machine type
+    // For keepSeparated orders (separate wash / separate all the way),
+    // allow the same bag to be assigned to multiple machines of the same type
+    // This is needed when splitting a bag (e.g., whites in one washer, colors in another)
     const allBags = order.bags || [];
-    const availableBags = allBags.filter(
-      (bag: { identifier: string }) => !assignedBagIdentifiers.includes(bag.identifier)
-    );
 
-    return NextResponse.json(availableBags);
+    // Return all bags - let the user assign the same bag to multiple machines if needed
+    return NextResponse.json(allBags);
   } catch (error) {
     console.error('Get available bags error:', error);
     return NextResponse.json(
