@@ -1090,6 +1090,39 @@ class ApiService {
       method: 'DELETE',
     });
   }
+
+  // Gmail Payment Integration
+  async getGmailStatus(): Promise<{ connected: boolean; expired: boolean; message: string }> {
+    return this.request<{ connected: boolean; expired: boolean; message: string }>('/payments/check-emails', {
+      method: 'GET',
+    });
+  }
+
+  async checkPaymentEmails(): Promise<{
+    success: boolean;
+    message: string;
+    processed: number;
+    matched: number;
+    results?: Array<{
+      emailId: string;
+      payment: {
+        senderName: string;
+        amount: number;
+        paymentMethod: 'zelle' | 'venmo';
+      };
+      match: {
+        success: boolean;
+        matchType?: string;
+        orderId?: string;
+        customerName?: string;
+      };
+    }>;
+    error?: string;
+  }> {
+    return this.request('/payments/check-emails', {
+      method: 'POST',
+    });
+  }
 }
 
 export const api = new ApiService();

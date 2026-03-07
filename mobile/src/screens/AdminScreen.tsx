@@ -165,6 +165,18 @@ export default function AdminScreen() {
   });
   const [uploadingApp, setUploadingApp] = useState<'ios' | 'android' | null>(null);
 
+  // Gmail Payment Integration state
+  const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; expired: boolean; message: string } | null>(null);
+  const [checkingEmails, setCheckingEmails] = useState(false);
+  const [lastPaymentCheck, setLastPaymentCheck] = useState<{
+    processed: number;
+    matched: number;
+    results?: Array<{
+      payment: { senderName: string; amount: number; paymentMethod: 'zelle' | 'venmo' };
+      match: { success: boolean; matchType?: string; customerName?: string };
+    }>;
+  } | null>(null);
+
   // Inventory state
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
   const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
@@ -259,7 +271,7 @@ export default function AdminScreen() {
 
   const loadData = useCallback(async () => {
     try {
-      const [usersData, customersData, extraItemsData, settingsData, machinesData, activityData, locationsData, inventoryData, devicesData] = await Promise.all([
+      const [usersData, customersData, extraItemsData, settingsData, machinesData, activityData, locationsData, inventoryData, devicesData, gmailStatusData] = await Promise.all([
         api.getUsers().catch(() => []),
         api.getCustomers(),
         api.getExtraItems().catch(() => []),
@@ -269,6 +281,7 @@ export default function AdminScreen() {
         api.getLocations().catch(() => []),
         api.getInventory().catch(() => ({ items: [], lowStockCount: 0, categories: [] })),
         api.listCallerIdDevices().catch(() => ({ devices: [] })),
+        api.getGmailStatus().catch(() => ({ connected: false, expired: false, message: 'Failed to check status' })),
       ]);
       setUsers(usersData);
       setCustomers(customersData);
@@ -282,6 +295,7 @@ export default function AdminScreen() {
       setCallerIdDevices(devicesData.devices);
       setInventoryLowStockCount(inventoryData.lowStockCount);
       setInventoryCategories(inventoryData.categories);
+      setGmailStatus(gmailStatusData);
     } catch (error) {
       console.error('Failed to load admin data:', error);
     } finally {
@@ -385,6 +399,32 @@ export default function AdminScreen() {
       console.error('Failed to load driver locations:', error);
     } finally {
       setDriverLocationsLoading(false);
+    }
+  };
+
+  // Check payment emails from Gmail
+  const handleCheckPaymentEmails = async () => {
+    setCheckingEmails(true);
+    try {
+      const result = await api.checkPaymentEmails();
+      setLastPaymentCheck({
+        processed: result.processed,
+        matched: result.matched,
+        results: result.results,
+      });
+      if (result.success) {
+        Alert.alert(
+          'Payment Check Complete',
+          `Found ${result.processed} payment emails, ${result.matched} matched to orders.`
+        );
+      } else {
+        Alert.alert('Error', result.message || 'Failed to check payment emails');
+      }
+    } catch (error) {
+      console.error('Failed to check payment emails:', error);
+      Alert.alert('Error', 'Failed to check payment emails. Make sure Gmail is connected.');
+    } finally {
+      setCheckingEmails(false);
     }
   };
 
@@ -2271,6 +2311,124 @@ export default function AdminScreen() {
               <Text style={styles.settingsLabel}>Lunch Duration</Text>
               <Text style={styles.settingsValue}>{settings.lunchDurationMinutes || 30} min</Text>
             </View>
+          </View>
+
+          {/* Gmail Payment Integration */}
+          <View style={styles.settingsCard}>
+            <View style={styles.gmailHeaderRow}>
+              <Ionicons name="mail" size={24} color="#ea4335" />
+              <Text style={styles.settingsTitle}>Gmail Payment Integration</Text>
+            </View>
+            <Text style={styles.gmailDescription}>
+              Automatically detect Zelle and Venmo payment notifications and match them to orders.
+            </Text>
+
+            {/* Connection Status */}
+            <View style={[
+              styles.gmailStatusCard,
+              gmailStatus?.connected && !gmailStatus?.expired
+                ? styles.gmailConnected
+                : gmailStatus?.expired
+                  ? styles.gmailExpired
+                  : styles.gmailDisconnected
+            ]}>
+              <View style={styles.gmailStatusRow}>
+                <View style={[
+                  styles.gmailStatusDot,
+                  gmailStatus?.connected && !gmailStatus?.expired
+                    ? styles.gmailDotConnected
+                    : gmailStatus?.expired
+                      ? styles.gmailDotExpired
+                      : styles.gmailDotDisconnected
+                ]} />
+                <View style={styles.gmailStatusText}>
+                  <Text style={styles.gmailStatusTitle}>
+                    {gmailStatus?.connected && !gmailStatus?.expired
+                      ? 'Gmail Connected'
+                      : gmailStatus?.expired
+                        ? 'Gmail Token Expired'
+                        : 'Gmail Not Connected'}
+                  </Text>
+                  <Text style={styles.gmailStatusMessage}>
+                    {gmailStatus?.message || 'Connect Gmail from the web admin to enable payment detection'}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Check Payments Button */}
+            {gmailStatus?.connected && !gmailStatus?.expired && (
+              <View style={styles.gmailActionsContainer}>
+                <TouchableOpacity
+                  style={[styles.checkPaymentsButton, checkingEmails && styles.checkPaymentsButtonDisabled]}
+                  onPress={handleCheckPaymentEmails}
+                  disabled={checkingEmails}
+                >
+                  {checkingEmails ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="refresh" size={18} color="#fff" />
+                  )}
+                  <Text style={styles.checkPaymentsText}>
+                    {checkingEmails ? 'Checking...' : 'Check for Payments Now'}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={styles.gmailAutoCheckText}>
+                  Payments are automatically checked every 5 minutes
+                </Text>
+              </View>
+            )}
+
+            {/* Last Check Results */}
+            {lastPaymentCheck && (
+              <View style={styles.lastCheckContainer}>
+                <Text style={styles.lastCheckTitle}>Last Check Results</Text>
+                <View style={styles.lastCheckStats}>
+                  <View style={styles.lastCheckStat}>
+                    <Text style={styles.lastCheckStatValue}>{lastPaymentCheck.processed}</Text>
+                    <Text style={styles.lastCheckStatLabel}>Emails Found</Text>
+                  </View>
+                  <View style={styles.lastCheckStat}>
+                    <Text style={[styles.lastCheckStatValue, { color: '#10b981' }]}>{lastPaymentCheck.matched}</Text>
+                    <Text style={styles.lastCheckStatLabel}>Matched</Text>
+                  </View>
+                </View>
+                {lastPaymentCheck.results && lastPaymentCheck.results.length > 0 && (
+                  <View style={styles.lastCheckResults}>
+                    {lastPaymentCheck.results.slice(0, 5).map((result, index) => (
+                      <View key={index} style={styles.paymentResultItem}>
+                        <View style={styles.paymentResultLeft}>
+                          <Ionicons
+                            name={result.payment.paymentMethod === 'zelle' ? 'wallet' : 'logo-venmo'}
+                            size={16}
+                            color={result.payment.paymentMethod === 'zelle' ? '#6d28d9' : '#3d95ce'}
+                          />
+                          <Text style={styles.paymentResultName}>{result.payment.senderName}</Text>
+                        </View>
+                        <View style={styles.paymentResultRight}>
+                          <Text style={styles.paymentResultAmount}>${result.payment.amount.toFixed(2)}</Text>
+                          {result.match.success ? (
+                            <Ionicons name="checkmark-circle" size={16} color="#10b981" />
+                          ) : (
+                            <Ionicons name="help-circle" size={16} color="#f59e0b" />
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
+            {/* Setup Instructions for not connected */}
+            {!gmailStatus?.connected && (
+              <View style={styles.gmailSetupBox}>
+                <Ionicons name="information-circle" size={20} color="#3b82f6" />
+                <Text style={styles.gmailSetupText}>
+                  To connect Gmail, go to the web admin panel at cloud.homation.us and connect from the Settings tab.
+                </Text>
+              </View>
+            )}
           </View>
 
           </ScrollView>
@@ -5683,6 +5841,173 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#1e293b',
+  },
+  // Gmail Payment Integration styles
+  gmailHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 8,
+  },
+  gmailDescription: {
+    fontSize: 13,
+    color: '#64748b',
+    marginBottom: 16,
+  },
+  gmailStatusCard: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  gmailConnected: {
+    backgroundColor: '#f0fdf4',
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  gmailExpired: {
+    backgroundColor: '#fffbeb',
+    borderWidth: 1,
+    borderColor: '#fde68a',
+  },
+  gmailDisconnected: {
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  gmailStatusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  gmailStatusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  gmailDotConnected: {
+    backgroundColor: '#22c55e',
+  },
+  gmailDotExpired: {
+    backgroundColor: '#f59e0b',
+  },
+  gmailDotDisconnected: {
+    backgroundColor: '#94a3b8',
+  },
+  gmailStatusText: {
+    flex: 1,
+  },
+  gmailStatusTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  gmailStatusMessage: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  gmailActionsContainer: {
+    marginBottom: 12,
+  },
+  checkPaymentsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: '#2563eb',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  checkPaymentsButtonDisabled: {
+    opacity: 0.7,
+  },
+  checkPaymentsText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  gmailAutoCheckText: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  lastCheckContainer: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+  },
+  lastCheckTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+    marginBottom: 8,
+  },
+  lastCheckStats: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 12,
+  },
+  lastCheckStat: {
+    alignItems: 'center',
+  },
+  lastCheckStatValue: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  lastCheckStatLabel: {
+    fontSize: 11,
+    color: '#94a3b8',
+  },
+  lastCheckResults: {
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    paddingTop: 8,
+  },
+  paymentResultItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  paymentResultLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  paymentResultName: {
+    fontSize: 13,
+    color: '#1e293b',
+  },
+  paymentResultRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  paymentResultAmount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  gmailSetupBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: '#eff6ff',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  gmailSetupText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#1e40af',
+    lineHeight: 18,
   },
   emptyContainer: {
     alignItems: 'center',
