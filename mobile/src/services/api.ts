@@ -1146,7 +1146,7 @@ class ApiService {
     });
   }
 
-  async linkPaymentToCustomer(customerId: string, senderName: string, paymentMethod: 'venmo' | 'zelle'): Promise<{
+  async linkPaymentToCustomer(customerId: string, senderName: string, paymentMethod: 'venmo' | 'zelle', emailId?: string, paymentAmount?: number): Promise<{
     success: boolean;
     message: string;
     customer: {
@@ -1156,10 +1156,11 @@ class ApiService {
       zelleEmail?: string;
       zellePhone?: string;
     };
+    order?: { _id: string; orderId: number };
   }> {
     return this.request('/payments/detected', {
       method: 'POST',
-      body: JSON.stringify({ customerId, senderName, paymentMethod }),
+      body: JSON.stringify({ customerId, senderName, paymentMethod, emailId, paymentAmount }),
     });
   }
 }

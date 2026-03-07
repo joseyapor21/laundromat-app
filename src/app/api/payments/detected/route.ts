@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { connectDB } from '@/lib/db/connection';
-import { ActivityLog, Customer } from '@/lib/db/models';
+import { ActivityLog, Customer, Order } from '@/lib/db/models';
 import { getCurrentUser } from '@/lib/auth/server';
 
 interface DetectedPayment {
@@ -94,7 +94,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { customerId, senderName, paymentMethod } = await request.json();
+    const { customerId, senderName, paymentMethod, emailId, paymentAmount } = await request.json();
 
     if (!customerId || !senderName || !paymentMethod) {
       return NextResponse.json(
@@ -126,6 +126,66 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     await Customer.findByIdAndUpdate(customerId, { $set: updateData });
 
+    // Try to find a matching unpaid order for this customer
+    let matchedOrder: { _id: string; orderId: number } | null = null;
+
+    // Get payment amount from original log if not provided
+    let amount = paymentAmount;
+    if (!amount && emailId) {
+      const originalLog = await ActivityLog.findOne({ entityId: emailId, action: 'payment_detected' });
+      if (originalLog?.metadata) {
+        const metadata = originalLog.metadata as Record<string, unknown>;
+        amount = metadata.paymentAmount || metadata.amount;
+      }
+    }
+
+    if (amount) {
+      // Find customer's unpaid orders that match the amount
+      const unpaidOrders = await Order.find({
+        customerId: customerId,
+        isPaid: false,
+        status: { $nin: ['archived'] },
+      })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .lean();
+
+      // Find exact amount match
+      const exactMatch = unpaidOrders.find(o => Math.abs(o.totalAmount - amount) < 0.01);
+      if (exactMatch) {
+        matchedOrder = { _id: exactMatch._id.toString(), orderId: exactMatch.orderId };
+
+        // Mark order as paid
+        await Order.findByIdAndUpdate(exactMatch._id, {
+          isPaid: true,
+          paidAt: new Date(),
+          paidBy: currentUser.name,
+          paymentMethod: paymentMethod,
+        });
+      }
+    }
+
+    // Update the original payment_detected log to mark it as matched
+    if (emailId) {
+      const logUpdateData: Record<string, unknown> = {
+        'metadata.customerId': customerId,
+        'metadata.matchedCustomer': customer.name,
+        'metadata.matchType': 'manual',
+        'metadata.linkedBy': currentUser.name,
+        'metadata.linkedAt': new Date(),
+      };
+
+      if (matchedOrder) {
+        logUpdateData['metadata.orderId'] = matchedOrder._id;
+        logUpdateData['metadata.orderNumber'] = matchedOrder.orderId;
+      }
+
+      await ActivityLog.updateOne(
+        { entityId: emailId, action: 'payment_detected' },
+        { $set: logUpdateData }
+      );
+    }
+
     // Log the manual link
     await ActivityLog.create({
       userId: currentUser.userId,
@@ -133,20 +193,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       action: 'payment_manual_link',
       entityType: 'customer',
       entityId: customerId,
-      details: `Linked ${paymentMethod.toUpperCase()} "${senderName}" to customer "${customer.name}"`,
+      details: matchedOrder
+        ? `Linked ${paymentMethod.toUpperCase()} payment to Order #${matchedOrder.orderId} for "${customer.name}"`
+        : `Linked ${paymentMethod.toUpperCase()} "${senderName}" to customer "${customer.name}"`,
       metadata: {
         customerId,
         customerName: customer.name,
         senderName,
         paymentMethod,
+        emailId,
+        ...(matchedOrder ? { orderId: matchedOrder._id, orderNumber: matchedOrder.orderId } : {}),
       },
       ipAddress: request.headers.get('x-forwarded-for') || 'unknown',
       userAgent: request.headers.get('user-agent') || 'unknown',
     });
 
+    const message = matchedOrder
+      ? `Linked payment to Order #${matchedOrder.orderId} for ${customer.name}`
+      : `Linked ${paymentMethod} account to ${customer.name}`;
+
     return NextResponse.json({
       success: true,
-      message: `Linked ${paymentMethod} account to ${customer.name}`,
+      message,
       customer: {
         _id: customer._id,
         name: customer.name,
@@ -154,6 +222,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         zelleEmail: paymentMethod === 'zelle' && senderName.includes('@') ? senderName : customer.zelleEmail,
         zellePhone: paymentMethod === 'zelle' && !senderName.includes('@') ? senderName : customer.zellePhone,
       },
+      ...(matchedOrder ? { order: matchedOrder } : {}),
     });
   } catch (error) {
     console.error('Link payment error:', error);

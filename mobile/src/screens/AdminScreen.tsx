@@ -470,7 +470,9 @@ export default function AdminScreen() {
       const result = await api.linkPaymentToCustomer(
         customerId,
         selectedPayment.senderName,
-        selectedPayment.paymentMethod
+        selectedPayment.paymentMethod,
+        selectedPayment.emailId,
+        selectedPayment.amount
       );
       if (result.success) {
         Alert.alert('Success', result.message);
@@ -3434,12 +3436,31 @@ export default function AdminScreen() {
               refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
             >
               {detectedPayments.map((payment) => (
-                <View key={payment._id} style={styles.card}>
-                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
+                <TouchableOpacity
+                  key={payment._id}
+                  style={{
+                    backgroundColor: '#fff',
+                    borderRadius: 12,
+                    padding: 14,
+                    marginBottom: 10,
+                    borderLeftWidth: 4,
+                    borderLeftColor: payment.matchedCustomerId ? '#22c55e' : '#f59e0b',
+                  }}
+                  onPress={() => {
+                    if (!payment.matchedCustomerId) {
+                      setSelectedPayment(payment);
+                      setPaymentSearchQuery('');
+                      setShowLinkPaymentModal(true);
+                    }
+                  }}
+                  disabled={!!payment.matchedCustomerId}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {/* Payment Icon */}
                     <View style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
+                      width: 44,
+                      height: 44,
+                      borderRadius: 22,
                       backgroundColor: payment.paymentMethod === 'venmo' ? '#e7f5ff' : '#f0fdf4',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -3447,98 +3468,76 @@ export default function AdminScreen() {
                     }}>
                       <Ionicons
                         name={payment.paymentMethod === 'venmo' ? 'logo-venmo' : 'cash'}
-                        size={20}
+                        size={22}
                         color={payment.paymentMethod === 'venmo' ? '#008cff' : '#22c55e'}
                       />
                     </View>
+
+                    {/* Payment Details */}
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: '600', fontSize: 16, color: '#1e293b' }}>
-                        ${payment.amount.toFixed(2)}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <Text style={{ fontWeight: '700', fontSize: 18, color: '#1e293b' }}>
+                          ${payment.amount.toFixed(2)}
+                        </Text>
+                        <View style={{
+                          paddingHorizontal: 8,
+                          paddingVertical: 3,
+                          borderRadius: 10,
+                          backgroundColor: payment.paymentMethod === 'venmo' ? '#e7f5ff' : '#f0fdf4',
+                        }}>
+                          <Text style={{
+                            fontSize: 10,
+                            fontWeight: '700',
+                            color: payment.paymentMethod === 'venmo' ? '#008cff' : '#22c55e',
+                            textTransform: 'uppercase',
+                          }}>
+                            {payment.paymentMethod}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text style={{ fontSize: 14, color: '#475569', marginTop: 2 }} numberOfLines={1}>
+                        {payment.senderName}
                       </Text>
-                      <Text style={{ fontSize: 14, color: '#64748b', marginTop: 2 }}>
-                        From: {payment.senderName}
-                      </Text>
-                      <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
-                        {new Date(payment.detectedAt).toLocaleString()}
+                      <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 2 }}>
+                        {new Date(payment.detectedAt).toLocaleDateString()} {new Date(payment.detectedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </Text>
                     </View>
-                    <View style={{
-                      paddingHorizontal: 8,
-                      paddingVertical: 4,
-                      borderRadius: 12,
-                      backgroundColor: payment.paymentMethod === 'venmo' ? '#e7f5ff' : '#f0fdf4',
-                    }}>
-                      <Text style={{
-                        fontSize: 11,
-                        fontWeight: '600',
-                        color: payment.paymentMethod === 'venmo' ? '#008cff' : '#22c55e',
-                        textTransform: 'uppercase',
-                      }}>
-                        {payment.paymentMethod}
-                      </Text>
+
+                    {/* Match Status Icon */}
+                    <View style={{ marginLeft: 10 }}>
+                      {payment.matchedCustomerId ? (
+                        <Ionicons name="checkmark-circle" size={26} color="#22c55e" />
+                      ) : (
+                        <View style={{
+                          backgroundColor: '#2563eb',
+                          paddingHorizontal: 10,
+                          paddingVertical: 6,
+                          borderRadius: 6,
+                        }}>
+                          <Text style={{ color: '#fff', fontSize: 11, fontWeight: '600' }}>Link</Text>
+                        </View>
+                      )}
                     </View>
                   </View>
 
-                  {/* Match Status */}
-                  {payment.matchedCustomerId ? (
+                  {/* Matched Customer Info */}
+                  {payment.matchedCustomerId && payment.matchedCustomerName && (
                     <View style={{
-                      backgroundColor: '#f0fdf4',
-                      padding: 10,
-                      borderRadius: 8,
+                      marginTop: 10,
+                      paddingTop: 10,
+                      borderTopWidth: 1,
+                      borderTopColor: '#f1f5f9',
                       flexDirection: 'row',
                       alignItems: 'center',
-                      gap: 8,
                     }}>
-                      <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: '500', color: '#15803d', fontSize: 13 }}>
-                          Matched to {payment.matchedCustomerName}
-                        </Text>
-                        {payment.matchType && (
-                          <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                            Match type: {payment.matchType}
-                          </Text>
-                        )}
-                        {payment.orderNumber && (
-                          <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
-                            Order #{payment.orderNumber}
-                          </Text>
-                        )}
-                      </View>
-                    </View>
-                  ) : (
-                    <View style={{
-                      backgroundColor: '#fffbeb',
-                      padding: 10,
-                      borderRadius: 8,
-                    }}>
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                        <Ionicons name="help-circle" size={18} color="#f59e0b" />
-                        <Text style={{ fontWeight: '500', color: '#b45309', fontSize: 13 }}>
-                          Unmatched Payment
-                        </Text>
-                      </View>
-                      <TouchableOpacity
-                        style={{
-                          backgroundColor: '#2563eb',
-                          paddingVertical: 8,
-                          paddingHorizontal: 12,
-                          borderRadius: 6,
-                          alignItems: 'center',
-                        }}
-                        onPress={() => {
-                          setSelectedPayment(payment);
-                          setPaymentSearchQuery('');
-                          setShowLinkPaymentModal(true);
-                        }}
-                      >
-                        <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>
-                          Link to Customer
-                        </Text>
-                      </TouchableOpacity>
+                      <Ionicons name="person" size={14} color="#64748b" />
+                      <Text style={{ fontSize: 13, color: '#64748b', marginLeft: 6 }}>
+                        {payment.matchedCustomerName}
+                        {payment.orderNumber && ` • Order #${payment.orderNumber}`}
+                      </Text>
                     </View>
                   )}
-                </View>
+                </TouchableOpacity>
               ))}
             </ScrollView>
           )}
