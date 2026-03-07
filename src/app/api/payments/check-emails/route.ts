@@ -221,23 +221,62 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const settings = await Settings.findOne();
 
     if (!settings) {
-      return NextResponse.json({ connected: false, message: 'Settings not found' });
+      return NextResponse.json({ connected: false, expired: false, message: 'Settings not found' });
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const settingsDoc = settings as any;
 
     const connected = !!(settingsDoc.gmailAccessToken && settingsDoc.gmailRefreshToken);
-    const expired = connected && settingsDoc.gmailTokenExpiry
-      ? new Date(settingsDoc.gmailTokenExpiry) < new Date()
-      : false;
+
+    if (!connected) {
+      return NextResponse.json({
+        connected: false,
+        expired: false,
+        message: 'Gmail not connected',
+      });
+    }
+
+    // Check if token is expired and try to refresh
+    const tokenExpiry = settingsDoc.gmailTokenExpiry ? new Date(settingsDoc.gmailTokenExpiry) : new Date(0);
+    const isExpired = tokenExpiry < new Date();
+
+    if (isExpired) {
+      // Try to refresh the token
+      try {
+        const tokens: GmailTokens = {
+          accessToken: settingsDoc.gmailAccessToken,
+          refreshToken: settingsDoc.gmailRefreshToken,
+          tokenExpiry: tokenExpiry,
+        };
+
+        const refreshedTokens = await refreshTokensIfNeeded(tokens);
+
+        // Save refreshed tokens
+        settingsDoc.gmailAccessToken = refreshedTokens.accessToken;
+        settingsDoc.gmailRefreshToken = refreshedTokens.refreshToken;
+        settingsDoc.gmailTokenExpiry = refreshedTokens.tokenExpiry;
+        await settingsDoc.save();
+
+        return NextResponse.json({
+          connected: true,
+          expired: false,
+          message: 'Gmail connected (token refreshed)',
+        });
+      } catch (refreshError) {
+        console.error('Failed to refresh Gmail token:', refreshError);
+        return NextResponse.json({
+          connected: true,
+          expired: true,
+          message: 'Gmail token expired and refresh failed. Please reconnect Gmail.',
+        });
+      }
+    }
 
     return NextResponse.json({
-      connected,
-      expired,
-      message: connected
-        ? (expired ? 'Gmail connected but token expired' : 'Gmail connected')
-        : 'Gmail not connected',
+      connected: true,
+      expired: false,
+      message: 'Gmail connected',
     });
   } catch (error) {
     console.error('Check Gmail status error:', error);
