@@ -26,6 +26,15 @@ export interface UserDoc {
   lastBreakStart?: Date;
   lastBreakEnd?: Date;
   currentLocationId?: Types.ObjectId;  // Track which location user is currently working at
+  // GPS tracking for drivers
+  currentGpsLocation?: {
+    latitude: number;
+    longitude: number;
+    heading?: number;
+    speed?: number;
+    accuracy?: number;
+    updatedAt: Date;
+  };
   comparePassword(password: string): Promise<boolean>;
   comparePin(pin: string): Promise<boolean>;
 }
@@ -122,6 +131,18 @@ const userSchema = new mongoose.Schema<UserDoc>({
   currentLocationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Location',
+    default: null,
+  },
+  // GPS tracking for drivers
+  currentGpsLocation: {
+    type: {
+      latitude: Number,
+      longitude: Number,
+      heading: Number,
+      speed: Number,
+      accuracy: Number,
+      updatedAt: Date,
+    },
     default: null,
   },
 }, {

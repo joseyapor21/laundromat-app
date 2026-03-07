@@ -875,6 +875,42 @@ class ApiService {
     return `${API_BASE_URL}/api/uploads/${photoPath}${token ? `?token=${token}` : ''}`;
   }
 
+  // Driver Location Tracking
+  async updateDriverLocation(data: {
+    latitude: number;
+    longitude: number;
+    heading?: number | null;
+    speed?: number | null;
+    accuracy?: number | null;
+  }): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('/driver-locations', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getDriverLocations(): Promise<{
+    drivers: Array<{
+      userId: string;
+      name: string;
+      latitude: number;
+      longitude: number;
+      heading?: number;
+      speed?: number;
+      accuracy?: number;
+      updatedAt: string;
+      isOnBreak: boolean;
+    }>;
+  }> {
+    return this.request('/driver-locations');
+  }
+
+  async clearDriverLocation(): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>('/driver-locations', {
+      method: 'DELETE',
+    });
+  }
+
   // Pickup Photos
   async uploadPickupPhoto(orderId: string, photo: string): Promise<{ success: boolean; photoPath: string }> {
     return this.request<{ success: boolean; photoPath: string }>(`/orders/${orderId}/pickup-photo`, {

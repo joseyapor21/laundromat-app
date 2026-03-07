@@ -657,10 +657,10 @@ export default function OrderDetailScreen() {
 
     setPrinting(true);
     try {
-      // Use latest customer instructions for printing
+      // Use order's specialInstructions directly for printing
       const orderForPrint = {
         ...order,
-        specialInstructions: order.customer?.notes || order.specialInstructions || '',
+        specialInstructions: order.specialInstructions || '',
       };
       const receipts: string[] = [];
       if (type === 'customer' || type === 'both') {
@@ -700,10 +700,10 @@ export default function OrderDetailScreen() {
 
     setPrinting(true);
     try {
-      // Use latest customer instructions for printing
+      // Use order's specialInstructions directly for printing
       const orderForPrint = {
         ...order,
-        specialInstructions: order.customer?.notes || order.specialInstructions || '',
+        specialInstructions: order.specialInstructions || '',
       };
       const content = generateCustomerTagText(orderForPrint);
       const response = await localPrinter.printReceipt(printerIp, content, printerPort);
@@ -775,7 +775,7 @@ export default function OrderDetailScreen() {
     try {
       const orderForPrint = {
         ...order,
-        specialInstructions: order.customer?.notes || order.specialInstructions || '',
+        specialInstructions: order.specialInstructions || '',
       };
 
       const bag = order.bags[bagIndex];
@@ -806,7 +806,7 @@ export default function OrderDetailScreen() {
     try {
       const orderForPrint = {
         ...order,
-        specialInstructions: order.customer?.notes || order.specialInstructions || '',
+        specialInstructions: order.specialInstructions || '',
       };
 
       const totalBags = order.bags.length;
@@ -2650,42 +2650,19 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
-        {/* Instructions - Customer notes and special instructions */}
-        {(order.specialInstructions || order.customer?.notes) && (
+        {/* Instructions - Order special instructions only */}
+        {order.specialInstructions && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Instructions</Text>
             <View style={styles.notesCard}>
-              {order.customer?.notes && (
-                <View style={styles.customerNotesSection}>
-                  <View style={styles.instructionLabelRow}>
-                    <Ionicons name="person-circle-outline" size={16} color="#8b5cf6" />
-                    <Text style={styles.instructionLabel}>Customer:</Text>
+              <View style={styles.orderNotesSection}>
+                {order.specialInstructions.split('\n').filter(line => line.trim()).map((line, idx) => (
+                  <View key={`si-${idx}`} style={styles.bulletRow}>
+                    <Text style={styles.bulletPoint}>•</Text>
+                    <Text style={styles.notesText}>{line.trim()}</Text>
                   </View>
-                  {order.customer.notes.split('\n').filter(line => line.trim()).map((line, idx) => (
-                    <View key={`cn-${idx}`} style={styles.bulletRow}>
-                      <Text style={styles.bulletPoint}>•</Text>
-                      <Text style={[styles.notesText, styles.customerNotesText]}>{line.trim()}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {order.specialInstructions && order.customer?.notes && order.specialInstructions !== order.customer.notes && (
-                <View style={styles.divider} />
-              )}
-              {order.specialInstructions && order.specialInstructions !== order.customer?.notes && (
-                <View style={styles.orderNotesSection}>
-                  <View style={styles.instructionLabelRow}>
-                    <Ionicons name="document-text-outline" size={16} color="#2563eb" />
-                    <Text style={styles.instructionLabel}>Order:</Text>
-                  </View>
-                  {order.specialInstructions.split('\n').filter(line => line.trim()).map((line, idx) => (
-                    <View key={`si-${idx}`} style={styles.bulletRow}>
-                      <Text style={styles.bulletPoint}>•</Text>
-                      <Text style={styles.notesText}>{line.trim()}</Text>
-                    </View>
-                  ))}
-                </View>
-              )}
+                ))}
+              </View>
             </View>
           </View>
         )}

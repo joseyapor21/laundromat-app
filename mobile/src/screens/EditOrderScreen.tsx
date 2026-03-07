@@ -956,37 +956,28 @@ export default function EditOrderScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Schedule</Text>
             <View style={styles.card}>
-              {/* For delivery orders: Pickup Date/Time uses estimatedPickupDate */}
-              {/* For store orders: Drop-off Date/Time uses dropOffDate */}
+              {/* Pickup Date/Time - when customer picks up completed order */}
               <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>
-                  {orderType === 'delivery' ? 'Pickup Date/Time' : 'Drop-off Date/Time'}
-                </Text>
+                <Text style={styles.inputLabel}>Pickup Date/Time</Text>
                 <View style={styles.dateTimeRow}>
                   <TouchableOpacity
                     style={[styles.dateButton, styles.dateButtonFlex]}
-                    onPress={() => setShowDatePicker(orderType === 'delivery' ? 'pickup' : 'dropoff')}
+                    onPress={() => setShowDatePicker('pickup')}
                   >
                     <Ionicons name="calendar-outline" size={20} color="#64748b" />
                     <Text style={styles.dateButtonText}>
-                      {orderType === 'delivery'
-                        ? (estimatedPickupDate
-                          ? `${estimatedPickupDate.toLocaleDateString('en-US', { weekday: 'short' })}, ${estimatedPickupDate.toLocaleDateString('en-US', { month: 'short' })} ${estimatedPickupDate.getDate()}, ${estimatedPickupDate.getFullYear()}`
-                          : 'Select date')
-                        : (dropOffDate
-                          ? `${dropOffDate.toLocaleDateString('en-US', { weekday: 'short' })}, ${dropOffDate.toLocaleDateString('en-US', { month: 'short' })} ${dropOffDate.getDate()}, ${dropOffDate.getFullYear()}`
-                          : 'Select date')}
+                      {estimatedPickupDate
+                        ? `${estimatedPickupDate.toLocaleDateString('en-US', { weekday: 'short' })}, ${estimatedPickupDate.toLocaleDateString('en-US', { month: 'short' })} ${estimatedPickupDate.getDate()}, ${estimatedPickupDate.getFullYear()}`
+                        : 'Select date'}
                     </Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.dateButton, styles.timeButtonFlex]}
-                    onPress={() => setShowTimePicker(orderType === 'delivery' ? 'pickup' : 'dropoff')}
+                    onPress={() => setShowTimePicker('pickup')}
                   >
                     <Ionicons name="time-outline" size={20} color="#64748b" />
                     <Text style={styles.dateButtonText}>
-                      {orderType === 'delivery'
-                        ? formatTimeWithFrames(estimatedPickupDate)
-                        : (dropOffDate ? formatTimeWithFrames(dropOffDate) : '12:00 PM')}
+                      {formatTimeWithFrames(estimatedPickupDate)}
                     </Text>
                   </TouchableOpacity>
                 </View>

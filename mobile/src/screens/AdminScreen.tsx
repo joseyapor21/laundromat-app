@@ -25,6 +25,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
+import MapView, { Marker, Region, PROVIDER_DEFAULT } from 'react-native-maps';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
@@ -33,7 +34,19 @@ import { useStorePhone } from '../contexts/StorePhoneContext';
 import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location, LocationVaultItem, VaultItemType, VaultDocument, InventoryItem, StockStatus } from '../types';
 import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
-type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault' | 'appupdates' | 'inventory' | 'devices';
+type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault' | 'appupdates' | 'inventory' | 'devices' | 'drivers';
+
+interface DriverLocationData {
+  userId: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  heading?: number;
+  speed?: number;
+  accuracy?: number;
+  updatedAt: string;
+  isOnBreak: boolean;
+}
 
 interface CallerIDDevice {
   deviceId: string;
@@ -95,6 +108,11 @@ export default function AdminScreen() {
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [locationForm, setLocationForm] = useState({ name: '', code: '', address: '', phone: '', email: '', isActive: true });
+
+  // Driver Locations Map
+  const [driverLocations, setDriverLocations] = useState<DriverLocationData[]>([]);
+  const [driverLocationsLoading, setDriverLocationsLoading] = useState(false);
+  const driverMapRef = useRef<MapView>(null);
 
   // Vault
   const [vaultItems, setVaultItems] = useState<LocationVaultItem[]>([]);
@@ -333,6 +351,39 @@ export default function AdminScreen() {
       console.error('Failed to load time entries:', error);
     } finally {
       setTimeEntriesLoading(false);
+    }
+  };
+
+  // Load driver locations when on Drivers tab
+  useEffect(() => {
+    if (activeTab === 'drivers' && isAdmin) {
+      loadDriverLocations();
+      // Auto-refresh every 10 seconds
+      const interval = setInterval(loadDriverLocations, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [activeTab, isAdmin]);
+
+  const loadDriverLocations = async () => {
+    setDriverLocationsLoading(true);
+    try {
+      const response = await api.getDriverLocations();
+      setDriverLocations(response.drivers);
+      // Fit map to markers
+      if (response.drivers.length > 0 && driverMapRef.current) {
+        const coordinates = response.drivers.map(d => ({
+          latitude: d.latitude,
+          longitude: d.longitude,
+        }));
+        driverMapRef.current.fitToCoordinates(coordinates, {
+          edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+          animated: true,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load driver locations:', error);
+    } finally {
+      setDriverLocationsLoading(false);
     }
   };
 
@@ -1944,6 +1995,7 @@ export default function AdminScreen() {
     { key: 'printers', label: 'Printers', icon: 'print', adminOnly: true },
     { key: 'reports', label: 'Reports', icon: 'document-text', adminOnly: false },
     { key: 'timeclock', label: 'Time Clock', icon: 'timer', adminOnly: true },
+    { key: 'drivers', label: 'Drivers', icon: 'car', adminOnly: true },
     { key: 'activity', label: 'Activity', icon: 'time', adminOnly: true },
     { key: 'locations', label: 'Locations', icon: 'location', adminOnly: true },
     { key: 'appupdates', label: 'App Updates', icon: 'cloud-download', adminOnly: true },
@@ -3054,6 +3106,148 @@ export default function AdminScreen() {
                 });
               })()}
             </ScrollView>
+          )}
+        </View>
+      )}
+
+      {/* Drivers Map Tab */}
+      {activeTab === 'drivers' && (
+        <View style={{ flex: 1 }}>
+          <View style={styles.actionHeader}>
+            <Text style={styles.sectionTitle}>
+              Driver Locations ({driverLocations.length} active)
+            </Text>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={loadDriverLocations}
+            >
+              <Ionicons name="refresh" size={20} color="#fff" />
+              <Text style={styles.addButtonText}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
+          {driverLocationsLoading && driverLocations.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#2563eb" />
+              <Text style={{ marginTop: 12, color: '#64748b' }}>Loading driver locations...</Text>
+            </View>
+          ) : driverLocations.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="car-outline" size={48} color="#cbd5e1" />
+              <Text style={styles.emptyText}>No drivers online</Text>
+              <Text style={styles.emptySubtext}>
+                Drivers will appear here when they are on the Driver screen
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <MapView
+                ref={driverMapRef}
+                style={{ flex: 1 }}
+                provider={PROVIDER_DEFAULT}
+                initialRegion={{
+                  latitude: 40.7128,
+                  longitude: -74.0060,
+                  latitudeDelta: 0.2,
+                  longitudeDelta: 0.2,
+                }}
+                showsUserLocation={false}
+                showsMyLocationButton={false}
+              >
+                {driverLocations.map((driver) => (
+                  <Marker
+                    key={driver.userId}
+                    coordinate={{
+                      latitude: driver.latitude,
+                      longitude: driver.longitude,
+                    }}
+                    title={driver.name}
+                    description={`Updated ${new Date(driver.updatedAt).toLocaleTimeString()}${driver.isOnBreak ? ' (On Break)' : ''}`}
+                  >
+                    <View style={{
+                      backgroundColor: driver.isOnBreak ? '#f59e0b' : '#ef4444',
+                      borderRadius: 20,
+                      padding: 8,
+                      borderWidth: 2,
+                      borderColor: '#fff',
+                    }}>
+                      <Ionicons name="car" size={20} color="#fff" />
+                    </View>
+                  </Marker>
+                ))}
+              </MapView>
+              {/* Driver list overlay */}
+              <View style={{
+                position: 'absolute',
+                bottom: 16,
+                left: 16,
+                right: 16,
+                backgroundColor: '#fff',
+                borderRadius: 12,
+                padding: 12,
+                maxHeight: 200,
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.2,
+                shadowRadius: 4,
+                elevation: 5,
+              }}>
+                <Text style={{ fontWeight: '600', marginBottom: 8, color: '#1e293b' }}>
+                  Active Drivers
+                </Text>
+                <ScrollView>
+                  {driverLocations.map((driver) => (
+                    <View key={driver.userId} style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 6,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#e2e8f0',
+                    }}>
+                      <View style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: driver.isOnBreak ? '#fef3c7' : '#fee2e2',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: 10,
+                      }}>
+                        <Ionicons
+                          name="car"
+                          size={16}
+                          color={driver.isOnBreak ? '#f59e0b' : '#ef4444'}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: '500', color: '#1e293b' }}>
+                          {driver.name}
+                          {driver.isOnBreak && (
+                            <Text style={{ color: '#f59e0b', fontWeight: '400' }}> (On Break)</Text>
+                          )}
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#64748b' }}>
+                          Updated {new Date(driver.updatedAt).toLocaleTimeString()}
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        onPress={() => {
+                          if (driverMapRef.current) {
+                            driverMapRef.current.animateToRegion({
+                              latitude: driver.latitude,
+                              longitude: driver.longitude,
+                              latitudeDelta: 0.01,
+                              longitudeDelta: 0.01,
+                            }, 500);
+                          }
+                        }}
+                      >
+                        <Ionicons name="locate" size={20} color="#2563eb" />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </ScrollView>
+              </View>
+            </View>
           )}
         </View>
       )}

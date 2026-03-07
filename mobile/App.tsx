@@ -6,6 +6,7 @@ import { Platform, View, ActivityIndicator } from 'react-native';
 import Constants from 'expo-constants';
 import { AuthProvider } from './src/contexts/AuthContext';
 import { LocationProvider } from './src/contexts/LocationContext';
+import { DriverTrackingProvider } from './src/contexts/DriverTrackingContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import UpdateRequiredScreen from './src/screens/UpdateRequiredScreen';
 
@@ -93,8 +94,10 @@ export default function App() {
       <KeyboardProvider>
         <AuthProvider>
           <LocationProvider>
-            <StatusBar style="auto" />
-            <AppNavigator />
+            <DriverTrackingProvider>
+              <StatusBar style="auto" />
+              <AppNavigator />
+            </DriverTrackingProvider>
           </LocationProvider>
         </AuthProvider>
       </KeyboardProvider>
