@@ -119,8 +119,11 @@ export default function AddressInput({
         if (details.verified && details.bestMatch) {
           finalAddress = details.bestMatch.formattedAddress;
           if (details.bestMatch.components) {
+            // Use the first part of formatted address for street to preserve full address (e.g., "211-10 73rd Ave")
+            // instead of reconstructing from streetNumber + street which loses parts like "-10"
+            const addressParts = finalAddress.split(',').map((p: string) => p.trim());
             components = {
-              street: `${details.bestMatch.components.streetNumber} ${details.bestMatch.components.street}`.trim(),
+              street: addressParts[0] || '', // Use full first part of address
               city: details.bestMatch.components.city,
               state: details.bestMatch.components.state,
               zipCode: details.bestMatch.components.zipCode,
@@ -136,9 +139,8 @@ export default function AddressInput({
 
     // Parse components from address if not available from API
     if (!components) {
-      const parts = finalAddress.split(',').map(p => p.trim());
+      const parts = finalAddress.split(',').map((p: string) => p.trim());
       if (parts.length >= 3) {
-        const lastPart = parts[parts.length - 1]; // Usually "State ZIP" or just country
         const stateZip = parts[parts.length - 2]?.match(/([A-Z]{2})\s*(\d{5}(-\d{4})?)?/);
         components = {
           street: parts[0] || '',

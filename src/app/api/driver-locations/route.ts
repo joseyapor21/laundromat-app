@@ -27,11 +27,11 @@ export async function GET() {
     // Get all users from v5users collection
     const allUsers = await db.collection('v5users')
       .find({})
-      .project({ name: 1, email: 1, isDriver: 1, isActive: 1, currentGpsLocation: 1, isOnBreak: 1 })
+      .project({ name: 1, email: 1, isDriver: 1, isActive: 1, isClockedIn: 1, currentGpsLocation: 1, isOnBreak: 1 })
       .toArray();
 
-    // Filter to active drivers
-    const allDrivers = allUsers.filter(u => u.isDriver);
+    // Filter to active drivers who are clocked in
+    const allDrivers = allUsers.filter(u => u.isDriver && u.isClockedIn);
 
     // Filter to those with GPS location
     const driversWithLocation = allDrivers.filter(d => d.currentGpsLocation?.latitude);
@@ -55,6 +55,7 @@ export async function GET() {
     const debug = allUsers.slice(0, 10).map(u => ({
       email: u.email,
       isDriver: u.isDriver,
+      isClockedIn: u.isClockedIn,
       hasGps: !!u.currentGpsLocation?.latitude,
     }));
 
