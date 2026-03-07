@@ -24,11 +24,10 @@ export async function GET() {
 
     await connectDB();
 
-    // Get all active drivers who are clocked in and have GPS location
+    // Get all active drivers who have GPS location
     const drivers = await User.find({
       isDriver: true,
       isActive: true,
-      isClockedIn: true,
       'currentGpsLocation.latitude': { $exists: true },
     })
       .select('firstName lastName currentGpsLocation isClockedIn isOnBreak')
