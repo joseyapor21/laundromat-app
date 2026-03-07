@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '@/lib/db/connection';
-import { User } from '@/lib/db/models';
+import { getAuthDatabase } from '@/lib/db/connection';
 import { getCurrentUser, isAdmin } from '@/lib/auth/server';
+import { ObjectId } from 'mongodb';
 
 // GET - Get all driver locations (admin only)
 export async function GET() {
@@ -22,49 +22,48 @@ export async function GET() {
       );
     }
 
-    await connectDB();
+    const db = await getAuthDatabase();
 
-    // First, let's debug - find all users to check isDriver field
-    const allUsers = await User.find({})
-      .select('firstName lastName email isDriver isActive currentGpsLocation')
-      .lean();
+    // Get all users from v5users collection
+    const allUsers = await db.collection('v5users')
+      .find({})
+      .project({ name: 1, email: 1, isDriver: 1, isActive: 1, currentGpsLocation: 1, isOnBreak: 1 })
+      .toArray();
 
-    // Filter to drivers
-    const allDrivers = allUsers.filter(u => u.isDriver && u.isActive);
+    // Filter to active drivers
+    const allDrivers = allUsers.filter(u => u.isDriver);
 
-    console.log('All drivers found:', allDrivers.length);
-    allDrivers.forEach(d => {
-      console.log(`Driver ${d.email}: GPS=${JSON.stringify(d.currentGpsLocation)}`);
+    // Filter to those with GPS location
+    const driversWithLocation = allDrivers.filter(d => d.currentGpsLocation?.latitude);
+
+    const driverLocations = driversWithLocation.map((driver) => {
+      const nameParts = (driver.name || '').split(' ');
+      return {
+        userId: driver._id.toString(),
+        name: driver.name || driver.email,
+        latitude: driver.currentGpsLocation?.latitude,
+        longitude: driver.currentGpsLocation?.longitude,
+        heading: driver.currentGpsLocation?.heading,
+        speed: driver.currentGpsLocation?.speed,
+        accuracy: driver.currentGpsLocation?.accuracy,
+        updatedAt: driver.currentGpsLocation?.updatedAt,
+        isOnBreak: driver.isOnBreak || false,
+      };
     });
 
-    // Filter to only those with GPS location
-    const drivers = allDrivers.filter(d => d.currentGpsLocation && d.currentGpsLocation.latitude);
-
-    const driverLocations = drivers.map((driver) => ({
-      userId: driver._id.toString(),
-      name: `${driver.firstName} ${driver.lastName}`,
-      latitude: driver.currentGpsLocation?.latitude,
-      longitude: driver.currentGpsLocation?.longitude,
-      heading: driver.currentGpsLocation?.heading,
-      speed: driver.currentGpsLocation?.speed,
-      accuracy: driver.currentGpsLocation?.accuracy,
-      updatedAt: driver.currentGpsLocation?.updatedAt,
-      isOnBreak: driver.isOnBreak,
-    }));
-
-    // Debug: show all users with their driver status
-    const debug = allUsers.map(u => ({
+    // Debug info
+    const debug = allUsers.slice(0, 10).map(u => ({
       email: u.email,
       isDriver: u.isDriver,
-      isActive: u.isActive,
-      hasGps: !!u.currentGpsLocation,
+      hasGps: !!u.currentGpsLocation?.latitude,
     }));
 
     return NextResponse.json({
       drivers: driverLocations,
       debug,
       totalUsers: allUsers.length,
-      totalDrivers: allDrivers.length
+      totalDrivers: allDrivers.length,
+      driversWithGps: driversWithLocation.length,
     });
   } catch (error) {
     console.error('Get driver locations error:', error);
@@ -87,8 +86,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    await connectDB();
-
     const body = await request.json();
     const { latitude, longitude, heading, speed, accuracy } = body;
 
@@ -100,17 +97,24 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update user's GPS location
-    await User.findByIdAndUpdate(currentUser.userId, {
-      currentGpsLocation: {
-        latitude,
-        longitude,
-        heading: heading ?? null,
-        speed: speed ?? null,
-        accuracy: accuracy ?? null,
-        updatedAt: new Date(),
-      },
-    });
+    const db = await getAuthDatabase();
+
+    // Update user's GPS location in v5users collection
+    await db.collection('v5users').updateOne(
+      { _id: new ObjectId(currentUser.userId) },
+      {
+        $set: {
+          currentGpsLocation: {
+            latitude,
+            longitude,
+            heading: heading ?? null,
+            speed: speed ?? null,
+            accuracy: accuracy ?? null,
+            updatedAt: new Date(),
+          },
+        },
+      }
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -134,12 +138,13 @@ export async function DELETE() {
       );
     }
 
-    await connectDB();
+    const db = await getAuthDatabase();
 
     // Clear user's GPS location
-    await User.findByIdAndUpdate(currentUser.userId, {
-      currentGpsLocation: null,
-    });
+    await db.collection('v5users').updateOne(
+      { _id: new ObjectId(currentUser.userId) },
+      { $set: { currentGpsLocation: null } }
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {
