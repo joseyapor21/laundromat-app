@@ -15,6 +15,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Image,
+  SafeAreaView,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -34,7 +35,21 @@ import { useStorePhone } from '../contexts/StorePhoneContext';
 import type { User, Customer, Settings, ExtraItem, Machine, MachineType, MachineStatus, UserRole, ActivityLog, TimeEntry, Location, LocationVaultItem, VaultItemType, VaultDocument, InventoryItem, StockStatus } from '../types';
 import { formatPhoneNumber, formatPhoneInput } from '../utils/phoneFormat';
 
-type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault' | 'appupdates' | 'inventory' | 'devices' | 'drivers';
+type Tab = 'users' | 'customers' | 'extras' | 'settings' | 'machines' | 'printers' | 'activity' | 'reports' | 'timeclock' | 'locations' | 'vault' | 'appupdates' | 'inventory' | 'devices' | 'drivers' | 'payments';
+
+interface DetectedPayment {
+  _id: string;
+  emailId: string;
+  senderName: string;
+  amount: number;
+  paymentMethod: 'venmo' | 'zelle';
+  detectedAt: string;
+  matchedCustomerId?: string;
+  matchedCustomerName?: string;
+  matchType?: string;
+  orderId?: string;
+  orderNumber?: number;
+}
 
 interface DriverLocationData {
   userId: string;
@@ -168,14 +183,14 @@ export default function AdminScreen() {
   // Gmail Payment Integration state
   const [gmailStatus, setGmailStatus] = useState<{ connected: boolean; expired: boolean; message: string } | null>(null);
   const [checkingEmails, setCheckingEmails] = useState(false);
-  const [lastPaymentCheck, setLastPaymentCheck] = useState<{
-    processed: number;
-    matched: number;
-    results?: Array<{
-      payment: { senderName: string; amount: number; paymentMethod: 'zelle' | 'venmo' };
-      match: { success: boolean; matchType?: string; customerName?: string };
-    }>;
-  } | null>(null);
+
+  // Payments tab state
+  const [detectedPayments, setDetectedPayments] = useState<DetectedPayment[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [showLinkPaymentModal, setShowLinkPaymentModal] = useState(false);
+  const [selectedPayment, setSelectedPayment] = useState<DetectedPayment | null>(null);
+  const [paymentSearchQuery, setPaymentSearchQuery] = useState('');
+  const [linkingPayment, setLinkingPayment] = useState(false);
 
   // Inventory state
   const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
@@ -407,16 +422,13 @@ export default function AdminScreen() {
     setCheckingEmails(true);
     try {
       const result = await api.checkPaymentEmails();
-      setLastPaymentCheck({
-        processed: result.processed,
-        matched: result.matched,
-        results: result.results,
-      });
       if (result.success) {
         Alert.alert(
           'Payment Check Complete',
-          `Found ${result.processed} payment emails, ${result.matched} matched to orders.`
+          `Found ${result.processed} payment emails, ${result.matched} matched to customers.`
         );
+        // Reload payments after checking
+        loadPayments();
       } else {
         Alert.alert('Error', result.message || 'Failed to check payment emails');
       }
@@ -425,6 +437,51 @@ export default function AdminScreen() {
       Alert.alert('Error', 'Failed to check payment emails. Make sure Gmail is connected.');
     } finally {
       setCheckingEmails(false);
+    }
+  };
+
+  // Load detected payments
+  const loadPayments = async () => {
+    setPaymentsLoading(true);
+    try {
+      const data = await api.getDetectedPayments(100);
+      setDetectedPayments(data.payments);
+    } catch (error) {
+      console.error('Failed to load payments:', error);
+    } finally {
+      setPaymentsLoading(false);
+    }
+  };
+
+  // Load payments when on Payments tab
+  useEffect(() => {
+    if (activeTab === 'payments' && isAdmin) {
+      loadPayments();
+    }
+  }, [activeTab, isAdmin]);
+
+  // Link payment to customer
+  const handleLinkPayment = async (customerId: string) => {
+    if (!selectedPayment) return;
+
+    setLinkingPayment(true);
+    try {
+      const result = await api.linkPaymentToCustomer(
+        customerId,
+        selectedPayment.senderName,
+        selectedPayment.paymentMethod
+      );
+      if (result.success) {
+        Alert.alert('Success', result.message);
+        setShowLinkPaymentModal(false);
+        setSelectedPayment(null);
+        loadPayments();
+      }
+    } catch (error) {
+      console.error('Failed to link payment:', error);
+      Alert.alert('Error', 'Failed to link payment to customer');
+    } finally {
+      setLinkingPayment(false);
     }
   };
 
@@ -2037,6 +2094,7 @@ export default function AdminScreen() {
     { key: 'reports', label: 'Reports', icon: 'document-text', adminOnly: false },
     { key: 'timeclock', label: 'Time Clock', icon: 'timer', adminOnly: true },
     { key: 'drivers', label: 'Drivers', icon: 'car', adminOnly: true },
+    { key: 'payments', label: 'Payments', icon: 'wallet', adminOnly: true },
     { key: 'activity', label: 'Activity', icon: 'time', adminOnly: true },
     { key: 'locations', label: 'Locations', icon: 'location', adminOnly: true },
     { key: 'appupdates', label: 'App Updates', icon: 'cloud-download', adminOnly: true },
@@ -2311,124 +2369,6 @@ export default function AdminScreen() {
               <Text style={styles.settingsLabel}>Lunch Duration</Text>
               <Text style={styles.settingsValue}>{settings.lunchDurationMinutes || 30} min</Text>
             </View>
-          </View>
-
-          {/* Gmail Payment Integration */}
-          <View style={styles.settingsCard}>
-            <View style={styles.gmailHeaderRow}>
-              <Ionicons name="mail" size={24} color="#ea4335" />
-              <Text style={styles.settingsTitle}>Gmail Payment Integration</Text>
-            </View>
-            <Text style={styles.gmailDescription}>
-              Automatically detect Zelle and Venmo payment notifications and match them to orders.
-            </Text>
-
-            {/* Connection Status */}
-            <View style={[
-              styles.gmailStatusCard,
-              gmailStatus?.connected && !gmailStatus?.expired
-                ? styles.gmailConnected
-                : gmailStatus?.expired
-                  ? styles.gmailExpired
-                  : styles.gmailDisconnected
-            ]}>
-              <View style={styles.gmailStatusRow}>
-                <View style={[
-                  styles.gmailStatusDot,
-                  gmailStatus?.connected && !gmailStatus?.expired
-                    ? styles.gmailDotConnected
-                    : gmailStatus?.expired
-                      ? styles.gmailDotExpired
-                      : styles.gmailDotDisconnected
-                ]} />
-                <View style={styles.gmailStatusText}>
-                  <Text style={styles.gmailStatusTitle}>
-                    {gmailStatus?.connected && !gmailStatus?.expired
-                      ? 'Gmail Connected'
-                      : gmailStatus?.expired
-                        ? 'Gmail Token Expired'
-                        : 'Gmail Not Connected'}
-                  </Text>
-                  <Text style={styles.gmailStatusMessage}>
-                    {gmailStatus?.message || 'Connect Gmail from the web admin to enable payment detection'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Check Payments Button */}
-            {gmailStatus?.connected && !gmailStatus?.expired && (
-              <View style={styles.gmailActionsContainer}>
-                <TouchableOpacity
-                  style={[styles.checkPaymentsButton, checkingEmails && styles.checkPaymentsButtonDisabled]}
-                  onPress={handleCheckPaymentEmails}
-                  disabled={checkingEmails}
-                >
-                  {checkingEmails ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Ionicons name="refresh" size={18} color="#fff" />
-                  )}
-                  <Text style={styles.checkPaymentsText}>
-                    {checkingEmails ? 'Checking...' : 'Check for Payments Now'}
-                  </Text>
-                </TouchableOpacity>
-                <Text style={styles.gmailAutoCheckText}>
-                  Payments are automatically checked every 5 minutes
-                </Text>
-              </View>
-            )}
-
-            {/* Last Check Results */}
-            {lastPaymentCheck && (
-              <View style={styles.lastCheckContainer}>
-                <Text style={styles.lastCheckTitle}>Last Check Results</Text>
-                <View style={styles.lastCheckStats}>
-                  <View style={styles.lastCheckStat}>
-                    <Text style={styles.lastCheckStatValue}>{lastPaymentCheck.processed}</Text>
-                    <Text style={styles.lastCheckStatLabel}>Emails Found</Text>
-                  </View>
-                  <View style={styles.lastCheckStat}>
-                    <Text style={[styles.lastCheckStatValue, { color: '#10b981' }]}>{lastPaymentCheck.matched}</Text>
-                    <Text style={styles.lastCheckStatLabel}>Matched</Text>
-                  </View>
-                </View>
-                {lastPaymentCheck.results && lastPaymentCheck.results.length > 0 && (
-                  <View style={styles.lastCheckResults}>
-                    {lastPaymentCheck.results.slice(0, 5).map((result, index) => (
-                      <View key={index} style={styles.paymentResultItem}>
-                        <View style={styles.paymentResultLeft}>
-                          <Ionicons
-                            name={result.payment.paymentMethod === 'zelle' ? 'wallet' : 'logo-venmo'}
-                            size={16}
-                            color={result.payment.paymentMethod === 'zelle' ? '#6d28d9' : '#3d95ce'}
-                          />
-                          <Text style={styles.paymentResultName}>{result.payment.senderName}</Text>
-                        </View>
-                        <View style={styles.paymentResultRight}>
-                          <Text style={styles.paymentResultAmount}>${result.payment.amount.toFixed(2)}</Text>
-                          {result.match.success ? (
-                            <Ionicons name="checkmark-circle" size={16} color="#10b981" />
-                          ) : (
-                            <Ionicons name="help-circle" size={16} color="#f59e0b" />
-                          )}
-                        </View>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Setup Instructions for not connected */}
-            {!gmailStatus?.connected && (
-              <View style={styles.gmailSetupBox}>
-                <Ionicons name="information-circle" size={20} color="#3b82f6" />
-                <Text style={styles.gmailSetupText}>
-                  To connect Gmail, go to the web admin panel at cloud.homation.us and connect from the Settings tab.
-                </Text>
-              </View>
-            )}
           </View>
 
           </ScrollView>
@@ -3410,6 +3350,358 @@ export default function AdminScreen() {
           )}
         </View>
       )}
+
+      {/* Payments Tab */}
+      {activeTab === 'payments' && (
+        <View style={{ flex: 1 }}>
+          <View style={styles.actionHeader}>
+            <Text style={styles.sectionTitle}>
+              Detected Payments ({detectedPayments.length})
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {gmailStatus?.connected && !gmailStatus?.expired && (
+                <TouchableOpacity
+                  style={[styles.addButton, checkingEmails && { opacity: 0.6 }]}
+                  onPress={handleCheckPaymentEmails}
+                  disabled={checkingEmails}
+                >
+                  {checkingEmails ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="mail" size={20} color="#fff" />
+                  )}
+                  <Text style={styles.addButtonText}>Check Emails</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={loadPayments}
+              >
+                <Ionicons name="refresh" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Gmail Connection Status Banner */}
+          {(!gmailStatus?.connected || gmailStatus?.expired) && (
+            <View style={{
+              backgroundColor: gmailStatus?.expired ? '#fffbeb' : '#fef2f2',
+              padding: 12,
+              marginHorizontal: 16,
+              marginBottom: 12,
+              borderRadius: 8,
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 10,
+              borderWidth: 1,
+              borderColor: gmailStatus?.expired ? '#fde68a' : '#fecaca',
+            }}>
+              <Ionicons
+                name={gmailStatus?.expired ? 'warning' : 'mail-unread'}
+                size={20}
+                color={gmailStatus?.expired ? '#f59e0b' : '#ef4444'}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontWeight: '600', color: '#1e293b', fontSize: 14 }}>
+                  {gmailStatus?.expired ? 'Gmail Token Expired' : 'Gmail Not Connected'}
+                </Text>
+                <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  Connect Gmail from the web admin at cloud.homation.us to enable payment detection.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {paymentsLoading && detectedPayments.length === 0 ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#2563eb" />
+              <Text style={{ marginTop: 12, color: '#64748b' }}>Loading payments...</Text>
+            </View>
+          ) : detectedPayments.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="wallet-outline" size={48} color="#cbd5e1" />
+              <Text style={styles.emptyText}>No payments detected</Text>
+              <Text style={styles.emptySubtext}>
+                {gmailStatus?.connected && !gmailStatus?.expired
+                  ? 'Payment notifications from Venmo and Zelle will appear here'
+                  : 'Connect Gmail to start detecting payments'}
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              contentContainerStyle={styles.listContent}
+              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+            >
+              {detectedPayments.map((payment) => (
+                <View key={payment._id} style={styles.card}>
+                  <View style={{ flexDirection: 'row', alignItems: 'flex-start', marginBottom: 8 }}>
+                    <View style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: payment.paymentMethod === 'venmo' ? '#e7f5ff' : '#f0fdf4',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginRight: 12,
+                    }}>
+                      <Ionicons
+                        name={payment.paymentMethod === 'venmo' ? 'logo-venmo' : 'cash'}
+                        size={20}
+                        color={payment.paymentMethod === 'venmo' ? '#008cff' : '#22c55e'}
+                      />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontWeight: '600', fontSize: 16, color: '#1e293b' }}>
+                        ${payment.amount.toFixed(2)}
+                      </Text>
+                      <Text style={{ fontSize: 14, color: '#64748b', marginTop: 2 }}>
+                        From: {payment.senderName}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#94a3b8', marginTop: 2 }}>
+                        {new Date(payment.detectedAt).toLocaleString()}
+                      </Text>
+                    </View>
+                    <View style={{
+                      paddingHorizontal: 8,
+                      paddingVertical: 4,
+                      borderRadius: 12,
+                      backgroundColor: payment.paymentMethod === 'venmo' ? '#e7f5ff' : '#f0fdf4',
+                    }}>
+                      <Text style={{
+                        fontSize: 11,
+                        fontWeight: '600',
+                        color: payment.paymentMethod === 'venmo' ? '#008cff' : '#22c55e',
+                        textTransform: 'uppercase',
+                      }}>
+                        {payment.paymentMethod}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Match Status */}
+                  {payment.matchedCustomerId ? (
+                    <View style={{
+                      backgroundColor: '#f0fdf4',
+                      padding: 10,
+                      borderRadius: 8,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}>
+                      <Ionicons name="checkmark-circle" size={18} color="#22c55e" />
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontWeight: '500', color: '#15803d', fontSize: 13 }}>
+                          Matched to {payment.matchedCustomerName}
+                        </Text>
+                        {payment.matchType && (
+                          <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                            Match type: {payment.matchType}
+                          </Text>
+                        )}
+                        {payment.orderNumber && (
+                          <Text style={{ fontSize: 11, color: '#64748b', marginTop: 2 }}>
+                            Order #{payment.orderNumber}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  ) : (
+                    <View style={{
+                      backgroundColor: '#fffbeb',
+                      padding: 10,
+                      borderRadius: 8,
+                    }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                        <Ionicons name="help-circle" size={18} color="#f59e0b" />
+                        <Text style={{ fontWeight: '500', color: '#b45309', fontSize: 13 }}>
+                          Unmatched Payment
+                        </Text>
+                      </View>
+                      <TouchableOpacity
+                        style={{
+                          backgroundColor: '#2563eb',
+                          paddingVertical: 8,
+                          paddingHorizontal: 12,
+                          borderRadius: 6,
+                          alignItems: 'center',
+                        }}
+                        onPress={() => {
+                          setSelectedPayment(payment);
+                          setPaymentSearchQuery('');
+                          setShowLinkPaymentModal(true);
+                        }}
+                      >
+                        <Text style={{ color: '#fff', fontWeight: '600', fontSize: 13 }}>
+                          Link to Customer
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
+      {/* Link Payment to Customer Modal */}
+      <Modal
+        visible={showLinkPaymentModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowLinkPaymentModal(false);
+          setSelectedPayment(null);
+        }}
+      >
+        <SafeAreaView style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Link Payment to Customer</Text>
+            <TouchableOpacity
+              onPress={() => {
+                setShowLinkPaymentModal(false);
+                setSelectedPayment(null);
+              }}
+            >
+              <Ionicons name="close" size={24} color="#64748b" />
+            </TouchableOpacity>
+          </View>
+
+          {selectedPayment && (
+            <View style={{ paddingHorizontal: 16, paddingBottom: 16 }}>
+              {/* Payment Info */}
+              <View style={{
+                backgroundColor: '#f8fafc',
+                padding: 12,
+                borderRadius: 8,
+                marginBottom: 16,
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: selectedPayment.paymentMethod === 'venmo' ? '#e7f5ff' : '#f0fdf4',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    <Ionicons
+                      name={selectedPayment.paymentMethod === 'venmo' ? 'logo-venmo' : 'cash'}
+                      size={20}
+                      color={selectedPayment.paymentMethod === 'venmo' ? '#008cff' : '#22c55e'}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontWeight: '600', fontSize: 18, color: '#1e293b' }}>
+                      ${selectedPayment.amount.toFixed(2)}
+                    </Text>
+                    <Text style={{ fontSize: 14, color: '#64748b' }}>
+                      From: {selectedPayment.senderName}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+
+              <Text style={{ fontSize: 14, color: '#64748b', marginBottom: 8 }}>
+                Search for a customer to link this payment. This will save their {selectedPayment.paymentMethod === 'venmo' ? 'Venmo username' : 'Zelle info'} for future auto-matching.
+              </Text>
+
+              {/* Customer Search */}
+              <View style={styles.searchContainer}>
+                <Ionicons name="search" size={20} color="#64748b" />
+                <TextInput
+                  style={styles.searchInput}
+                  placeholder="Search customers by name or phone..."
+                  value={paymentSearchQuery}
+                  onChangeText={setPaymentSearchQuery}
+                  placeholderTextColor="#94a3b8"
+                  autoFocus
+                />
+                {paymentSearchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => setPaymentSearchQuery('')}>
+                    <Ionicons name="close-circle" size={20} color="#94a3b8" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Customer List */}
+          <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingHorizontal: 16 }}>
+            {customers
+              .filter(c =>
+                paymentSearchQuery.length === 0 ||
+                c.name.toLowerCase().includes(paymentSearchQuery.toLowerCase()) ||
+                c.phoneNumber.includes(paymentSearchQuery)
+              )
+              .slice(0, 50)
+              .map((customer) => (
+                <TouchableOpacity
+                  key={customer._id}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    padding: 12,
+                    backgroundColor: '#fff',
+                    borderRadius: 8,
+                    marginBottom: 8,
+                    borderWidth: 1,
+                    borderColor: '#e2e8f0',
+                  }}
+                  onPress={() => handleLinkPayment(customer._id)}
+                  disabled={linkingPayment}
+                >
+                  <View style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 20,
+                    backgroundColor: '#e2e8f0',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 12,
+                  }}>
+                    <Text style={{ fontWeight: '600', color: '#64748b', fontSize: 14 }}>
+                      {customer.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                    </Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ fontWeight: '500', color: '#1e293b', fontSize: 15 }}>
+                      {customer.name}
+                    </Text>
+                    <Text style={{ fontSize: 13, color: '#64748b' }}>
+                      {customer.phoneNumber}
+                    </Text>
+                    {/* Show existing payment IDs */}
+                    {(customer.venmoUsername || customer.zelleEmail || customer.zellePhone) && (
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+                        {customer.venmoUsername && (
+                          <View style={{ backgroundColor: '#e7f5ff', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 10, color: '#008cff' }}>Venmo: {customer.venmoUsername}</Text>
+                          </View>
+                        )}
+                        {customer.zelleEmail && (
+                          <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 10, color: '#22c55e' }}>Zelle: {customer.zelleEmail}</Text>
+                          </View>
+                        )}
+                        {customer.zellePhone && (
+                          <View style={{ backgroundColor: '#f0fdf4', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                            <Text style={{ fontSize: 10, color: '#22c55e' }}>Zelle: {customer.zellePhone}</Text>
+                          </View>
+                        )}
+                      </View>
+                    )}
+                  </View>
+                  {linkingPayment ? (
+                    <ActivityIndicator size="small" color="#2563eb" />
+                  ) : (
+                    <Ionicons name="chevron-forward" size={20} color="#94a3b8" />
+                  )}
+                </TouchableOpacity>
+              ))}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
 
       {/* Locations Tab */}
       {activeTab === 'locations' && (
@@ -5668,6 +5960,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  modalContainer: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
   },
   countText: {
     fontSize: 14,

@@ -1123,6 +1123,45 @@ class ApiService {
       method: 'POST',
     });
   }
+
+  // Detected Payments
+  async getDetectedPayments(limit: number = 50): Promise<{
+    payments: Array<{
+      _id: string;
+      emailId: string;
+      senderName: string;
+      amount: number;
+      paymentMethod: 'venmo' | 'zelle';
+      detectedAt: string;
+      matchedCustomerId?: string;
+      matchedCustomerName?: string;
+      matchType?: string;
+      orderId?: string;
+      orderNumber?: number;
+    }>;
+    total: number;
+  }> {
+    return this.request(`/payments/detected?limit=${limit}`, {
+      method: 'GET',
+    });
+  }
+
+  async linkPaymentToCustomer(customerId: string, senderName: string, paymentMethod: 'venmo' | 'zelle'): Promise<{
+    success: boolean;
+    message: string;
+    customer: {
+      _id: string;
+      name: string;
+      venmoUsername?: string;
+      zelleEmail?: string;
+      zellePhone?: string;
+    };
+  }> {
+    return this.request('/payments/detected', {
+      method: 'POST',
+      body: JSON.stringify({ customerId, senderName, paymentMethod }),
+    });
+  }
 }
 
 export const api = new ApiService();
