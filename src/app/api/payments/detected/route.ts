@@ -59,7 +59,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         senderName: (metadata.paymentSender || metadata.senderName || 'Unknown') as string,
         amount: (metadata.paymentAmount || metadata.amount || 0) as number,
         paymentMethod: (metadata.paymentMethod || 'venmo') as 'venmo' | 'zelle',
-        detectedAt: log.createdAt,
+        detectedAt: log.timestamp,
         matchedCustomerId: metadata.customerId as string | undefined,
         matchedCustomerName: (metadata.matchedCustomer || metadata.customerName) as string | undefined,
         matchType: metadata.matchType as string | undefined,

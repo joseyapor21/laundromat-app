@@ -322,7 +322,11 @@ export type ActivityAction =
   | 'dryer_unload'
   | 'dryer_unload_check'
   | 'dryer_folding_started'
-  | 'dryer_folded';
+  | 'dryer_folded'
+  | 'payment_detected'
+  | 'payment_auto_matched'
+  | 'payment_email_check'
+  | 'payment_manual_link';
 
 export type EntityType = 'order' | 'user' | 'customer' | 'extra_item' | 'settings' | 'machine' | 'time_entry';
 
