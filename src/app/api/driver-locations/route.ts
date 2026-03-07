@@ -52,7 +52,14 @@ export async function GET() {
       isOnBreak: driver.isOnBreak,
     }));
 
-    return NextResponse.json({ drivers: driverLocations });
+    // Debug: include all drivers info
+    const debug = allDrivers.map(d => ({
+      email: d.email,
+      hasGps: !!d.currentGpsLocation,
+      gps: d.currentGpsLocation,
+    }));
+
+    return NextResponse.json({ drivers: driverLocations, debug, totalDrivers: allDrivers.length });
   } catch (error) {
     console.error('Get driver locations error:', error);
     return NextResponse.json(
