@@ -133,6 +133,7 @@ export async function fetchPaymentEmails(gmail: gmail_v1.Gmail): Promise<ParsedP
 
   for (const query of queries) {
     try {
+      console.log(`Searching Gmail with query: ${query}`);
       const response = await gmail.users.messages.list({
         userId: 'me',
         q: query,
@@ -140,6 +141,7 @@ export async function fetchPaymentEmails(gmail: gmail_v1.Gmail): Promise<ParsedP
       });
 
       const messages = response.data.messages || [];
+      console.log(`Query "${query}" found ${messages.length} messages`);
 
       for (const message of messages) {
         if (!message.id) continue;
@@ -150,9 +152,17 @@ export async function fetchPaymentEmails(gmail: gmail_v1.Gmail): Promise<ParsedP
           format: 'full',
         });
 
+        const headers = fullMessage.data.payload?.headers || [];
+        const subject = headers.find(h => h.name?.toLowerCase() === 'subject')?.value || '';
+        const from = headers.find(h => h.name?.toLowerCase() === 'from')?.value || '';
+        console.log(`Processing email - From: ${from}, Subject: ${subject}`);
+
         const parsed = parsePaymentEmail(fullMessage.data, message.id);
         if (parsed) {
+          console.log(`Parsed payment: ${parsed.senderName} - $${parsed.amount} via ${parsed.paymentMethod}`);
           payments.push(parsed);
+        } else {
+          console.log(`Failed to parse payment from email`);
         }
       }
     } catch (error) {

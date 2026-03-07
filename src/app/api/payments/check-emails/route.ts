@@ -106,12 +106,28 @@ export async function POST(request: NextRequest): Promise<NextResponse<CheckEmai
     const gmail = await initGmailClient(tokens);
 
     // Fetch payment emails
+    console.log('Starting payment email fetch...');
     const payments = await fetchPaymentEmails(gmail);
+    console.log(`Fetch complete. Found ${payments.length} payment emails`);
 
     if (payments.length === 0) {
+      // Try a broader search for debugging
+      let debugInfo = '';
+      try {
+        const testSearch = await gmail.users.messages.list({
+          userId: 'me',
+          q: 'from:venmo newer_than:30d',
+          maxResults: 5,
+        });
+        debugInfo = `Debug: Found ${testSearch.data.messages?.length || 0} Venmo emails in last 30 days`;
+        console.log(debugInfo);
+      } catch (e) {
+        debugInfo = 'Debug search failed';
+      }
+
       return NextResponse.json({
         success: true,
-        message: 'No new payment emails found',
+        message: `No payment emails found. ${debugInfo}`,
         processed: 0,
         matched: 0,
       });
