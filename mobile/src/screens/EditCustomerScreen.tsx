@@ -671,6 +671,51 @@ export default function EditCustomerScreen() {
             />
           </View>
 
+          {/* Payment Connections */}
+          {(customer.venmoUsername || customer.zelleEmail || customer.zellePhone) && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Payment Connections</Text>
+              <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 16 }}>
+                {customer.venmoUsername && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: customer.zelleEmail || customer.zellePhone ? 12 : 0 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#e7f5ff', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                      <Ionicons name="logo-venmo" size={18} color="#008cff" />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Venmo</Text>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#1e293b' }}>{customer.venmoUsername}</Text>
+                    </View>
+                  </View>
+                )}
+                {customer.zelleEmail && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: customer.zellePhone ? 12 : 0 }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                      <Ionicons name="cash" size={18} color="#22c55e" />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Zelle Email</Text>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#1e293b' }}>{customer.zelleEmail}</Text>
+                    </View>
+                  </View>
+                )}
+                {customer.zellePhone && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: '#f0fdf4', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
+                      <Ionicons name="cash" size={18} color="#22c55e" />
+                    </View>
+                    <View>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>Zelle Phone</Text>
+                      <Text style={{ fontSize: 15, fontWeight: '600', color: '#1e293b' }}>{customer.zellePhone}</Text>
+                    </View>
+                  </View>
+                )}
+                <Text style={{ fontSize: 11, color: '#94a3b8', marginTop: 12, fontStyle: 'italic' }}>
+                  Linked via Admin → Payments tab
+                </Text>
+              </View>
+            </View>
+          )}
+
           {/* Actions */}
           <View style={styles.actionsSection}>
             {isAdmin && (
