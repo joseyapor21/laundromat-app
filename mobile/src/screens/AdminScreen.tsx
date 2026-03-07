@@ -368,6 +368,7 @@ export default function AdminScreen() {
     setDriverLocationsLoading(true);
     try {
       const response = await api.getDriverLocations();
+      console.log('Driver locations response:', JSON.stringify(response));
       setDriverLocations(response.drivers);
       // Fit map to markers
       if (response.drivers.length > 0 && driverMapRef.current) {

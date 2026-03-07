@@ -135,15 +135,12 @@ const userSchema = new mongoose.Schema<UserDoc>({
   },
   // GPS tracking for drivers
   currentGpsLocation: {
-    type: {
-      latitude: Number,
-      longitude: Number,
-      heading: Number,
-      speed: Number,
-      accuracy: Number,
-      updatedAt: Date,
-    },
-    default: null,
+    latitude: { type: Number },
+    longitude: { type: Number },
+    heading: { type: Number },
+    speed: { type: Number },
+    accuracy: { type: Number },
+    updatedAt: { type: Date },
   },
 }, {
   collection: 'users',

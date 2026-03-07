@@ -35,6 +35,8 @@ export function DriverTrackingProvider({ children }: Props) {
   // Check if user should be tracked (is a driver or has driver role)
   const shouldTrack = isAuthenticated && user?.isDriver;
 
+  console.log('Driver tracking check:', { isAuthenticated, isDriver: user?.isDriver, email: user?.email, shouldTrack });
+
   const startTracking = async () => {
     if (subscriptionRef.current) {
       subscriptionRef.current.remove();
@@ -70,13 +72,14 @@ export function DriverTrackingProvider({ children }: Props) {
 
           // Upload to server
           try {
-            await api.updateDriverLocation({
+            const result = await api.updateDriverLocation({
               latitude: newLocation.latitude,
               longitude: newLocation.longitude,
               heading: loc.coords.heading,
               speed: loc.coords.speed,
               accuracy: loc.coords.accuracy,
             });
+            console.log('Driver location uploaded:', result);
           } catch (uploadErr) {
             console.error('Failed to upload driver location:', uploadErr);
           }
