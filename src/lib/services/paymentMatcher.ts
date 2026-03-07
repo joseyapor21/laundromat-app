@@ -7,6 +7,7 @@ export interface MatchResult {
   success: boolean;
   orderId?: string;
   orderNumber?: number;
+  customerId?: string;
   customerName?: string;
   matchType: 'exact' | 'fuzzy' | 'amount_only' | 'no_match' | 'multiple_matches';
   message: string;
@@ -210,6 +211,7 @@ export async function findMatchingOrder(
         success: true,
         orderId: matchingOrder._id.toString(),
         orderNumber: matchingOrder.orderId,
+        customerId: customer._id.toString(),
         customerName: customer.name,
         matchType: matchedByPaymentId ? 'exact' : 'fuzzy',
         message: `Matched to Order #${matchingOrder.orderId} for ${customer.name}`,
@@ -267,6 +269,7 @@ export async function findMatchingOrder(
       success: true,
       orderId: match.order._id.toString(),
       orderNumber: match.order.orderId,
+      customerId: match.order.customerId?.toString(),
       customerName: match.order.customerName,
       matchType: 'exact',
       message: `Exact match found: Order #${match.order.orderId} for ${match.order.customerName}`,
@@ -296,6 +299,7 @@ export async function findMatchingOrder(
       success: true,
       orderId: match.order._id.toString(),
       orderNumber: match.order.orderId,
+      customerId: match.order.customerId?.toString(),
       customerName: match.order.customerName,
       matchType: 'fuzzy',
       message: `Fuzzy match found: Order #${match.order.orderId} for ${match.order.customerName} (name similarity: ${(match.nameScore * 100).toFixed(0)}%)`,
@@ -448,31 +452,36 @@ export async function processPayment(payment: ParsedPayment): Promise<PaymentPro
   // Payments are shown in the admin panel for manual processing
   // The payment identifier is saved on the customer for future matching (done in findMatchingOrder)
 
-  if (match.success && match.customerName) {
-    // Log the payment detection (but don't mark as paid)
-    try {
-      await ActivityLog.create({
-        userId: 'system',
-        userName: 'Payment System',
-        action: 'payment_detected',
-        entityType: 'payment',
-        entityId: payment.emailId,
-        details: `Detected ${payment.paymentMethod.toUpperCase()} payment from ${payment.senderName} ($${payment.amount.toFixed(2)}) - matched to customer "${match.customerName}"`,
-        metadata: {
-          paymentAmount: payment.amount,
-          paymentSender: payment.senderName,
-          paymentMethod: payment.paymentMethod,
+  // Log ALL detected payments (matched or not) so they appear in the Payments tab
+  try {
+    await ActivityLog.create({
+      userId: 'system',
+      userName: 'Payment System',
+      action: 'payment_detected',
+      entityType: 'payment',
+      entityId: payment.emailId,
+      details: match.success && match.customerName
+        ? `Detected ${payment.paymentMethod.toUpperCase()} payment from ${payment.senderName} ($${payment.amount.toFixed(2)}) - matched to customer "${match.customerName}"`
+        : `Detected ${payment.paymentMethod.toUpperCase()} payment from ${payment.senderName} ($${payment.amount.toFixed(2)}) - no customer match`,
+      metadata: {
+        paymentAmount: payment.amount,
+        paymentSender: payment.senderName,
+        paymentMethod: payment.paymentMethod,
+        emailId: payment.emailId,
+        // Only include match info if matched
+        ...(match.success && match.customerName ? {
+          customerId: match.customerId,
           matchedCustomer: match.customerName,
           matchType: match.matchType,
           orderId: match.orderId,
           orderNumber: match.orderNumber,
-        },
-        ipAddress: 'system',
-        userAgent: 'Payment Detector',
-      });
-    } catch (error) {
-      console.error('Error logging payment detection:', error);
-    }
+        } : {}),
+      },
+      ipAddress: 'system',
+      userAgent: 'Payment Detector',
+    });
+  } catch (error) {
+    console.error('Error logging payment detection:', error);
   }
 
   return result;
