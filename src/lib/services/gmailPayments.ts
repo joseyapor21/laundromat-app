@@ -122,12 +122,13 @@ export async function fetchPaymentEmails(gmail: gmail_v1.Gmail): Promise<ParsedP
   const payments: ParsedPayment[] = [];
 
   // Search queries for Zelle and Venmo payment notification emails
+  // Check emails from the last 7 days (not just unread)
   const queries = [
     // Zelle queries
-    'from:alerts@notify.zelle.com subject:"sent you" is:unread',
-    'from:alerts@notify.zelle.com subject:"received" is:unread',
+    'from:alerts@notify.zelle.com subject:"sent you" newer_than:7d',
+    'from:alerts@notify.zelle.com subject:"received" newer_than:7d',
     // Venmo queries
-    'from:venmo@venmo.com subject:"paid you" is:unread',
+    'from:venmo@venmo.com subject:"paid you" newer_than:7d',
   ];
 
   for (const query of queries) {
