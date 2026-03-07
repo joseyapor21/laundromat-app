@@ -120,6 +120,7 @@ export async function refreshTokensIfNeeded(tokens: GmailTokens): Promise<GmailT
  */
 export async function fetchPaymentEmails(gmail: gmail_v1.Gmail): Promise<ParsedPayment[]> {
   const payments: ParsedPayment[] = [];
+  const seenEmailIds = new Set<string>(); // Track processed emails to avoid duplicates
 
   // Search queries for Zelle and Venmo payment notification emails
   // Check emails from the last 7 days (not just unread)
@@ -152,6 +153,13 @@ export async function fetchPaymentEmails(gmail: gmail_v1.Gmail): Promise<ParsedP
 
       for (const message of messages) {
         if (!message.id) continue;
+
+        // Skip if we've already processed this email
+        if (seenEmailIds.has(message.id)) {
+          console.log(`Skipping duplicate email: ${message.id}`);
+          continue;
+        }
+        seenEmailIds.add(message.id);
 
         const fullMessage = await gmail.users.messages.get({
           userId: 'me',
