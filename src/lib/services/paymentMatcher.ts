@@ -444,48 +444,34 @@ export async function processPayment(payment: ParsedPayment): Promise<PaymentPro
     notificationSent: false,
   };
 
-  if (match.success && match.orderId && match.orderNumber && match.customerName) {
-    // Mark order as paid
-    const updateResult = await markOrderAsPaid(match.orderId, payment.paymentMethod, {
-      emailId: payment.emailId,
-      senderName: payment.senderName,
-      amount: payment.amount,
-      receivedAt: payment.receivedAt,
-    });
+  // Note: We no longer auto-mark orders as paid
+  // Payments are shown in the admin panel for manual processing
+  // The payment identifier is saved on the customer for future matching (done in findMatchingOrder)
 
-    if (updateResult.success && updateResult.order) {
-      // Log the match
-      await logPaymentMatch(
-        {
-          _id: match.orderId,
-          orderId: match.orderNumber,
-          customerName: match.customerName,
-          totalAmount: payment.amount,
+  if (match.success && match.customerName) {
+    // Log the payment detection (but don't mark as paid)
+    try {
+      await ActivityLog.create({
+        userId: 'system',
+        userName: 'Payment System',
+        action: 'payment_detected',
+        entityType: 'payment',
+        entityId: payment.emailId,
+        details: `Detected ${payment.paymentMethod.toUpperCase()} payment from ${payment.senderName} ($${payment.amount.toFixed(2)}) - matched to customer "${match.customerName}"`,
+        metadata: {
+          paymentAmount: payment.amount,
+          paymentSender: payment.senderName,
+          paymentMethod: payment.paymentMethod,
+          matchedCustomer: match.customerName,
+          matchType: match.matchType,
+          orderId: match.orderId,
+          orderNumber: match.orderNumber,
         },
-        payment,
-        match.matchType
-      );
-
-      // Send push notification to clocked-in staff at this location
-      try {
-        await notifyPaymentReceived(
-          match.orderId,
-          match.orderNumber,
-          match.customerName,
-          payment.amount,
-          payment.paymentMethod.toUpperCase(),
-          { locationId: updateResult.order?.locationId?.toString() }
-        );
-        result.notificationSent = true;
-      } catch (error) {
-        console.error('Error sending payment notification:', error);
-      }
-    } else {
-      result.match = {
-        ...match,
-        success: false,
-        message: updateResult.error || 'Failed to update order',
-      };
+        ipAddress: 'system',
+        userAgent: 'Payment Detector',
+      });
+    } catch (error) {
+      console.error('Error logging payment detection:', error);
     }
   }
 
