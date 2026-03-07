@@ -328,7 +328,7 @@ export type ActivityAction =
   | 'payment_email_check'
   | 'payment_manual_link';
 
-export type EntityType = 'order' | 'user' | 'customer' | 'extra_item' | 'settings' | 'machine' | 'time_entry';
+export type EntityType = 'order' | 'user' | 'customer' | 'extra_item' | 'settings' | 'machine' | 'time_entry' | 'payment';
 
 export interface ActivityLog {
   _id: string;

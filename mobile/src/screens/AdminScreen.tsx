@@ -445,7 +445,8 @@ export default function AdminScreen() {
     setPaymentsLoading(true);
     try {
       const data = await api.getDetectedPayments(100);
-      setDetectedPayments(data.payments);
+      console.log('Detected payments response:', JSON.stringify(data, null, 2));
+      setDetectedPayments(data.payments || []);
     } catch (error) {
       console.error('Failed to load payments:', error);
     } finally {

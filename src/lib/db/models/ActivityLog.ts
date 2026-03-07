@@ -30,11 +30,12 @@ const activityLogSchema = new mongoose.Schema<ActivityLogDocument>({
       'clock_in', 'clock_out', 'break_start', 'break_end',
       'dryer_unload', 'dryer_unload_check',
       'dryer_folding_started', 'dryer_folded',
+      'payment_detected', 'payment_auto_matched', 'payment_email_check', 'payment_manual_link',
     ] as ActivityAction[],
   },
   entityType: {
     type: String,
-    enum: ['order', 'user', 'customer', 'extra_item', 'settings', 'machine', 'time_entry'] as EntityType[],
+    enum: ['order', 'user', 'customer', 'extra_item', 'settings', 'machine', 'time_entry', 'payment'] as EntityType[],
     required: false,
   },
   entityId: {
