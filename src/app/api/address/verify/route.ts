@@ -90,20 +90,46 @@ export async function POST(request: NextRequest) {
         return useShort ? comp?.short_name || '' : comp?.long_name || '';
       };
 
+      // Get address components
+      const streetNumber = getComponent('street_number');
+      const subpremise = getComponent('subpremise'); // For hyphenated numbers like "211-10"
+      const street = getComponent('route');
+      const city = getComponent('locality') || getComponent('sublocality');
+      const state = getComponent('administrative_area_level_1', true);
+      const zipCode = getComponent('postal_code');
+      const country = getComponent('country');
+
+      // Build full street number including subpremise (e.g., "211-10" from "211" + "10")
+      let fullStreetNumber = streetNumber;
+      if (subpremise && streetNumber) {
+        fullStreetNumber = `${streetNumber}-${subpremise}`;
+      }
+
+      // Build formatted address preserving hyphenated numbers
+      // Use result.name if it looks like a street address (starts with number), otherwise build from components
+      let formattedAddress = result.formatted_address;
+      if (result.name && /^\d/.test(result.name)) {
+        // result.name is the street address like "211-10 73rd Avenue"
+        formattedAddress = `${result.name}, ${city}, ${state} ${zipCode}, ${country}`;
+      } else if (fullStreetNumber && street) {
+        // Rebuild with full street number
+        formattedAddress = `${fullStreetNumber} ${street}, ${city}, ${state} ${zipCode}, ${country}`;
+      }
+
       const suggestion = {
-        displayName: result.name || result.formatted_address,
-        formattedAddress: result.formatted_address,
+        displayName: result.name || formattedAddress,
+        formattedAddress,
         latitude: result.geometry?.location?.lat || 0,
         longitude: result.geometry?.location?.lng || 0,
         placeId,
         components: {
-          streetNumber: getComponent('street_number'),
-          street: getComponent('route'),
-          subpremise: getComponent('subpremise'), // Apartment/unit number
-          city: getComponent('locality') || getComponent('sublocality'),
-          state: getComponent('administrative_area_level_1', true),
-          zipCode: getComponent('postal_code'),
-          country: getComponent('country'),
+          streetNumber: fullStreetNumber,
+          street,
+          subpremise,
+          city,
+          state,
+          zipCode,
+          country,
         },
       };
 
