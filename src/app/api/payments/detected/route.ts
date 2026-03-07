@@ -70,6 +70,48 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const payments = Array.from(paymentsMap.values());
 
+    // For payments without matchedCustomerId, check if any customer has matching payment info
+    const unmatchedPayments = payments.filter(p => !p.matchedCustomerId);
+    if (unmatchedPayments.length > 0) {
+      // Get all customers with venmo/zelle info
+      const customersWithPaymentInfo = await Customer.find({
+        $or: [
+          { venmoUsername: { $exists: true, $ne: '' } },
+          { zelleEmail: { $exists: true, $ne: '' } },
+          { zellePhone: { $exists: true, $ne: '' } },
+        ]
+      }).lean();
+
+      // Check each unmatched payment against customers
+      for (const payment of unmatchedPayments) {
+        const senderNameUpper = payment.senderName.toUpperCase();
+
+        for (const customer of customersWithPaymentInfo) {
+          let isMatch = false;
+
+          if (payment.paymentMethod === 'venmo' && customer.venmoUsername) {
+            isMatch = customer.venmoUsername.toUpperCase() === senderNameUpper ||
+                      senderNameUpper.includes(customer.venmoUsername.toUpperCase());
+          } else if (payment.paymentMethod === 'zelle') {
+            if (customer.zelleEmail && customer.zelleEmail.toUpperCase() === senderNameUpper) {
+              isMatch = true;
+            } else if (customer.zellePhone && customer.zellePhone === payment.senderName) {
+              isMatch = true;
+            } else if (customer.zelleEmail && senderNameUpper.includes(customer.zelleEmail.toUpperCase())) {
+              isMatch = true;
+            }
+          }
+
+          if (isMatch) {
+            payment.matchedCustomerId = customer._id.toString();
+            payment.matchedCustomerName = customer.name;
+            payment.matchType = 'linked';
+            break;
+          }
+        }
+      }
+    }
+
     return NextResponse.json({
       payments,
       total: payments.length,
