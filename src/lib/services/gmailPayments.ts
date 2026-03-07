@@ -123,12 +123,19 @@ export async function fetchPaymentEmails(gmail: gmail_v1.Gmail): Promise<ParsedP
 
   // Search queries for Zelle and Venmo payment notification emails
   // Check emails from the last 7 days (not just unread)
+  // Include queries for forwarded emails (search by subject/content, not just from)
   const queries = [
-    // Zelle queries
+    // Zelle queries - direct
     'from:alerts@notify.zelle.com subject:"sent you" newer_than:7d',
     'from:alerts@notify.zelle.com subject:"received" newer_than:7d',
-    // Venmo queries
+    // Venmo queries - direct
     'from:venmo@venmo.com subject:"paid you" newer_than:7d',
+    // Forwarded emails - search by subject pattern
+    'subject:"paid you" subject:"Fwd:" newer_than:7d',
+    'subject:"sent you" subject:"Fwd:" newer_than:7d',
+    // Forwarded emails - search by content (Venmo/Zelle in body)
+    '"venmo@venmo.com" subject:"paid you" newer_than:7d',
+    '"notify.zelle.com" subject:"sent you" newer_than:7d',
   ];
 
   for (const query of queries) {
@@ -195,7 +202,11 @@ function parsePaymentEmail(message: gmail_v1.Schema$Message, emailId: string): P
   }
 
   // Detect payment type and parse accordingly
-  if (from.includes('zelle') || from.includes('notify.zelle.com')) {
+  // Check both 'from' header and body content (for forwarded emails)
+  const isZelle = from.includes('zelle') || from.includes('notify.zelle.com') || body.includes('notify.zelle.com') || body.includes('zelle.com');
+  const isVenmo = from.includes('venmo') || from.includes('venmo.com') || body.includes('venmo@venmo.com') || body.includes('venmo.com');
+
+  if (isZelle) {
     const parsed = parseZelleEmail(subject, body);
     if (parsed) {
       return {
@@ -209,7 +220,7 @@ function parsePaymentEmail(message: gmail_v1.Schema$Message, emailId: string): P
     }
   }
 
-  if (from.includes('venmo') || from.includes('venmo.com')) {
+  if (isVenmo) {
     const parsed = parseVenmoEmail(subject, body);
     if (parsed) {
       return {
