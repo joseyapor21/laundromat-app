@@ -96,6 +96,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const { customerId, senderName, paymentMethod, emailId, paymentAmount } = await request.json();
 
+    console.log('[LinkPayment] Received:', { customerId, senderName, paymentMethod, emailId, paymentAmount });
+
     if (!customerId || !senderName || !paymentMethod) {
       return NextResponse.json(
         { error: 'customerId, senderName, and paymentMethod are required' },
@@ -180,10 +182,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         logUpdateData['metadata.orderNumber'] = matchedOrder.orderId;
       }
 
-      await ActivityLog.updateOne(
+      const updateResult = await ActivityLog.updateOne(
         { entityId: emailId, action: 'payment_detected' },
         { $set: logUpdateData }
       );
+      console.log('[LinkPayment] Activity log update result:', { emailId, matchedCount: updateResult.matchedCount, modifiedCount: updateResult.modifiedCount });
+    } else {
+      console.log('[LinkPayment] No emailId provided, skipping activity log update');
     }
 
     // Log the manual link
