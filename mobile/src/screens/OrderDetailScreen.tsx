@@ -908,7 +908,8 @@ export default function OrderDetailScreen() {
     setUpdating(true);
 
     try {
-      const result = await api.scanMachine(pendingQrCode, order._id, bag.identifier ?? '');
+      const bagId = bag.identifier || `Bag ${availableBags.indexOf(bag) + 1}`;
+      const result = await api.scanMachine(pendingQrCode, order._id, bagId);
 
       if (result.requireBagSelection) {
         Alert.alert('Error', 'Could not assign bag — bag has no identifier. Please edit the order to set bag names.');
@@ -917,7 +918,7 @@ export default function OrderDetailScreen() {
 
       await loadOrder();
 
-      const bagLabel = bag.identifier || `Bag ${availableBags.indexOf(bag) + 1}`;
+      const bagLabel = bagId;
       const machineName = result.machine?.name || pendingMachineInfo?.name || 'machine';
       // Prompt to take verification photo
       Alert.alert(

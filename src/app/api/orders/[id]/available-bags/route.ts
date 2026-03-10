@@ -60,8 +60,19 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // For keepSeparated orders (separate wash / separate all the way),
     // allow the same bag to be assigned to multiple machines of the same type
     // This is needed when splitting a bag (e.g., whites in one washer, colors in another)
-    const allBags = order.bags || [];
+    let allBags = order.bags || [];
     const machineAssignments = order.machineAssignments || [];
+
+    // Auto-assign identifiers to bags that don't have one, and save to DB
+    const hasBagsWithoutIdentifier = allBags.some((b: { identifier?: string }) => !b.identifier);
+    if (hasBagsWithoutIdentifier) {
+      allBags = allBags.map((bag: { identifier?: string }, idx: number) => ({
+        ...bag,
+        identifier: bag.identifier || `Bag ${idx + 1}`,
+      }));
+      // Save the updated bags back to the order
+      await Order.findByIdAndUpdate(id, { $set: { bags: allBags } });
+    }
 
     // Enrich bags with their current machine assignments
     const bagsWithAssignments = allBags.map((bag: { identifier: string; weight?: number; color?: string }) => {

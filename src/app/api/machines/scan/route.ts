@@ -119,7 +119,7 @@ export async function POST(request: NextRequest) {
     if (order.keepSeparated) {
       // Require bag selection - return 200 with requireBagSelection flag
       // so the mobile app can show the bag picker modal
-      if (bagIdentifier === undefined || bagIdentifier === null) {
+      if (!bagIdentifier) {
         console.log('Bag selection required for separated order');
         return NextResponse.json({
           requireBagSelection: true,
@@ -129,10 +129,8 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Validate bag exists in order (match by identifier, or allow empty-identifier bags)
-      const bagExists = order.bags?.some((b: { identifier: string }) =>
-        b.identifier === bagIdentifier || (bagIdentifier === '' && (b.identifier === '' || b.identifier == null))
-      );
+      // Validate bag exists in order
+      const bagExists = order.bags?.some((b: { identifier: string }) => b.identifier === bagIdentifier);
       if (!bagExists) {
         console.log('Scan error: Bag not found in order:', bagIdentifier);
         return NextResponse.json(
@@ -196,7 +194,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Include bagIdentifier for keepSeparated orders
-    if (order.keepSeparated && bagIdentifier !== undefined && bagIdentifier !== null) {
+    if (order.keepSeparated && bagIdentifier) {
       assignment.bagIdentifier = bagIdentifier;
     }
 
