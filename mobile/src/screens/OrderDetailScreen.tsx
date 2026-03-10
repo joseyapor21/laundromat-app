@@ -1874,7 +1874,7 @@ export default function OrderDetailScreen() {
               ) : (
                 activeMachines.map((assignment: MachineAssignment, index: number) => (
                   <View
-                    key={index}
+                    key={`${assignment.machineId}-${assignment.bagIdentifier || ''}-${index}`}
                     style={[
                       styles.machineItem,
                       assignment.isChecked && styles.machineItemChecked,
@@ -2916,7 +2916,7 @@ export default function OrderDetailScreen() {
                   const hasAssignments = activeAssignments.length > 0;
                   return (
                     <TouchableOpacity
-                      key={bag.identifier}
+                      key={bag.identifier || `bag-${index}`}
                       style={styles.bagPickerItem}
                       onPress={() => handleBagSelected(bag)}
                     >
