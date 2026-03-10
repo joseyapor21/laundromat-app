@@ -2925,7 +2925,7 @@ export default function OrderDetailScreen() {
                           <Ionicons name="cube" size={24} color={hasAssignments ? '#f59e0b' : '#8b5cf6'} />
                         </View>
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.bagPickerItemTitle}>{bag.identifier}</Text>
+                          <Text style={styles.bagPickerItemTitle}>{bag.identifier || `Bag ${index + 1}`}</Text>
                           <Text style={styles.bagPickerItemSubtitle}>
                             {bag.weight ? `${bag.weight} lbs` : 'No weight'}
                             {bag.color ? ` • ${bag.color}` : ''}
