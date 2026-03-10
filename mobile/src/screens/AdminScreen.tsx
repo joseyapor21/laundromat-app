@@ -128,6 +128,7 @@ export default function AdminScreen() {
   const [driverLocations, setDriverLocations] = useState<DriverLocationData[]>([]);
   const [driverLocationsLoading, setDriverLocationsLoading] = useState(false);
   const driverMapRef = useRef<MapView>(null);
+  const trajectoryMapRef = useRef<MapView>(null);
 
   // Driver Trajectory Modal
   const [trajectoryDriver, setTrajectoryDriver] = useState<{ userId: string; name: string } | null>(null);
@@ -6032,15 +6033,23 @@ export default function AdminScreen() {
           ) : (
             <View style={{ flex: 1 }}>
               <MapView
+                ref={trajectoryMapRef}
                 style={{ flex: 1 }}
                 provider={PROVIDER_DEFAULT}
                 initialRegion={{
                   latitude: trajectoryHistory[trajectoryHistory.length - 1]?.latitude ?? 40.7128,
                   longitude: trajectoryHistory[trajectoryHistory.length - 1]?.longitude ?? -74.006,
-                  latitudeDelta: 0.05,
-                  longitudeDelta: 0.05,
+                  latitudeDelta: 0.01,
+                  longitudeDelta: 0.01,
                 }}
-                onMapReady={() => {}}
+                onMapReady={() => {
+                  if (trajectoryHistory.length > 1) {
+                    trajectoryMapRef.current?.fitToCoordinates(
+                      trajectoryHistory.map(p => ({ latitude: p.latitude, longitude: p.longitude })),
+                      { edgePadding: { top: 60, right: 40, bottom: 60, left: 40 }, animated: true }
+                    );
+                  }
+                }}
               >
                 {/* Path polyline */}
                 <Polyline
