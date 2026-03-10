@@ -911,6 +911,19 @@ class ApiService {
     });
   }
 
+  async getDriverLocationHistory(userId: string): Promise<{
+    name: string;
+    history: Array<{
+      latitude: number;
+      longitude: number;
+      heading?: number | null;
+      speed?: number | null;
+      updatedAt: string;
+    }>;
+  }> {
+    return this.request(`/driver-locations/history?userId=${userId}`);
+  }
+
   // Pickup Photos
   async uploadPickupPhoto(orderId: string, photo: string): Promise<{ success: boolean; photoPath: string }> {
     return this.request<{ success: boolean; photoPath: string }>(`/orders/${orderId}/pickup-photo`, {

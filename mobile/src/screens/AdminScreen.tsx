@@ -26,7 +26,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import MapView, { Marker, Region, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Marker, Polyline, Region, PROVIDER_DEFAULT } from 'react-native-maps';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { bluetoothPrinter } from '../services/BluetoothPrinter';
@@ -128,6 +128,11 @@ export default function AdminScreen() {
   const [driverLocations, setDriverLocations] = useState<DriverLocationData[]>([]);
   const [driverLocationsLoading, setDriverLocationsLoading] = useState(false);
   const driverMapRef = useRef<MapView>(null);
+
+  // Driver Trajectory Modal
+  const [trajectoryDriver, setTrajectoryDriver] = useState<{ userId: string; name: string } | null>(null);
+  const [trajectoryHistory, setTrajectoryHistory] = useState<Array<{ latitude: number; longitude: number; updatedAt: string }>>([]);
+  const [trajectoryLoading, setTrajectoryLoading] = useState(false);
 
   // Vault
   const [vaultItems, setVaultItems] = useState<LocationVaultItem[]>([]);
@@ -414,6 +419,20 @@ export default function AdminScreen() {
       console.error('Failed to load driver locations:', error);
     } finally {
       setDriverLocationsLoading(false);
+    }
+  };
+
+  const openTrajectory = async (userId: string, name: string) => {
+    setTrajectoryDriver({ userId, name });
+    setTrajectoryLoading(true);
+    setTrajectoryHistory([]);
+    try {
+      const response = await api.getDriverLocationHistory(userId);
+      setTrajectoryHistory(response.history);
+    } catch (error) {
+      console.error('Failed to load driver history:', error);
+    } finally {
+      setTrajectoryLoading(false);
     }
   };
 
@@ -3265,7 +3284,7 @@ export default function AdminScreen() {
                   {users.filter(u => u.isDriver).map((driver) => {
                     const activeDriver = driverLocations.find(d => d.userId === driver._id);
                     return (
-                      <View key={driver._id} style={{
+                      <TouchableOpacity key={driver._id} onPress={() => openTrajectory(driver._id, `${driver.firstName} ${driver.lastName}`)} style={{
                         flexDirection: 'row',
                         alignItems: 'center',
                         backgroundColor: '#fff',
@@ -3348,7 +3367,7 @@ export default function AdminScreen() {
                             </View>
                           )}
                         </View>
-                      </View>
+                      </TouchableOpacity>
                     );
                   })}
                 </View>
@@ -5970,6 +5989,127 @@ export default function AdminScreen() {
           )}
         </View>
       </Modal>
+      {/* Driver Trajectory Modal */}
+      <Modal visible={!!trajectoryDriver} animationType="slide" onRequestClose={() => setTrajectoryDriver(null)}>
+        <View style={{ flex: 1, backgroundColor: '#f8fafc' }}>
+          {/* Header */}
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            padding: 16,
+            paddingTop: 56,
+            backgroundColor: '#fff',
+            borderBottomWidth: 1,
+            borderBottomColor: '#e2e8f0',
+          }}>
+            <TouchableOpacity onPress={() => setTrajectoryDriver(null)} style={{ marginRight: 12 }}>
+              <Ionicons name="arrow-back" size={24} color="#1e293b" />
+            </TouchableOpacity>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 17, fontWeight: '700', color: '#1e293b' }}>
+                {trajectoryDriver?.name}
+              </Text>
+              <Text style={{ fontSize: 12, color: '#64748b' }}>
+                {trajectoryHistory.length} location points
+              </Text>
+            </View>
+            {trajectoryLoading && <ActivityIndicator size="small" color="#2563eb" />}
+          </View>
+
+          {trajectoryLoading ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <ActivityIndicator size="large" color="#2563eb" />
+              <Text style={{ marginTop: 12, color: '#64748b' }}>Loading trajectory...</Text>
+            </View>
+          ) : trajectoryHistory.length === 0 ? (
+            <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+              <Ionicons name="location-outline" size={56} color="#cbd5e1" />
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#94a3b8', marginTop: 12 }}>No trajectory data</Text>
+              <Text style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
+                Data is recorded while the driver uses the Driver tab
+              </Text>
+            </View>
+          ) : (
+            <View style={{ flex: 1 }}>
+              <MapView
+                style={{ flex: 1 }}
+                provider={PROVIDER_DEFAULT}
+                initialRegion={{
+                  latitude: trajectoryHistory[trajectoryHistory.length - 1]?.latitude ?? 40.7128,
+                  longitude: trajectoryHistory[trajectoryHistory.length - 1]?.longitude ?? -74.006,
+                  latitudeDelta: 0.05,
+                  longitudeDelta: 0.05,
+                }}
+                onMapReady={() => {}}
+              >
+                {/* Path polyline */}
+                <Polyline
+                  coordinates={trajectoryHistory.map(p => ({ latitude: p.latitude, longitude: p.longitude }))}
+                  strokeColor="#2563eb"
+                  strokeWidth={4}
+                  lineDashPattern={undefined}
+                />
+
+                {/* Start marker */}
+                <Marker
+                  coordinate={{ latitude: trajectoryHistory[0].latitude, longitude: trajectoryHistory[0].longitude }}
+                  title="Start"
+                  description={new Date(trajectoryHistory[0].updatedAt).toLocaleTimeString()}
+                  pinColor="green"
+                />
+
+                {/* Current / last position */}
+                <Marker
+                  coordinate={{
+                    latitude: trajectoryHistory[trajectoryHistory.length - 1].latitude,
+                    longitude: trajectoryHistory[trajectoryHistory.length - 1].longitude,
+                  }}
+                  title="Last Position"
+                  description={new Date(trajectoryHistory[trajectoryHistory.length - 1].updatedAt).toLocaleTimeString()}
+                >
+                  <View style={{
+                    backgroundColor: '#2563eb',
+                    borderRadius: 20,
+                    padding: 8,
+                    borderWidth: 3,
+                    borderColor: '#fff',
+                  }}>
+                    <Ionicons name="car" size={20} color="#fff" />
+                  </View>
+                </Marker>
+              </MapView>
+
+              {/* Info strip */}
+              <View style={{
+                backgroundColor: '#fff',
+                padding: 16,
+                borderTopWidth: 1,
+                borderTopColor: '#e2e8f0',
+                flexDirection: 'row',
+                justifyContent: 'space-around',
+              }}>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Started</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#1e293b' }}>
+                    {new Date(trajectoryHistory[0].updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Points</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#1e293b' }}>{trajectoryHistory.length}</Text>
+                </View>
+                <View style={{ alignItems: 'center' }}>
+                  <Text style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase' }}>Last Update</Text>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: '#1e293b' }}>
+                    {new Date(trajectoryHistory[trajectoryHistory.length - 1].updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
       </View>
     </KeyboardAvoidingView>
   );

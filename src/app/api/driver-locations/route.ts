@@ -103,20 +103,26 @@ export async function POST(request: NextRequest) {
 
     const db = await getAuthDatabase();
 
-    // Update user's GPS location in v5users collection
+    const locationPoint = {
+      latitude,
+      longitude,
+      heading: heading ?? null,
+      speed: speed ?? null,
+      accuracy: accuracy ?? null,
+      updatedAt: new Date(),
+    };
+
+    // Update current location and append to history (keep last 500 points)
     await db.collection('v5users').updateOne(
       { _id: new ObjectId(currentUser.userId) },
       {
-        $set: {
-          currentGpsLocation: {
-            latitude,
-            longitude,
-            heading: heading ?? null,
-            speed: speed ?? null,
-            accuracy: accuracy ?? null,
-            updatedAt: new Date(),
+        $set: { currentGpsLocation: locationPoint },
+        $push: {
+          locationHistory: {
+            $each: [locationPoint],
+            $slice: -500,
           },
-        },
+        } as any,
       }
     );
 
