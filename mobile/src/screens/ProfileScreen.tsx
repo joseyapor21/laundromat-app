@@ -675,7 +675,7 @@ export default function ProfileScreen() {
   const handleSyncCallerID = async () => {
     console.log('handleSyncCallerID button tapped!');
     if (!callerIDService.isAvailable()) {
-      Alert.alert('Not Available', 'Caller ID is only available on iOS devices.');
+      Alert.alert('Not Available', 'Caller ID is not available in this build.');
       return;
     }
 

@@ -50,9 +50,6 @@
       "predictiveBackGestureEnabled": false,
       "versionCode": 16
     },
-    "web": {
-      "favicon": "./assets/favicon.png"
-    },
     "plugins": [
       [
         "expo-camera",
@@ -83,7 +80,9 @@
           "microphonePermission": "Allow Laundromat to access your microphone."
         }
       ],
-      "react-native-ble-plx"
+      "react-native-ble-plx",
+      "expo-secure-store",
+      "./plugins/withCallerID"
     ],
     "extra": {
       "eas": {

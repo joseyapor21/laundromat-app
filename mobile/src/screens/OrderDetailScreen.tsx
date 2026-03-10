@@ -24,7 +24,7 @@ import { useRoute, useNavigation, useFocusEffect } from '@react-navigation/nativ
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';

@@ -25,7 +25,7 @@ import { Device } from 'react-native-ble-plx';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import MapView, { Marker, Region, PROVIDER_DEFAULT } from 'react-native-maps';
 import { api } from '../services/api';
 import { localPrinter } from '../services/LocalPrinter';
@@ -266,7 +266,7 @@ export default function AdminScreen() {
 
   // Form state for modals
   const [userForm, setUserForm] = useState({ email: '', firstName: '', lastName: '', role: 'employee' as UserRole, isDriver: false, password: '' });
-  const [extraItemForm, setExtraItemForm] = useState({ name: '', description: '', price: '', isActive: true, perWeightUnit: '', allowMultiplePrices: false });
+  const [extraItemForm, setExtraItemForm] = useState({ name: '', description: '', price: '', minimumPrice: '', unitType: 'lb' as 'lb' | 'item' | 'each' | 'flat', isActive: true, perWeightUnit: '', allowMultiplePrices: false });
   const [machineForm, setMachineForm] = useState({ name: '', type: 'washer' as MachineType, qrCode: '', status: 'available' as MachineStatus });
   const [settingsForm, setSettingsForm] = useState({
     minimumWeight: '',
@@ -474,6 +474,7 @@ export default function AdminScreen() {
         selectedPayment.emailId,
         selectedPayment.amount
       );
+        console.log('Link payment result:', JSON.stringify(result));
       if (result.success) {
         Alert.alert('Success', result.message);
         setShowLinkPaymentModal(false);
@@ -699,13 +700,15 @@ export default function AdminScreen() {
         name: item.name,
         description: item.description,
         price: item.price.toString(),
+        minimumPrice: item.minimumPrice ? item.minimumPrice.toString() : '',
+        unitType: (item.unitType as 'lb' | 'item' | 'each' | 'flat') || 'lb',
         isActive: item.isActive,
         perWeightUnit: item.perWeightUnit ? item.perWeightUnit.toString() : '',
         allowMultiplePrices: item.allowMultiplePrices || false,
       });
     } else {
       setEditingExtraItem(null);
-      setExtraItemForm({ name: '', description: '', price: '', isActive: true, perWeightUnit: '', allowMultiplePrices: false });
+      setExtraItemForm({ name: '', description: '', price: '', minimumPrice: '', unitType: 'lb', isActive: true, perWeightUnit: '', allowMultiplePrices: false });
     }
     setShowExtraItemModal(true);
   };
@@ -719,12 +722,15 @@ export default function AdminScreen() {
     setSaving(true);
     try {
       const perWeightUnit = extraItemForm.perWeightUnit ? parseFloat(extraItemForm.perWeightUnit) : null;
+      const minimumPrice = extraItemForm.minimumPrice ? parseFloat(extraItemForm.minimumPrice) : 0;
 
       if (editingExtraItem) {
         const updateData = {
           name: extraItemForm.name,
           description: extraItemForm.description,
           price: parseFloat(extraItemForm.price),
+          minimumPrice,
+          unitType: extraItemForm.unitType,
           isActive: extraItemForm.isActive,
           perWeightUnit: perWeightUnit,
           allowMultiplePrices: extraItemForm.allowMultiplePrices,
@@ -738,6 +744,8 @@ export default function AdminScreen() {
           name: extraItemForm.name,
           description: extraItemForm.description,
           price: parseFloat(extraItemForm.price),
+          minimumPrice,
+          unitType: extraItemForm.unitType,
           isActive: extraItemForm.isActive,
           perWeightUnit: perWeightUnit,
           allowMultiplePrices: extraItemForm.allowMultiplePrices,
@@ -2274,8 +2282,14 @@ export default function AdminScreen() {
                     <Text style={styles.cardSubtitle}>{item.description}</Text>
                     <Text style={styles.priceText}>
                       ${item.price.toFixed(2)}
-                      {isWeightBased && (
-                        <Text style={styles.perWeightText}> per {item.perWeightUnit} lbs</Text>
+                      {isWeightBased
+                        ? <Text style={styles.perWeightText}> per {item.perWeightUnit} lbs</Text>
+                        : item.unitType && item.unitType !== 'lb'
+                          ? <Text style={styles.perWeightText}> / {item.unitType === 'item' ? 'item' : item.unitType === 'each' ? 'each' : 'flat'}</Text>
+                          : <Text style={styles.perWeightText}> / lb</Text>
+                      }
+                      {(item.minimumPrice ?? 0) > 0 && (
+                        <Text style={[styles.perWeightText, { color: '#d97706' }]}> (min ${(item.minimumPrice ?? 0).toFixed(2)})</Text>
                       )}
                     </Text>
                   </TouchableOpacity>
@@ -4581,6 +4595,26 @@ export default function AdminScreen() {
               />
             </View>
             <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Unit Type</Text>
+              <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+                {(['lb', 'item', 'each', 'flat'] as const).map((type) => (
+                  <TouchableOpacity
+                    key={type}
+                    onPress={() => setExtraItemForm({ ...extraItemForm, unitType: type })}
+                    style={{
+                      paddingHorizontal: 14, paddingVertical: 7, borderRadius: 8,
+                      backgroundColor: extraItemForm.unitType === type ? '#2563eb' : '#f1f5f9',
+                      borderWidth: 1, borderColor: extraItemForm.unitType === type ? '#2563eb' : '#e2e8f0',
+                    }}
+                  >
+                    <Text style={{ color: extraItemForm.unitType === type ? '#fff' : '#64748b', fontSize: 13, fontWeight: '500' }}>
+                      {type === 'lb' ? 'Per lb' : type === 'item' ? 'Per item' : type === 'each' ? 'Each' : 'Flat rate'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Price ($) *</Text>
               <TextInput
                 style={styles.input}
@@ -4590,6 +4624,23 @@ export default function AdminScreen() {
                 placeholderTextColor="#94a3b8"
                 keyboardType="decimal-pad"
               />
+              <Text style={styles.inputHint}>
+                {extraItemForm.unitType === 'lb' ? 'Price per pound' :
+                 extraItemForm.unitType === 'item' ? 'Price per item' :
+                 extraItemForm.unitType === 'each' ? 'Price each' : 'Flat rate price'}
+              </Text>
+            </View>
+            <View style={styles.inputGroup}>
+              <Text style={styles.inputLabel}>Minimum Price ($)</Text>
+              <TextInput
+                style={styles.input}
+                value={extraItemForm.minimumPrice}
+                onChangeText={(text) => setExtraItemForm({ ...extraItemForm, minimumPrice: text })}
+                placeholder="0.00 (no minimum)"
+                placeholderTextColor="#94a3b8"
+                keyboardType="decimal-pad"
+              />
+              <Text style={styles.inputHint}>Minimum charge regardless of weight/quantity</Text>
             </View>
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>Weight-Based Pricing (lbs)</Text>
