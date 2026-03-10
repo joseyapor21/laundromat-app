@@ -908,13 +908,19 @@ export default function OrderDetailScreen() {
     setUpdating(true);
 
     try {
-      const result = await api.scanMachine(pendingQrCode, order._id, bag.identifier);
+      const result = await api.scanMachine(pendingQrCode, order._id, bag.identifier ?? '');
       await loadOrder();
 
+      if (!result.machine) {
+        Alert.alert('Assigned', 'Bag assigned to machine successfully.');
+        return;
+      }
+
+      const bagLabel = bag.identifier || pendingMachineInfo?.name || 'Bag';
       // Prompt to take verification photo
       Alert.alert(
         'Machine Assigned',
-        `${bag.identifier} assigned to ${result.machine.name}\n\nTake a photo of the machine settings to verify?`,
+        `${bagLabel} assigned to ${result.machine.name}\n\nTake a photo of the machine settings to verify?`,
         [
           {
             text: 'Skip',
