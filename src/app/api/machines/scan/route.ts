@@ -196,7 +196,7 @@ export async function POST(request: NextRequest) {
     };
 
     // Include bagIdentifier for keepSeparated orders
-    if (order.keepSeparated && bagIdentifier) {
+    if (order.keepSeparated && bagIdentifier !== undefined && bagIdentifier !== null) {
       assignment.bagIdentifier = bagIdentifier;
     }
 

@@ -909,18 +909,20 @@ export default function OrderDetailScreen() {
 
     try {
       const result = await api.scanMachine(pendingQrCode, order._id, bag.identifier ?? '');
-      await loadOrder();
 
-      if (!result.machine) {
-        Alert.alert('Assigned', 'Bag assigned to machine successfully.');
+      if (result.requireBagSelection) {
+        Alert.alert('Error', 'Could not assign bag — bag has no identifier. Please edit the order to set bag names.');
         return;
       }
 
-      const bagLabel = bag.identifier || pendingMachineInfo?.name || 'Bag';
+      await loadOrder();
+
+      const bagLabel = bag.identifier || `Bag ${availableBags.indexOf(bag) + 1}`;
+      const machineName = result.machine?.name || pendingMachineInfo?.name || 'machine';
       // Prompt to take verification photo
       Alert.alert(
         'Machine Assigned',
-        `${bagLabel} assigned to ${result.machine.name}\n\nTake a photo of the machine settings to verify?`,
+        `${bagLabel} assigned to ${machineName}\n\nTake a photo of the machine settings to verify?`,
         [
           {
             text: 'Skip',
@@ -930,8 +932,8 @@ export default function OrderDetailScreen() {
             text: 'Take Photo',
             onPress: () => {
               setPendingMachineForPhoto({
-                machineId: result.machine._id,
-                machineName: result.machine.name,
+                machineId: result.machine?._id,
+                machineName: result.machine?.name || machineName,
               });
               setShowVerificationCamera(true);
             },
