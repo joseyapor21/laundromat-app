@@ -3226,12 +3226,12 @@ export default function AdminScreen() {
         </View>
       )}
 
-      {/* Drivers Map Tab */}
+      {/* Drivers Tab */}
       {activeTab === 'drivers' && (
         <View style={{ flex: 1 }}>
           <View style={styles.actionHeader}>
             <Text style={styles.sectionTitle}>
-              Driver Locations ({driverLocations.length} active)
+              Drivers ({users.filter(u => u.isDriver).length} total, {driverLocations.length} online)
             </Text>
             <TouchableOpacity
               style={styles.addButton}
@@ -3241,129 +3241,163 @@ export default function AdminScreen() {
               <Text style={styles.addButtonText}>Refresh</Text>
             </TouchableOpacity>
           </View>
-          {driverLocationsLoading && driverLocations.length === 0 ? (
+          {driverLocationsLoading && driverLocations.length === 0 && users.filter(u => u.isDriver).length === 0 ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color="#2563eb" />
-              <Text style={{ marginTop: 12, color: '#64748b' }}>Loading driver locations...</Text>
-            </View>
-          ) : driverLocations.length === 0 ? (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="car-outline" size={48} color="#cbd5e1" />
-              <Text style={styles.emptyText}>No drivers online</Text>
-              <Text style={styles.emptySubtext}>
-                Drivers will appear here when they are on the Driver screen
-              </Text>
+              <Text style={{ marginTop: 12, color: '#64748b' }}>Loading drivers...</Text>
             </View>
           ) : (
-            <View style={{ flex: 1 }}>
-              <MapView
-                ref={driverMapRef}
-                style={{ flex: 1 }}
-                provider={PROVIDER_DEFAULT}
-                initialRegion={{
-                  latitude: 40.7128,
-                  longitude: -74.0060,
-                  latitudeDelta: 0.2,
-                  longitudeDelta: 0.2,
-                }}
-                showsUserLocation={false}
-                showsMyLocationButton={false}
-              >
-                {driverLocations.map((driver) => (
-                  <Marker
-                    key={driver.userId}
-                    coordinate={{
-                      latitude: driver.latitude,
-                      longitude: driver.longitude,
-                    }}
-                    title={driver.name}
-                    description={`Updated ${new Date(driver.updatedAt).toLocaleTimeString()}${driver.isOnBreak ? ' (On Break)' : ''}`}
-                  >
-                    <View style={{
-                      backgroundColor: driver.isOnBreak ? '#f59e0b' : '#ef4444',
-                      borderRadius: 20,
-                      padding: 8,
-                      borderWidth: 2,
-                      borderColor: '#fff',
-                    }}>
-                      <Ionicons name="car" size={20} color="#fff" />
-                    </View>
-                  </Marker>
-                ))}
-              </MapView>
-              {/* Driver list overlay */}
-              <View style={{
-                position: 'absolute',
-                bottom: 16,
-                left: 16,
-                right: 16,
-                backgroundColor: '#fff',
-                borderRadius: 12,
-                padding: 12,
-                maxHeight: 200,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.2,
-                shadowRadius: 4,
-                elevation: 5,
-              }}>
-                <Text style={{ fontWeight: '600', marginBottom: 8, color: '#1e293b' }}>
-                  Active Drivers
-                </Text>
-                <ScrollView>
-                  {driverLocations.map((driver) => (
-                    <View key={driver.userId} style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      paddingVertical: 6,
-                      borderBottomWidth: 1,
-                      borderBottomColor: '#e2e8f0',
-                    }}>
-                      <View style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        backgroundColor: driver.isOnBreak ? '#fef3c7' : '#fee2e2',
+            <ScrollView style={{ flex: 1 }}>
+              {/* All Drivers List */}
+              {users.filter(u => u.isDriver).length === 0 ? (
+                <View style={styles.emptyContainer}>
+                  <Ionicons name="car-outline" size={48} color="#cbd5e1" />
+                  <Text style={styles.emptyText}>No drivers assigned</Text>
+                  <Text style={styles.emptySubtext}>
+                    Enable Driver Access on users in the Users tab
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ padding: 16 }}>
+                  <Text style={{ fontWeight: '600', fontSize: 14, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    All Drivers
+                  </Text>
+                  {users.filter(u => u.isDriver).map((driver) => {
+                    const activeDriver = driverLocations.find(d => d.userId === driver._id);
+                    return (
+                      <View key={driver._id} style={{
+                        flexDirection: 'row',
                         alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: 10,
+                        backgroundColor: '#fff',
+                        borderRadius: 10,
+                        padding: 12,
+                        marginBottom: 8,
+                        borderWidth: 1,
+                        borderColor: activeDriver ? '#bfdbfe' : '#e2e8f0',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.05,
+                        shadowRadius: 2,
+                        elevation: 1,
                       }}>
-                        <Ionicons
-                          name="car"
-                          size={16}
-                          color={driver.isOnBreak ? '#f59e0b' : '#ef4444'}
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
-                        <Text style={{ fontWeight: '500', color: '#1e293b' }}>
-                          {driver.name}
-                          {driver.isOnBreak && (
-                            <Text style={{ color: '#f59e0b', fontWeight: '400' }}> (On Break)</Text>
+                        <View style={{
+                          width: 40,
+                          height: 40,
+                          borderRadius: 20,
+                          backgroundColor: activeDriver ? (activeDriver.isOnBreak ? '#fef3c7' : '#dbeafe') : '#f1f5f9',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginRight: 12,
+                        }}>
+                          <Ionicons
+                            name="car"
+                            size={20}
+                            color={activeDriver ? (activeDriver.isOnBreak ? '#f59e0b' : '#2563eb') : '#94a3b8'}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={{ fontWeight: '600', color: '#1e293b', fontSize: 15 }}>
+                            {driver.firstName} {driver.lastName}
+                          </Text>
+                          <Text style={{ fontSize: 12, color: '#64748b' }}>{driver.email}</Text>
+                          {activeDriver && (
+                            <Text style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                              Updated {new Date(activeDriver.updatedAt).toLocaleTimeString()}
+                            </Text>
                           )}
-                        </Text>
-                        <Text style={{ fontSize: 12, color: '#64748b' }}>
-                          Updated {new Date(driver.updatedAt).toLocaleTimeString()}
-                        </Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                          {activeDriver ? (
+                            <>
+                              <View style={{
+                                backgroundColor: activeDriver.isOnBreak ? '#fef3c7' : '#dcfce7',
+                                borderRadius: 6,
+                                paddingHorizontal: 8,
+                                paddingVertical: 3,
+                              }}>
+                                <Text style={{ fontSize: 11, fontWeight: '600', color: activeDriver.isOnBreak ? '#d97706' : '#16a34a' }}>
+                                  {activeDriver.isOnBreak ? 'ON BREAK' : 'ONLINE'}
+                                </Text>
+                              </View>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  if (driverMapRef.current) {
+                                    driverMapRef.current.animateToRegion({
+                                      latitude: activeDriver.latitude,
+                                      longitude: activeDriver.longitude,
+                                      latitudeDelta: 0.01,
+                                      longitudeDelta: 0.01,
+                                    }, 500);
+                                  }
+                                }}
+                                style={{ padding: 4 }}
+                              >
+                                <Ionicons name="locate-outline" size={18} color="#2563eb" />
+                              </TouchableOpacity>
+                            </>
+                          ) : (
+                            <View style={{
+                              backgroundColor: '#f1f5f9',
+                              borderRadius: 6,
+                              paddingHorizontal: 8,
+                              paddingVertical: 3,
+                            }}>
+                              <Text style={{ fontSize: 11, fontWeight: '600', color: '#94a3b8' }}>
+                                OFFLINE
+                              </Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
-                      <TouchableOpacity
-                        onPress={() => {
-                          if (driverMapRef.current) {
-                            driverMapRef.current.animateToRegion({
-                              latitude: driver.latitude,
-                              longitude: driver.longitude,
-                              latitudeDelta: 0.01,
-                              longitudeDelta: 0.01,
-                            }, 500);
-                          }
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Live Map for Active Drivers */}
+              {driverLocations.length > 0 && (
+                <View style={{ margin: 16, marginTop: 0, borderRadius: 12, overflow: 'hidden', height: 300 }}>
+                  <Text style={{ fontWeight: '600', fontSize: 14, color: '#64748b', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Live Map
+                  </Text>
+                  <MapView
+                    ref={driverMapRef}
+                    style={{ flex: 1, height: 280, borderRadius: 12 }}
+                    provider={PROVIDER_DEFAULT}
+                    initialRegion={{
+                      latitude: 40.7128,
+                      longitude: -74.0060,
+                      latitudeDelta: 0.2,
+                      longitudeDelta: 0.2,
+                    }}
+                    showsUserLocation={false}
+                    showsMyLocationButton={false}
+                  >
+                    {driverLocations.map((driver) => (
+                      <Marker
+                        key={driver.userId}
+                        coordinate={{
+                          latitude: driver.latitude,
+                          longitude: driver.longitude,
                         }}
+                        title={driver.name}
+                        description={`Updated ${new Date(driver.updatedAt).toLocaleTimeString()}${driver.isOnBreak ? ' (On Break)' : ''}`}
                       >
-                        <Ionicons name="locate" size={20} color="#2563eb" />
-                      </TouchableOpacity>
-                    </View>
-                  ))}
-                </ScrollView>
-              </View>
-            </View>
+                        <View style={{
+                          backgroundColor: driver.isOnBreak ? '#f59e0b' : '#2563eb',
+                          borderRadius: 20,
+                          padding: 8,
+                          borderWidth: 2,
+                          borderColor: '#fff',
+                        }}>
+                          <Ionicons name="car" size={20} color="#fff" />
+                        </View>
+                      </Marker>
+                    ))}
+                  </MapView>
+                </View>
+              )}
+            </ScrollView>
           )}
         </View>
       )}

@@ -30,14 +30,18 @@ export async function GET() {
       .project({ name: 1, email: 1, isDriver: 1, isActive: 1, isClockedIn: 1, currentGpsLocation: 1, isOnBreak: 1 })
       .toArray();
 
-    // Filter to active drivers who are clocked in
-    const allDrivers = allUsers.filter(u => u.isDriver && u.isClockedIn);
-
-    // Filter to those with GPS location
-    const driversWithLocation = allDrivers.filter(d => d.currentGpsLocation?.latitude);
+    // Filter to drivers who are clocked in and have GPS, OR sent GPS recently (last 15 min via Driver tab)
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const driversWithLocation = allUsers.filter(u =>
+      u.isDriver &&
+      u.currentGpsLocation?.latitude &&
+      (
+        u.isClockedIn ||
+        (u.currentGpsLocation?.updatedAt && new Date(u.currentGpsLocation.updatedAt) > fifteenMinutesAgo)
+      )
+    );
 
     const driverLocations = driversWithLocation.map((driver) => {
-      const nameParts = (driver.name || '').split(' ');
       return {
         userId: driver._id.toString(),
         name: driver.name || driver.email,
@@ -63,8 +67,7 @@ export async function GET() {
       drivers: driverLocations,
       debug,
       totalUsers: allUsers.length,
-      totalDrivers: allDrivers.length,
-      driversWithGps: driversWithLocation.length,
+      driversOnline: driversWithLocation.length,
     });
   } catch (error) {
     console.error('Get driver locations error:', error);

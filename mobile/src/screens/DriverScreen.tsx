@@ -258,6 +258,51 @@ export default function DriverScreen() {
     loadSettings();
   }, [loadOrders]);
 
+  // GPS location tracking — update server while Driver screen is active
+  useFocusEffect(
+    useCallback(() => {
+      let locationSub: Location.LocationSubscription | null = null;
+      let intervalId: ReturnType<typeof setInterval> | null = null;
+
+      async function startTracking() {
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') return;
+
+        // Send immediately
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        api.updateDriverLocation({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          heading: loc.coords.heading,
+          speed: loc.coords.speed,
+          accuracy: loc.coords.accuracy,
+        }).catch(() => {});
+
+        // Then every 30 seconds
+        intervalId = setInterval(async () => {
+          try {
+            const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            api.updateDriverLocation({
+              latitude: current.coords.latitude,
+              longitude: current.coords.longitude,
+              heading: current.coords.heading,
+              speed: current.coords.speed,
+              accuracy: current.coords.accuracy,
+            }).catch(() => {});
+          } catch {}
+        }, 30000);
+      }
+
+      startTracking();
+
+      return () => {
+        if (intervalId) clearInterval(intervalId);
+        if (locationSub) locationSub.remove();
+        api.clearDriverLocation().catch(() => {});
+      };
+    }, [])
+  );
+
   async function loadSettings() {
     try {
       const settingsData = await api.getSettings();
