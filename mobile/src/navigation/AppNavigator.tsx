@@ -40,7 +40,6 @@ import ProfileScreen from '../screens/ProfileScreen';
 import BluetoothPrinterScreen from '../screens/BluetoothPrinterScreen';
 import ClockInScreen from '../screens/ClockInScreen';
 import DeliveryPaymentsScreen from '../screens/DeliveryPaymentsScreen';
-import InventoryScreen from '../screens/InventoryScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -84,8 +83,6 @@ function StorePhoneTabs() {
             iconName = focused ? 'receipt' : 'receipt-outline';
           } else if (route.name === 'Customers') {
             iconName = focused ? 'people' : 'people-outline';
-          } else if (route.name === 'Inventory') {
-            iconName = focused ? 'cube' : 'cube-outline';
           } else if (route.name === 'Profile') {
             iconName = focused ? 'person' : 'person-outline';
           }
@@ -108,7 +105,6 @@ function StorePhoneTabs() {
         component={AdminScreen}
         initialParams={{ screen: 'customers' }}
       />
-      <Tab.Screen name="Inventory" component={InventoryScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -160,8 +156,6 @@ function MainTabs() {
             iconName = focused ? 'home' : 'home-outline';
           } else if (route.name === 'Driver') {
             iconName = focused ? 'car' : 'car-outline';
-          } else if (route.name === 'Inventory') {
-            iconName = focused ? 'cube' : 'cube-outline';
           } else if (route.name === 'Admin') {
             iconName = focused ? 'settings' : 'settings-outline';
           } else if (route.name === 'Profile') {
@@ -184,7 +178,6 @@ function MainTabs() {
       {canAccessDriver && (
         <Tab.Screen name="Driver" component={DriverScreen} />
       )}
-      <Tab.Screen name="Inventory" component={InventoryScreen} />
       {canAccessAdmin && (
         <Tab.Screen name="Admin" component={AdminScreen} />
       )}
