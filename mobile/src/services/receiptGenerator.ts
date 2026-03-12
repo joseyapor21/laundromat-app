@@ -961,13 +961,17 @@ export function generateCreditBalanceReceipt(customer: { name: string; phoneNumb
       const dateStr = `${txDateObj.getMonth() + 1}/${txDateObj.getDate()}/${String(txDateObj.getFullYear()).slice(-2)}`;
       const amountStr = (tx.type === 'add' ? '+' : '-') + '$' + Math.abs(tx.amount).toFixed(2);
       const balStr = '$' + tx.newBalance.toFixed(2);
+      const desc = (tx.description || '').slice(0, 38);
 
-      // Description + amount on one line
+      // Date on left, amount on right
       r += ESC.BOLD_ON;
-      r += leftRightAlign(`${dateStr} ${tx.description || ''}`.slice(0, 26), amountStr) + '\n';
+      r += leftRightAlign(dateStr, amountStr) + '\n';
       r += ESC.BOLD_OFF;
 
-      // New balance on next line
+      // Description on its own line (no truncation of order #)
+      r += `  ${desc}\n`;
+
+      // New balance
       r += `  New balance: ${balStr}\n`;
     });
 
