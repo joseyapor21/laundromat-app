@@ -66,10 +66,10 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
     // Auto-assign identifiers to bags that don't have one, and save to DB
     const hasBagsWithoutIdentifier = allBags.some((b: { identifier?: string }) => !b.identifier);
     if (hasBagsWithoutIdentifier) {
-      allBags = allBags.map((bag: { identifier?: string }, idx: number) => ({
+      allBags = allBags.map((bag: { identifier?: string; [key: string]: unknown }, idx: number) => ({
         ...bag,
         identifier: bag.identifier || `Bag ${idx + 1}`,
-      }));
+      })) as typeof allBags;
       // Save the updated bags back to the order
       await Order.findByIdAndUpdate(id, { $set: { bags: allBags } });
     }
