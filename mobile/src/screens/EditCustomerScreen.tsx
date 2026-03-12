@@ -430,73 +430,40 @@ export default function EditCustomerScreen() {
           {customer.creditHistory && customer.creditHistory.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Credit History</Text>
-              {/* Ledger header */}
-              <View style={styles.ledgerHeader}>
-                <Text style={[styles.ledgerHeaderText, { flex: 1.2 }]}>Date</Text>
-                <Text style={[styles.ledgerHeaderText, { flex: 2 }]}>Order / Action</Text>
-                <Text style={[styles.ledgerHeaderText, { flex: 1, textAlign: 'right' }]}>Amount</Text>
-                <Text style={[styles.ledgerHeaderText, { flex: 1, textAlign: 'right' }]}>Balance</Text>
-              </View>
               <View style={styles.historyList}>
-                {(() => {
-                  const sorted = [...customer.creditHistory].sort(
-                    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-                  );
-                  // Compute running balance for all transactions
-                  // Start from 0 and walk forward to build balances
-                  let runningBalance = 0;
-                  const withBalance = sorted.map((tx: CreditTransaction) => {
-                    const bal = tx.balanceAfter !== undefined && tx.balanceAfter !== null
-                      ? tx.balanceAfter
-                      : (runningBalance + (tx.type === 'add' ? tx.amount : -tx.amount));
-                    runningBalance = bal;
-                    return { ...tx, computedBalance: bal };
-                  });
-                  return withBalance.slice(-30).reverse().map((tx: CreditTransaction & { computedBalance: number }, index: number) => {
-                    const balanceAfter = tx.computedBalance;
-
-                    const txDate = new Date(tx.createdAt);
-                    const dateStr = `${txDate.getMonth() + 1}/${txDate.getDate()}/${String(txDate.getFullYear()).slice(-2)}`;
-
-                    // Extract order number from description
-                    const orderMatch = tx.description?.match(/#(\d+)/);
-                    const orderNum = orderMatch ? `#${orderMatch[1]}` : '';
-
-                    // Action label like the notebook
-                    let actionLabel = tx.description || '';
-                    if (tx.type === 'add') {
-                      const pm = (tx as any).paymentMethod;
-                      if (pm === 'cash') actionLabel = 'Gave Cash';
-                      else if (pm === 'venmo') actionLabel = 'Gave Venmo';
-                      else if (pm === 'zelle') actionLabel = 'Gave Zelle';
-                      else if (pm === 'check') actionLabel = 'Gave Check';
-                      else actionLabel = 'Refund';
-                    } else {
-                      if (actionLabel.toLowerCase().includes('applied to order') || actionLabel.toLowerCase().includes('order #')) {
-                        actionLabel = 'Available Credit';
-                      } else if (!actionLabel || actionLabel === 'Credit used') {
-                        actionLabel = 'Owes';
-                      }
-                    }
-
-                    const isAdd = tx.type === 'add';
-                    return (
-                      <View key={index} style={[styles.ledgerRow, index % 2 === 0 && styles.ledgerRowAlt]}>
-                        <Text style={[styles.ledgerCell, { flex: 1.2 }]}>{dateStr}</Text>
-                        <View style={{ flex: 2 }}>
-                          {orderNum ? <Text style={styles.ledgerOrderNum}>{orderNum}</Text> : null}
-                          <Text style={styles.ledgerAction}>{actionLabel}</Text>
-                        </View>
-                        <Text style={[styles.ledgerCell, { flex: 1, textAlign: 'right', color: isAdd ? '#16a34a' : '#dc2626', fontWeight: '700' }]}>
-                          {isAdd ? '+' : '-'}${Math.abs(tx.amount).toFixed(2)}
+                {customer.creditHistory
+                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                  .slice(0, 20)
+                  .map((tx: CreditTransaction, index: number) => (
+                    <View key={index} style={styles.historyItem}>
+                      <View style={styles.historyInfo}>
+                        <Text style={styles.historyDescription}>{tx.description}</Text>
+                        <Text style={styles.historyDate}>
+                          {formatDate(tx.createdAt)}
+                          {(tx.addedBy || tx.createdBy) ? ` · ${tx.addedBy || tx.createdBy}` : ''}
+                          {(tx as any).paymentMethod ? ` · ${(tx as any).paymentMethod}` : ''}
                         </Text>
-                        <Text style={[styles.ledgerCell, { flex: 1, textAlign: 'right', fontWeight: '700', color: balanceAfter < 0 ? '#dc2626' : '#1e293b' }]}>
-                          ${balanceAfter.toFixed(2)}
-                        </Text>
+                        {(tx.balanceBefore !== undefined && tx.balanceBefore !== null) && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
+                            <Text style={{ fontSize: 12, color: '#94a3b8' }}>Balance:</Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', fontWeight: '500' }}>
+                              ${tx.balanceBefore.toFixed(2)}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#94a3b8' }}>→</Text>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: tx.type === 'add' ? '#16a34a' : '#dc2626' }}>
+                              ${(tx.balanceAfter ?? 0).toFixed(2)}
+                            </Text>
+                          </View>
+                        )}
                       </View>
-                    );
-                  });
-                })()}
+                      <Text style={[
+                        styles.historyAmount,
+                        tx.type === 'add' ? styles.historyAdd : styles.historyUse
+                      ]}>
+                        {tx.type === 'add' ? '+' : '-'}${Math.abs(tx.amount).toFixed(2)}
+                      </Text>
+                    </View>
+                  ))}
               </View>
             </View>
           )}
