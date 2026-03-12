@@ -1190,6 +1190,28 @@ class ApiService {
       body: JSON.stringify({ customerId, senderName, paymentMethod, emailId, paymentAmount }),
     });
   }
+  // Inventory
+  async getInventory(): Promise<{ items: any[]; categories: string[]; lowStockCount: number }> {
+    return this.request('/inventory');
+  }
+
+  async updateInventoryItem(id: string, data: object): Promise<any> {
+    return this.request(`/inventory/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async createInventoryItem(data: object): Promise<any> {
+    return this.request('/inventory', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteInventoryItem(id: string): Promise<any> {
+    return this.request(`/inventory/${id}`, { method: 'DELETE' });
+  }
 }
 
 export const api = new ApiService();

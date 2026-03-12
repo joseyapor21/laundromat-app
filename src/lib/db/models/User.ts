@@ -11,6 +11,7 @@ export interface UserDoc {
   lastName: string;
   role: UserRole;
   isDriver: boolean;
+  isInventoryManager: boolean;
   isActive: boolean;
   mustChangePassword: boolean;
   createdAt: Date;
@@ -67,6 +68,10 @@ const userSchema = new mongoose.Schema<UserDoc>({
     required: true,
   },
   isDriver: {
+    type: Boolean,
+    default: false,
+  },
+  isInventoryManager: {
     type: Boolean,
     default: false,
   },

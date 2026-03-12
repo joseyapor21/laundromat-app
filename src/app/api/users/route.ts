@@ -38,6 +38,7 @@ export async function GET() {
       lastName: user.lastName,
       role: user.role,
       isDriver: user.isDriver || false,
+      isInventoryManager: user.isInventoryManager || false,
       isActive: user.isActive,
       source: 'app',
     }));

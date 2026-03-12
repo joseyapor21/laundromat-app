@@ -32,6 +32,7 @@ export async function GET() {
         lastName: appUser.lastName,
         role: appUser.role,
         isDriver: appUser.isDriver || false,
+        isInventoryManager: appUser.isInventoryManager || false,
         isActive: appUser.isActive,
         isSuperUser: false,
         isKioskMode,

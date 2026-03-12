@@ -25,6 +25,7 @@ export interface User {
   name?: string;
   role: UserRole;
   isDriver?: boolean;
+  isInventoryManager?: boolean;
   isActive: boolean;
   isSuperUser?: boolean;
   isDeptAdmin?: boolean;

@@ -291,6 +291,7 @@ export default function AdminPage() {
           lastName: editingUser.lastName,
           role: editingUser.role,
           isActive: editingUser.isActive,
+          isInventoryManager: editingUser.isInventoryManager || false,
         }),
       });
 
@@ -847,6 +848,11 @@ printer is configured correctly.
                         }`}>
                           {user.role === 'admin' ? 'Admin' : 'Member'}
                         </span>
+                        {user.isInventoryManager && (
+                          <span className="px-2 py-1 text-xs rounded font-medium bg-emerald-100 text-emerald-800">
+                            📦 Inventory
+                          </span>
+                        )}
                         <button
                           onClick={() => setEditingUser(user)}
                           className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-100 text-gray-900 bg-white"
@@ -1955,6 +1961,21 @@ printer is configured correctly.
                   <option value="admin">Admin</option>
                 </select>
                 <p className="text-xs text-gray-500 mt-1">Admins can manage users and settings</p>
+              </div>
+              {/* Inventory Manager toggle */}
+              <div className="col-span-2">
+                <label className="flex items-center gap-3 cursor-pointer p-3 rounded-lg border-2 border-slate-200 hover:border-blue-300 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={editingUser.isInventoryManager || false}
+                    onChange={e => setEditingUser(u => u ? { ...u, isInventoryManager: e.target.checked } : u)}
+                    className="w-4 h-4 rounded accent-blue-600"
+                  />
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">📦 Inventory Manager</div>
+                    <div className="text-xs text-gray-500">Can add, edit, and delete inventory items</div>
+                  </div>
+                </label>
               </div>
             </div>
             <div className="flex gap-3 mt-6">

@@ -42,6 +42,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       if (updates.lastName) appUser.lastName = updates.lastName;
       if (updates.isActive !== undefined) appUser.isActive = updates.isActive;
       if (updates.isDriver !== undefined) appUser.isDriver = updates.isDriver;
+      if (updates.isInventoryManager !== undefined) appUser.isInventoryManager = updates.isInventoryManager;
 
       await appUser.save();
 
@@ -53,6 +54,7 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
         lastName: appUser.lastName,
         role: appUser.role,
         isDriver: appUser.isDriver || false,
+        isInventoryManager: appUser.isInventoryManager || false,
         isActive: appUser.isActive,
       });
     }

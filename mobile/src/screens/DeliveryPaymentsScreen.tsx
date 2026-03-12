@@ -33,22 +33,24 @@ export default function DeliveryPaymentsScreen() {
 
   async function loadOrders() {
     try {
+      // Fetch all non-archived orders
+      const data = await api.getOrders();
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
 
-      const data = await api.getOrders({ status: 'completed' });
-
-      // Filter to delivery orders from today that are unpaid
-      const unpaid = (data || []).filter((o: Order) => {
+      // Show unpaid delivery orders scheduled for today (any status except cancelled/archived)
+      const pending = (data || []).filter((o: Order) => {
         if (o.orderType !== 'delivery') return false;
         if (o.isPaid) return false;
-        // Check that order was updated today (delivered today)
-        const updated = new Date(o.updatedAt || o.createdAt || 0);
-        return updated >= today && updated < tomorrow;
+        if (o.status === 'archived' || o.status === 'cancelled') return false;
+        const deliveryDate = o.deliverySchedule ? new Date(o.deliverySchedule) : null;
+        if (!deliveryDate) return false;
+        return deliveryDate >= today && deliveryDate < tomorrow;
       });
-      setOrders(unpaid);
+      setOrders(pending);
     } catch (e) {
       console.error('Failed to load delivery payments:', e);
     } finally {
@@ -95,6 +97,7 @@ export default function DeliveryPaymentsScreen() {
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric',
   });
+  // Note: shows all completed unpaid deliveries (no date restriction)
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -120,7 +123,7 @@ export default function DeliveryPaymentsScreen() {
         <View style={styles.centered}>
           <Ionicons name="checkmark-circle" size={64} color="#10b981" />
           <Text style={styles.emptyTitle}>All Caught Up!</Text>
-          <Text style={styles.emptyText}>No pending delivery payments for today.</Text>
+          <Text style={styles.emptyText}>No unpaid deliveries scheduled for today.</Text>
         </View>
       ) : (
         <ScrollView
@@ -147,10 +150,19 @@ export default function DeliveryPaymentsScreen() {
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderLeft}>
                     <Text style={styles.orderId}>Order #{order.orderId}</Text>
-                    <View style={styles.deliveryBadge}>
-                      <Ionicons name="bicycle-outline" size={12} color="#7c3aed" />
-                      <Text style={styles.deliveryBadgeText}>Delivered</Text>
-                    </View>
+                    {order.status === 'completed' ? (
+                      <View style={styles.deliveryBadge}>
+                        <Ionicons name="checkmark-circle-outline" size={12} color="#059669" />
+                        <Text style={[styles.deliveryBadgeText, { color: '#059669' }]}>Delivered</Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.deliveryBadge, { backgroundColor: '#fef3c7' }]}>
+                        <Ionicons name="bicycle-outline" size={12} color="#d97706" />
+                        <Text style={[styles.deliveryBadgeText, { color: '#d97706' }]}>
+                          {order.status === 'out_for_delivery' ? 'Out for Delivery' : 'Pending'}
+                        </Text>
+                      </View>
+                    )}
                   </View>
                   <Text style={styles.orderTotal}>${(order.totalAmount || 0).toFixed(2)}</Text>
                 </View>

@@ -10,6 +10,7 @@ export interface User {
   lastName: string;
   role: UserRole;
   isDriver?: boolean;
+  isInventoryManager?: boolean;
   isActive: boolean;
   mustChangePassword?: boolean;
   isSuperUser?: boolean;
