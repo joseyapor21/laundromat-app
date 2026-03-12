@@ -924,6 +924,19 @@ class ApiService {
     return this.request(`/driver-locations/history?userId=${userId}`);
   }
 
+  // Bag Photos
+  async uploadBagPhoto(orderId: string, bagIndex: number, photo: string): Promise<{ success: boolean; photoPath: string }> {
+    return this.request<{ success: boolean; photoPath: string }>(`/orders/${orderId}/bag-photo`, {
+      method: 'POST',
+      body: JSON.stringify({ photo, bagIndex }),
+    });
+  }
+
+  getBagPhotoUrl(photoPath: string): string {
+    const tokenParam = this.token ? `?token=${encodeURIComponent(this.token)}` : '';
+    return `${API_BASE_URL}/api/uploads/${photoPath}${tokenParam}`;
+  }
+
   // Pickup Photos
   async uploadPickupPhoto(orderId: string, photo: string): Promise<{ success: boolean; photoPath: string }> {
     return this.request<{ success: boolean; photoPath: string }>(`/orders/${orderId}/pickup-photo`, {

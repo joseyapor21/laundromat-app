@@ -312,8 +312,17 @@ export default function EditCustomerScreen() {
     >
         {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>Edit Customer</Text>
-            <Text style={styles.headerSubtitle}>{customer.name}</Text>
+            <View>
+              <Text style={styles.headerTitle}>Edit Customer</Text>
+              <Text style={styles.headerSubtitle}>{customer.name}</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.newOrderButton}
+              onPress={() => navigation.navigate('CreateOrder', { newCustomer: customer })}
+            >
+              <Ionicons name="add-circle-outline" size={18} color="#fff" />
+              <Text style={styles.newOrderButtonText}>New Order</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Credit Balance */}
@@ -775,6 +784,23 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#1e293b',
     padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  newOrderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#2563eb',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  newOrderButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
   },
   headerTitle: {
     fontSize: 14,

@@ -44,6 +44,13 @@ class CallerIDService {
       console.log('Calling CallerIDModule.syncCustomers...');
       const result = await CallerIDModule.syncCustomers(customers);
       console.log('CallerID sync result:', result);
+      // Read extension debug log after a delay (extension runs async)
+      setTimeout(async () => {
+        try {
+          const debugLog = await CallerIDModule.getDebugLog();
+          console.log('CallerID extension debug log (3s after sync):', debugLog);
+        } catch (_) {}
+      }, 3000);
       return result;
     } catch (error: any) {
       console.error('Failed to sync caller ID:', error);

@@ -30,11 +30,11 @@ export interface OrderDoc {
     weight: number;
     color?: string;
     description?: string;
-    // Folding check fields
     isFoldingChecked?: boolean;
     foldingCheckedAt?: Date;
     foldingCheckedBy?: string;
     foldingCheckedByInitials?: string;
+    photos?: Array<{ photoPath: string; capturedAt: Date; capturedBy?: string; capturedByName?: string }>;
   }>;
   weight: number;
   dropOffDate: Date;
@@ -213,6 +213,12 @@ const bagSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  photos: [{
+    photoPath: { type: String, required: true },
+    capturedAt: { type: Date, default: Date.now },
+    capturedBy: { type: String },
+    capturedByName: { type: String },
+  }],
 }, { _id: false });
 
 const itemSchema = new mongoose.Schema({

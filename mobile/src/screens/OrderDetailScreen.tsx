@@ -1717,7 +1717,18 @@ export default function OrderDetailScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Customer</Text>
           <View style={styles.card}>
-            <Text style={styles.customerName}>{order.customerName}</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+              <Text style={styles.customerName}>{order.customerName}</Text>
+              {(order.customer?._id || order.customerId) && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, gap: 4 }}
+                  onPress={() => navigation.navigate('EditCustomer' as never, { customerId: order.customer?._id || order.customerId } as never)}
+                >
+                  <Ionicons name="person-outline" size={15} color="#2563eb" />
+                  <Text style={{ color: '#2563eb', fontWeight: '600', fontSize: 13 }}>View Account</Text>
+                </TouchableOpacity>
+              )}
+            </View>
             {order.orderType !== 'delivery' && order.customerPhone && (
               <TouchableOpacity
                 style={styles.contactRow}
@@ -2600,6 +2611,27 @@ export default function OrderDetailScreen() {
                     <View style={styles.bagInstructionsBox}>
                       <Ionicons name="document-text-outline" size={14} color="#d97706" />
                       <Text style={styles.bagInstructionsText}>{bag.description}</Text>
+                    </View>
+                  )}
+                  {bag.photos && bag.photos.length > 0 && (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 6 }}>
+                        Bag Photos ({bag.photos.length})
+                      </Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                        {bag.photos.map((photo: any, photoIndex: number) => (
+                          <View key={photoIndex} style={{ alignItems: 'center' }}>
+                            <Image
+                              source={{ uri: api.getBagPhotoUrl(photo.photoPath) }}
+                              style={{ width: 80, height: 80, borderRadius: 8, backgroundColor: '#f1f5f9' }}
+                              resizeMode="cover"
+                            />
+                            {photo.capturedByName && (
+                              <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{photo.capturedByName}</Text>
+                            )}
+                          </View>
+                        ))}
+                      </ScrollView>
                     </View>
                   )}
                 </View>
