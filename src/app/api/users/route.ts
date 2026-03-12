@@ -91,6 +91,7 @@ export async function GET() {
               lastName: user.name?.split(' ').slice(1).join(' ') || '',
               role: role,
               isDriver: user.isDriver || false,
+              isInventoryManager: user.isInventoryManager || false,
               isActive: true,
               source: 'auth',
             });
