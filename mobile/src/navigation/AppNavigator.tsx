@@ -39,6 +39,7 @@ import AdminScreen from '../screens/AdminScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import BluetoothPrinterScreen from '../screens/BluetoothPrinterScreen';
 import ClockInScreen from '../screens/ClockInScreen';
+import DeliveryPaymentsScreen from '../screens/DeliveryPaymentsScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -269,6 +270,11 @@ function MainStack() {
       <Stack.Screen
         name="BluetoothPrinter"
         component={BluetoothPrinterScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="DeliveryPayments"
+        component={DeliveryPaymentsScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>

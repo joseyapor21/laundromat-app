@@ -6,7 +6,24 @@ import toast from 'react-hot-toast';
 import type { User, Customer, Settings, ExtraItem, ActivityLog, UserRole, Machine, MachineType } from '@/types';
 import AddressInput from '@/components/AddressInput';
 
-type TabType = 'users' | 'customers' | 'settings' | 'extra-items' | 'machines' | 'activity';
+type TabType = 'users' | 'customers' | 'settings' | 'extra-items' | 'machines' | 'activity' | 'inventory';
+
+type StockStatus = 'full' | 'good' | 'half' | 'low' | 'out';
+
+interface InventoryItem {
+  _id: string;
+  name: string;
+  quantity: number;
+  status: StockStatus;
+  lowStockThreshold: number;
+  unit: string;
+  category: string;
+  notes?: string;
+  needsOrder: boolean;
+  orderQuantity?: number;
+  lastUpdated?: string;
+  lastUpdatedBy?: string;
+}
 
 export default function AdminPage() {
   const router = useRouter();
@@ -72,9 +89,44 @@ export default function AdminPage() {
   } | null>(null);
   const [savingAppVersion, setSavingAppVersion] = useState(false);
 
+  // Inventory state
+  const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([]);
+  const [inventoryCategories, setInventoryCategories] = useState<string[]>([]);
+  const [lowStockCount, setLowStockCount] = useState(0);
+  const [inventoryCategoryFilter, setInventoryCategoryFilter] = useState('all');
+  const [inventoryStatusFilter, setInventoryStatusFilter] = useState('all');
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [showAddInventory, setShowAddInventory] = useState(false);
+  const [editingInventoryItem, setEditingInventoryItem] = useState<InventoryItem | null>(null);
+  const [savingInventory, setSavingInventory] = useState(false);
+  const [newInventoryItem, setNewInventoryItem] = useState({
+    name: '',
+    quantity: 0,
+    status: 'good' as StockStatus,
+    lowStockThreshold: 2,
+    unit: 'items',
+    category: 'General',
+    notes: '',
+    needsOrder: false,
+    orderQuantity: 0,
+  });
+
   // Load data on mount
-  useEffect(() => {
-    loadAllData();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { loadAllData(); }, []);
+
+  const loadInventory = useCallback(async () => {
+    try {
+      const res = await fetch('/api/inventory');
+      if (res.ok) {
+        const data = await res.json();
+        setInventoryItems(data.items || []);
+        setInventoryCategories(data.categories || []);
+        setLowStockCount(data.lowStockCount || 0);
+      }
+    } catch (error) {
+      console.error('Failed to load inventory:', error);
+    }
   }, []);
 
   const loadAllData = async () => {
@@ -110,6 +162,8 @@ export default function AdminPage() {
           androidExternalUrl: appVersionData.androidExternalUrl || '',
         });
       }
+      // Load inventory in parallel
+      await loadInventory();
     } catch (error) {
       console.error('Failed to load admin data:', error);
       toast.error('Failed to load admin data');
@@ -587,6 +641,81 @@ printer is configured correctly.
     }
   };
 
+  // Inventory handlers
+  const handleAddInventoryItem = async () => {
+    if (!newInventoryItem.name.trim()) return toast.error('Item name is required');
+    setSavingInventory(true);
+    try {
+      const res = await fetch('/api/inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...newInventoryItem,
+          orderQuantity: newInventoryItem.orderQuantity || null,
+          notes: newInventoryItem.notes || null,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to add item');
+      }
+      toast.success('Item added successfully');
+      setShowAddInventory(false);
+      setNewInventoryItem({ name: '', quantity: 0, status: 'good', lowStockThreshold: 2, unit: 'items', category: 'General', notes: '', needsOrder: false, orderQuantity: 0 });
+      await loadInventory();
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to add item');
+    } finally {
+      setSavingInventory(false);
+    }
+  };
+
+  const handleUpdateInventoryItem = async () => {
+    if (!editingInventoryItem) return;
+    setSavingInventory(true);
+    try {
+      const res = await fetch(`/api/inventory/${editingInventoryItem._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingInventoryItem),
+      });
+      if (!res.ok) throw new Error('Failed to update item');
+      toast.success('Item updated successfully');
+      setEditingInventoryItem(null);
+      await loadInventory();
+    } catch (error) {
+      toast.error('Failed to update item');
+    } finally {
+      setSavingInventory(false);
+    }
+  };
+
+  const handleDeleteInventoryItem = async (id: string) => {
+    if (!confirm('Delete this inventory item?')) return;
+    try {
+      const res = await fetch(`/api/inventory/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete item');
+      toast.success('Item deleted');
+      await loadInventory();
+    } catch (error) {
+      toast.error('Failed to delete item');
+    }
+  };
+
+  const handleQuickStatusUpdate = async (item: InventoryItem, status: StockStatus) => {
+    try {
+      const res = await fetch(`/api/inventory/${item._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status, needsOrder: status === 'low' || status === 'out' ? true : item.needsOrder }),
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+      await loadInventory();
+    } catch (error) {
+      toast.error('Failed to update status');
+    }
+  };
+
   // Filtered lists
   const filteredUsers = users.filter(u =>
     u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
@@ -603,12 +732,34 @@ printer is configured correctly.
     ? activityLogs
     : activityLogs.filter(log => log.action === activityFilter);
 
+  const filteredInventory = inventoryItems.filter(item => {
+    if (inventoryCategoryFilter !== 'all' && item.category !== inventoryCategoryFilter) return false;
+    if (inventoryStatusFilter !== 'all') {
+      if (inventoryStatusFilter === 'needs_order' && !item.needsOrder) return false;
+      else if (inventoryStatusFilter !== 'needs_order' && item.status !== inventoryStatusFilter) return false;
+    }
+    if (inventorySearch.trim()) {
+      const s = inventorySearch.toLowerCase();
+      return item.name.toLowerCase().includes(s) || item.category?.toLowerCase().includes(s);
+    }
+    return true;
+  });
+
+  const STATUS_LABELS: Record<StockStatus, { label: string; color: string; bg: string }> = {
+    full:  { label: 'Full',  color: 'text-green-800',  bg: 'bg-green-100' },
+    good:  { label: 'Good',  color: 'text-blue-800',   bg: 'bg-blue-100' },
+    half:  { label: 'Half',  color: 'text-yellow-800', bg: 'bg-yellow-100' },
+    low:   { label: 'Low',   color: 'text-orange-800', bg: 'bg-orange-100' },
+    out:   { label: 'Out',   color: 'text-red-800',    bg: 'bg-red-100' },
+  };
+
   const tabs = [
     { key: 'users', label: 'Users', icon: '👥' },
     { key: 'customers', label: 'Customers', icon: '📋' },
     { key: 'settings', label: 'Settings', icon: '⚙️' },
     { key: 'extra-items', label: 'Extra Items', icon: '🏷️' },
     { key: 'machines', label: 'Machines', icon: '🧺' },
+    { key: 'inventory', label: 'Inventory', icon: '📦', badge: lowStockCount > 0 ? lowStockCount : undefined },
     { key: 'activity', label: 'Activity', icon: '📊' },
   ];
 
@@ -632,7 +783,7 @@ printer is configured correctly.
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key as TabType)}
-              className={`px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap transition-colors ${
+              className={`relative px-2 md:px-4 py-1.5 md:py-2 rounded-lg text-xs md:text-sm font-medium whitespace-nowrap transition-colors ${
                 activeTab === tab.key
                   ? 'bg-blue-600 text-white'
                   : 'bg-white text-gray-700 border border-slate-200 hover:border-blue-300'
@@ -640,6 +791,11 @@ printer is configured correctly.
             >
               <span className="md:mr-2">{tab.icon}</span>
               <span className="hidden md:inline">{tab.label}</span>
+              {'badge' in tab && tab.badge ? (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {tab.badge}
+                </span>
+              ) : null}
             </button>
           ))}
         </div>
@@ -1526,6 +1682,199 @@ printer is configured correctly.
           </div>
         )}
 
+        {/* Inventory Tab */}
+        {activeTab === 'inventory' && (
+          <div className="space-y-4">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+                <div className="text-2xl font-bold text-slate-800">{inventoryItems.length}</div>
+                <div className="text-sm text-slate-500 mt-1">Total Items</div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-slate-200">
+                <div className="text-2xl font-bold text-green-600">
+                  {inventoryItems.filter(i => i.status === 'full' || i.status === 'good').length}
+                </div>
+                <div className="text-sm text-slate-500 mt-1">Well Stocked</div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-orange-200">
+                <div className="text-2xl font-bold text-orange-600">
+                  {inventoryItems.filter(i => i.status === 'low').length}
+                </div>
+                <div className="text-sm text-slate-500 mt-1">Low Stock</div>
+              </div>
+              <div className="bg-white rounded-xl p-4 shadow-sm border border-red-200">
+                <div className="text-2xl font-bold text-red-600">
+                  {inventoryItems.filter(i => i.status === 'out').length}
+                </div>
+                <div className="text-sm text-slate-500 mt-1">Out of Stock</div>
+              </div>
+            </div>
+
+            {/* Needs Order Banner */}
+            {inventoryItems.filter(i => i.needsOrder).length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+                <span className="text-2xl">🛒</span>
+                <div>
+                  <div className="font-semibold text-amber-800">
+                    {inventoryItems.filter(i => i.needsOrder).length} item{inventoryItems.filter(i => i.needsOrder).length !== 1 ? 's' : ''} need to be ordered
+                  </div>
+                  <div className="text-sm text-amber-700">
+                    {inventoryItems.filter(i => i.needsOrder).map(i => i.name).join(', ')}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setInventoryStatusFilter('needs_order')}
+                  className="ml-auto px-3 py-1.5 text-sm bg-amber-600 text-white rounded-lg hover:bg-amber-700"
+                >
+                  View
+                </button>
+              </div>
+            )}
+
+            {/* Controls */}
+            <div className="bg-white rounded-xl p-4 shadow-sm space-y-3">
+              <div className="flex flex-wrap gap-2 items-center justify-between">
+                <div className="flex flex-wrap gap-2">
+                  {/* Category Filter */}
+                  <select
+                    value={inventoryCategoryFilter}
+                    onChange={e => setInventoryCategoryFilter(e.target.value)}
+                    className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="all">All Categories</option>
+                    {inventoryCategories.map(cat => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
+                  </select>
+                  {/* Status Filter */}
+                  <select
+                    value={inventoryStatusFilter}
+                    onChange={e => setInventoryStatusFilter(e.target.value)}
+                    className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="full">Full</option>
+                    <option value="good">Good</option>
+                    <option value="half">Half</option>
+                    <option value="low">Low</option>
+                    <option value="out">Out</option>
+                    <option value="needs_order">Needs Order</option>
+                  </select>
+                  {/* Search */}
+                  <input
+                    type="text"
+                    placeholder="Search items..."
+                    value={inventorySearch}
+                    onChange={e => setInventorySearch(e.target.value)}
+                    className="px-3 py-1.5 text-sm border border-slate-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500 w-40"
+                  />
+                  {(inventoryCategoryFilter !== 'all' || inventoryStatusFilter !== 'all' || inventorySearch) && (
+                    <button
+                      onClick={() => { setInventoryCategoryFilter('all'); setInventoryStatusFilter('all'); setInventorySearch(''); }}
+                      className="px-3 py-1.5 text-sm text-gray-600 border border-slate-200 rounded-lg hover:bg-slate-100"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <button
+                  onClick={() => setShowAddInventory(true)}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                >
+                  + Add Item
+                </button>
+              </div>
+            </div>
+
+            {/* Items Table */}
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              {filteredInventory.length === 0 ? (
+                <div className="text-center py-12 text-slate-500">
+                  <div className="text-4xl mb-3">📦</div>
+                  <div className="font-medium">No inventory items found</div>
+                  <button
+                    onClick={() => setShowAddInventory(true)}
+                    className="mt-3 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    Add First Item
+                  </button>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Item</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Category</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Qty</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                        <th className="text-left px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider hidden md:table-cell">Order</th>
+                        <th className="text-right px-4 py-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredInventory.map(item => {
+                        const st = STATUS_LABELS[item.status];
+                        return (
+                          <tr key={item._id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3">
+                              <div className="font-medium text-slate-900">{item.name}</div>
+                              {item.notes && <div className="text-xs text-slate-500 mt-0.5">{item.notes}</div>}
+                            </td>
+                            <td className="px-4 py-3 hidden md:table-cell">
+                              <span className="text-sm text-slate-600">{item.category}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className="text-sm font-medium text-slate-900">{item.quantity} {item.unit}</span>
+                            </td>
+                            <td className="px-4 py-3">
+                              <select
+                                value={item.status}
+                                onChange={e => handleQuickStatusUpdate(item, e.target.value as StockStatus)}
+                                className={`text-xs font-semibold px-2 py-1 rounded-full border-0 cursor-pointer ${st.bg} ${st.color} focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                              >
+                                <option value="full">Full</option>
+                                <option value="good">Good</option>
+                                <option value="half">Half</option>
+                                <option value="low">Low</option>
+                                <option value="out">Out</option>
+                              </select>
+                            </td>
+                            <td className="px-4 py-3 hidden md:table-cell">
+                              {item.needsOrder && (
+                                <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 px-2 py-1 rounded-full">
+                                  🛒 {item.orderQuantity ? `×${item.orderQuantity}` : 'Yes'}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex gap-2 justify-end">
+                                <button
+                                  onClick={() => setEditingInventoryItem({ ...item })}
+                                  className="px-3 py-1 text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteInventoryItem(item._id)}
+                                  className="px-3 py-1 text-xs bg-red-50 hover:bg-red-100 text-red-600 rounded-lg transition-colors"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Activity Logs Tab */}
         {activeTab === 'activity' && (
           <div className="bg-white rounded-xl p-4 md:p-6 shadow-sm">
@@ -1956,6 +2305,259 @@ printer is configured correctly.
               >
                 Save
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Add Inventory Item Modal */}
+      {showAddInventory && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowAddInventory(false)}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Add Inventory Item</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                  <input
+                    type="text"
+                    value={newInventoryItem.name}
+                    onChange={e => setNewInventoryItem(p => ({ ...p, name: e.target.value }))}
+                    placeholder="e.g. Tide Detergent"
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <input
+                    type="text"
+                    value={newInventoryItem.category}
+                    onChange={e => setNewInventoryItem(p => ({ ...p, category: e.target.value }))}
+                    list="inv-categories"
+                    placeholder="e.g. Detergents"
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                  <datalist id="inv-categories">
+                    {inventoryCategories.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                  <input
+                    type="text"
+                    value={newInventoryItem.unit}
+                    onChange={e => setNewInventoryItem(p => ({ ...p, unit: e.target.value }))}
+                    placeholder="e.g. bottles, boxes"
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newInventoryItem.quantity}
+                    onChange={e => setNewInventoryItem(p => ({ ...p, quantity: parseFloat(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={newInventoryItem.status}
+                    onChange={e => setNewInventoryItem(p => ({ ...p, status: e.target.value as StockStatus }))}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="full">Full</option>
+                    <option value="good">Good</option>
+                    <option value="half">Half</option>
+                    <option value="low">Low</option>
+                    <option value="out">Out</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Low Stock Threshold</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newInventoryItem.lowStockThreshold}
+                    onChange={e => setNewInventoryItem(p => ({ ...p, lowStockThreshold: parseInt(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Order Qty</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={newInventoryItem.orderQuantity}
+                    onChange={e => setNewInventoryItem(p => ({ ...p, orderQuantity: parseInt(e.target.value) || 0 }))}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <input
+                    type="text"
+                    value={newInventoryItem.notes}
+                    onChange={e => setNewInventoryItem(p => ({ ...p, notes: e.target.value }))}
+                    placeholder="Optional notes"
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div className="col-span-2 flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="new-needs-order"
+                    checked={newInventoryItem.needsOrder}
+                    onChange={e => setNewInventoryItem(p => ({ ...p, needsOrder: e.target.checked }))}
+                    className="w-4 h-4 rounded"
+                  />
+                  <label htmlFor="new-needs-order" className="text-sm font-medium text-gray-700">Mark as needs order</label>
+                </div>
+              </div>
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setShowAddInventory(false)}
+                  className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg text-gray-900 bg-white hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleAddInventoryItem}
+                  disabled={savingInventory}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {savingInventory ? 'Adding...' : 'Add Item'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Inventory Item Modal */}
+      {editingInventoryItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setEditingInventoryItem(null)}>
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Edit Inventory Item</h2>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Item Name *</label>
+                  <input
+                    type="text"
+                    value={editingInventoryItem.name}
+                    onChange={e => setEditingInventoryItem(p => p ? { ...p, name: e.target.value } : p)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <input
+                    type="text"
+                    value={editingInventoryItem.category}
+                    onChange={e => setEditingInventoryItem(p => p ? { ...p, category: e.target.value } : p)}
+                    list="inv-categories-edit"
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                  <datalist id="inv-categories-edit">
+                    {inventoryCategories.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                  <input
+                    type="text"
+                    value={editingInventoryItem.unit}
+                    onChange={e => setEditingInventoryItem(p => p ? { ...p, unit: e.target.value } : p)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingInventoryItem.quantity}
+                    onChange={e => setEditingInventoryItem(p => p ? { ...p, quantity: parseFloat(e.target.value) || 0 } : p)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select
+                    value={editingInventoryItem.status}
+                    onChange={e => setEditingInventoryItem(p => p ? { ...p, status: e.target.value as StockStatus } : p)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  >
+                    <option value="full">Full</option>
+                    <option value="good">Good</option>
+                    <option value="half">Half</option>
+                    <option value="low">Low</option>
+                    <option value="out">Out</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Low Stock Threshold</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingInventoryItem.lowStockThreshold}
+                    onChange={e => setEditingInventoryItem(p => p ? { ...p, lowStockThreshold: parseInt(e.target.value) || 0 } : p)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Order Qty</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editingInventoryItem.orderQuantity || 0}
+                    onChange={e => setEditingInventoryItem(p => p ? { ...p, orderQuantity: parseInt(e.target.value) || 0 } : p)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                  <input
+                    type="text"
+                    value={editingInventoryItem.notes || ''}
+                    onChange={e => setEditingInventoryItem(p => p ? { ...p, notes: e.target.value } : p)}
+                    className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg text-gray-900 bg-white focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+                <div className="col-span-2 flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="edit-needs-order"
+                    checked={editingInventoryItem.needsOrder}
+                    onChange={e => setEditingInventoryItem(p => p ? { ...p, needsOrder: e.target.checked } : p)}
+                    className="w-4 h-4 rounded"
+                  />
+                  <label htmlFor="edit-needs-order" className="text-sm font-medium text-gray-700">Mark as needs order</label>
+                </div>
+                {editingInventoryItem.lastUpdatedBy && (
+                  <div className="col-span-2 text-xs text-slate-500">
+                    Last updated by {editingInventoryItem.lastUpdatedBy}
+                    {editingInventoryItem.lastUpdated ? ` on ${new Date(editingInventoryItem.lastUpdated).toLocaleString()}` : ''}
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-3 mt-2">
+                <button
+                  onClick={() => setEditingInventoryItem(null)}
+                  className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg text-gray-900 bg-white hover:bg-gray-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleUpdateInventoryItem}
+                  disabled={savingInventory}
+                  className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-60"
+                >
+                  {savingInventory ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

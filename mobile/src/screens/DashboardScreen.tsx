@@ -658,15 +658,23 @@ export default function DashboardScreen() {
       {/* Board View for Landscape - Full Screen */}
       {useWideLayout ? (
         <View style={styles.boardContainerFullScreen}>
-          {/* POS Button for Landscape - Only for admin/cashier (visible in store phone mode too) */}
+          {/* Action buttons for Landscape - Only for admin/cashier */}
           {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
-            <TouchableOpacity
-              style={styles.posButtonLandscape}
-              onPress={() => setShowPOS(true)}
-            >
-              <Ionicons name="cash-outline" size={20} color="#fff" />
-              <Text style={styles.posButtonText}>POS</Text>
-            </TouchableOpacity>
+            <View style={styles.landscapeActions}>
+              <TouchableOpacity
+                style={styles.deliveryPayBtnLandscape}
+                onPress={() => navigation.navigate('DeliveryPayments' as never)}
+              >
+                <Ionicons name="bicycle-outline" size={18} color="#7c3aed" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.posButtonLandscape}
+                onPress={() => setShowPOS(true)}
+              >
+                <Ionicons name="cash-outline" size={20} color="#fff" />
+                <Text style={styles.posButtonText}>POS</Text>
+              </TouchableOpacity>
+            </View>
           )}
           <BoardColumn title="New" orders={newOrders} color="#3b82f6" />
           <BoardColumn title="Processing" orders={processingOrders} color="#f59e0b" />
@@ -680,16 +688,27 @@ export default function DashboardScreen() {
               <Text style={styles.headerTitle}>Dashboard</Text>
               <Text style={styles.headerSubtitle}>Welcome, {user?.firstName || 'User'}</Text>
             </View>
-            {/* POS Button - Only for admin/cashier (visible in store phone mode too) */}
-            {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
-              <TouchableOpacity
-                style={styles.posButtonPortrait}
-                onPress={() => setShowPOS(true)}
-              >
-                <Ionicons name="cash-outline" size={20} color="#fff" />
-                <Text style={styles.posButtonText}>POS</Text>
-              </TouchableOpacity>
-            )}
+            <View style={styles.headerActions}>
+              {/* Delivery Payments Button - Only for admin/cashier */}
+              {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
+                <TouchableOpacity
+                  style={styles.deliveryPayBtn}
+                  onPress={() => navigation.navigate('DeliveryPayments' as never)}
+                >
+                  <Ionicons name="bicycle-outline" size={20} color="#7c3aed" />
+                </TouchableOpacity>
+              )}
+              {/* POS Button - Only for admin/cashier (visible in store phone mode too) */}
+              {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
+                <TouchableOpacity
+                  style={styles.posButtonPortrait}
+                  onPress={() => setShowPOS(true)}
+                >
+                  <Ionicons name="cash-outline" size={20} color="#fff" />
+                  <Text style={styles.posButtonText}>POS</Text>
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
 
           {/* Filter Tabs - Portrait only */}
@@ -1429,10 +1448,25 @@ const styles = StyleSheet.create({
     color: '#1e293b',
   },
   // POS Button styles
-  posButtonLandscape: {
+  landscapeActions: {
     position: 'absolute',
     top: 10,
     right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 100,
+  },
+  deliveryPayBtnLandscape: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f5f3ff',
+    padding: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#ddd6fe',
+  },
+  posButtonLandscape: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#2563eb',
@@ -1441,6 +1475,20 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 6,
     zIndex: 100,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  deliveryPayBtn: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f5f3ff',
+    padding: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#ddd6fe',
   },
   posButtonPortrait: {
     flexDirection: 'row',

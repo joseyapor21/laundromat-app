@@ -258,8 +258,9 @@ class ApiService {
   }
 
   // Orders
-  async getOrders(): Promise<Order[]> {
-    return this.request<Order[]>('/orders');
+  async getOrders(params?: { status?: string }): Promise<Order[]> {
+    const qs = params?.status ? `?status=${params.status}` : '';
+    return this.request<Order[]>(`/orders${qs}`);
   }
 
   async getOrder(id: string): Promise<Order> {
