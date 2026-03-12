@@ -116,7 +116,17 @@ export async function POST(request: NextRequest) {
     }
 
     // For keepSeparated orders, validate per-bag assignment
-    if (order.keepSeparated) {
+    // wash_only: only require bag selection for washers, not dryers
+    // all_the_way: require bag selection for both washers and dryers
+    const requiresBagSelectionForDryer =
+      order.keepSeparated &&
+      (order.separationType === 'all_the_way' || !order.separationType);
+    const requiresBagSelectionForWasher = order.keepSeparated;
+
+    if (
+      (machine.type === 'washer' && requiresBagSelectionForWasher) ||
+      (machine.type === 'dryer' && requiresBagSelectionForDryer)
+    ) {
       // Require bag selection - return 200 with requireBagSelection flag
       // so the mobile app can show the bag picker modal
       if (!bagIdentifier) {

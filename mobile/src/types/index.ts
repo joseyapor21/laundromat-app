@@ -146,6 +146,7 @@ export interface Order {
   notes?: string;
   isSameDay?: boolean;
   keepSeparated?: boolean;
+  separationType?: 'none' | 'wash_only' | 'all_the_way';
   isPaid?: boolean;
   paidAt?: Date;
   paidBy?: string;

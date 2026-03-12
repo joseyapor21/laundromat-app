@@ -152,16 +152,20 @@ export default function EditOrderScreen() {
       setOrderType(orderData.orderType || 'storePickup');
       setIsSameDay(orderData.isSameDay || false);
       // Detect separation type from special instructions
-      const specialInstr = orderData.specialInstructions || '';
-      if (specialInstr.includes('[SEPARATE ALL THE WAY]')) {
-        setSeparationType('all_the_way');
-      } else if (specialInstr.includes('[SEPARATE WASH]')) {
-        setSeparationType('wash_only');
-      } else if (orderData.keepSeparated) {
-        // Legacy: treat old keepSeparated as all_the_way
-        setSeparationType('all_the_way');
+      if (orderData.separationType && orderData.separationType !== 'none') {
+        setSeparationType(orderData.separationType);
       } else {
-        setSeparationType('none');
+        const specialInstr = orderData.specialInstructions || '';
+        if (specialInstr.includes('[SEPARATE ALL THE WAY]')) {
+          setSeparationType('all_the_way');
+        } else if (specialInstr.includes('[SEPARATE WASH]')) {
+          setSeparationType('wash_only');
+        } else if (orderData.keepSeparated) {
+          // Legacy: treat old keepSeparated as all_the_way
+          setSeparationType('all_the_way');
+        } else {
+          setSeparationType('none');
+        }
       }
       setBags(orderData.bags || []);
 
@@ -492,6 +496,7 @@ export default function EditOrderScreen() {
         orderType,
         isSameDay,
         keepSeparated: separationType !== 'none',
+        separationType: separationType !== 'none' ? separationType : undefined,
         // Delivery fields
         deliveryType: orderType === 'delivery' ? deliveryType : null,
         deliveryFee: orderType === 'delivery' ? (deliveryType === 'pickupOnly' || deliveryType === 'deliveryOnly' ? deliveryPrice / 2 : deliveryPrice) : 0,

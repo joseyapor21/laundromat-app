@@ -915,6 +915,7 @@ export default function CreateOrderScreen() {
         })),
         isSameDay,
         keepSeparated: separationType !== 'none',
+        separationType: separationType !== 'none' ? separationType : undefined,
         specialInstructions: specialInstructions + (separationType === 'wash_only' ? '\n[SEPARATE WASH]' : separationType === 'all_the_way' ? '\n[SEPARATE ALL THE WAY]' : ''),
         items: [],
         extraItems: extraItemsData,

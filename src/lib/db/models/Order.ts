@@ -62,6 +62,7 @@ export interface OrderDoc {
   sameDayPricePerPound?: number;
   // Keep separated
   keepSeparated?: boolean;
+  separationType?: 'none' | 'wash_only' | 'all_the_way';
   // Price override
   priceOverride?: number;
   priceChangeNote?: string;
@@ -395,6 +396,11 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   keepSeparated: {
     type: Boolean,
     default: false,
+  },
+  separationType: {
+    type: String,
+    enum: ['none', 'wash_only', 'all_the_way'],
+    default: null,
   },
   // Price override
   priceOverride: {

@@ -205,6 +205,7 @@ export interface Order {
   sameDayPricePerPound?: number;  // The combined price per pound (regular + same day extra)
   // Keep separated - each bag washed/dried separately with individual machine tracking
   keepSeparated?: boolean;
+  separationType?: 'none' | 'wash_only' | 'all_the_way';
   // Folding tracking - who started folding
   foldingStartedBy?: string;
   foldingStartedByInitials?: string;

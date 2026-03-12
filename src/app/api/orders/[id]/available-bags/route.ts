@@ -57,6 +57,11 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       return NextResponse.json([]);
     }
 
+    // wash_only: only separate bags in washers, not dryers
+    if (machineType === 'dryer' && order.separationType === 'wash_only') {
+      return NextResponse.json([]);
+    }
+
     // For keepSeparated orders (separate wash / separate all the way),
     // allow the same bag to be assigned to multiple machines of the same type
     // This is needed when splitting a bag (e.g., whites in one washer, colors in another)
