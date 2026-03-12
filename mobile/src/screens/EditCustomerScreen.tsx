@@ -440,13 +440,18 @@ export default function EditCustomerScreen() {
                   const sorted = [...customer.creditHistory].sort(
                     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
                   );
-                  // Compute running balance if balanceAfter not stored
+                  // Compute running balance for all transactions
+                  // Start from 0 and walk forward to build balances
                   let runningBalance = 0;
-                  return sorted.slice(-30).reverse().map((tx: CreditTransaction, index: number) => {
-                    // Use stored balanceAfter if available, otherwise compute
-                    const balanceAfter = tx.balanceAfter !== undefined && tx.balanceAfter !== null
+                  const withBalance = sorted.map((tx: CreditTransaction) => {
+                    const bal = tx.balanceAfter !== undefined && tx.balanceAfter !== null
                       ? tx.balanceAfter
-                      : null;
+                      : (runningBalance + (tx.type === 'add' ? tx.amount : -tx.amount));
+                    runningBalance = bal;
+                    return { ...tx, computedBalance: bal };
+                  });
+                  return withBalance.slice(-30).reverse().map((tx: CreditTransaction & { computedBalance: number }, index: number) => {
+                    const balanceAfter = tx.computedBalance;
 
                     const txDate = new Date(tx.createdAt);
                     const dateStr = `${txDate.getMonth() + 1}/${txDate.getDate()}/${String(txDate.getFullYear()).slice(-2)}`;
@@ -483,8 +488,8 @@ export default function EditCustomerScreen() {
                         <Text style={[styles.ledgerCell, { flex: 1, textAlign: 'right', color: isAdd ? '#16a34a' : '#dc2626', fontWeight: '700' }]}>
                           {isAdd ? '+' : '-'}${Math.abs(tx.amount).toFixed(2)}
                         </Text>
-                        <Text style={[styles.ledgerCell, { flex: 1, textAlign: 'right', fontWeight: '700', color: balanceAfter !== null && balanceAfter < 0 ? '#dc2626' : '#1e293b' }]}>
-                          {balanceAfter !== null ? `$${balanceAfter.toFixed(2)}` : '—'}
+                        <Text style={[styles.ledgerCell, { flex: 1, textAlign: 'right', fontWeight: '700', color: balanceAfter < 0 ? '#dc2626' : '#1e293b' }]}>
+                          ${balanceAfter.toFixed(2)}
                         </Text>
                       </View>
                     );
