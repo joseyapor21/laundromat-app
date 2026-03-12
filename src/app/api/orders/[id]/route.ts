@@ -214,7 +214,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
         if (customer) {
           // Add credit back to customer
           const currentCredit = customer.credit || 0;
-          customer.credit = currentCredit + order.creditApplied;
+          const newCredit = currentCredit + order.creditApplied;
+          customer.credit = newCredit;
 
           // Add to credit history
           if (!customer.creditHistory) {
@@ -226,6 +227,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
             description: `Refund from deleted order #${order.orderId}`,
             orderId: order._id.toString(),
             addedBy: currentUser.name,
+            balanceBefore: currentCredit,
+            balanceAfter: newCredit,
             createdAt: new Date(),
           });
 

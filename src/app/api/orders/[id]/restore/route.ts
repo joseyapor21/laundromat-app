@@ -71,11 +71,13 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
             customer.creditHistory = [];
           }
           customer.creditHistory.push({
-            amount: -order.creditApplied,
+            amount: order.creditApplied,
             type: 'use',
             description: `Credit re-applied from restored order #${order.orderId}`,
             orderId: order._id.toString(),
             addedBy: currentUser.name,
+            balanceBefore: currentCredit,
+            balanceAfter: newCredit,
             createdAt: new Date(),
           });
 
