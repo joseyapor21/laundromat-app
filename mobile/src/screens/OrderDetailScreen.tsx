@@ -1719,7 +1719,7 @@ export default function OrderDetailScreen() {
           <View style={styles.card}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.customerName}>{order.customerName}</Text>
-              {(order.customer?._id || order.customerId) && (
+              {(order.customer?._id || order.customerId) && (isAdmin || isCashier) && (
                 <TouchableOpacity
                   style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, gap: 4 }}
                   onPress={() => navigation.navigate('EditCustomer' as never, { customerId: order.customer?._id || order.customerId } as never)}
