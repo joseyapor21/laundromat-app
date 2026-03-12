@@ -866,7 +866,7 @@ export function generateCustomerTagText(order: Order): string {
 }
 
 // Generate credit balance receipt for customer
-export function generateCreditBalanceReceipt(customer: { name: string; phoneNumber?: string; credit?: number; creditHistory?: Array<{ amount: number; type: 'add' | 'use'; description: string; createdAt: Date }> }, location?: Location | null): string {
+export function generateCreditBalanceReceipt(customer: { name: string; phoneNumber?: string; credit?: number; creditHistory?: Array<{ amount: number; type: 'add' | 'use'; description: string; createdAt: Date; addedBy?: string; paymentMethod?: string; balanceBefore?: number; balanceAfter?: number }> }, location?: Location | null): string {
   const storeConfig = getStoreConfig(location);
   const now = new Date();
   const dateStr = now.toLocaleDateString('en-US', {
@@ -933,46 +933,61 @@ export function generateCreditBalanceReceipt(customer: { name: string; phoneNumb
   r += ESC.NORMAL_SIZE;
   r += '--------------------------------\n';
 
-  // === RECENT CREDIT HISTORY (last 5 transactions) ===
+  // === CREDIT HISTORY LEDGER (last 15 transactions) ===
   if (customer.creditHistory && customer.creditHistory.length > 0) {
     r += ESC.LEFT;
     r += ESC.BOLD_ON;
-    r += 'Recent Transactions:\n';
+    r += 'Transaction History:\n';
     r += ESC.BOLD_OFF;
     r += '--------------------------------\n';
-    // Sort by date descending and take latest 5
+
+    // Header row
+    r += ESC.BOLD_ON;
+    r += 'Date     Action           Amt    Bal\n';
+    r += ESC.BOLD_OFF;
+    r += '--------------------------------\n';
+
     const recentTransactions = [...customer.creditHistory]
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-      .slice(0, 5);
+      .slice(0, 15);
+
     recentTransactions.forEach(tx => {
       const txDateObj = new Date(tx.createdAt);
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const txDate = `${months[txDateObj.getMonth()]} ${txDateObj.getDate()}`;
+      const dateStr = `${txDateObj.getMonth() + 1}/${txDateObj.getDate()}/${String(txDateObj.getFullYear()).slice(-2)}`;
 
-      // ASCII-safe time formatting
-      let hours = txDateObj.getHours();
-      const minutes = txDateObj.getMinutes();
-      const ampm = hours >= 12 ? 'PM' : 'AM';
-      hours = hours % 12;
-      hours = hours ? hours : 12;
-      const minutesStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
-      const txTime = `${hours}:${minutesStr} ${ampm}`;
-
-      const amount = tx.type === 'add' ? `+$${tx.amount.toFixed(2)}` : `-$${tx.amount.toFixed(2)}`;
-      const typeLabel = tx.type === 'add' ? 'ADDED' : 'USED';
-
-      // Date, time and amount line
-      r += ESC.BOLD_ON;
-      r += leftRightAlign(`${txDate} ${txTime}`, amount) + '\n';
-      r += ESC.BOLD_OFF;
-
-      // Type and description on separate line
-      r += `  ${typeLabel}`;
-      if (tx.description) {
-        r += `\n  ${tx.description}`;
+      // Action label like the notebook
+      let actionLabel = '';
+      if (tx.type === 'add') {
+        const pm = (tx as any).paymentMethod;
+        if (pm === 'cash') actionLabel = 'Gave Cash';
+        else if (pm === 'venmo') actionLabel = 'Gave Venmo';
+        else if (pm === 'zelle') actionLabel = 'Gave Zelle';
+        else if (pm === 'check') actionLabel = 'Gave Check';
+        else actionLabel = 'Gave';
+      } else {
+        const desc = tx.description || '';
+        if (desc.toLowerCase().includes('applied to order') || desc.toLowerCase().includes('order #')) {
+          const match = desc.match(/#(\d+)/);
+          actionLabel = match ? `Avail Crd #${match[1]}` : 'Avail Credit';
+        } else {
+          actionLabel = 'Owes';
+        }
       }
-      r += '\n';
+
+      const amountStr = (tx.type === 'add' ? '+' : '-') + '$' + Math.abs(tx.amount).toFixed(2);
+      const balStr = (tx as any).balanceAfter !== undefined && (tx as any).balanceAfter !== null
+        ? '$' + (tx as any).balanceAfter.toFixed(2)
+        : '---';
+
+      // Fixed width columns: date(8) action(17) amount(7) balance(6)
+      const dateCol = dateStr.padEnd(8).slice(0, 8);
+      const actionCol = actionLabel.padEnd(17).slice(0, 17);
+      const amtCol = amountStr.padStart(7).slice(-7);
+      const balCol = balStr.padStart(6).slice(-6);
+
+      r += `${dateCol} ${actionCol}${amtCol} ${balCol}\n`;
     });
+
     r += '--------------------------------\n';
   }
 

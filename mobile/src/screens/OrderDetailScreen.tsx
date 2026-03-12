@@ -2743,16 +2743,34 @@ export default function OrderDetailScreen() {
                   </View>
                   {/* Show Use Credit button if customer has credit */}
                   {(order.customer?.credit ?? 0) > 0 && (
-                    <TouchableOpacity
-                      style={[styles.useCreditButton, updating && styles.buttonDisabled]}
-                      onPress={handleUseCredit}
-                      disabled={updating}
-                    >
-                      <Ionicons name="wallet-outline" size={18} color="#fff" />
-                      <Text style={styles.useCreditButtonText}>
-                        Use Credit (${order.customer!.credit!.toFixed(2)} available)
-                      </Text>
-                    </TouchableOpacity>
+                    <View style={styles.useCreditContainer}>
+                      <View style={styles.useCreditInfo}>
+                        <View style={styles.useCreditRow}>
+                          <Text style={styles.useCreditLabel}>Owes (Balance Due)</Text>
+                          <Text style={styles.useCreditOwes}>${Math.max(0, (order.totalAmount || 0) - (order.amountPaid || 0)).toFixed(2)}</Text>
+                        </View>
+                        <View style={styles.useCreditRow}>
+                          <Text style={styles.useCreditLabel}>Available Credit</Text>
+                          <Text style={styles.useCreditAvail}>${(order.customer!.credit!).toFixed(2)}</Text>
+                        </View>
+                        <View style={[styles.useCreditRow, { borderTopWidth: 1, borderTopColor: '#e2e8f0', marginTop: 4, paddingTop: 4 }]}>
+                          <Text style={[styles.useCreditLabel, { fontWeight: '700' }]}>Credit After Apply</Text>
+                          <Text style={[styles.useCreditAvail, { color: Math.max(0, (order.customer!.credit!) - Math.min(order.customer!.credit!, Math.max(0, (order.totalAmount || 0) - (order.amountPaid || 0)))) > 0 ? '#16a34a' : '#64748b' }]}>
+                            ${Math.max(0, (order.customer!.credit!) - Math.min(order.customer!.credit!, Math.max(0, (order.totalAmount || 0) - (order.amountPaid || 0)))).toFixed(2)}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.useCreditButton, updating && styles.buttonDisabled]}
+                        onPress={handleUseCredit}
+                        disabled={updating}
+                      >
+                        <Ionicons name="wallet-outline" size={18} color="#fff" />
+                        <Text style={styles.useCreditButtonText}>
+                          Apply ${Math.min(order.customer!.credit!, Math.max(0, (order.totalAmount || 0) - (order.amountPaid || 0))).toFixed(2)} Credit
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                   <View style={styles.paymentMethodPicker}>
                     {PAYMENT_METHODS.map(method => (
@@ -2795,16 +2813,34 @@ export default function OrderDetailScreen() {
                 <View style={styles.paymentPending}>
                   {/* Show Use Credit button if customer has credit */}
                   {(order.customer?.credit ?? 0) > 0 && (
-                    <TouchableOpacity
-                      style={[styles.useCreditButton, updating && styles.buttonDisabled]}
-                      onPress={handleUseCredit}
-                      disabled={updating}
-                    >
-                      <Ionicons name="wallet-outline" size={18} color="#fff" />
-                      <Text style={styles.useCreditButtonText}>
-                        Use Credit (${order.customer!.credit!.toFixed(2)} available)
-                      </Text>
-                    </TouchableOpacity>
+                    <View style={styles.useCreditContainer}>
+                      <View style={styles.useCreditInfo}>
+                        <View style={styles.useCreditRow}>
+                          <Text style={styles.useCreditLabel}>Owes (Balance Due)</Text>
+                          <Text style={styles.useCreditOwes}>${(order.totalAmount || 0).toFixed(2)}</Text>
+                        </View>
+                        <View style={styles.useCreditRow}>
+                          <Text style={styles.useCreditLabel}>Available Credit</Text>
+                          <Text style={styles.useCreditAvail}>${(order.customer!.credit!).toFixed(2)}</Text>
+                        </View>
+                        <View style={[styles.useCreditRow, { borderTopWidth: 1, borderTopColor: '#e2e8f0', marginTop: 4, paddingTop: 4 }]}>
+                          <Text style={[styles.useCreditLabel, { fontWeight: '700' }]}>Credit After Apply</Text>
+                          <Text style={[styles.useCreditAvail, { color: Math.max(0, (order.customer!.credit!) - Math.min(order.customer!.credit!, order.totalAmount || 0)) > 0 ? '#16a34a' : '#64748b' }]}>
+                            ${Math.max(0, (order.customer!.credit!) - Math.min(order.customer!.credit!, order.totalAmount || 0)).toFixed(2)}
+                          </Text>
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.useCreditButton, updating && styles.buttonDisabled]}
+                        onPress={handleUseCredit}
+                        disabled={updating}
+                      >
+                        <Ionicons name="wallet-outline" size={18} color="#fff" />
+                        <Text style={styles.useCreditButtonText}>
+                          Apply ${Math.min(order.customer!.credit!, order.totalAmount || 0).toFixed(2)} Credit
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   )}
                   <View style={styles.paymentMethodPicker}>
                     {PAYMENT_METHODS.map(method => (
@@ -4315,6 +4351,37 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  useCreditContainer: {
+    backgroundColor: '#faf5ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e9d5ff',
+    padding: 12,
+    marginBottom: 12,
+  },
+  useCreditInfo: {
+    marginBottom: 10,
+  },
+  useCreditRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 3,
+  },
+  useCreditLabel: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  useCreditOwes: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#dc2626',
+  },
+  useCreditAvail: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#16a34a',
+  },
   useCreditButton: {
     backgroundColor: '#8b5cf6',
     paddingVertical: 12,
@@ -4323,7 +4390,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     gap: 8,
-    marginBottom: 12,
   },
   useCreditButtonText: {
     color: '#fff',

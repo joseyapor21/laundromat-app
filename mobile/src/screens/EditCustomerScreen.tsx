@@ -428,42 +428,68 @@ export default function EditCustomerScreen() {
           {customer.creditHistory && customer.creditHistory.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Credit History</Text>
+              {/* Ledger header */}
+              <View style={styles.ledgerHeader}>
+                <Text style={[styles.ledgerHeaderText, { flex: 1.2 }]}>Date</Text>
+                <Text style={[styles.ledgerHeaderText, { flex: 2 }]}>Order / Action</Text>
+                <Text style={[styles.ledgerHeaderText, { flex: 1, textAlign: 'right' }]}>Amount</Text>
+                <Text style={[styles.ledgerHeaderText, { flex: 1, textAlign: 'right' }]}>Balance</Text>
+              </View>
               <View style={styles.historyList}>
-                {customer.creditHistory
-                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                  .slice(0, 20)
-                  .map((tx: CreditTransaction, index: number) => (
-                    <View key={index} style={styles.historyItem}>
-                      <View style={styles.historyInfo}>
-                        <Text style={styles.historyDescription}>{tx.description}</Text>
-                        <Text style={styles.historyDate}>
-                          {formatDate(tx.createdAt)}
-                          {(tx.addedBy || tx.createdBy) ? ` · ${tx.addedBy || tx.createdBy}` : ''}
-                          {tx.paymentMethod ? ` · ${tx.paymentMethod}` : ''}
+                {(() => {
+                  const sorted = [...customer.creditHistory].sort(
+                    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                  );
+                  // Compute running balance if balanceAfter not stored
+                  let runningBalance = 0;
+                  return sorted.slice(-30).reverse().map((tx: CreditTransaction, index: number) => {
+                    // Use stored balanceAfter if available, otherwise compute
+                    const balanceAfter = tx.balanceAfter !== undefined && tx.balanceAfter !== null
+                      ? tx.balanceAfter
+                      : null;
+
+                    const txDate = new Date(tx.createdAt);
+                    const dateStr = `${txDate.getMonth() + 1}/${txDate.getDate()}/${String(txDate.getFullYear()).slice(-2)}`;
+
+                    // Extract order number from description
+                    const orderMatch = tx.description?.match(/#(\d+)/);
+                    const orderNum = orderMatch ? `#${orderMatch[1]}` : '';
+
+                    // Action label like the notebook
+                    let actionLabel = tx.description || '';
+                    if (tx.type === 'add') {
+                      const pm = (tx as any).paymentMethod;
+                      if (pm === 'cash') actionLabel = 'Gave Cash';
+                      else if (pm === 'venmo') actionLabel = 'Gave Venmo';
+                      else if (pm === 'zelle') actionLabel = 'Gave Zelle';
+                      else if (pm === 'check') actionLabel = 'Gave Check';
+                      else if (!actionLabel || actionLabel === 'Credit added') actionLabel = 'Gave';
+                    } else {
+                      if (actionLabel.toLowerCase().includes('applied to order') || actionLabel.toLowerCase().includes('order #')) {
+                        actionLabel = 'Available Credit';
+                      } else if (!actionLabel || actionLabel === 'Credit used') {
+                        actionLabel = 'Owes';
+                      }
+                    }
+
+                    const isAdd = tx.type === 'add';
+                    return (
+                      <View key={index} style={[styles.ledgerRow, index % 2 === 0 && styles.ledgerRowAlt]}>
+                        <Text style={[styles.ledgerCell, { flex: 1.2 }]}>{dateStr}</Text>
+                        <View style={{ flex: 2 }}>
+                          {orderNum ? <Text style={styles.ledgerOrderNum}>{orderNum}</Text> : null}
+                          <Text style={styles.ledgerAction}>{actionLabel}</Text>
+                        </View>
+                        <Text style={[styles.ledgerCell, { flex: 1, textAlign: 'right', color: isAdd ? '#16a34a' : '#dc2626', fontWeight: '700' }]}>
+                          {isAdd ? '+' : '-'}${Math.abs(tx.amount).toFixed(2)}
                         </Text>
-                        {(tx.balanceBefore !== undefined && tx.balanceBefore !== null) && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
-                            <Text style={{ fontSize: 12, color: '#94a3b8' }}>
-                              Balance:
-                            </Text>
-                            <Text style={{ fontSize: 12, color: '#64748b', fontWeight: '500' }}>
-                              ${tx.balanceBefore.toFixed(2)}
-                            </Text>
-                            <Text style={{ fontSize: 12, color: '#94a3b8' }}>→</Text>
-                            <Text style={{ fontSize: 12, fontWeight: '700', color: tx.type === 'add' ? '#16a34a' : '#dc2626' }}>
-                              ${(tx.balanceAfter ?? 0).toFixed(2)}
-                            </Text>
-                          </View>
-                        )}
+                        <Text style={[styles.ledgerCell, { flex: 1, textAlign: 'right', fontWeight: '700', color: balanceAfter !== null && balanceAfter < 0 ? '#dc2626' : '#1e293b' }]}>
+                          {balanceAfter !== null ? `$${balanceAfter.toFixed(2)}` : '—'}
+                        </Text>
                       </View>
-                      <Text style={[
-                        styles.historyAmount,
-                        tx.type === 'add' ? styles.historyAdd : styles.historyUse
-                      ]}>
-                        {tx.type === 'add' ? '+' : '-'}${Math.abs(tx.amount).toFixed(2)}
-                      </Text>
-                    </View>
-                  ))}
+                    );
+                  });
+                })()}
               </View>
             </View>
           )}
@@ -956,6 +982,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   historyItem: {
     flexDirection: 'row',
@@ -987,6 +1015,47 @@ const styles = StyleSheet.create({
   },
   historyUse: {
     color: '#ef4444',
+  },
+  ledgerHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#1e293b',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    marginBottom: 2,
+    gap: 4,
+  },
+  ledgerHeaderText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  ledgerRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    alignItems: 'center',
+    gap: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  ledgerRowAlt: {
+    backgroundColor: '#f8fafc',
+  },
+  ledgerCell: {
+    fontSize: 12,
+    color: '#1e293b',
+  },
+  ledgerOrderNum: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#2563eb',
+  },
+  ledgerAction: {
+    fontSize: 12,
+    color: '#475569',
   },
   inputGroup: {
     marginBottom: 12,
