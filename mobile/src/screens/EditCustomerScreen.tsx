@@ -431,10 +431,20 @@ export default function EditCustomerScreen() {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Credit History</Text>
               <View style={styles.historyList}>
-                {customer.creditHistory
-                  .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                  .slice(0, 20)
-                  .map((tx: CreditTransaction, index: number) => (
+                {(() => {
+                  // Compute running balance forward for all entries
+                  const sorted = [...customer.creditHistory].sort(
+                    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+                  );
+                  let running = 0;
+                  const withBalance = sorted.map((tx: CreditTransaction) => {
+                    const newBal = tx.balanceAfter !== undefined && tx.balanceAfter !== null
+                      ? tx.balanceAfter
+                      : running + (tx.type === 'add' ? tx.amount : -tx.amount);
+                    running = newBal;
+                    return { ...tx, newBalance: newBal };
+                  });
+                  return withBalance.slice(-20).reverse().map((tx: CreditTransaction & { newBalance: number }, index: number) => (
                     <View key={index} style={styles.historyItem}>
                       <View style={styles.historyInfo}>
                         <Text style={styles.historyDescription}>{tx.description}</Text>
@@ -443,18 +453,9 @@ export default function EditCustomerScreen() {
                           {(tx.addedBy || tx.createdBy) ? ` · ${tx.addedBy || tx.createdBy}` : ''}
                           {(tx as any).paymentMethod ? ` · ${(tx as any).paymentMethod}` : ''}
                         </Text>
-                        {(tx.balanceBefore !== undefined && tx.balanceBefore !== null) && (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
-                            <Text style={{ fontSize: 12, color: '#94a3b8' }}>Balance:</Text>
-                            <Text style={{ fontSize: 12, color: '#64748b', fontWeight: '500' }}>
-                              ${tx.balanceBefore.toFixed(2)}
-                            </Text>
-                            <Text style={{ fontSize: 12, color: '#94a3b8' }}>→</Text>
-                            <Text style={{ fontSize: 12, fontWeight: '700', color: tx.type === 'add' ? '#16a34a' : '#dc2626' }}>
-                              ${(tx.balanceAfter ?? 0).toFixed(2)}
-                            </Text>
-                          </View>
-                        )}
+                        <Text style={{ fontSize: 12, color: '#16a34a', fontWeight: '700', marginTop: 3 }}>
+                          New balance: ${tx.newBalance.toFixed(2)}
+                        </Text>
                       </View>
                       <Text style={[
                         styles.historyAmount,
@@ -463,7 +464,8 @@ export default function EditCustomerScreen() {
                         {tx.type === 'add' ? '+' : '-'}${Math.abs(tx.amount).toFixed(2)}
                       </Text>
                     </View>
-                  ))}
+                  ));
+                })()}
               </View>
             </View>
           )}
