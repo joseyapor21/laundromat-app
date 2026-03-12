@@ -57,6 +57,10 @@ export interface CreditTransaction {
   orderId?: string;
   createdAt: Date;
   createdBy: string;
+  addedBy?: string;
+  paymentMethod?: string;
+  balanceBefore?: number;
+  balanceAfter?: number;
 }
 
 export type OrderStatus =

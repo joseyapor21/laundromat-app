@@ -82,6 +82,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       orderId: orderId || null,
       addedBy: currentUser.name,
       paymentMethod: type === 'add' ? (paymentMethod || 'cash') : null,
+      balanceBefore: currentCredit,
+      balanceAfter: newCredit,
       createdAt: new Date(),
     };
 

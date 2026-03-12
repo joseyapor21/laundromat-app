@@ -431,12 +431,30 @@ export default function EditCustomerScreen() {
               <View style={styles.historyList}>
                 {customer.creditHistory
                   .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                  .slice(0, 10)
+                  .slice(0, 20)
                   .map((tx: CreditTransaction, index: number) => (
                     <View key={index} style={styles.historyItem}>
                       <View style={styles.historyInfo}>
                         <Text style={styles.historyDescription}>{tx.description}</Text>
-                        <Text style={styles.historyDate}>{formatDate(tx.createdAt)}</Text>
+                        <Text style={styles.historyDate}>
+                          {formatDate(tx.createdAt)}
+                          {(tx.addedBy || tx.createdBy) ? ` · ${tx.addedBy || tx.createdBy}` : ''}
+                          {tx.paymentMethod ? ` · ${tx.paymentMethod}` : ''}
+                        </Text>
+                        {(tx.balanceBefore !== undefined && tx.balanceBefore !== null) && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 6 }}>
+                            <Text style={{ fontSize: 12, color: '#94a3b8' }}>
+                              Balance:
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#64748b', fontWeight: '500' }}>
+                              ${tx.balanceBefore.toFixed(2)}
+                            </Text>
+                            <Text style={{ fontSize: 12, color: '#94a3b8' }}>→</Text>
+                            <Text style={{ fontSize: 12, fontWeight: '700', color: tx.type === 'add' ? '#16a34a' : '#dc2626' }}>
+                              ${(tx.balanceAfter ?? 0).toFixed(2)}
+                            </Text>
+                          </View>
+                        )}
                       </View>
                       <Text style={[
                         styles.historyAmount,
