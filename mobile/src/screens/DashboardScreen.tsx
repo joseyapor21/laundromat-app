@@ -662,12 +662,6 @@ export default function DashboardScreen() {
           {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
             <View style={styles.landscapeActions}>
               <TouchableOpacity
-                style={styles.deliveryPayBtnLandscape}
-                onPress={() => navigation.navigate('DeliveryPayments' as never)}
-              >
-                <Ionicons name="bicycle-outline" size={18} color="#7c3aed" />
-              </TouchableOpacity>
-              <TouchableOpacity
                 style={styles.posButtonLandscape}
                 onPress={() => setShowPOS(true)}
               >
@@ -689,15 +683,6 @@ export default function DashboardScreen() {
               <Text style={styles.headerSubtitle}>Welcome, {user?.firstName || 'User'}</Text>
             </View>
             <View style={styles.headerActions}>
-              {/* Delivery Payments Button - Only for admin/cashier */}
-              {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
-                <TouchableOpacity
-                  style={styles.deliveryPayBtn}
-                  onPress={() => navigation.navigate('DeliveryPayments' as never)}
-                >
-                  <Ionicons name="bicycle-outline" size={20} color="#7c3aed" />
-                </TouchableOpacity>
-              )}
               {/* POS Button - Only for admin/cashier (visible in store phone mode too) */}
               {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
                 <TouchableOpacity
@@ -1457,15 +1442,6 @@ const styles = StyleSheet.create({
     gap: 8,
     zIndex: 100,
   },
-  deliveryPayBtnLandscape: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f5f3ff',
-    padding: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ddd6fe',
-  },
   posButtonLandscape: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1480,15 +1456,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-  },
-  deliveryPayBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f5f3ff',
-    padding: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#ddd6fe',
   },
   posButtonPortrait: {
     flexDirection: 'row',
