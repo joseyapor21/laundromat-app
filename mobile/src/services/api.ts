@@ -412,7 +412,7 @@ class ApiService {
     return this.request<Order[]>(`/customers/${customerId}/orders`);
   }
 
-  async addCustomerCredit(id: string, amount: number, description: string, paymentMethod: 'cash' | 'check' | 'venmo' | 'zelle' = 'cash'): Promise<Customer> {
+  async addCustomerCredit(id: string, amount: number, description: string, paymentMethod?: 'cash' | 'check' | 'venmo' | 'zelle'): Promise<Customer> {
     return this.request<Customer>(`/customers/${id}/credit`, {
       method: 'POST',
       body: JSON.stringify({ amount, type: 'add', description, paymentMethod }),

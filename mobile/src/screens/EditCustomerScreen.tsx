@@ -45,7 +45,7 @@ export default function EditCustomerScreen() {
   const [showAddCredit, setShowAddCredit] = useState(false);
   const [creditAmount, setCreditAmount] = useState('');
   const [creditDescription, setCreditDescription] = useState('');
-  const [creditPaymentMethod, setCreditPaymentMethod] = useState<'cash' | 'check' | 'venmo' | 'zelle'>('cash');
+  const [creditPaymentMethod, setCreditPaymentMethod] = useState<'cash' | 'check' | 'venmo' | 'zelle' | 'refund'>('cash');
   const [printing, setPrinting] = useState(false);
 
   // Orders
@@ -156,8 +156,9 @@ export default function EditCustomerScreen() {
 
     setSaving(true);
     try {
-      await api.addCustomerCredit(customer!._id, amount, creditDescription.trim(), creditPaymentMethod);
-      Alert.alert('Success', `$${amount.toFixed(2)} credit added (${creditPaymentMethod})`);
+      const pmToSend = creditPaymentMethod === 'refund' ? undefined : creditPaymentMethod;
+      await api.addCustomerCredit(customer!._id, amount, creditDescription.trim(), pmToSend);
+      Alert.alert('Success', `$${amount.toFixed(2)} ${creditPaymentMethod === 'refund' ? 'refund' : `credit added (${creditPaymentMethod})`}`);
       setCreditAmount('');
       setCreditDescription('');
       setCreditPaymentMethod('cash');
@@ -391,12 +392,13 @@ export default function EditCustomerScreen() {
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Payment Method</Text>
                 <View style={styles.paymentMethodRow}>
-                  {(['cash', 'check', 'venmo', 'zelle'] as const).map((method) => (
+                  {(['cash', 'check', 'venmo', 'zelle', 'refund'] as const).map((method) => (
                     <TouchableOpacity
                       key={method}
                       style={[
                         styles.paymentMethodBtn,
-                        creditPaymentMethod === method && styles.paymentMethodBtnActive
+                        creditPaymentMethod === method && styles.paymentMethodBtnActive,
+                        method === 'refund' && creditPaymentMethod === method && { backgroundColor: '#dc2626', borderColor: '#dc2626' },
                       ]}
                       onPress={() => setCreditPaymentMethod(method)}
                     >
@@ -404,7 +406,7 @@ export default function EditCustomerScreen() {
                         styles.paymentMethodText,
                         creditPaymentMethod === method && styles.paymentMethodTextActive
                       ]}>
-                        {method.charAt(0).toUpperCase() + method.slice(1)}
+                        {method === 'refund' ? 'Refund' : method.charAt(0).toUpperCase() + method.slice(1)}
                       </Text>
                     </TouchableOpacity>
                   ))}
