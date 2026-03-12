@@ -963,7 +963,7 @@ export function generateCreditBalanceReceipt(customer: { name: string; phoneNumb
         else if (pm === 'venmo') actionLabel = 'Gave Venmo';
         else if (pm === 'zelle') actionLabel = 'Gave Zelle';
         else if (pm === 'check') actionLabel = 'Gave Check';
-        else actionLabel = 'Gave';
+        else actionLabel = 'Refund';
       } else {
         const desc = tx.description || '';
         if (desc.toLowerCase().includes('applied to order') || desc.toLowerCase().includes('order #')) {

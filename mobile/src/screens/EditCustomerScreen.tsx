@@ -463,7 +463,7 @@ export default function EditCustomerScreen() {
                       else if (pm === 'venmo') actionLabel = 'Gave Venmo';
                       else if (pm === 'zelle') actionLabel = 'Gave Zelle';
                       else if (pm === 'check') actionLabel = 'Gave Check';
-                      else if (!actionLabel || actionLabel === 'Credit added') actionLabel = 'Gave';
+                      else actionLabel = 'Refund';
                     } else {
                       if (actionLabel.toLowerCase().includes('applied to order') || actionLabel.toLowerCase().includes('order #')) {
                         actionLabel = 'Available Credit';
