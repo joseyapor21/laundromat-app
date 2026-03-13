@@ -327,7 +327,7 @@ export default function DeliveryPaymentsScreen() {
                       <Text style={styles.orderId}>Order #{order.orderId}</Text>
                       <View style={[styles.badge, { backgroundColor: '#dcfce7' }]}>
                         <Ionicons name="cash-outline" size={12} color="#16a34a" />
-                        <Text style={[styles.badgeText, { color: '#16a34a' }]}>Paid by Driver</Text>
+                        <Text style={[styles.badgeText, { color: '#16a34a' }]}>Marked as Paid by Driver</Text>
                       </View>
                     </View>
                     <Text style={styles.orderTotal}>${(order.totalAmount || 0).toFixed(2)}</Text>
