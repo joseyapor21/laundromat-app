@@ -133,6 +133,7 @@ export default function AdminScreen() {
   // Driver Trajectory Modal
   const [trajectoryDriver, setTrajectoryDriver] = useState<{ userId: string; name: string } | null>(null);
   const [trajectoryHistory, setTrajectoryHistory] = useState<Array<{ latitude: number; longitude: number; updatedAt: string }>>([]);
+  const [snappedTrajectory, setSnappedTrajectory] = useState<Array<{ latitude: number; longitude: number }>>([]);
   const [trajectoryLoading, setTrajectoryLoading] = useState(false);
 
   // Vault
@@ -427,9 +428,22 @@ export default function AdminScreen() {
     setTrajectoryDriver({ userId, name });
     setTrajectoryLoading(true);
     setTrajectoryHistory([]);
+    setSnappedTrajectory([]);
     try {
       const response = await api.getDriverLocationHistory(userId);
       setTrajectoryHistory(response.history);
+
+      // Snap GPS points to roads so lines follow streets (not float in the air)
+      if (response.history.length > 1) {
+        const points = response.history.map(p => ({ latitude: p.latitude, longitude: p.longitude }));
+        try {
+          const snapped = await api.snapToRoads(points);
+          setSnappedTrajectory(snapped.snappedPoints);
+        } catch {
+          // Fallback to raw GPS if snapping fails
+          setSnappedTrajectory(points);
+        }
+      }
     } catch (error) {
       console.error('Failed to load driver history:', error);
     } finally {
@@ -6051,9 +6065,9 @@ export default function AdminScreen() {
                   }
                 }}
               >
-                {/* Path polyline */}
+                {/* Path polyline — road-snapped coordinates */}
                 <Polyline
-                  coordinates={trajectoryHistory.map(p => ({ latitude: p.latitude, longitude: p.longitude }))}
+                  coordinates={snappedTrajectory.length > 0 ? snappedTrajectory : trajectoryHistory.map(p => ({ latitude: p.latitude, longitude: p.longitude }))}
                   strokeColor="#2563eb"
                   strokeWidth={4}
                   lineDashPattern={undefined}

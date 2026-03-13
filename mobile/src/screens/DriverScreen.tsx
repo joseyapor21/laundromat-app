@@ -278,7 +278,7 @@ export default function DriverScreen() {
           accuracy: loc.coords.accuracy,
         }).catch(() => {});
 
-        // Then every 30 seconds
+        // Then every 8 seconds
         intervalId = setInterval(async () => {
           try {
             const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
@@ -290,7 +290,7 @@ export default function DriverScreen() {
               accuracy: current.coords.accuracy,
             }).catch(() => {});
           } catch {}
-        }, 30000);
+        }, 8000);
       }
 
       startTracking();

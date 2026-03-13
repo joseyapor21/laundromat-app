@@ -912,6 +912,13 @@ class ApiService {
     });
   }
 
+  async snapToRoads(points: { latitude: number; longitude: number }[]): Promise<{ snappedPoints: { latitude: number; longitude: number }[] }> {
+    return this.request('/driver-locations/snap-to-roads', {
+      method: 'POST',
+      body: JSON.stringify({ points }),
+    });
+  }
+
   async getDriverLocationHistory(userId: string): Promise<{
     name: string;
     history: Array<{
