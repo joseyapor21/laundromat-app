@@ -31,6 +31,7 @@ const activityLogSchema = new mongoose.Schema<ActivityLogDocument>({
       'dryer_unload', 'dryer_unload_check',
       'dryer_folding_started', 'dryer_folded',
       'payment_detected', 'payment_auto_matched', 'payment_email_check', 'payment_manual_link',
+      'machine_verification_photo',
     ] as ActivityAction[],
   },
   entityType: {

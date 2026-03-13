@@ -328,7 +328,8 @@ export type ActivityAction =
   | 'payment_detected'
   | 'payment_auto_matched'
   | 'payment_email_check'
-  | 'payment_manual_link';
+  | 'payment_manual_link'
+  | 'machine_verification_photo';
 
 export type EntityType = 'order' | 'user' | 'customer' | 'extra_item' | 'settings' | 'machine' | 'time_entry' | 'payment';
 
