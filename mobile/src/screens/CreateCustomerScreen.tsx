@@ -15,6 +15,8 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { api } from '../services/api';
 import { formatPhoneInput, unformatPhone } from '../utils/phoneFormat';
 import AddressInput from '../components/AddressInput';
+import { saveCustomerToContacts } from '../services/contactsSync';
+import { useStorePhone } from '../contexts/StorePhoneContext';
 
 type CreateCustomerParams = {
   prefillName?: string;
@@ -24,6 +26,7 @@ type CreateCustomerParams = {
 export default function CreateCustomerScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute<RouteProp<{ params: CreateCustomerParams }, 'params'>>();
+  const { isStorePhoneMode } = useStorePhone();
   const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
   const [saving, setSaving] = useState(false);
 
@@ -59,6 +62,16 @@ export default function CreateCustomerScreen() {
       if (buzzerCode.trim()) customerData.buzzerCode = buzzerCode.trim();
 
       const newCustomer = await api.createCustomer(customerData);
+
+      // Auto-save to contacts on store phones
+      if (isStorePhoneMode) {
+        saveCustomerToContacts({
+          name: customerData.name,
+          phoneNumber: customerData.phoneNumber,
+          address: customerData.address,
+          email: customerData.email,
+        }).catch(() => {}); // fire and forget
+      }
 
       Alert.alert('Success', 'Customer created successfully', [
         { text: 'OK', onPress: () => {

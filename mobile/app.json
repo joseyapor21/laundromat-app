@@ -17,6 +17,7 @@
       "bundleIdentifier": "com.laundromat.app",
       "infoPlist": {
         "NSCameraUsageDescription": "This app uses the camera to scan QR codes and take clock-in photos.",
+        "NSContactsUsageDescription": "This app saves customers to your contacts so incoming calls are identified automatically.",
         "NSLocationWhenInUseUsageDescription": "This app uses your location to record where you clock in and out.",
         "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to connect to thermal label printers for printing bag labels.",
         "NSBluetoothPeripheralUsageDescription": "This app uses Bluetooth to connect to thermal label printers for printing bag labels.",
@@ -40,6 +41,8 @@
       "package": "com.laundromat.app",
       "permissions": [
         "android.permission.CAMERA",
+        "android.permission.READ_CONTACTS",
+        "android.permission.WRITE_CONTACTS",
         "android.permission.BLUETOOTH",
         "android.permission.BLUETOOTH_ADMIN",
         "android.permission.BLUETOOTH_CONNECT",
@@ -82,6 +85,12 @@
       ],
       "react-native-ble-plx",
       "expo-secure-store",
+      [
+        "expo-contacts",
+        {
+          "contactsPermission": "Allow Laundromat to access your contacts to save customers for automatic caller ID."
+        }
+      ],
       "./plugins/withCallerID"
     ],
     "extra": {

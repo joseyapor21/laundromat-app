@@ -11,6 +11,8 @@ import { ScannerProvider, FloatingActionButtons } from '../contexts/ScannerConte
 import { TimeClockProvider, useTimeClock } from '../contexts/TimeClockContext';
 import { StorePhoneProvider, useStorePhone } from '../contexts/StorePhoneContext';
 import pushNotificationService from '../services/pushNotifications';
+import { syncAllCustomersToContacts } from '../services/contactsSync';
+import { api } from '../services/api';
 
 // Navigation ref for use outside of components (e.g., notification handling)
 export const navigationRef = React.createRef<NavigationContainerRef<any>>();
@@ -305,6 +307,16 @@ function AuthenticatedAppContent() {
   const { user } = useAuth();
   const { isStorePhoneMode } = useStorePhone();
   const isKioskMode = user?.isKioskMode;
+
+  // Sync all customers to contacts on startup (store phones only)
+  useEffect(() => {
+    if (!isStorePhoneMode) return;
+    api.getCustomers().then(customers => {
+      if (customers?.length) {
+        syncAllCustomersToContacts(customers).catch(() => {});
+      }
+    }).catch(() => {});
+  }, [isStorePhoneMode]);
 
   // Kiosk mode or store phone mode: skip time clock provider, clock-in prompt, and floating buttons
   if (isKioskMode || isStorePhoneMode) {
