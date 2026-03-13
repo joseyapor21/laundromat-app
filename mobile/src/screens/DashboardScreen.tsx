@@ -665,7 +665,7 @@ export default function DashboardScreen() {
                 style={styles.deliveryPayBtnLandscape}
                 onPress={() => navigation.navigate('DeliveryPayments' as never)}
               >
-                <Ionicons name="bicycle-outline" size={18} color="#7c3aed" />
+                <Ionicons name="car-outline" size={18} color="#7c3aed" />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.posButtonLandscape}
@@ -695,7 +695,7 @@ export default function DashboardScreen() {
                   style={styles.deliveryPayBtn}
                   onPress={() => navigation.navigate('DeliveryPayments' as never)}
                 >
-                  <Ionicons name="bicycle-outline" size={20} color="#7c3aed" />
+                  <Ionicons name="car-outline" size={20} color="#7c3aed" />
                 </TouchableOpacity>
               )}
               {/* POS Button - Only for admin/cashier (visible in store phone mode too) */}
