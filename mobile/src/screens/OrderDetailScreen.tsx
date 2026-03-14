@@ -269,12 +269,16 @@ export default function OrderDetailScreen() {
       });
 
       if (orderWeight > 0 && washFoldAmount > 0) {
-        // Get pricing settings
-        const minimumWeight = settings?.minimumWeight || 7;
-        const minimumPrice = settings?.minimumPrice || 10;
-        const pricePerPound = settings?.pricePerPound || 1.25;
+        // Use same-day pricing settings for same-day orders, regular settings otherwise
+        const isSameDayOrder = order.isSameDay;
+        const minimumWeight = isSameDayOrder
+          ? (settings?.sameDayWeightThreshold || 7)
+          : (settings?.minimumWeight || 7);
+        const minimumPrice = isSameDayOrder
+          ? (settings?.sameDayBasePrice || 10)
+          : (settings?.minimumPrice || 10);
 
-        // Calculate breakdown to match order display
+        // Calculate breakdown
         const extraPounds = Math.max(0, orderWeight - minimumWeight);
 
         // Show base price line
@@ -289,12 +293,15 @@ export default function OrderDetailScreen() {
 
         // Show extra pounds line if applicable
         if (extraPounds > 0) {
+          // Back-calculate the actual extra amount from what was charged
           const extraAmount = washFoldAmount - minimumPrice;
+          // Derive the effective rate from what was actually charged (so rate × qty = amount)
+          const effectiveRate = extraAmount / extraPounds;
           lineItemsHtml += `
             <tr>
-              <td>Extra ${extraPounds.toFixed(1)} lbs × $${pricePerPound.toFixed(2)}</td>
+              <td>Extra ${extraPounds.toFixed(1)} lbs × $${effectiveRate.toFixed(2)}</td>
               <td style="text-align: center;">${extraPounds.toFixed(1)} lbs</td>
-              <td style="text-align: right;">$${pricePerPound.toFixed(2)}/lb</td>
+              <td style="text-align: right;">$${effectiveRate.toFixed(2)}/lb</td>
               <td style="text-align: right; font-weight: 500;">$${extraAmount.toFixed(2)}</td>
             </tr>
           `;
@@ -893,8 +900,10 @@ export default function OrderDetailScreen() {
     } catch (error) {
       console.error('Scan error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to assign machine';
-      Alert.alert('Error', errorMessage);
-      isProcessingScan.current = false;
+      // Only reset scan lock AFTER user dismisses — prevents camera from firing again before modal fully closes
+      Alert.alert('Error', errorMessage, [
+        { text: 'OK', onPress: () => { isProcessingScan.current = false; } }
+      ]);
     } finally {
       setUpdating(false);
     }
