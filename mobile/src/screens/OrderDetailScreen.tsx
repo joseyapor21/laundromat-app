@@ -1692,7 +1692,15 @@ export default function OrderDetailScreen() {
         {/* Header Card */}
         <View style={styles.headerCard}>
           <View style={styles.headerRow}>
-            <Text style={styles.orderId}>Order #{order.orderId}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <Text style={styles.orderId}>Order #{order.orderId}</Text>
+              {order.isRecurring && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f3ff', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
+                  <Ionicons name="repeat" size={12} color="#7c3aed" />
+                  <Text style={{ fontSize: 11, fontWeight: '600', color: '#7c3aed' }}>Recurring</Text>
+                </View>
+              )}
+            </View>
             <View style={[styles.statusBadge, { backgroundColor: currentStatusOption?.color || '#94a3b8' }]}>
               <Text style={styles.statusText}>
                 {order.status.replace(/_/g, ' ').toUpperCase()}

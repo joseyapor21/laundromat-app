@@ -14,7 +14,9 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   InteractionManager,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
@@ -363,6 +365,28 @@ export default function EditOrderScreen() {
     setBags(updatedBags);
   };
 
+  const takeBagPhoto = async (index: number) => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Required', 'Camera permission is needed to take bag photos');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: false,
+      quality: 0.7,
+      base64: true,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    const asset = result.assets[0];
+    const newBags = [...bags];
+    newBags[index] = {
+      ...newBags[index],
+      photoUri: asset.uri,
+      photoBase64: asset.base64 ? `data:image/jpeg;base64,${asset.base64}` : undefined,
+    };
+    setBags(newBags);
+  };
+
   const removeExtraItem = (itemId: string) => {
     const newExtras = { ...selectedExtraItems };
     delete newExtras[itemId];
@@ -582,6 +606,17 @@ export default function EditOrderScreen() {
         return; // Skip the normal success alert
       } else {
         await api.updateOrder(order!._id, updates);
+      }
+
+      // Upload any newly taken bag photos
+      for (let i = 0; i < bags.length; i++) {
+        if (bags[i].photoBase64) {
+          try {
+            await api.uploadBagPhoto(order!._id, i, bags[i].photoBase64!);
+          } catch (photoError) {
+            console.error(`Failed to upload photo for bag ${i}:`, photoError);
+          }
+        }
       }
 
       // Note: Auto-print is disabled for edits - only print on order creation
@@ -1293,6 +1328,17 @@ export default function EditOrderScreen() {
                         placeholderTextColor="#94a3b8"
                       />
                     </View>
+                  </View>
+                  <View style={styles.bagPhotoRow}>
+                    <TouchableOpacity style={styles.bagPhotoButton} onPress={() => takeBagPhoto(index)}>
+                      <Ionicons name={bag.photoUri ? 'camera' : 'camera-outline'} size={18} color={bag.photoUri ? '#2563eb' : '#64748b'} />
+                      <Text style={[styles.bagPhotoButtonText, bag.photoUri && { color: '#2563eb' }]}>
+                        {bag.photoUri ? 'Retake Photo' : 'Take Photo'}
+                      </Text>
+                    </TouchableOpacity>
+                    {bag.photoUri && (
+                      <Image source={{ uri: bag.photoUri }} style={styles.bagPhotoThumb} />
+                    )}
                   </View>
                 </View>
               ))
@@ -2295,6 +2341,35 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 14,
     color: '#1e293b',
+  },
+  bagPhotoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    gap: 12,
+  },
+  bagPhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#f1f5f9',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  bagPhotoButtonText: {
+    fontSize: 13,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  bagPhotoThumb: {
+    width: 64,
+    height: 64,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
   },
   // Extra items button and summary
   addExtraItemsButton: {

@@ -303,24 +303,36 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
   r += ESC.LEFT;
   const totalWeight = order.weight || 0;
 
-  // Show weight
-  r += ESC.DOUBLE_HEIGHT_ON;
-  r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
-  r += ESC.NORMAL_SIZE;
+  // Calculate laundry total accurately
+  // Use priceOverride first, then subtotal+sameDayFee, then back-calculate from totalAmount
+  const extraItemsCalc = order.extraItems?.reduce((sum: number, item: any) => {
+    const itemTotal = item.overrideTotal ?? (item.price * item.quantity);
+    return sum + itemTotal;
+  }, 0) || 0;
+  const deliveryFeeCalc = order.deliveryFee || 0;
+  const creditCalc = order.creditApplied || 0;
 
-  // Show laundry subtotal
-  // For same-day orders, use the totalAmount minus extras/delivery for accurate same-day pricing
-  let laundryTotal = (order.subtotal || 0) + (order.sameDayFee || 0);
-
-  // If same-day and we have the total, recalculate laundry portion for accurate display
-  if (isSameDay && order.totalAmount) {
-    const extraItemsTotal = order.extraItems?.reduce((sum: number, item: any) => {
-      const itemTotal = item.overrideTotal ?? (item.price * item.quantity);
-      return sum + itemTotal;
-    }, 0) || 0;
-    const deliveryFeeForCalc = order.deliveryFee || 0;
-    laundryTotal = order.totalAmount - extraItemsTotal - deliveryFeeForCalc + (order.creditApplied || 0);
+  let laundryTotal = 0;
+  if (order.priceOverride !== undefined && order.priceOverride !== null && order.priceOverride > 0) {
+    laundryTotal = order.priceOverride;
+  } else if ((order.subtotal || 0) > 0) {
+    laundryTotal = (order.subtotal || 0) + (order.sameDayFee || 0);
+  } else if (order.totalAmount) {
+    // Back-calculate laundry portion from totalAmount
+    laundryTotal = order.totalAmount - extraItemsCalc - deliveryFeeCalc + creditCalc;
   }
+
+  // Calculate effective price per pound to show on ticket
+  const pricePerLb = (totalWeight > 0 && laundryTotal > 0) ? laundryTotal / totalWeight : 0;
+
+  // Show weight with rate if available
+  r += ESC.DOUBLE_HEIGHT_ON;
+  if (pricePerLb > 0) {
+    r += leftRightAlign('Total Weight', `${totalWeight} LBS @ $${pricePerLb.toFixed(2)}/lb`) + '\n';
+  } else {
+    r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
+  }
+  r += ESC.NORMAL_SIZE;
 
   if (laundryTotal > 0) {
     const laundryLabel = isSameDay ? 'Laundry (Same Day)' : 'Laundry';
@@ -553,24 +565,36 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
   r += ESC.LEFT;
   const totalWeight = order.weight || 0;
 
-  // Show weight
-  r += ESC.DOUBLE_HEIGHT_ON;
-  r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
-  r += ESC.NORMAL_SIZE;
+  // Calculate laundry total accurately
+  // Use priceOverride first, then subtotal+sameDayFee, then back-calculate from totalAmount
+  const extraItemsCalc = order.extraItems?.reduce((sum: number, item: any) => {
+    const itemTotal = item.overrideTotal ?? (item.price * item.quantity);
+    return sum + itemTotal;
+  }, 0) || 0;
+  const deliveryFeeCalc = order.deliveryFee || 0;
+  const creditCalc = order.creditApplied || 0;
 
-  // Show laundry subtotal
-  // For same-day orders, use the totalAmount minus extras/delivery for accurate same-day pricing
-  let laundryTotal = (order.subtotal || 0) + (order.sameDayFee || 0);
-
-  // If same-day and we have the total, recalculate laundry portion for accurate display
-  if (isSameDay && order.totalAmount) {
-    const extraItemsTotal = order.extraItems?.reduce((sum: number, item: any) => {
-      const itemTotal = item.overrideTotal ?? (item.price * item.quantity);
-      return sum + itemTotal;
-    }, 0) || 0;
-    const deliveryFeeForCalc = order.deliveryFee || 0;
-    laundryTotal = order.totalAmount - extraItemsTotal - deliveryFeeForCalc + (order.creditApplied || 0);
+  let laundryTotal = 0;
+  if (order.priceOverride !== undefined && order.priceOverride !== null && order.priceOverride > 0) {
+    laundryTotal = order.priceOverride;
+  } else if ((order.subtotal || 0) > 0) {
+    laundryTotal = (order.subtotal || 0) + (order.sameDayFee || 0);
+  } else if (order.totalAmount) {
+    // Back-calculate laundry portion from totalAmount
+    laundryTotal = order.totalAmount - extraItemsCalc - deliveryFeeCalc + creditCalc;
   }
+
+  // Calculate effective price per pound to show on ticket
+  const pricePerLb = (totalWeight > 0 && laundryTotal > 0) ? laundryTotal / totalWeight : 0;
+
+  // Show weight with rate if available
+  r += ESC.DOUBLE_HEIGHT_ON;
+  if (pricePerLb > 0) {
+    r += leftRightAlign('Total Weight', `${totalWeight} LBS @ $${pricePerLb.toFixed(2)}/lb`) + '\n';
+  } else {
+    r += leftRightAlign('Total Weight', `${totalWeight} LBS`) + '\n';
+  }
+  r += ESC.NORMAL_SIZE;
 
   if (laundryTotal > 0) {
     const laundryLabel = isSameDay ? 'Laundry (Same Day)' : 'Laundry';

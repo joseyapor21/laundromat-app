@@ -156,6 +156,9 @@ export interface OrderDoc {
     taggedBy: string;
     taggedByInitials?: string;
   }>;
+  // Recurring order fields
+  isRecurring?: boolean;
+  recurringSourceCustomerId?: string;
   // Soft delete fields
   deletedAt?: Date | null;
   deletedBy?: string | null;
@@ -590,6 +593,15 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
     },
     taggedByInitials: String,
   }],
+  // Recurring order fields
+  isRecurring: {
+    type: Boolean,
+    default: false,
+  },
+  recurringSourceCustomerId: {
+    type: String,
+    default: null,
+  },
   // Soft delete fields
   deletedAt: {
     type: Date,

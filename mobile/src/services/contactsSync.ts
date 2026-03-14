@@ -2,7 +2,7 @@ import * as Contacts from 'expo-contacts';
 import * as SecureStore from 'expo-secure-store';
 import type { Customer } from '../types';
 
-const LAUNDROMAT_NOTE = '[Laundromat Customer]';
+const LAUNDROMAT_TAG = '[Laundromat Customer]';
 const SYNCED_PHONES_KEY = 'synced_contact_phones';
 
 // Request contacts permission — returns true if granted or limited (iOS 18+)
@@ -25,6 +25,15 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
+// Split full name into firstName and lastName for iOS contacts
+function splitName(fullName: string): { firstName: string; lastName: string } {
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  const firstName = parts[0];
+  const lastName = parts.slice(1).join(' ');
+  return { firstName, lastName };
+}
+
 // Load the set of already-synced phone numbers from storage
 async function loadSyncedPhones(): Promise<Set<string>> {
   try {
@@ -41,34 +50,64 @@ async function saveSyncedPhones(phones: Set<string>): Promise<void> {
   } catch {}
 }
 
+// Delete all Laundromat-synced contacts and clear cache
+export async function deleteAllSyncedContacts(): Promise<number> {
+  const granted = await requestPermission();
+  if (!granted) return 0;
+
+  const { data } = await Contacts.getContactsAsync({
+    fields: [Contacts.Fields.Note, Contacts.Fields.Company],
+  });
+
+  let deleted = 0;
+  for (const contact of data) {
+    if ((contact.company?.includes(LAUNDROMAT_TAG) || contact.note?.includes(LAUNDROMAT_TAG)) && contact.id) {
+      try {
+        await Contacts.removeContactAsync(contact.id);
+        deleted++;
+        await new Promise(resolve => setTimeout(resolve, 50));
+      } catch {}
+    }
+  }
+
+  // Clear the sync cache
+  await clearContactsSyncCache();
+  console.log(`[ContactsSync] Deleted ${deleted} synced contacts`);
+  return deleted;
+}
+
 // Save a single customer to iPhone contacts (used when creating new customers)
 export async function saveCustomerToContacts(
-  customer: Pick<Customer, 'name' | 'phoneNumber' | 'address' | 'email'>
+  customer: Pick<Customer, 'name' | 'phoneNumber' | 'address' | 'email' | 'notes'>
 ): Promise<'created' | 'updated' | 'skipped'> {
   const granted = await requestPermission();
   if (!granted) return 'skipped';
   if (!customer.phoneNumber) return 'skipped';
+  if (!customer.name?.trim()) return 'skipped';
 
   const normalized = normalizePhone(customer.phoneNumber);
   const { data } = await Contacts.getContactsAsync({
-    fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Note],
+    fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Note, Contacts.Fields.Company],
   });
 
   const existing = data.find(c =>
     c.phoneNumbers?.some(pn => pn.number && normalizePhone(pn.number) === normalized)
   ) || null;
 
+  const { firstName, lastName } = splitName(customer.name);
   const contactData: Contacts.Contact = {
     contactType: Contacts.ContactTypes.Person,
-    name: customer.name,
+    firstName,
+    lastName,
     phoneNumbers: [{ number: customer.phoneNumber, label: 'mobile' }],
-    note: LAUNDROMAT_NOTE,
+    note: customer.notes?.trim() || '',
+    company: LAUNDROMAT_TAG,
   };
   if (customer.email) contactData.emails = [{ email: customer.email, label: 'work' }];
   if (customer.address) contactData.addresses = [{ street: customer.address, label: 'home' }];
 
   if (existing?.id) {
-    if (existing.note?.includes(LAUNDROMAT_NOTE)) {
+    if (existing.company?.includes(LAUNDROMAT_TAG) || existing.note?.includes(LAUNDROMAT_TAG)) {
       await Contacts.updateContactAsync({ ...contactData, id: existing.id });
       return 'updated';
     }
@@ -86,9 +125,9 @@ export async function saveCustomerToContacts(
 }
 
 // Sync all customers to contacts — only adds customers not yet synced
-// After first run, subsequent runs only process new customers (very fast)
+// Skips customers without a name or phone number
 export async function syncAllCustomersToContacts(
-  customers: Pick<Customer, 'name' | 'phoneNumber' | 'address' | 'email'>[]
+  customers: Pick<Customer, 'name' | 'phoneNumber' | 'address' | 'email' | 'notes'>[]
 ): Promise<{ added: number; skipped: number }> {
   const granted = await requestPermission();
   if (!granted) return { added: 0, skipped: 0 };
@@ -98,6 +137,7 @@ export async function syncAllCustomersToContacts(
 
   const newCustomers = customers.filter(c => {
     if (!c.phoneNumber) return false;
+    if (!c.name?.trim()) return false; // Skip customers without a name
     return !syncedPhones.has(normalizePhone(c.phoneNumber));
   });
 
@@ -111,11 +151,14 @@ export async function syncAllCustomersToContacts(
     const customer = newCustomers[i];
     const normalized = normalizePhone(customer.phoneNumber!);
 
+    const { firstName, lastName } = splitName(customer.name);
     const contactData: Contacts.Contact = {
       contactType: Contacts.ContactTypes.Person,
-      name: customer.name,
+      firstName,
+      lastName,
       phoneNumbers: [{ number: customer.phoneNumber!, label: 'mobile' }],
-      note: LAUNDROMAT_NOTE,
+      note: (customer as any).notes?.trim() || '',
+      company: LAUNDROMAT_TAG,
     };
     if (customer.email) contactData.emails = [{ email: customer.email, label: 'work' }];
     if (customer.address) contactData.addresses = [{ street: customer.address, label: 'home' }];
@@ -124,17 +167,15 @@ export async function syncAllCustomersToContacts(
       await Contacts.addContactAsync(contactData);
       added++;
       syncedPhones.add(normalized);
-      // Save after every single contact so progress survives a crash/kill
       await saveSyncedPhones(syncedPhones);
     } catch {
-      // Mark as skipped but still save so we don't retry this one forever
       syncedPhones.add(normalized);
       await saveSyncedPhones(syncedPhones);
       skipped++;
     }
 
-    // 1 second pause between each contact to avoid iOS watchdog kill
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Small pause between contacts to avoid iOS watchdog kill
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
 
   await saveSyncedPhones(syncedPhones);

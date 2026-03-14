@@ -32,6 +32,15 @@ export interface User {
   isKioskMode?: boolean;
 }
 
+export interface RecurringSchedule {
+  enabled: boolean;
+  pickupDays: number[];   // 0=Sun, 1=Mon, ... 6=Sat
+  deliveryDays: number[]; // 0=Sun, 1=Mon, ... 6=Sat
+  serviceType?: string;
+  notes?: string;
+  lastGeneratedDate?: Date;
+}
+
 export interface Customer {
   _id: string;
   id?: number;
@@ -49,6 +58,8 @@ export interface Customer {
   venmoUsername?: string;
   zelleEmail?: string;
   zellePhone?: string;
+  // Recurring order schedule
+  recurringSchedule?: RecurringSchedule;
 }
 
 export interface CreditTransaction {
@@ -108,6 +119,8 @@ export interface Bag {
   weight?: number;
   color?: string;
   description?: string;
+  photoUri?: string;
+  photoBase64?: string;
   isFoldingChecked?: boolean;
   foldingCheckedAt?: Date;
   foldingCheckedBy?: string;
@@ -206,6 +219,9 @@ export interface Order {
   customer?: Customer;
   statusHistory?: StatusHistoryEntry[];
   airDryItems?: AirDryItem[];
+  // Recurring order fields
+  isRecurring?: boolean;
+  recurringSourceCustomerId?: string;
 }
 
 export interface AirDryItem {

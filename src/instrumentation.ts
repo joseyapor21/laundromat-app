@@ -8,5 +8,8 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
     const { startPaymentChecker } = await import('./lib/services/paymentScheduler');
     startPaymentChecker();
+
+    const { startRecurringOrderChecker } = await import('./lib/services/recurringOrderScheduler');
+    startRecurringOrderChecker();
   }
 }

@@ -23,7 +23,8 @@
         "NSBluetoothPeripheralUsageDescription": "This app uses Bluetooth to connect to thermal label printers for printing bag labels.",
         "ITSAppUsesNonExemptEncryption": false,
         "UIBackgroundModes": [
-          "audio"
+          "audio",
+          "fetch"
         ],
         "UISupportedInterfaceOrientations": [
           "UIInterfaceOrientationPortrait",
@@ -31,7 +32,7 @@
           "UIInterfaceOrientationLandscapeRight"
         ]
       },
-      "buildNumber": "22"
+      "buildNumber": "23"
     },
     "android": {
       "adaptiveIcon": {

@@ -12,6 +12,15 @@ export interface CreditTransactionDoc {
   createdAt: Date;
 }
 
+export interface RecurringScheduleDoc {
+  enabled: boolean;
+  pickupDays: number[];   // 0=Sun, 1=Mon, ... 6=Sat
+  deliveryDays: number[]; // 0=Sun, 1=Mon, ... 6=Sat
+  serviceType?: string;   // default service to use
+  notes?: string;         // recurring order instructions
+  lastGeneratedDate?: Date; // track last date orders were auto-created
+}
+
 export interface CustomerDoc {
   _id: Types.ObjectId;
   id: number;
@@ -28,6 +37,8 @@ export interface CustomerDoc {
   venmoUsername?: string;
   zelleEmail?: string;
   zellePhone?: string;
+  // Recurring order schedule
+  recurringSchedule?: RecurringScheduleDoc;
 }
 
 const creditTransactionSchema = new mongoose.Schema({
@@ -68,6 +79,33 @@ const creditTransactionSchema = new mongoose.Schema({
   createdAt: {
     type: Date,
     default: Date.now,
+  },
+}, { _id: false });
+
+const recurringScheduleSchema = new mongoose.Schema({
+  enabled: {
+    type: Boolean,
+    default: false,
+  },
+  pickupDays: {
+    type: [Number],
+    default: [],
+  },
+  deliveryDays: {
+    type: [Number],
+    default: [],
+  },
+  serviceType: {
+    type: String,
+    default: null,
+  },
+  notes: {
+    type: String,
+    default: '',
+  },
+  lastGeneratedDate: {
+    type: Date,
+    default: null,
   },
 }, { _id: false });
 
@@ -129,6 +167,11 @@ const customerSchema = new mongoose.Schema({
     type: String,
     default: null,
     sparse: true,
+  },
+  // Recurring order schedule
+  recurringSchedule: {
+    type: recurringScheduleSchema,
+    default: null,
   },
 }, {
   collection: 'customers',

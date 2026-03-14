@@ -559,7 +559,15 @@ export default function DashboardScreen() {
       >
         <View style={styles.orderHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.orderNumber}>#{order.orderId}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text style={styles.orderNumber}>#{order.orderId}</Text>
+              {order.isRecurring && (
+                <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f3ff', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 3 }}>
+                  <Ionicons name="repeat" size={11} color="#7c3aed" />
+                  <Text style={{ fontSize: 10, fontWeight: '600', color: '#7c3aed' }}>Recurring</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.customerName}>{order.customerName}</Text>
           </View>
           <View style={[styles.statusBadge, { backgroundColor: getStatusColor(order.status) }]}>

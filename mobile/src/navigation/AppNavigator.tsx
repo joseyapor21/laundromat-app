@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, View, Platform, useWindowDimensions, Modal, PanResponder } from 'react-native';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -12,6 +12,7 @@ import { TimeClockProvider, useTimeClock } from '../contexts/TimeClockContext';
 import { StorePhoneProvider, useStorePhone } from '../contexts/StorePhoneContext';
 import pushNotificationService from '../services/pushNotifications';
 import { syncAllCustomersToContacts } from '../services/contactsSync';
+import { registerBackgroundSync } from '../services/backgroundSync';
 import { api } from '../services/api';
 
 // Navigation ref for use outside of components (e.g., notification handling)
@@ -42,6 +43,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import BluetoothPrinterScreen from '../screens/BluetoothPrinterScreen';
 import ClockInScreen from '../screens/ClockInScreen';
 import DeliveryPaymentsScreen from '../screens/DeliveryPaymentsScreen';
+import KioskLoginScreen from '../screens/KioskLoginScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -309,19 +311,20 @@ function AuthenticatedAppContent() {
   const { user, logout } = useAuth();
   const { isStorePhoneMode } = useStorePhone();
   const isKioskMode = user?.isKioskMode;
+  const [showPinLock, setShowPinLock] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const logoutRef = useRef(logout);
+  const showPinLockRef = useRef(() => setShowPinLock(true));
   const contactsSynced = useRef(false);
 
-  // Keep logoutRef current so panResponder never holds a stale reference
-  useEffect(() => { logoutRef.current = logout; }, [logout]);
+  // Keep ref current
+  useEffect(() => { showPinLockRef.current = () => setShowPinLock(true); }, []);
 
-  // PanResponder created once — uses logoutRef so it's always fresh
+  // PanResponder created once — uses ref so it's always fresh
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponderCapture: () => {
         if (idleTimer.current) clearTimeout(idleTimer.current);
-        idleTimer.current = setTimeout(() => logoutRef.current(), STORE_PHONE_IDLE_TIMEOUT);
+        idleTimer.current = setTimeout(() => showPinLockRef.current(), STORE_PHONE_IDLE_TIMEOUT);
         return false;
       },
     })
@@ -334,15 +337,16 @@ function AuthenticatedAppContent() {
       return;
     }
     if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => logoutRef.current(), STORE_PHONE_IDLE_TIMEOUT);
+    idleTimer.current = setTimeout(() => showPinLockRef.current(), STORE_PHONE_IDLE_TIMEOUT);
     return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
   }, [isStorePhoneMode]);
 
-  // Sync new customers to iOS contacts (store phones only)
+  // Sync all customers to iOS contacts on every login
   // Uses SecureStore cache — only new customers are added on subsequent launches
   useEffect(() => {
-    if (!isStorePhoneMode || contactsSynced.current) return;
+    if (contactsSynced.current) return;
     contactsSynced.current = true;
+    console.log('[ContactsSync] Scheduling contacts sync in 10s...');
     const timer = setTimeout(async () => {
       try {
         const customers = await api.getCustomers();
@@ -350,12 +354,36 @@ function AuthenticatedAppContent() {
           const result = await syncAllCustomersToContacts(customers);
           console.log('[ContactsSync] Done:', result);
         }
+        // Register background sync so new contacts sync even when app is closed
+        registerBackgroundSync();
       } catch (e) {
         console.log('[ContactsSync] Error:', e);
       }
     }, 10000);
     return () => clearTimeout(timer);
-  }, [isStorePhoneMode]);
+  }, []);
+
+  // PIN lock modal — shown after idle timeout on store phones
+  const pinLockModal = showPinLock ? (
+    <Modal visible={showPinLock} animationType="slide" presentationStyle="fullScreen">
+      <KioskLoginScreen
+        onBack={() => {
+          // Back button = full logout
+          logout();
+          setShowPinLock(false);
+        }}
+        onLoginSuccess={() => {
+          // PIN accepted (same or different user) — dismiss lock
+          setShowPinLock(false);
+          // Reset idle timer
+          if (idleTimer.current) clearTimeout(idleTimer.current);
+          if (isStorePhoneMode) {
+            idleTimer.current = setTimeout(() => showPinLockRef.current(), STORE_PHONE_IDLE_TIMEOUT);
+          }
+        }}
+      />
+    </Modal>
+  ) : null;
 
   // Kiosk mode or store phone mode: skip time clock provider, clock-in prompt, and floating buttons
   if (isKioskMode || isStorePhoneMode) {
@@ -365,6 +393,7 @@ function AuthenticatedAppContent() {
           <MainStack />
           {/* No FloatingActionButtons or ClockInPrompt in kiosk/POS/store phone mode */}
         </ScannerProvider>
+        {pinLockModal}
       </View>
     );
   }

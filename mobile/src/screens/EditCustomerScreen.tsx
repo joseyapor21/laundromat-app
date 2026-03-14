@@ -13,13 +13,14 @@ import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import { api } from '../services/api';
+import { saveCustomerToContacts } from '../services/contactsSync';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
 import { formatPhoneInput, formatPhoneNumber } from '../utils/phoneFormat';
 import { localPrinter } from '../services/LocalPrinter';
 import { generateCreditBalanceReceipt } from '../services/receiptGenerator';
 import AddressInput from '../components/AddressInput';
-import type { Customer, CreditTransaction, Order, StatusHistoryEntry, Settings } from '../types';
+import type { Customer, CreditTransaction, Order, StatusHistoryEntry, Settings, RecurringSchedule } from '../types';
 
 export default function EditCustomerScreen() {
   const route = useRoute<any>();
@@ -40,6 +41,12 @@ export default function EditCustomerScreen() {
   const [deliveryFee, setDeliveryFee] = useState('');
   const [buzzerCode, setBuzzerCode] = useState('');
   const [notes, setNotes] = useState('');
+
+  // Recurring schedule
+  const [recurringEnabled, setRecurringEnabled] = useState(false);
+  const [pickupDays, setPickupDays] = useState<number[]>([]);
+  const [deliveryDays, setDeliveryDays] = useState<number[]>([]);
+  const [recurringNotes, setRecurringNotes] = useState('');
 
   // Credit
   const [showAddCredit, setShowAddCredit] = useState(false);
@@ -70,6 +77,14 @@ export default function EditCustomerScreen() {
       setDeliveryFee(data.deliveryFee?.replace('$', '') || '');
       setBuzzerCode(data.buzzerCode || '');
       setNotes(data.notes || '');
+
+      // Populate recurring schedule
+      if (data.recurringSchedule) {
+        setRecurringEnabled(data.recurringSchedule.enabled || false);
+        setPickupDays(data.recurringSchedule.pickupDays || []);
+        setDeliveryDays(data.recurringSchedule.deliveryDays || []);
+        setRecurringNotes(data.recurringSchedule.notes || '');
+      }
 
       // Load orders
       loadOrders(route.params.customerId);
@@ -130,7 +145,22 @@ export default function EditCustomerScreen() {
         deliveryFee: deliveryFee ? `$${parseFloat(deliveryFee).toFixed(2)}` : '$0.00',
         buzzerCode: buzzerCode.trim() || undefined,
         notes: notes.trim() || undefined,
+        recurringSchedule: recurringEnabled ? {
+          enabled: true,
+          pickupDays,
+          deliveryDays,
+          notes: recurringNotes.trim(),
+        } : { enabled: false, pickupDays: [], deliveryDays: [], notes: '' },
       });
+
+      // Update contact in iPhone contacts
+      saveCustomerToContacts({
+        name: name.trim(),
+        phoneNumber: phoneNumber.trim(),
+        address: address.trim(),
+        email: email.trim() || undefined,
+        notes: notes.trim() || undefined,
+      }).catch(() => {});
 
       Alert.alert('Success', 'Customer updated successfully', [
         { text: 'OK', onPress: () => navigation.goBack() }
@@ -698,6 +728,129 @@ export default function EditCustomerScreen() {
                 }, 300);
               }}
             />
+          </View>
+
+          {/* Recurring Schedule */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recurring Schedule</Text>
+            <View style={styles.card}>
+              <TouchableOpacity
+                style={recurringStyles.toggleRow}
+                onPress={() => setRecurringEnabled(!recurringEnabled)}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={recurringStyles.toggleLabel}>Enable Recurring Orders</Text>
+                  <Text style={recurringStyles.toggleDescription}>
+                    Auto-create orders on scheduled days
+                  </Text>
+                </View>
+                <View style={[
+                  recurringStyles.toggle,
+                  recurringEnabled && recurringStyles.toggleActive,
+                ]}>
+                  <View style={[
+                    recurringStyles.toggleDot,
+                    recurringEnabled && recurringStyles.toggleDotActive,
+                  ]} />
+                </View>
+              </TouchableOpacity>
+
+              {recurringEnabled && (
+                <View style={recurringStyles.scheduleSection}>
+                  <View style={recurringStyles.dayPickerGroup}>
+                    <Text style={styles.inputLabel}>Pickup Days</Text>
+                    <Text style={recurringStyles.dayPickerHint}>When to pick up laundry</Text>
+                    <View style={recurringStyles.dayRow}>
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                        <TouchableOpacity
+                          key={day}
+                          style={[
+                            recurringStyles.dayBtn,
+                            pickupDays.includes(index) && recurringStyles.dayBtnActive,
+                          ]}
+                          onPress={() => {
+                            setPickupDays(prev =>
+                              prev.includes(index)
+                                ? prev.filter(d => d !== index)
+                                : [...prev, index].sort()
+                            );
+                          }}
+                        >
+                          <Text style={[
+                            recurringStyles.dayBtnText,
+                            pickupDays.includes(index) && recurringStyles.dayBtnTextActive,
+                          ]}>
+                            {day}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={recurringStyles.dayPickerGroup}>
+                    <Text style={styles.inputLabel}>Delivery Days</Text>
+                    <Text style={recurringStyles.dayPickerHint}>When to deliver back</Text>
+                    <View style={recurringStyles.dayRow}>
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day, index) => (
+                        <TouchableOpacity
+                          key={day}
+                          style={[
+                            recurringStyles.dayBtn,
+                            deliveryDays.includes(index) && recurringStyles.dayBtnDeliveryActive,
+                          ]}
+                          onPress={() => {
+                            setDeliveryDays(prev =>
+                              prev.includes(index)
+                                ? prev.filter(d => d !== index)
+                                : [...prev, index].sort()
+                            );
+                          }}
+                        >
+                          <Text style={[
+                            recurringStyles.dayBtnText,
+                            deliveryDays.includes(index) && recurringStyles.dayBtnTextActive,
+                          ]}>
+                            {day}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </View>
+
+                  <View style={styles.inputGroup}>
+                    <Text style={styles.inputLabel}>Recurring Order Notes</Text>
+                    <TextInput
+                      style={[styles.input, { minHeight: 60 }]}
+                      value={recurringNotes}
+                      onChangeText={setRecurringNotes}
+                      placeholder="Special instructions for recurring orders..."
+                      placeholderTextColor="#94a3b8"
+                      multiline
+                      textAlignVertical="top"
+                    />
+                  </View>
+
+                  {/* Schedule Summary */}
+                  {(pickupDays.length > 0 || deliveryDays.length > 0) && (
+                    <View style={recurringStyles.summaryBox}>
+                      <Ionicons name="repeat" size={18} color="#7c3aed" />
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        {pickupDays.length > 0 && (
+                          <Text style={recurringStyles.summaryText}>
+                            Pickup: {pickupDays.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}
+                          </Text>
+                        )}
+                        {deliveryDays.length > 0 && (
+                          <Text style={recurringStyles.summaryText}>
+                            Deliver: {deliveryDays.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
           </View>
 
           {/* Payment Connections */}
@@ -1314,5 +1467,101 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#2563eb',
+  },
+});
+
+const recurringStyles = StyleSheet.create({
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  toggleLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  toggleDescription: {
+    fontSize: 12,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  toggle: {
+    width: 50,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: '#e2e8f0',
+    padding: 3,
+    justifyContent: 'center',
+  },
+  toggleActive: {
+    backgroundColor: '#7c3aed',
+  },
+  toggleDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+  },
+  toggleDotActive: {
+    alignSelf: 'flex-end',
+  },
+  scheduleSection: {
+    marginTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#f1f5f9',
+    paddingTop: 16,
+  },
+  dayPickerGroup: {
+    marginBottom: 16,
+  },
+  dayPickerHint: {
+    fontSize: 12,
+    color: '#94a3b8',
+    marginBottom: 8,
+  },
+  dayRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  dayBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  dayBtnActive: {
+    backgroundColor: '#ede9fe',
+    borderColor: '#7c3aed',
+  },
+  dayBtnDeliveryActive: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#2563eb',
+  },
+  dayBtnText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  dayBtnTextActive: {
+    color: '#1e293b',
+  },
+  summaryBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f5f3ff',
+    borderRadius: 10,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: '#ede9fe',
+  },
+  summaryText: {
+    fontSize: 13,
+    color: '#5b21b6',
+    fontWeight: '500',
+    marginBottom: 2,
   },
 });
