@@ -104,7 +104,6 @@ export async function syncAllCustomersToContacts(
 
   let added = 0;
   let skipped = customers.length - newCustomers.length;
-  const BATCH_SIZE = 5;
 
   for (let i = 0; i < newCustomers.length; i++) {
     const customer = newCustomers[i];
@@ -123,14 +122,17 @@ export async function syncAllCustomersToContacts(
       await Contacts.addContactAsync(contactData);
       added++;
       syncedPhones.add(normalized);
+      // Save after every single contact so progress survives a crash/kill
+      await saveSyncedPhones(syncedPhones);
     } catch {
+      // Mark as skipped but still save so we don't retry this one forever
+      syncedPhones.add(normalized);
+      await saveSyncedPhones(syncedPhones);
       skipped++;
     }
 
-    // Pause every BATCH_SIZE writes
-    if ((i + 1) % BATCH_SIZE === 0) {
-      await new Promise(resolve => setTimeout(resolve, 200));
-    }
+    // 1 second pause between each contact to avoid iOS watchdog kill
+    await new Promise(resolve => setTimeout(resolve, 1000));
   }
 
   await saveSyncedPhones(syncedPhones);

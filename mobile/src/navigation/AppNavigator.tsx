@@ -348,7 +348,7 @@ function AuthenticatedAppContent() {
         const customers = await api.getCustomers();
         if (customers?.length) await syncAllCustomersToContacts(customers);
       } catch {}
-    }, 5000);
+    }, 30000);
     return () => clearTimeout(timer);
   }, [isStorePhoneMode]);
 
