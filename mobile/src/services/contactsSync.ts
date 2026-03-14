@@ -77,8 +77,10 @@ export async function syncAllCustomersToContacts(
 
   let added = 0;
   let skipped = 0;
+  const BATCH_SIZE = 10;
 
-  for (const customer of customers) {
+  for (let i = 0; i < customers.length; i++) {
+    const customer = customers[i];
     if (!customer.phoneNumber) { skipped++; continue; }
     const normalized = normalizePhone(customer.phoneNumber);
 
@@ -95,7 +97,6 @@ export async function syncAllCustomersToContacts(
     if (existing?.id) {
       if (existing.note?.includes(LAUNDROMAT_NOTE)) {
         await Contacts.updateContactAsync({ ...contactData, id: existing.id });
-        // update map so subsequent duplicates see the updated entry
         phoneMap.set(normalized, { ...contactData, id: existing.id });
       } else {
         skipped++;
@@ -103,6 +104,11 @@ export async function syncAllCustomersToContacts(
     } else {
       await Contacts.addContactAsync(contactData);
       added++;
+    }
+
+    // Pause every BATCH_SIZE writes to avoid overwhelming the native bridge
+    if ((i + 1) % BATCH_SIZE === 0) {
+      await new Promise(resolve => setTimeout(resolve, 100));
     }
   }
 
