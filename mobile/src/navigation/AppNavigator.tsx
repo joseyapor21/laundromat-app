@@ -338,21 +338,7 @@ function AuthenticatedAppContent() {
     return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
   }, [isStorePhoneMode]);
 
-  // Sync all customers to contacts once on startup (store phones only)
-  // Delayed 15s so the app fully loads first, fully fire-and-forget
-  useEffect(() => {
-    if (!isStorePhoneMode || contactsSynced.current) return;
-    contactsSynced.current = true;
-    const timer = setTimeout(async () => {
-      try {
-        const customers = await api.getCustomers();
-        if (customers?.length) {
-          await syncAllCustomersToContacts(customers);
-        }
-      } catch {}
-    }, 15000);
-    return () => clearTimeout(timer);
-  }, [isStorePhoneMode]);
+  // Note: expo-contacts sync disabled — CallerID module handles customer identification
 
   // Kiosk mode or store phone mode: skip time clock provider, clock-in prompt, and floating buttons
   if (isKioskMode || isStorePhoneMode) {
