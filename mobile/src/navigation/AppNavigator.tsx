@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { ActivityIndicator, View, Platform, useWindowDimensions, Modal } from 'react-native';
+import React, { useEffect, useRef, useCallback } from 'react';
+import { ActivityIndicator, View, Platform, useWindowDimensions, Modal, PanResponder } from 'react-native';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -303,10 +303,40 @@ function ClockInPrompt() {
   );
 }
 
+const STORE_PHONE_IDLE_TIMEOUT = 5 * 60 * 1000; // 5 minutes
+
 function AuthenticatedAppContent() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { isStorePhoneMode } = useStorePhone();
   const isKioskMode = user?.isKioskMode;
+  const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetIdleTimer = useCallback(() => {
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => {
+      logout();
+    }, STORE_PHONE_IDLE_TIMEOUT);
+  }, [logout]);
+
+  // Start/clear idle timer based on store phone mode
+  useEffect(() => {
+    if (!isStorePhoneMode) {
+      if (idleTimer.current) clearTimeout(idleTimer.current);
+      return;
+    }
+    resetIdleTimer();
+    return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
+  }, [isStorePhoneMode, resetIdleTimer]);
+
+  // PanResponder to detect any touch and reset the timer
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponderCapture: () => {
+        resetIdleTimer();
+        return false; // don't consume the touch, just observe it
+      },
+    })
+  ).current;
 
   // Sync all customers to contacts on startup (store phones only)
   useEffect(() => {
@@ -321,10 +351,12 @@ function AuthenticatedAppContent() {
   // Kiosk mode or store phone mode: skip time clock provider, clock-in prompt, and floating buttons
   if (isKioskMode || isStorePhoneMode) {
     return (
-      <ScannerProvider>
-        <MainStack />
-        {/* No FloatingActionButtons or ClockInPrompt in kiosk/POS/store phone mode */}
-      </ScannerProvider>
+      <View style={{ flex: 1 }} {...(isStorePhoneMode ? panResponder.panHandlers : {})}>
+        <ScannerProvider>
+          <MainStack />
+          {/* No FloatingActionButtons or ClockInPrompt in kiosk/POS/store phone mode */}
+        </ScannerProvider>
+      </View>
     );
   }
 
