@@ -5,17 +5,19 @@ import type { Customer } from '../types';
 const LAUNDROMAT_NOTE = '[Laundromat Customer]';
 const SYNCED_PHONES_KEY = 'synced_contact_phones';
 
-// Request contacts permission — returns true if granted
+// Request contacts permission — returns true if granted or limited (iOS 18+)
 async function requestPermission(): Promise<boolean> {
-  const { status: existing } = await Contacts.getPermissionsAsync();
-  if (existing === 'granted') return true;
-  if (existing === 'denied') {
+  const existing = await Contacts.getPermissionsAsync();
+  const existingOk = existing.status === 'granted' || (existing as any).accessPrivileges === 'limited';
+  if (existingOk) return true;
+  if (existing.status === 'denied') {
     console.log('[ContactsSync] Permission denied — skipping sync');
     return false;
   }
-  const { status } = await Contacts.requestPermissionsAsync();
-  console.log('[ContactsSync] Permission status:', status);
-  return status === 'granted';
+  const result = await Contacts.requestPermissionsAsync();
+  const granted = result.status === 'granted' || (result as any).accessPrivileges === 'limited';
+  console.log('[ContactsSync] Permission status:', result.status, (result as any).accessPrivileges);
+  return granted;
 }
 
 // Normalize phone for comparison (digits only)
