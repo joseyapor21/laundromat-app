@@ -41,8 +41,8 @@ export async function GET(request: NextRequest) {
       const from = fromParam ? new Date(fromParam).getTime() : 0;
       const to = toParam ? new Date(toParam).getTime() : Infinity;
       history = history.filter(point => {
-        const t = new Date(point.updatedAt).getTime();
-        return t >= from && t <= to;
+        const t = new Date((point as any).updatedAt).getTime();
+        return !isNaN(t) && t >= from && t <= to;
       });
     }
 
