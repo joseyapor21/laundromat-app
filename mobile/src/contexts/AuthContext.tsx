@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { api } from '../services/api';
+import { clearContactsSyncCache } from '../services/contactsSync';
 import type { User, Location } from '../types';
 
 const USER_CACHE_KEY = 'cached_user';
@@ -169,6 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       await api.logout();
       await clearCachedUser();
+      await clearContactsSyncCache();
     } finally {
       setUser(null);
     }
