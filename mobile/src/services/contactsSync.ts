@@ -7,7 +7,14 @@ const SYNCED_PHONES_KEY = 'synced_contact_phones';
 
 // Request contacts permission — returns true if granted
 async function requestPermission(): Promise<boolean> {
+  const { status: existing } = await Contacts.getPermissionsAsync();
+  if (existing === 'granted') return true;
+  if (existing === 'denied') {
+    console.log('[ContactsSync] Permission denied — skipping sync');
+    return false;
+  }
   const { status } = await Contacts.requestPermissionsAsync();
+  console.log('[ContactsSync] Permission status:', status);
   return status === 'granted';
 }
 
@@ -92,21 +99,8 @@ export async function syncAllCustomersToContacts(
     return !syncedPhones.has(normalizePhone(c.phoneNumber));
   });
 
+  console.log(`[ContactsSync] ${newCustomers.length} new customers to add, ${customers.length - newCustomers.length} already synced`);
   if (newCustomers.length === 0) return { added: 0, skipped: customers.length };
-
-  // Only fetch device contacts if there are new customers to add
-  const { data: allContacts } = await Contacts.getContactsAsync({
-    fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Note],
-  });
-
-  const phoneMap = new Map<string, Contacts.Contact>();
-  for (const contact of allContacts) {
-    if (contact.phoneNumbers) {
-      for (const pn of contact.phoneNumbers) {
-        if (pn.number) phoneMap.set(normalizePhone(pn.number), contact);
-      }
-    }
-  }
 
   let added = 0;
   let skipped = customers.length - newCustomers.length;
@@ -126,18 +120,8 @@ export async function syncAllCustomersToContacts(
     if (customer.address) contactData.addresses = [{ street: customer.address, label: 'home' }];
 
     try {
-      const existing = phoneMap.get(normalized);
-      if (existing?.id) {
-        if (existing.note?.includes(LAUNDROMAT_NOTE)) {
-          await Contacts.updateContactAsync({ ...contactData, id: existing.id });
-        } else {
-          skipped++;
-        }
-      } else {
-        await Contacts.addContactAsync(contactData);
-        added++;
-      }
-      // Mark as synced regardless so we don't retry failures indefinitely
+      await Contacts.addContactAsync(contactData);
+      added++;
       syncedPhones.add(normalized);
     } catch {
       skipped++;
