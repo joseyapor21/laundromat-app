@@ -180,12 +180,16 @@ export default function DashboardScreen() {
 
   // Auto-sync Caller ID on launch and periodically (skip in kiosk/POS mode)
   const isKioskMode = user?.isKioskMode;
+  const callerIDSyncing = useRef(false);
   useEffect(() => {
     // Skip CallerID sync in kiosk/POS mode
     if (isKioskMode) return;
 
     const syncCallerID = async () => {
       if (!callerIDService.isAvailable()) return;
+      // Prevent concurrent calls — native module crashes if called twice simultaneously
+      if (callerIDSyncing.current) return;
+      callerIDSyncing.current = true;
 
       try {
         // Check if this device is registered for Caller ID
@@ -217,6 +221,8 @@ export default function DashboardScreen() {
         console.log('Caller ID auto-synced:', callerIDCustomers.length, 'customers');
       } catch (error) {
         console.log('Caller ID auto-sync failed:', error);
+      } finally {
+        callerIDSyncing.current = false;
       }
     };
 
