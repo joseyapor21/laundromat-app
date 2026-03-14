@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { ActivityIndicator, View, Platform, useWindowDimensions, Modal, PanResponder } from 'react-native';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -310,37 +310,38 @@ function AuthenticatedAppContent() {
   const { isStorePhoneMode } = useStorePhone();
   const isKioskMode = user?.isKioskMode;
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const logoutRef = useRef(logout);
+  const contactsSynced = useRef(false);
 
-  const resetIdleTimer = useCallback(() => {
-    if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(() => {
-      logout();
-    }, STORE_PHONE_IDLE_TIMEOUT);
-  }, [logout]);
+  // Keep logoutRef current so panResponder never holds a stale reference
+  useEffect(() => { logoutRef.current = logout; }, [logout]);
 
-  // Start/clear idle timer based on store phone mode
+  // PanResponder created once — uses logoutRef so it's always fresh
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponderCapture: () => {
+        if (idleTimer.current) clearTimeout(idleTimer.current);
+        idleTimer.current = setTimeout(() => logoutRef.current(), STORE_PHONE_IDLE_TIMEOUT);
+        return false;
+      },
+    })
+  ).current;
+
+  // Start idle timer when store phone mode is active
   useEffect(() => {
     if (!isStorePhoneMode) {
       if (idleTimer.current) clearTimeout(idleTimer.current);
       return;
     }
-    resetIdleTimer();
+    if (idleTimer.current) clearTimeout(idleTimer.current);
+    idleTimer.current = setTimeout(() => logoutRef.current(), STORE_PHONE_IDLE_TIMEOUT);
     return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
-  }, [isStorePhoneMode, resetIdleTimer]);
+  }, [isStorePhoneMode]);
 
-  // PanResponder to detect any touch and reset the timer
-  const panResponder = useRef(
-    PanResponder.create({
-      onStartShouldSetPanResponderCapture: () => {
-        resetIdleTimer();
-        return false; // don't consume the touch, just observe it
-      },
-    })
-  ).current;
-
-  // Sync all customers to contacts on startup (store phones only)
+  // Sync all customers to contacts once on startup (store phones only)
   useEffect(() => {
-    if (!isStorePhoneMode) return;
+    if (!isStorePhoneMode || contactsSynced.current) return;
+    contactsSynced.current = true;
     api.getCustomers().then(customers => {
       if (customers?.length) {
         syncAllCustomersToContacts(customers).catch(() => {});
