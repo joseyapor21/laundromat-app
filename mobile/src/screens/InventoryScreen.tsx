@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -84,7 +84,7 @@ export default function InventoryScreen() {
 
   useFocusEffect(useCallback(() => { loadInventory(); }, []));
 
-  const filteredItems = items.filter(item => {
+  const filteredItems = useMemo(() => items.filter(item => {
     if (categoryFilter !== 'all' && item.category !== categoryFilter) return false;
     if (statusFilter !== 'all') {
       if (statusFilter === 'needs_order' && !item.needsOrder) return false;
@@ -95,7 +95,7 @@ export default function InventoryScreen() {
       return item.name.toLowerCase().includes(s) || item.category?.toLowerCase().includes(s);
     }
     return true;
-  });
+  }), [items, categoryFilter, statusFilter, search]);
 
   async function handleQuickStatus(item: InventoryItem, status: StockStatus) {
     try {
@@ -161,7 +161,7 @@ export default function InventoryScreen() {
     ]);
   }
 
-  const renderItem = ({ item }: { item: InventoryItem }) => {
+  const renderItem = useCallback(({ item }: { item: InventoryItem }) => {
     const st = STATUS_CONFIG[item.status];
     return (
       <View style={styles.card}>
@@ -217,7 +217,7 @@ export default function InventoryScreen() {
         )}
       </View>
     );
-  };
+  }, [canEdit, isAdmin, user?.isInventoryManager, handleQuickStatus, setEditingItem, handleDelete]);
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
@@ -303,6 +303,9 @@ export default function InventoryScreen() {
           keyExtractor={item => item._id}
           renderItem={renderItem}
           contentContainerStyle={styles.list}
+          removeClippedSubviews
+          maxToRenderPerBatch={10}
+          windowSize={5}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadInventory(); }} />}
           ListEmptyComponent={
             <View style={styles.centered}>

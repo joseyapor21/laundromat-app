@@ -430,7 +430,12 @@ export default function AdminScreen() {
     setTrajectoryHistory([]);
     setSnappedTrajectory([]);
     try {
-      const response = await api.getDriverLocationHistory(userId);
+      // Only load locations from today's start (midnight) until tonight at 12AM
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+      const response = await api.getDriverLocationHistory(userId, todayStart.toISOString(), todayEnd.toISOString());
       setTrajectoryHistory(response.history);
 
       // Snap GPS points to roads so lines follow streets (not float in the air)

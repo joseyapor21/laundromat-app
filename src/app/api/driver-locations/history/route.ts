@@ -18,6 +18,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
+    const fromParam = searchParams.get('from');
+    const toParam = searchParams.get('to');
 
     if (!userId) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
@@ -33,9 +35,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Driver not found' }, { status: 404 });
     }
 
+    let history: Array<{ latitude: number; longitude: number; updatedAt: string }> = user.locationHistory || [];
+
+    if (fromParam || toParam) {
+      const from = fromParam ? new Date(fromParam).getTime() : 0;
+      const to = toParam ? new Date(toParam).getTime() : Infinity;
+      history = history.filter(point => {
+        const t = new Date(point.updatedAt).getTime();
+        return t >= from && t <= to;
+      });
+    }
+
     return NextResponse.json({
       name: user.name || user.email,
-      history: user.locationHistory || [],
+      history,
     });
   } catch (error) {
     console.error('Get driver history error:', error);

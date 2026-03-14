@@ -919,7 +919,7 @@ class ApiService {
     });
   }
 
-  async getDriverLocationHistory(userId: string): Promise<{
+  async getDriverLocationHistory(userId: string, from?: string, to?: string): Promise<{
     name: string;
     history: Array<{
       latitude: number;
@@ -929,7 +929,10 @@ class ApiService {
       updatedAt: string;
     }>;
   }> {
-    return this.request(`/driver-locations/history?userId=${userId}`);
+    let url = `/driver-locations/history?userId=${userId}`;
+    if (from) url += `&from=${encodeURIComponent(from)}`;
+    if (to) url += `&to=${encodeURIComponent(to)}`;
+    return this.request(url);
   }
 
   // Bag Photos
