@@ -14,27 +14,6 @@ function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
-// Find an existing contact by phone number
-async function findContactByPhone(phone: string): Promise<Contacts.Contact | null> {
-  const normalized = normalizePhone(phone);
-  if (!normalized) return null;
-
-  const { data } = await Contacts.getContactsAsync({
-    fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Note],
-  });
-
-  for (const contact of data) {
-    if (contact.phoneNumbers) {
-      for (const pn of contact.phoneNumbers) {
-        if (pn.number && normalizePhone(pn.number) === normalized) {
-          return contact;
-        }
-      }
-    }
-  }
-  return null;
-}
-
 // Save a single customer to iPhone contacts
 // Returns 'created' | 'updated' | 'skipped'
 export async function saveCustomerToContacts(
@@ -44,7 +23,14 @@ export async function saveCustomerToContacts(
   if (!granted) return 'skipped';
   if (!customer.phoneNumber) return 'skipped';
 
-  const existing = await findContactByPhone(customer.phoneNumber);
+  const normalized = normalizePhone(customer.phoneNumber);
+  const { data } = await Contacts.getContactsAsync({
+    fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Note],
+  });
+
+  const existing = data.find(c =>
+    c.phoneNumbers?.some(pn => pn.number && normalizePhone(pn.number) === normalized)
+  ) || null;
 
   const contactData: Contacts.Contact = {
     contactType: Contacts.ContactTypes.Person,
@@ -52,22 +38,14 @@ export async function saveCustomerToContacts(
     phoneNumbers: [{ number: customer.phoneNumber, label: 'mobile' }],
     note: LAUNDROMAT_NOTE,
   };
-
-  if (customer.email) {
-    contactData.emails = [{ email: customer.email, label: 'work' }];
-  }
-
-  if (customer.address) {
-    contactData.addresses = [{ street: customer.address, label: 'home' }];
-  }
+  if (customer.email) contactData.emails = [{ email: customer.email, label: 'work' }];
+  if (customer.address) contactData.addresses = [{ street: customer.address, label: 'home' }];
 
   if (existing?.id) {
-    // Update existing contact if it was added by us
     if (existing.note?.includes(LAUNDROMAT_NOTE)) {
       await Contacts.updateContactAsync({ ...contactData, id: existing.id });
       return 'updated';
     }
-    // Contact exists but wasn't added by us — skip to avoid overwriting
     return 'skipped';
   }
 
@@ -75,7 +53,7 @@ export async function saveCustomerToContacts(
   return 'created';
 }
 
-// Sync all customers to contacts — only adds missing ones
+// Sync all customers to contacts — fetches contacts once, then processes all in memory
 // Returns counts of added / skipped
 export async function syncAllCustomersToContacts(
   customers: Pick<Customer, 'name' | 'phoneNumber' | 'address' | 'email'>[]
@@ -83,14 +61,49 @@ export async function syncAllCustomersToContacts(
   const granted = await requestPermission();
   if (!granted) return { added: 0, skipped: 0 };
 
+  // Fetch all contacts once and build a phone→contact map
+  const { data: allContacts } = await Contacts.getContactsAsync({
+    fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Name, Contacts.Fields.Note],
+  });
+
+  const phoneMap = new Map<string, Contacts.Contact>();
+  for (const contact of allContacts) {
+    if (contact.phoneNumbers) {
+      for (const pn of contact.phoneNumbers) {
+        if (pn.number) phoneMap.set(normalizePhone(pn.number), contact);
+      }
+    }
+  }
+
   let added = 0;
   let skipped = 0;
 
   for (const customer of customers) {
     if (!customer.phoneNumber) { skipped++; continue; }
-    const result = await saveCustomerToContacts(customer);
-    if (result === 'created') added++;
-    else skipped++;
+    const normalized = normalizePhone(customer.phoneNumber);
+
+    const contactData: Contacts.Contact = {
+      contactType: Contacts.ContactTypes.Person,
+      name: customer.name,
+      phoneNumbers: [{ number: customer.phoneNumber, label: 'mobile' }],
+      note: LAUNDROMAT_NOTE,
+    };
+    if (customer.email) contactData.emails = [{ email: customer.email, label: 'work' }];
+    if (customer.address) contactData.addresses = [{ street: customer.address, label: 'home' }];
+
+    const existing = phoneMap.get(normalized);
+    if (existing?.id) {
+      if (existing.note?.includes(LAUNDROMAT_NOTE)) {
+        await Contacts.updateContactAsync({ ...contactData, id: existing.id });
+        // update map so subsequent duplicates see the updated entry
+        phoneMap.set(normalized, { ...contactData, id: existing.id });
+      } else {
+        skipped++;
+      }
+    } else {
+      await Contacts.addContactAsync(contactData);
+      added++;
+    }
   }
 
   return { added, skipped };
