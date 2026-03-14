@@ -16,6 +16,8 @@ export interface RecurringScheduleDoc {
   enabled: boolean;
   pickupDays: number[];   // 0=Sun, 1=Mon, ... 6=Sat
   deliveryDays: number[]; // 0=Sun, 1=Mon, ... 6=Sat
+  pickupTime?: string;    // HH:mm format (e.g. "08:00")
+  deliveryTime?: string;  // HH:mm format (e.g. "17:00")
   serviceType?: string;   // default service to use
   notes?: string;         // recurring order instructions
   lastGeneratedDate?: Date; // track last date orders were auto-created
@@ -94,6 +96,14 @@ const recurringScheduleSchema = new mongoose.Schema({
   deliveryDays: {
     type: [Number],
     default: [],
+  },
+  pickupTime: {
+    type: String,
+    default: null,
+  },
+  deliveryTime: {
+    type: String,
+    default: null,
   },
   serviceType: {
     type: String,

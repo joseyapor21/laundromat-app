@@ -12,6 +12,8 @@ import {
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Notifications from 'expo-notifications';
 import { api } from '../services/api';
 import { saveCustomerToContacts } from '../services/contactsSync';
 import { useAuth } from '../contexts/AuthContext';
@@ -21,6 +23,27 @@ import { localPrinter } from '../services/LocalPrinter';
 import { generateCreditBalanceReceipt } from '../services/receiptGenerator';
 import AddressInput from '../components/AddressInput';
 import type { Customer, CreditTransaction, Order, StatusHistoryEntry, Settings, RecurringSchedule } from '../types';
+
+// Recurring order notification constants
+const RECURRING_NOTIFICATION_PREFIX = 'recurring-order-';
+const RECURRING_ALARM_CHANNEL_ID = 'recurring-order-alarm';
+
+// Set up Android notification channel for recurring order reminders
+const setupRecurringAlarmChannel = async () => {
+  if (Platform.OS === 'android') {
+    await Notifications.setNotificationChannelAsync(RECURRING_ALARM_CHANNEL_ID, {
+      name: 'Recurring Order Reminders',
+      description: 'Reminders for scheduled recurring order pickups and deliveries',
+      importance: Notifications.AndroidImportance.MAX,
+      sound: 'alarm.mp3',
+      vibrationPattern: [0, 500, 200, 500, 200, 500, 200, 500],
+      enableVibrate: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      bypassDnd: true,
+    });
+  }
+};
+setupRecurringAlarmChannel();
 
 export default function EditCustomerScreen() {
   const route = useRoute<any>();
@@ -46,6 +69,10 @@ export default function EditCustomerScreen() {
   const [recurringEnabled, setRecurringEnabled] = useState(false);
   const [pickupDays, setPickupDays] = useState<number[]>([]);
   const [deliveryDays, setDeliveryDays] = useState<number[]>([]);
+  const [pickupTime, setPickupTime] = useState<Date>(new Date(2000, 0, 1, 8, 0)); // default 8:00 AM
+  const [deliveryTime, setDeliveryTime] = useState<Date>(new Date(2000, 0, 1, 17, 0)); // default 5:00 PM
+  const [showPickupTimePicker, setShowPickupTimePicker] = useState(false);
+  const [showDeliveryTimePicker, setShowDeliveryTimePicker] = useState(false);
   const [recurringNotes, setRecurringNotes] = useState('');
 
   // Credit
@@ -84,6 +111,14 @@ export default function EditCustomerScreen() {
         setPickupDays(data.recurringSchedule.pickupDays || []);
         setDeliveryDays(data.recurringSchedule.deliveryDays || []);
         setRecurringNotes(data.recurringSchedule.notes || '');
+        if (data.recurringSchedule.pickupTime) {
+          const [h, m] = data.recurringSchedule.pickupTime.split(':').map(Number);
+          setPickupTime(new Date(2000, 0, 1, h, m));
+        }
+        if (data.recurringSchedule.deliveryTime) {
+          const [h, m] = data.recurringSchedule.deliveryTime.split(':').map(Number);
+          setDeliveryTime(new Date(2000, 0, 1, h, m));
+        }
       }
 
       // Load orders
@@ -125,6 +160,97 @@ export default function EditCustomerScreen() {
     loadSettings();
   }, []);
 
+  // Cancel all recurring reminders for a customer
+  const cancelRecurringReminders = async (customerId: string) => {
+    try {
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      for (const notif of scheduled) {
+        if (notif.identifier.startsWith(`${RECURRING_NOTIFICATION_PREFIX}${customerId}`)) {
+          await Notifications.cancelScheduledNotificationAsync(notif.identifier);
+        }
+      }
+    } catch (e) {
+      console.log('Failed to cancel recurring reminders:', e);
+    }
+  };
+
+  // Schedule weekly recurring reminders for pickup and delivery
+  const scheduleRecurringReminders = async (
+    customerId: string,
+    customerName: string,
+    pDays: number[],
+    dDays: number[],
+    pTime: Date,
+    dTime: Date,
+  ) => {
+    try {
+      // Request notification permissions
+      let { status } = await Notifications.getPermissionsAsync();
+      if (status !== 'granted') {
+        const result = await Notifications.requestPermissionsAsync();
+        status = result.status;
+      }
+      if (status !== 'granted') return;
+
+      // Cancel existing reminders for this customer
+      await cancelRecurringReminders(customerId);
+
+      // Schedule pickup day reminders
+      for (const day of pDays) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `📦 Pickup Reminder: ${customerName}`,
+            body: `Scheduled pickup at ${formatTimeDisplay(pTime)}. Recurring order for ${customerName}.`,
+            sound: Platform.OS === 'ios' ? 'alarm.wav' : 'alarm.mp3',
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            vibrate: [0, 500, 200, 500, 200, 500],
+            ...(Platform.OS === 'android' && { channelId: RECURRING_ALARM_CHANNEL_ID }),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            weekday: day === 0 ? 1 : day + 1, // iOS: 1=Sun, 2=Mon... convert from 0=Sun
+            hour: pTime.getHours(),
+            minute: pTime.getMinutes(),
+          },
+          identifier: `${RECURRING_NOTIFICATION_PREFIX}${customerId}-pickup-${day}`,
+        });
+      }
+
+      // Schedule delivery day reminders
+      for (const day of dDays) {
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: `🚚 Delivery Reminder: ${customerName}`,
+            body: `Scheduled delivery at ${formatTimeDisplay(dTime)}. Recurring order for ${customerName}.`,
+            sound: Platform.OS === 'ios' ? 'alarm.wav' : 'alarm.mp3',
+            priority: Notifications.AndroidNotificationPriority.MAX,
+            vibrate: [0, 500, 200, 500, 200, 500],
+            ...(Platform.OS === 'android' && { channelId: RECURRING_ALARM_CHANNEL_ID }),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.WEEKLY,
+            weekday: day === 0 ? 1 : day + 1,
+            hour: dTime.getHours(),
+            minute: dTime.getMinutes(),
+          },
+          identifier: `${RECURRING_NOTIFICATION_PREFIX}${customerId}-delivery-${day}`,
+        });
+      }
+
+      console.log(`[Recurring] Scheduled ${pDays.length} pickup + ${dDays.length} delivery reminders for ${customerName}`);
+    } catch (e) {
+      console.log('Failed to schedule recurring reminders:', e);
+    }
+  };
+
+  const formatTimeDisplay = (date: Date) => {
+    const hours = date.getHours();
+    const minutes = date.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    const h = hours % 12 || 12;
+    return `${h}:${String(minutes).padStart(2, '0')} ${ampm}`;
+  };
+
   const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Error', 'Customer name is required');
@@ -149,9 +275,25 @@ export default function EditCustomerScreen() {
           enabled: true,
           pickupDays,
           deliveryDays,
+          pickupTime: `${String(pickupTime.getHours()).padStart(2, '0')}:${String(pickupTime.getMinutes()).padStart(2, '0')}`,
+          deliveryTime: `${String(deliveryTime.getHours()).padStart(2, '0')}:${String(deliveryTime.getMinutes()).padStart(2, '0')}`,
           notes: recurringNotes.trim(),
         } : { enabled: false, pickupDays: [], deliveryDays: [], notes: '' },
       });
+
+      // Schedule/cancel recurring order reminders
+      if (recurringEnabled && (pickupDays.length > 0 || deliveryDays.length > 0)) {
+        await scheduleRecurringReminders(
+          customer!._id,
+          name.trim(),
+          pickupDays,
+          deliveryDays,
+          pickupTime,
+          deliveryTime,
+        );
+      } else {
+        await cancelRecurringReminders(customer!._id);
+      }
 
       // Update contact in iPhone contacts
       saveCustomerToContacts({
@@ -817,6 +959,52 @@ export default function EditCustomerScreen() {
                     </View>
                   </View>
 
+                  {/* Time Pickers */}
+                  <View style={recurringStyles.timeRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputLabel}>Pickup Time</Text>
+                      <TouchableOpacity
+                        style={recurringStyles.timeButton}
+                        onPress={() => setShowPickupTimePicker(true)}
+                      >
+                        <Ionicons name="time-outline" size={18} color="#7c3aed" />
+                        <Text style={recurringStyles.timeButtonText}>{formatTimeDisplay(pickupTime)}</Text>
+                      </TouchableOpacity>
+                      {showPickupTimePicker && (
+                        <DateTimePicker
+                          value={pickupTime}
+                          mode="time"
+                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                          onChange={(event, date) => {
+                            setShowPickupTimePicker(Platform.OS === 'ios');
+                            if (date) setPickupTime(date);
+                          }}
+                        />
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.inputLabel}>Delivery Time</Text>
+                      <TouchableOpacity
+                        style={recurringStyles.timeButton}
+                        onPress={() => setShowDeliveryTimePicker(true)}
+                      >
+                        <Ionicons name="time-outline" size={18} color="#2563eb" />
+                        <Text style={[recurringStyles.timeButtonText, { color: '#2563eb' }]}>{formatTimeDisplay(deliveryTime)}</Text>
+                      </TouchableOpacity>
+                      {showDeliveryTimePicker && (
+                        <DateTimePicker
+                          value={deliveryTime}
+                          mode="time"
+                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                          onChange={(event, date) => {
+                            setShowDeliveryTimePicker(Platform.OS === 'ios');
+                            if (date) setDeliveryTime(date);
+                          }}
+                        />
+                      )}
+                    </View>
+                  </View>
+
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>Recurring Order Notes</Text>
                     <TextInput
@@ -837,14 +1025,17 @@ export default function EditCustomerScreen() {
                       <View style={{ flex: 1, marginLeft: 10 }}>
                         {pickupDays.length > 0 && (
                           <Text style={recurringStyles.summaryText}>
-                            Pickup: {pickupDays.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}
+                            Pickup: {pickupDays.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')} at {formatTimeDisplay(pickupTime)}
                           </Text>
                         )}
                         {deliveryDays.length > 0 && (
                           <Text style={recurringStyles.summaryText}>
-                            Deliver: {deliveryDays.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')}
+                            Deliver: {deliveryDays.map(d => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join(', ')} at {formatTimeDisplay(deliveryTime)}
                           </Text>
                         )}
+                        <Text style={[recurringStyles.summaryText, { color: '#7c3aed', fontSize: 11, marginTop: 4 }]}>
+                          Alarm reminders will sound at scheduled times
+                        </Text>
                       </View>
                     </View>
                   )}
@@ -1563,5 +1754,25 @@ const recurringStyles = StyleSheet.create({
     color: '#5b21b6',
     fontWeight: '500',
     marginBottom: 2,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+  timeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#f8fafc',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 12,
+  },
+  timeButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#7c3aed',
   },
 });
