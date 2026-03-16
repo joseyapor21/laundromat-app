@@ -5,7 +5,8 @@ export interface OrderDoc {
   _id: Types.ObjectId;
   id: string;
   orderId: number;
-  orderNumber?: string;
+  orderNumber?: string;  // legacy
+  ticketNumber?: string;
   locationId?: Types.ObjectId;
   customerId: string;
   customerName: string;
@@ -258,6 +259,11 @@ const orderSchema = new mongoose.Schema<OrderDoc>({
   orderNumber: {
     type: String,
     required: false,
+  },
+  ticketNumber: {
+    type: String,
+    required: false,
+    default: null,
   },
   locationId: {
     type: mongoose.Schema.Types.ObjectId,

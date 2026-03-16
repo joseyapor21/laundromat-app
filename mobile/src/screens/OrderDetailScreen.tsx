@@ -427,7 +427,7 @@ export default function OrderDetailScreen() {
               </div>
               <div class="invoice-title">
                 <h1>INVOICE</h1>
-                <div class="invoice-number">Order #${orderNumber}</div>
+                <div class="invoice-number">Order #${orderNumber}${order.ticketNumber ? ` · Ticket #${order.ticketNumber}` : ''}</div>
                 <div class="status-badge" style="background-color: ${statusColor};">${statusLabel}</div>
               </div>
             </div>
@@ -1694,7 +1694,29 @@ export default function OrderDetailScreen() {
         <View style={styles.headerCard}>
           <View style={styles.headerRow}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-              <Text style={styles.orderId}>Order #{order.orderId}</Text>
+              <Text style={styles.orderId}>Order #{order.orderId}{order.ticketNumber ? ` · T#${order.ticketNumber}` : ''}</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  Alert.prompt(
+                    'Ticket Number',
+                    'Enter a manual ticket number for this order',
+                    async (text) => {
+                      if (text !== null) {
+                        try {
+                          await api.updateOrder(order._id, { ticketNumber: text.trim() || undefined } as any);
+                          fetchOrder();
+                        } catch (e) {
+                          Alert.alert('Error', 'Failed to update ticket number');
+                        }
+                      }
+                    },
+                    'plain-text',
+                    order.ticketNumber || '',
+                  );
+                }}
+              >
+                <Ionicons name="ticket-outline" size={18} color="#64748b" />
+              </TouchableOpacity>
               {order.isRecurring && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f3ff', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, gap: 4 }}>
                   <Ionicons name="repeat" size={12} color="#7c3aed" />
@@ -1765,13 +1787,24 @@ export default function OrderDetailScreen() {
                     Alert.alert('Error', 'SMS is not available on this device');
                     return;
                   }
-                  const statusLabel = order.status === 'ready_for_pickup' ? 'ready for pickup'
-                    : order.status === 'ready_for_delivery' ? 'ready for delivery'
-                    : order.status === 'out_for_delivery' ? 'on the way'
-                    : order.status === 'completed' ? 'completed' : '';
-                  const defaultMsg = statusLabel
-                    ? `Hi ${order.customerName?.split(' ')[0]}, your laundry order #${order.orderId} is ${statusLabel}!`
-                    : `Hi ${order.customerName?.split(' ')[0]}, update on your laundry order #${order.orderId}.`;
+                  const statusLabels: Record<string, string> = {
+                    'new_order': 'has been received',
+                    'scheduled_pickup': 'pickup has been scheduled',
+                    'picked_up': 'has been picked up',
+                    'received': 'has been received at the store',
+                    'in_washer': 'is being washed',
+                    'transferred': 'has been moved to the dryer',
+                    'in_dryer': 'is in the dryer',
+                    'on_cart': 'is ready to be folded',
+                    'folding': 'is being folded',
+                    'folded': 'has been folded',
+                    'ready_for_pickup': 'is ready for pickup',
+                    'ready_for_delivery': 'is ready for delivery',
+                    'out_for_delivery': 'is on the way',
+                    'completed': 'is completed',
+                  };
+                  const statusLabel = statusLabels[order.status] || `is currently ${order.status.replace(/_/g, ' ')}`;
+                  const defaultMsg = `Hi ${order.customerName?.split(' ')[0]}, your laundry order #${order.orderId} ${statusLabel}!`;
                   await SMS.sendSMSAsync([order.customerPhone], defaultMsg);
                 }}
               >

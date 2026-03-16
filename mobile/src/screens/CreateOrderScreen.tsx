@@ -109,6 +109,7 @@ export default function CreateOrderScreen() {
   const [isSameDay, setIsSameDay] = useState(false);
   const [separationType, setSeparationType] = useState<'none' | 'wash_only' | 'all_the_way'>('none');
   const [showSeparationModal, setShowSeparationModal] = useState(false);
+  const [ticketNumber, setTicketNumber] = useState('');
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [selectedExtras, setSelectedExtras] = useState<Record<string, { quantity: number; price: number; overrideTotal?: number }>>({});
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
@@ -902,6 +903,7 @@ export default function CreateOrderScreen() {
         customerId: selectedCustomer._id,
         customerName: selectedCustomer.name,
         customerPhone: selectedCustomer.phoneNumber,
+        ticketNumber: ticketNumber.trim() || undefined,
         deliveryAddress: orderType === 'delivery' ? finalDeliveryAddress : undefined,
         orderType,
         deliveryType: orderType === 'delivery' ? deliveryType : undefined,
@@ -1917,6 +1919,19 @@ export default function CreateOrderScreen() {
             </View>
           </View>
         ))}
+      </View>
+
+      {/* Ticket Number */}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Ticket Number (Optional)</Text>
+        <TextInput
+          style={styles.input}
+          value={ticketNumber}
+          onChangeText={setTicketNumber}
+          placeholder="Enter manual ticket number..."
+          placeholderTextColor="#94a3b8"
+          keyboardType="default"
+        />
       </View>
 
       {/* Special Instructions */}

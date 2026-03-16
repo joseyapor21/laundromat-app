@@ -398,7 +398,8 @@ export default function DashboardScreen() {
           orderIdStr.includes(search) ||
           order._id?.toLowerCase().includes(search) ||
           (searchClean && phoneClean.includes(searchClean)) ||
-          order.customerPhone?.includes(search)
+          order.customerPhone?.includes(search) ||
+          order.ticketNumber?.toLowerCase().includes(search)
         );
       }
 
@@ -483,7 +484,7 @@ export default function DashboardScreen() {
     >
       <View style={styles.boardCardHeader}>
         <View style={styles.boardHeaderLeft}>
-          <Text style={styles.boardOrderNumber}>#{order.orderId}</Text>
+          <Text style={styles.boardOrderNumber}>#{order.orderId}{order.ticketNumber ? ` · T${order.ticketNumber}` : ''}</Text>
           <Text style={styles.boardCustomerName} numberOfLines={1}>{order.customerName}</Text>
           {order.customerPhone && (
             <Text style={styles.boardPhoneNumber}>{formatPhoneNumber(order.customerPhone)}</Text>
@@ -560,7 +561,7 @@ export default function DashboardScreen() {
         <View style={styles.orderHeader}>
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Text style={styles.orderNumber}>#{order.orderId}</Text>
+              <Text style={styles.orderNumber}>#{order.orderId}{order.ticketNumber ? ` · T${order.ticketNumber}` : ''}</Text>
               {order.isRecurring && (
                 <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#f5f3ff', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, gap: 3 }}>
                   <Ionicons name="repeat" size={11} color="#7c3aed" />

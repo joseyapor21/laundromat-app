@@ -174,6 +174,7 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
   const timeStr = formatTimeASCII(createdDate);
 
   const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
+  const ticketNum = (order as any).ticketNumber;
   const isDelivery = order.orderType === 'delivery';
   const isSameDay = order.isSameDay;
   const storeConfig = getStoreConfig(location);
@@ -196,7 +197,7 @@ export function generateCustomerReceiptText(order: Order, location?: Location | 
 
   // Order number (inverted)
   r += ESC.INVERT_ON;
-  r += ` ${orderNum} \n`;
+  r += ` ${orderNum}${ticketNum ? ` | T#${ticketNum}` : ''} \n`;
   r += ESC.INVERT_OFF;
   r += ESC.NORMAL_SIZE;
 
@@ -428,6 +429,7 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
   const timeStr = formatTimeASCII(createdDate);
 
   const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
+  const ticketNum = (order as any).ticketNumber;
   const isDelivery = order.orderType === 'delivery';
   const isSameDay = order.isSameDay;
   const storeConfig = getStoreConfig(location);
@@ -457,7 +459,7 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
 
   // Order number (inverted)
   r += ESC.INVERT_ON;
-  r += ` ${orderNum} \n`;
+  r += ` ${orderNum}${ticketNum ? ` | T#${ticketNum}` : ''} \n`;
   r += ESC.INVERT_OFF;
   r += ESC.NORMAL_SIZE;
 
@@ -692,6 +694,7 @@ export function generateStoreCopyText(order: Order, location?: Location | null):
 // Generate bag label
 export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, totalBags: number): string {
   const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
+  const ticketNum = (order as any).ticketNumber;
   const isDelivery = order.orderType === 'delivery';
 
   let r = '';
@@ -709,7 +712,7 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
   // Order number (large, inverted)
   r += ESC.DOUBLE_SIZE_ON;
   r += ESC.INVERT_ON;
-  r += ` #${orderNum} \n`;
+  r += ` #${orderNum}${ticketNum ? ` | T#${ticketNum}` : ''} \n`;
   r += ESC.INVERT_OFF;
   r += ESC.NORMAL_SIZE;
 
@@ -807,6 +810,7 @@ export function generateBagLabelText(order: Order, bag: Bag, bagNumber: number, 
 // Generate simple customer tag (no bag details)
 export function generateCustomerTagText(order: Order): string {
   const orderNum = order.orderId?.toString() || order._id?.slice(-6) || '000';
+  const ticketNum = (order as any).ticketNumber;
   const isDelivery = order.orderType === 'delivery';
 
   let r = '';
@@ -817,7 +821,7 @@ export function generateCustomerTagText(order: Order): string {
   // Order number (large, inverted)
   r += ESC.DOUBLE_SIZE_ON;
   r += ESC.INVERT_ON;
-  r += ` #${orderNum} \n`;
+  r += ` #${orderNum}${ticketNum ? ` | T#${ticketNum}` : ''} \n`;
   r += ESC.INVERT_OFF;
   r += ESC.NORMAL_SIZE;
 

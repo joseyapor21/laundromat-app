@@ -147,6 +147,7 @@ export interface StatusHistoryEntry {
 export interface Order {
   _id: string;
   orderId: number;
+  ticketNumber?: string;
   customerId: string;
   customerName: string;
   customerPhone: string;
