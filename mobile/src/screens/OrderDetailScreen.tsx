@@ -1758,22 +1758,24 @@ export default function OrderDetailScreen() {
                   <Ionicons name="call" size={20} color="#2563eb" />
                   <Text style={styles.contactText}>{formatPhoneNumber(order.customerPhone)}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#10b981', borderRadius: 8 }}
-                  onPress={() => {
-                    const statusLabel = order.status === 'ready_for_pickup' ? 'ready for pickup'
-                      : order.status === 'ready_for_delivery' ? 'ready for delivery'
-                      : order.status === 'out_for_delivery' ? 'on the way'
-                      : order.status === 'completed' ? 'completed' : '';
-                    const defaultMsg = statusLabel
-                      ? `Hi ${order.customerName?.split(' ')[0]}, your laundry order #${order.orderNumber} is ${statusLabel}!`
-                      : `Hi ${order.customerName?.split(' ')[0]}, update on your laundry order #${order.orderNumber}.`;
-                    setSmsMessage(defaultMsg);
-                    setShowSmsModal(true);
-                  }}
-                >
-                  <Ionicons name="chatbubble-outline" size={16} color="#fff" />
-                </TouchableOpacity>
+                {currentLocation?._id !== '698a55eae28eb750c51148c0' && (
+                  <TouchableOpacity
+                    style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#10b981', borderRadius: 8 }}
+                    onPress={() => {
+                      const statusLabel = order.status === 'ready_for_pickup' ? 'ready for pickup'
+                        : order.status === 'ready_for_delivery' ? 'ready for delivery'
+                        : order.status === 'out_for_delivery' ? 'on the way'
+                        : order.status === 'completed' ? 'completed' : '';
+                      const defaultMsg = statusLabel
+                        ? `Hi ${order.customerName?.split(' ')[0]}, your laundry order #${order.orderNumber} is ${statusLabel}!`
+                        : `Hi ${order.customerName?.split(' ')[0]}, update on your laundry order #${order.orderNumber}.`;
+                      setSmsMessage(defaultMsg);
+                      setShowSmsModal(true);
+                    }}
+                  >
+                    <Ionicons name="chatbubble-outline" size={16} color="#fff" />
+                  </TouchableOpacity>
+                )}
               </View>
             )}
             {order.customer?.address && (
