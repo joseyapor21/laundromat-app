@@ -5,17 +5,17 @@ import { Settings } from '@/lib/db/models';
 
 // Email-to-SMS gateways by carrier
 const SMS_GATEWAYS: Record<string, string> = {
-  'att': 'txt.att.net',
+  'att': 'mms.att.net',           // txt.att.net was retired
   'tmobile': 'tmomail.net',
   'verizon': 'vtext.com',
-  'sprint': 'messaging.sprintpcs.com',
+  'sprint': 'tmomail.net',        // Sprint merged into T-Mobile
   'metro': 'mymetropcs.com',
-  'cricket': 'sms.cricketwireless.net',
-  'boost': 'sms.myboostmobile.com',
+  'cricket': 'mms.cricketwireless.net',
+  'boost': 'myboostmobile.com',
   'uscellular': 'email.uscc.net',
   'googlefi': 'msg.fi.google.com',
-  'mint': 'tmomail.net', // Mint uses T-Mobile network
-  'visible': 'vtext.com', // Visible uses Verizon network
+  'mint': 'tmomail.net',          // Mint uses T-Mobile network
+  'visible': 'vtext.com',         // Visible uses Verizon network
 };
 
 // Try these carriers in order of US market share
