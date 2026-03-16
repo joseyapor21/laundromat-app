@@ -3,6 +3,7 @@ import { google, gmail_v1 } from 'googleapis';
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/gmail.modify',
+  'https://www.googleapis.com/auth/gmail.send',
 ];
 
 export interface GmailTokens {

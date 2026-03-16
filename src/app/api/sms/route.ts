@@ -44,8 +44,9 @@ export async function POST(request: NextRequest) {
     );
   } catch (error) {
     console.error('SMS API error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Failed to send SMS';
     return NextResponse.json(
-      { error: 'Failed to send SMS' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
