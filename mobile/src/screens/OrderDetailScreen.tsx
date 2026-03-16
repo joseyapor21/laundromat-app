@@ -1700,16 +1700,21 @@ export default function OrderDetailScreen() {
                   Alert.prompt(
                     'Ticket Number',
                     'Enter a manual ticket number for this order',
-                    async (text) => {
-                      if (text !== null) {
-                        try {
-                          await api.updateOrder(order._id, { ticketNumber: text.trim() || undefined } as any);
-                          fetchOrder();
-                        } catch (e) {
-                          Alert.alert('Error', 'Failed to update ticket number');
-                        }
-                      }
-                    },
+                    [
+                      { text: 'Cancel', style: 'cancel' },
+                      {
+                        text: 'Save',
+                        onPress: (text?: string) => {
+                          const val = text?.trim() || null;
+                          api.updateOrder(order._id, { ticketNumber: val } as any)
+                            .then(() => {
+                              loadOrder();
+                              Alert.alert('Saved', `Ticket number ${val ? `set to ${val}` : 'removed'}`);
+                            })
+                            .catch((e: any) => Alert.alert('Error', e?.message || 'Failed to update ticket number'));
+                        },
+                      },
+                    ],
                     'plain-text',
                     order.ticketNumber || '',
                   );
@@ -1778,7 +1783,7 @@ export default function OrderDetailScreen() {
                 <Text style={styles.contactText}>{formatPhoneNumber(order.customerPhone)}</Text>
               </TouchableOpacity>
             )}
-            {currentLocation?._id === '698a55eae28eb750c51148c0' && order.customerPhone && (
+            {currentLocation?._id === '698a55eae28eb750c51148c0' && order.customerPhone && (user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
               <TouchableOpacity
                 style={[styles.contactRow, { backgroundColor: '#10b981', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 }]}
                 onPress={async () => {
