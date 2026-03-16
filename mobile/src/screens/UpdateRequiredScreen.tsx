@@ -84,6 +84,10 @@ export default function UpdateRequiredScreen({
     }
   };
 
+  const isDirectApkUrl = (url: string) => {
+    return url.endsWith('.apk') || url.includes('/api/uploads/');
+  };
+
   const handleUpdate = async () => {
     if (Platform.OS === 'ios') {
       // For iOS, open the itms-services URL in Safari
@@ -93,7 +97,17 @@ export default function UpdateRequiredScreen({
         Alert.alert('Error', 'Failed to open update link. Please try again.');
       }
     } else if (Platform.OS === 'android') {
-      // For Android, download APK and install
+      // If it's an external URL (loadly.io, etc.), open in browser
+      if (!isDirectApkUrl(updateUrl)) {
+        try {
+          await Linking.openURL(updateUrl);
+        } catch (error) {
+          Alert.alert('Error', 'Failed to open update link. Please try again.');
+        }
+        return;
+      }
+
+      // For direct APK URLs, download and install
       setDownloading(true);
       setDownloadProgress(0);
 

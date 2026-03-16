@@ -63,13 +63,15 @@ export default function CreateCustomerScreen() {
 
       const newCustomer = await api.createCustomer(customerData);
 
-      // Auto-save new customer to iPhone contacts
-      saveCustomerToContacts({
-        name: customerData.name,
-        phoneNumber: customerData.phoneNumber,
-        address: customerData.address,
-        email: customerData.email,
-      }).catch(() => {}); // fire and forget
+      // Auto-save new customer to contacts — only on store phones
+      if (isStorePhoneMode) {
+        saveCustomerToContacts({
+          name: customerData.name,
+          phoneNumber: customerData.phoneNumber,
+          address: customerData.address,
+          email: customerData.email,
+        }).catch(() => {}); // fire and forget
+      }
 
       Alert.alert('Success', 'Customer created successfully', [
         { text: 'OK', onPress: () => {

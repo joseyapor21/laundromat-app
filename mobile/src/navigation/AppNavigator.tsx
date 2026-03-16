@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, View, Platform, useWindowDimensions, Modal, PanResponder } from 'react-native';
+import { ActivityIndicator, View, Platform, useWindowDimensions, Modal, PanResponder, Vibration, Alert } from 'react-native';
 import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Notifications from 'expo-notifications';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
 import { ScannerProvider, FloatingActionButtons } from '../contexts/ScannerContext';
@@ -14,6 +15,8 @@ import pushNotificationService from '../services/pushNotifications';
 import { syncAllCustomersToContacts } from '../services/contactsSync';
 import { registerBackgroundSync } from '../services/backgroundSync';
 import { api } from '../services/api';
+
+const RECURRING_NOTIFICATION_PREFIX = 'recurring-order-';
 
 // Navigation ref for use outside of components (e.g., notification handling)
 export const navigationRef = React.createRef<NavigationContainerRef<any>>();
@@ -341,12 +344,16 @@ function AuthenticatedAppContent() {
     return () => { if (idleTimer.current) clearTimeout(idleTimer.current); };
   }, [isStorePhoneMode]);
 
-  // Sync all customers to iOS contacts on every login
+  // Sync all customers to contacts — ONLY on store phones
   // Uses SecureStore cache — only new customers are added on subsequent launches
   useEffect(() => {
+    if (!isStorePhoneMode) {
+      console.log('[ContactsSync] Skipping — not a store phone');
+      return;
+    }
     if (contactsSynced.current) return;
     contactsSynced.current = true;
-    console.log('[ContactsSync] Scheduling contacts sync in 10s...');
+    console.log('[ContactsSync] Scheduling contacts sync in 10s (store phone)...');
     const timer = setTimeout(async () => {
       try {
         const customers = await api.getCustomers();
@@ -361,6 +368,66 @@ function AuthenticatedAppContent() {
       }
     }, 10000);
     return () => clearTimeout(timer);
+  }, [isStorePhoneMode]);
+
+  // Recurring order alarm — play alarm sound when recurring notification arrives
+  const recurringAlarmSound = useRef<any>(null);
+  const recurringAlarmVibration = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopRecurringAlarm = () => {
+    if (recurringAlarmSound.current) {
+      try { recurringAlarmSound.current.unloadAsync(); } catch {}
+      recurringAlarmSound.current = null;
+    }
+    if (recurringAlarmVibration.current) {
+      clearInterval(recurringAlarmVibration.current);
+      recurringAlarmVibration.current = null;
+    }
+    Vibration.cancel();
+  };
+
+  const startRecurringAlarm = async (title: string, body: string) => {
+    // Start vibration loop
+    recurringAlarmVibration.current = setInterval(() => {
+      Vibration.vibrate([500, 300, 500, 300, 500]);
+    }, 2500);
+
+    // Play alarm sound using expo-av
+    try {
+      const { Audio } = require('expo-av');
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: true,
+        shouldDuckAndroid: false,
+      });
+      const { sound } = await Audio.Sound.createAsync(
+        require('../assets/alarm.mp3'),
+        { isLooping: true, volume: 1.0 }
+      );
+      recurringAlarmSound.current = sound;
+      await sound.playAsync();
+    } catch (e) {
+      console.log('Recurring alarm audio fallback to vibration only:', e);
+    }
+
+    // Show alert to dismiss
+    Alert.alert(
+      title,
+      body,
+      [{ text: 'Dismiss', onPress: stopRecurringAlarm }],
+      { cancelable: false }
+    );
+  };
+
+  useEffect(() => {
+    const subscription = Notifications.addNotificationReceivedListener((notification) => {
+      const notifId = notification.request.identifier;
+      if (notifId.startsWith(RECURRING_NOTIFICATION_PREFIX)) {
+        const { title, body } = notification.request.content;
+        startRecurringAlarm(title || 'Recurring Order Reminder', body || 'Check the schedule!');
+      }
+    });
+    return () => subscription.remove();
   }, []);
 
   // PIN lock modal — shown after idle timeout on store phones

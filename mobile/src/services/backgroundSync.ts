@@ -1,5 +1,6 @@
 import * as BackgroundFetch from 'expo-background-fetch';
 import * as TaskManager from 'expo-task-manager';
+import * as SecureStore from 'expo-secure-store';
 import { syncAllCustomersToContacts } from './contactsSync';
 import { api } from './api';
 
@@ -8,6 +9,13 @@ const BACKGROUND_SYNC_TASK = 'CONTACTS_BACKGROUND_SYNC';
 // Define the background task
 TaskManager.defineTask(BACKGROUND_SYNC_TASK, async () => {
   try {
+    // Only sync contacts on store phones
+    const storePhoneMode = await SecureStore.getItemAsync('store_phone_mode');
+    if (storePhoneMode !== 'true') {
+      console.log('[BackgroundSync] Skipping — not a store phone');
+      return BackgroundFetch.BackgroundFetchResult.NoData;
+    }
+
     // Only sync if user is authenticated
     if (!api.getToken()) {
       return BackgroundFetch.BackgroundFetchResult.NoData;

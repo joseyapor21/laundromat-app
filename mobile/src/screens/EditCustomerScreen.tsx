@@ -18,6 +18,7 @@ import { api } from '../services/api';
 import { saveCustomerToContacts } from '../services/contactsSync';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from '../contexts/LocationContext';
+import { useStorePhone } from '../contexts/StorePhoneContext';
 import { formatPhoneInput, formatPhoneNumber } from '../utils/phoneFormat';
 import { localPrinter } from '../services/LocalPrinter';
 import { generateCreditBalanceReceipt } from '../services/receiptGenerator';
@@ -50,6 +51,7 @@ export default function EditCustomerScreen() {
   const navigation = useNavigation<any>();
   const scrollViewRef = useRef<KeyboardAwareScrollView>(null);
   const { user } = useAuth();
+  const { isStorePhoneMode } = useStorePhone();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -295,16 +297,79 @@ export default function EditCustomerScreen() {
         await cancelRecurringReminders(customer!._id);
       }
 
-      // Update contact in iPhone contacts
-      saveCustomerToContacts({
-        name: name.trim(),
-        phoneNumber: phoneNumber.trim(),
-        address: address.trim(),
-        email: email.trim() || undefined,
-        notes: notes.trim() || undefined,
-      }).catch(() => {});
+      // If recurring is enabled and today is a pickup day, create the first order immediately
+      let orderCreated = false;
+      if (recurringEnabled && pickupDays.length > 0) {
+        const todayDay = new Date().getDay();
+        if (pickupDays.includes(todayDay)) {
+          try {
+            // Check if there's already an active recurring order for this customer
+            const existingOrders = await api.getCustomerOrders(customer!._id);
+            const hasActiveRecurring = existingOrders.some(
+              (o: Order) => o.isRecurring && !['completed', 'archived', 'cancelled'].includes(o.status)
+            );
 
-      Alert.alert('Success', 'Customer updated successfully', [
+            if (!hasActiveRecurring) {
+              // Calculate delivery date based on delivery days
+              const now = new Date();
+              let deliveryDate = new Date(now);
+              deliveryDate.setDate(deliveryDate.getDate() + 1); // Default: next day
+
+              if (deliveryDays.length > 0) {
+                for (let i = 1; i <= 7; i++) {
+                  const checkDate = new Date(now);
+                  checkDate.setDate(checkDate.getDate() + i);
+                  if (deliveryDays.includes(checkDate.getDay())) {
+                    deliveryDate = checkDate;
+                    break;
+                  }
+                }
+              }
+
+              const combinedNotes = [notes.trim(), recurringNotes.trim()].filter(Boolean).join('\n');
+
+              await api.createOrder({
+                customerId: customer!._id,
+                customerName: name.trim(),
+                customerPhone: phoneNumber.trim(),
+                orderType: address.trim() ? 'delivery' : 'storePickup',
+                deliveryType: address.trim() ? 'full' : undefined,
+                deliveryFee: address.trim() ? parseFloat(deliveryFee || '0') : 0,
+                items: [],
+                weight: 0,
+                totalAmount: 0,
+                subtotal: 0,
+                dropOffDate: now,
+                estimatedPickupDate: deliveryDate,
+                specialInstructions: combinedNotes,
+                paymentStatus: 'pending',
+                isPaid: false,
+                isRecurring: true,
+                recurringSourceCustomerId: customer!._id,
+              } as any);
+              orderCreated = true;
+            }
+          } catch (e) {
+            console.log('Failed to create immediate recurring order:', e);
+          }
+        }
+      }
+
+      // Update contact in iPhone contacts — only on store phones
+      if (isStorePhoneMode) {
+        saveCustomerToContacts({
+          name: name.trim(),
+          phoneNumber: phoneNumber.trim(),
+          address: address.trim(),
+          email: email.trim() || undefined,
+          notes: notes.trim() || undefined,
+        }).catch(() => {});
+      }
+
+      const successMsg = orderCreated
+        ? 'Customer updated and recurring order created!'
+        : 'Customer updated successfully';
+      Alert.alert('Success', successMsg, [
         { text: 'OK', onPress: () => navigation.goBack() }
       ]);
     } catch (error) {
