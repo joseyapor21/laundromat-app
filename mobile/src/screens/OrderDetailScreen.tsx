@@ -85,6 +85,9 @@ export default function OrderDetailScreen() {
   const [uncheckingMachine, setUncheckingMachine] = useState<string | null>(null);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [showShareOptions, setShowShareOptions] = useState(false);
+  const [showSmsModal, setShowSmsModal] = useState(false);
+  const [smsMessage, setSmsMessage] = useState('');
+  const [sendingSms, setSendingSms] = useState(false);
   const [verifyingFolding, setVerifyingFolding] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [verifyingTransfer, setVerifyingTransfer] = useState(false);
@@ -1747,13 +1750,31 @@ export default function OrderDetailScreen() {
               )}
             </View>
             {order.orderType !== 'delivery' && order.customerPhone && (
-              <TouchableOpacity
-                style={styles.contactRow}
-                onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
-              >
-                <Ionicons name="call" size={20} color="#2563eb" />
-                <Text style={styles.contactText}>{formatPhoneNumber(order.customerPhone)}</Text>
-              </TouchableOpacity>
+              <View style={styles.contactRow}>
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+                  onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
+                >
+                  <Ionicons name="call" size={20} color="#2563eb" />
+                  <Text style={styles.contactText}>{formatPhoneNumber(order.customerPhone)}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: '#10b981', borderRadius: 8 }}
+                  onPress={() => {
+                    const statusLabel = order.status === 'ready_for_pickup' ? 'ready for pickup'
+                      : order.status === 'ready_for_delivery' ? 'ready for delivery'
+                      : order.status === 'out_for_delivery' ? 'on the way'
+                      : order.status === 'completed' ? 'completed' : '';
+                    const defaultMsg = statusLabel
+                      ? `Hi ${order.customerName?.split(' ')[0]}, your laundry order #${order.orderNumber} is ${statusLabel}!`
+                      : `Hi ${order.customerName?.split(' ')[0]}, update on your laundry order #${order.orderNumber}.`;
+                    setSmsMessage(defaultMsg);
+                    setShowSmsModal(true);
+                  }}
+                >
+                  <Ionicons name="chatbubble-outline" size={16} color="#fff" />
+                </TouchableOpacity>
+              </View>
             )}
             {order.customer?.address && (
               <TouchableOpacity
@@ -3443,6 +3464,68 @@ export default function OrderDetailScreen() {
               onChange={(_, date) => date && setPaidAtDate(date)}
               style={styles.datePickerSpinner}
             />
+          </View>
+        </View>
+      </Modal>
+
+      {/* SMS Modal */}
+      <Modal visible={showSmsModal} transparent animationType="fade">
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: 24 }}>
+          <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '100%', maxWidth: 360 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1e293b', marginBottom: 4 }}>Text Customer</Text>
+            <Text style={{ fontSize: 13, color: '#64748b', marginBottom: 12 }}>
+              Send to {order?.customerPhone} (via email, 160 char max)
+            </Text>
+            <TextInput
+              style={{
+                backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10,
+                padding: 12, fontSize: 15, color: '#1e293b', minHeight: 80, textAlignVertical: 'top',
+              }}
+              value={smsMessage}
+              onChangeText={(t) => setSmsMessage(t.slice(0, 160))}
+              multiline
+              maxLength={160}
+              autoFocus
+            />
+            <Text style={{ fontSize: 11, color: '#94a3b8', textAlign: 'right', marginTop: 4 }}>
+              {smsMessage.length}/160
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#f1f5f9', alignItems: 'center' }}
+                onPress={() => { setShowSmsModal(false); setSmsMessage(''); }}
+              >
+                <Text style={{ fontSize: 15, fontWeight: '600', color: '#64748b' }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 10, backgroundColor: '#10b981', alignItems: 'center' }}
+                disabled={sendingSms || !smsMessage.trim()}
+                onPress={async () => {
+                  if (!smsMessage.trim() || !order?.customerPhone) return;
+                  setSendingSms(true);
+                  try {
+                    const result = await api.sendSms(order.customerPhone, smsMessage.trim(), order.customer?.smsCarrier);
+                    setShowSmsModal(false);
+                    setSmsMessage('');
+                    if (result.success) {
+                      Alert.alert('Sent', `Text sent to ${order.customerPhone}`);
+                    } else {
+                      Alert.alert('Error', result.error || 'Failed to send');
+                    }
+                  } catch (e) {
+                    Alert.alert('Error', 'Failed to send text');
+                  } finally {
+                    setSendingSms(false);
+                  }
+                }}
+              >
+                {sendingSms ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={{ fontSize: 15, fontWeight: '600', color: '#fff' }}>Send</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

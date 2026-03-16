@@ -39,6 +39,8 @@ export interface CustomerDoc {
   venmoUsername?: string;
   zelleEmail?: string;
   zellePhone?: string;
+  // SMS carrier for email-to-SMS
+  smsCarrier?: string;
   // Recurring order schedule
   recurringSchedule?: RecurringScheduleDoc;
 }
@@ -177,6 +179,10 @@ const customerSchema = new mongoose.Schema({
     type: String,
     default: null,
     sparse: true,
+  },
+  smsCarrier: {
+    type: String,
+    default: null,
   },
   // Recurring order schedule
   recurringSchedule: {

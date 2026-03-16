@@ -60,6 +60,8 @@ export interface Customer {
   venmoUsername?: string;
   zelleEmail?: string;
   zellePhone?: string;
+  // SMS carrier for email-to-SMS
+  smsCarrier?: string;
   // Recurring order schedule
   recurringSchedule?: RecurringSchedule;
 }

@@ -1084,6 +1084,18 @@ class ApiService {
     });
   }
 
+  // SMS via email-to-SMS gateway
+  async sendSms(phoneNumber: string, message: string, carrier?: string): Promise<{
+    success: boolean;
+    sentTo?: string[];
+    error?: string;
+  }> {
+    return this.request('/sms', {
+      method: 'POST',
+      body: JSON.stringify({ phoneNumber, message, carrier }),
+    });
+  }
+
   // Inventory
   async getInventory(filters?: { category?: string; status?: string; needsOrder?: boolean }): Promise<{
     items: InventoryItem[];
