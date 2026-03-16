@@ -4,22 +4,23 @@ import { connectDB } from '@/lib/db/connection';
 import { Settings } from '@/lib/db/models';
 
 // Email-to-SMS gateways by carrier
+// Only gateways with verified MX records (AT&T and Boost gateways are dead)
 const SMS_GATEWAYS: Record<string, string> = {
-  'att': 'mms.att.net',           // txt.att.net was retired
   'tmobile': 'tmomail.net',
   'verizon': 'vtext.com',
-  'sprint': 'tmomail.net',        // Sprint merged into T-Mobile
+  'cricket': 'mms.cricketwireless.net', // AT&T customers use Cricket gateway
+  'att': 'mms.cricketwireless.net',     // AT&T own gateways are dead, Cricket (AT&T subsidiary) works
   'metro': 'mymetropcs.com',
-  'cricket': 'mms.cricketwireless.net',
-  'boost': 'myboostmobile.com',
+  'sprint': 'tmomail.net',              // Sprint merged into T-Mobile
   'uscellular': 'email.uscc.net',
   'googlefi': 'msg.fi.google.com',
-  'mint': 'tmomail.net',          // Mint uses T-Mobile network
-  'visible': 'vtext.com',         // Visible uses Verizon network
+  'mint': 'tmomail.net',                // Mint uses T-Mobile network
+  'visible': 'vtext.com',               // Visible uses Verizon network
+  'boost': 'tmomail.net',               // Boost now on T-Mobile network
 };
 
-// Try these carriers in order of US market share
-const CARRIER_PRIORITY = ['att', 'tmobile', 'verizon', 'cricket', 'metro', 'boost', 'sprint', 'uscellular', 'googlefi'];
+// Try these carriers in order — all have verified working MX records
+const CARRIER_PRIORITY = ['tmobile', 'verizon', 'cricket', 'metro', 'uscellular', 'googlefi'];
 
 function normalizePhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
@@ -109,8 +110,8 @@ export async function sendSmsViaEmail(
       await sendEmail(gmail, gateway, '', message);
       sentTo.push(gateway);
     } else {
-      // Unknown carrier — try top 3 (AT&T, T-Mobile, Verizon cover ~90% of US)
-      const topCarriers = ['att', 'tmobile', 'verizon'];
+      // Unknown carrier — try top 3 (T-Mobile, Verizon, Cricket/AT&T cover ~90% of US)
+      const topCarriers = ['tmobile', 'verizon', 'cricket'];
       for (const c of topCarriers) {
         const gateway = `${phone}@${SMS_GATEWAYS[c]}`;
         try {
