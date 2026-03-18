@@ -938,10 +938,16 @@ export default function CreateOrderScreen() {
       const createdOrder = await api.createOrder(orderData);
 
       // Upload bag photos after order creation
-      for (let i = 0; i < bags.length; i++) {
-        if (bags[i].photoBase64) {
+      // Use the same filter as the order bags so indices match
+      const filteredBags = bags.filter(bag => bag.identifier || bag.weight > 0 || bag.color || bag.description);
+      const orderId = createdOrder._id || createdOrder.id;
+      console.log('Uploading bag photos for order:', orderId, 'bags with photos:', filteredBags.filter(b => b.photoBase64).length);
+      for (let i = 0; i < filteredBags.length; i++) {
+        if (filteredBags[i].photoBase64) {
           try {
-            await api.uploadBagPhoto(createdOrder._id, i, bags[i].photoBase64!);
+            console.log(`Uploading photo for bag ${i}, base64 length: ${filteredBags[i].photoBase64!.length}`);
+            await api.uploadBagPhoto(orderId, i, filteredBags[i].photoBase64!);
+            console.log(`Photo uploaded for bag ${i}`);
           } catch (photoError) {
             console.error(`Failed to upload photo for bag ${i}:`, photoError);
           }
