@@ -913,7 +913,6 @@ export default function CreateOrderScreen() {
           weight: bag.weight,
           color: bag.color || '',
           description: bag.description || '',
-          photo: bag.photoBase64 || undefined,
         })),
         isSameDay,
         keepSeparated: separationType !== 'none',
