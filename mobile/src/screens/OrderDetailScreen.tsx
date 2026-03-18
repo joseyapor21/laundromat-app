@@ -2482,6 +2482,8 @@ export default function OrderDetailScreen() {
         )}
 
         {/* Status Update - Show relevant statuses based on workflow (hidden in store phone mode) */}
+        {/* Only folding/folded buttons are interactive for folders. Other statuses move via verification flow. */}
+        {/* Admins can also set ready_for_pickup/ready_for_delivery/completed */}
         {!isStorePhoneMode && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Process Status</Text>
@@ -2494,24 +2496,36 @@ export default function OrderDetailScreen() {
                   const orderTypeKey = order.orderType === 'delivery' ? 'delivery' : 'storePickup';
                   return option.orderTypes.includes(orderTypeKey);
                 })
-                .map(option => (
+                .map(option => {
+                // Only these statuses can be set manually via buttons:
+                // - folding, folded: for folders
+                // - on_cart: for laying out
+                // - ready_for_pickup, ready_for_delivery, completed: for admin/cashier after final check
+                // All other statuses move through the verification/scan flow
+                const manuallyAllowed: OrderStatus[] = ['on_cart', 'folding', 'folded', 'ready_for_pickup', 'ready_for_delivery', 'completed'];
+                const isClickable = manuallyAllowed.includes(option.value);
+                const isCurrent = order.status === option.value;
+
+                return (
                 <TouchableOpacity
                   key={option.value}
                   style={[
                     styles.statusButton,
-                    order.status === option.value && { backgroundColor: option.color },
+                    isCurrent && { backgroundColor: option.color },
+                    !isClickable && !isCurrent && { opacity: 0.4 },
                   ]}
                   onPress={() => updateStatus(option.value)}
-                  disabled={updating || order.status === option.value}
+                  disabled={updating || isCurrent || !isClickable}
                 >
                   <Text style={[
                     styles.statusButtonText,
-                    order.status === option.value && styles.statusButtonTextActive,
+                    isCurrent && styles.statusButtonTextActive,
                   ]}>
                     {option.label}
                   </Text>
                 </TouchableOpacity>
-              ))}
+                );
+              })}
             </View>
           </View>
         )}

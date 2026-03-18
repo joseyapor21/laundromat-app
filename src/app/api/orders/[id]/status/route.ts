@@ -69,6 +69,21 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // For delivery orders, redirect ready_for_pickup to ready_for_delivery
     let finalStatus = status;
+
+    // Enforce workflow order — prevent skipping process steps
+    // Statuses that can only be set through their dedicated verification endpoints:
+    //   in_washer: set by scanning a washer QR code
+    //   transferred: set by the Transfer button
+    //   transfer_checked: set by the Verify Transfer button
+    //   in_dryer: set by scanning a dryer QR code
+    // These statuses should NOT be set via the generic status update endpoint:
+    const verificationOnlyStatuses = ['in_washer', 'transferred', 'transfer_checked', 'in_dryer'];
+    if (verificationOnlyStatuses.includes(finalStatus)) {
+      return NextResponse.json(
+        { error: `"${finalStatus.replace(/_/g, ' ')}" status is set automatically through the verification flow (scanning machines, transfer buttons). It cannot be set manually.` },
+        { status: 400 }
+      );
+    }
     if (order.orderType === 'delivery' && status === 'ready_for_pickup') {
       finalStatus = 'ready_for_delivery';
     }
