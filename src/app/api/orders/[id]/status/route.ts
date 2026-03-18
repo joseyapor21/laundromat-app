@@ -70,6 +70,15 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // For delivery orders, redirect ready_for_pickup to ready_for_delivery
     let finalStatus = status;
 
+    // Only admins and cashiers can change order status
+    const allowedRoles = ['admin', 'super_admin', 'cashier'];
+    if (!allowedRoles.includes(currentUser.role)) {
+      return NextResponse.json(
+        { error: 'Only admins and cashiers can change order status.' },
+        { status: 403 }
+      );
+    }
+
     // Enforce workflow order — prevent skipping process steps
     // Statuses that can only be set through their dedicated verification endpoints:
     const verificationOnlyStatuses = ['in_washer', 'transferred', 'transfer_checked', 'in_dryer'];

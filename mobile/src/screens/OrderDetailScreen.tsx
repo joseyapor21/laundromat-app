@@ -2481,10 +2481,8 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Status Update - Show relevant statuses based on workflow (hidden in store phone mode) */}
-        {/* Only folding/folded buttons are interactive for folders. Other statuses move via verification flow. */}
-        {/* Admins can also set ready_for_pickup/ready_for_delivery/completed */}
-        {!isStorePhoneMode && (
+        {/* Status Update - Only admins and cashiers can change process status */}
+        {!isStorePhoneMode && (isAdmin || isCashier) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Process Status</Text>
             <View style={styles.statusGrid}>
