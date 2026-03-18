@@ -980,7 +980,9 @@ export default function CreateOrderScreen() {
         }
       ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to create order');
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error('Create order error:', error);
+      Alert.alert('Error', `Failed to create order: ${msg}`);
     } finally {
       setSubmitting(false);
     }
@@ -1102,6 +1104,9 @@ export default function CreateOrderScreen() {
               onChangeText={setCustomerSearch}
               placeholder="Search by name or phone..."
               placeholderTextColor="#94a3b8"
+              autoCorrect={false}
+              autoCapitalize="none"
+              spellCheck={false}
             />
             {customerSearch.length > 0 && (
               <View style={styles.customerList}>
@@ -1315,7 +1320,7 @@ export default function CreateOrderScreen() {
                 placeholderTextColor="#94a3b8"
               />
             </View>
-            {orderType === 'storePickup' && (
+            {(orderType === 'storePickup' || deliveryType === 'deliveryOnly') && (
               <View style={styles.bagPhotoRow}>
                 <TouchableOpacity style={styles.bagPhotoButton} onPress={() => takeBagPhoto(index)}>
                   <Ionicons name={bag.photoUri ? 'camera' : 'camera-outline'} size={18} color={bag.photoUri ? '#2563eb' : '#64748b'} />
@@ -1376,7 +1381,8 @@ export default function CreateOrderScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Pickup Date */}
+      {/* Pickup Date - hide for deliveryOnly since customer drops off */}
+      {deliveryType !== 'deliveryOnly' && (
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Pickup Date & Time</Text>
         <View style={styles.pickupDateCard}>
@@ -1422,6 +1428,7 @@ export default function CreateOrderScreen() {
           </View>
         </View>
       </View>
+      )}
 
       {/* Delivery Date - for full service and deliveryOnly orders */}
       {orderType === 'delivery' && (deliveryType === 'full' || deliveryType === 'deliveryOnly') && (
@@ -1673,30 +1680,11 @@ export default function CreateOrderScreen() {
               <TouchableOpacity onPress={() => setShowDeliveryDatePicker(false)}>
                 <Text style={styles.datePickerCancel}>Cancel</Text>
               </TouchableOpacity>
-              <Text style={styles.datePickerTitle}>Delivery Date & Time</Text>
+              <Text style={styles.datePickerTitle}>Delivery Time</Text>
               <TouchableOpacity onPress={() => setShowDeliveryDatePicker(false)}>
                 <Text style={styles.datePickerDone}>Done</Text>
               </TouchableOpacity>
             </View>
-            <View style={styles.datePickerSelectedDisplay}>
-              <Text style={styles.datePickerSelectedText}>
-                {`${deliveryScheduleDate.toLocaleDateString('en-US', { weekday: 'short' })}, ${deliveryScheduleDate.toLocaleDateString('en-US', { month: 'short' })} ${deliveryScheduleDate.getDate()}, ${deliveryScheduleDate.getFullYear()}`}
-              </Text>
-            </View>
-            <DateTimePicker
-              value={deliveryScheduleDate}
-              mode="date"
-              display="spinner"
-              onChange={(event, selectedDate) => {
-                if (selectedDate) {
-                  const newDate = new Date(deliveryScheduleDate);
-                  newDate.setFullYear(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate());
-                  setDeliveryScheduleDate(newDate);
-                }
-              }}
-              style={styles.datePickerSpinner}
-            />
-            {/* Time Frame Quick Select */}
             {/* Time Frame Quick Select - Row 1 */}
             <View style={styles.timeFrameContainer}>
               <TouchableOpacity
@@ -1804,6 +1792,28 @@ export default function CreateOrderScreen() {
                   selectedDeliveryTimeSlot === '4-6PM' && styles.timeFrameButtonTextSelected
                 ]}>4-6PM</Text>
               </TouchableOpacity>
+            </View>
+            <Text style={styles.timeFrameDividerText}>Or select exact time:</Text>
+            <View style={styles.datePickerSelectedDisplay}>
+              <Text style={styles.datePickerSelectedText}>
+                {deliveryScheduleDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}
+              </Text>
+            </View>
+            <View style={{ height: 200 }}>
+              <DateTimePicker
+                value={deliveryScheduleDate}
+                mode="time"
+                display="spinner"
+                onChange={(event, selectedTime) => {
+                  if (selectedTime) {
+                    const newDate = new Date(deliveryScheduleDate);
+                    newDate.setHours(selectedTime.getHours(), selectedTime.getMinutes());
+                    setDeliveryScheduleDate(newDate);
+                    setSelectedDeliveryTimeSlot(null);
+                  }
+                }}
+                style={{ flex: 1 }}
+              />
             </View>
           </View>
         </View>

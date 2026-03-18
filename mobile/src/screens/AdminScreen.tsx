@@ -2256,11 +2256,15 @@ export default function AdminScreen() {
               onChangeText={setCustomerSearch}
               placeholder="Search customers..."
               placeholderTextColor="#94a3b8"
+              autoCorrect={false}
+              autoCapitalize="none"
+              spellCheck={false}
             />
           </View>
           <FlatList
             data={filteredCustomers}
             keyExtractor={(item) => item._id}
+            keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.listContent}
             maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}

@@ -232,6 +232,7 @@ export default function DriverScreen() {
       // Filter pickup orders
       const pickups = allOrders.filter(order =>
         order.orderType === 'delivery' &&
+        order.deliveryType !== 'deliveryOnly' &&
         ['new_order', 'scheduled_pickup', 'picked_up'].includes(order.status)
       );
 

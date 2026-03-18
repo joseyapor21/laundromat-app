@@ -417,19 +417,21 @@ function withCallerIDXcodeProject(config) {
 
       // ------------------------------------------------------------------
       // 6. Add CallDirectoryHandler.swift to the extension target sources
-      //    Directly manipulate pbxproj to avoid path-doubling issues.
+      //    Directly manipulate pbxproj objects because addSourceFile doesn't
+      //    reliably target extension targets.
       // ------------------------------------------------------------------
       const fileRefUUID = generateUUID();
       const buildFileUUID = generateUUID();
       const groupUUID = generateUUID();
 
-      // PBXFileReference for the swift file
       const objects = xcodeProject.hash.project.objects;
+
+      // PBXFileReference for the swift file
       objects['PBXFileReference'] = objects['PBXFileReference'] || {};
       objects['PBXFileReference'][fileRefUUID] = {
         isa: 'PBXFileReference',
         lastKnownFileType: 'sourcecode.swift',
-        path: '"CallDirectoryHandler.swift"',
+        path: 'CallDirectoryHandler.swift',
         sourceTree: '"<group>"',
       };
       objects['PBXFileReference'][`${fileRefUUID}_comment`] = 'CallDirectoryHandler.swift';
@@ -439,6 +441,7 @@ function withCallerIDXcodeProject(config) {
       objects['PBXBuildFile'][buildFileUUID] = {
         isa: 'PBXBuildFile',
         fileRef: fileRefUUID,
+        fileRef_comment: 'CallDirectoryHandler.swift',
       };
       objects['PBXBuildFile'][`${buildFileUUID}_comment`] = 'CallDirectoryHandler.swift in Sources';
 
@@ -454,30 +457,58 @@ function withCallerIDXcodeProject(config) {
       objects['PBXGroup'][`${groupUUID}_comment`] = EXT_DIR;
 
       // Add group to main project group
-      const mainGroupKey = xcodeProject.getFirstProject().firstProject.mainGroup;
-      if (objects['PBXGroup'][mainGroupKey]) {
-        objects['PBXGroup'][mainGroupKey].children =
-          objects['PBXGroup'][mainGroupKey].children || [];
-        objects['PBXGroup'][mainGroupKey].children.push(
+      const mainGroupKey2 = xcodeProject.getFirstProject().firstProject.mainGroup;
+      if (objects['PBXGroup'][mainGroupKey2]) {
+        objects['PBXGroup'][mainGroupKey2].children =
+          objects['PBXGroup'][mainGroupKey2].children || [];
+        objects['PBXGroup'][mainGroupKey2].children.push(
           { value: groupUUID, comment: EXT_DIR }
         );
       }
-      console.log('[withCallerID] Created PBX group for extension:', groupUUID);
 
-      // Add buildFile to extension target's Sources build phase
-      const extTargetObj = objects['PBXNativeTarget'][extTargetKey];
-      if (extTargetObj && extTargetObj.buildPhases) {
-        for (const phaseRef of extTargetObj.buildPhases) {
-          const phaseKey = typeof phaseRef === 'object' ? phaseRef.value : phaseRef;
-          const sourcePhase = (objects['PBXSourcesBuildPhase'] || {})[phaseKey];
-          if (sourcePhase) {
-            sourcePhase.files = sourcePhase.files || [];
-            sourcePhase.files.push({ value: buildFileUUID, comment: 'CallDirectoryHandler.swift in Sources' });
-            break;
-          }
+      // Find the extension's Sources build phase and add the swift file.
+      const sourcesSection = objects['PBXSourcesBuildPhase'] || {};
+      console.log(`[withCallerID] DEBUG Sources phases: ${Object.keys(sourcesSection).filter(k => !k.endsWith('_comment')).join(', ')}`);
+      for (const [key, phase] of Object.entries(sourcesSection)) {
+        if (key.endsWith('_comment')) continue;
+        console.log(`[withCallerID] DEBUG phase ${key}: files=${phase?.files?.length ?? 'undefined'}`);
+      }
+      let addedToSources = false;
+      for (const [key, phase] of Object.entries(sourcesSection)) {
+        if (key.endsWith('_comment')) continue;
+        if (phase && phase.isa === 'PBXSourcesBuildPhase' &&
+            (!phase.files || phase.files.length === 0)) {
+          phase.files = [{
+            value: buildFileUUID,
+            comment: 'CallDirectoryHandler.swift in Sources',
+          }];
+          console.log(`[withCallerID] Added CallDirectoryHandler.swift to extension Sources phase (${key})`);
+          addedToSources = true;
+          break;
         }
       }
-      console.log('[withCallerID] Added CallDirectoryHandler.swift to extension target.');
+      if (!addedToSources) {
+        // Last resort: create a new Sources build phase for the extension
+        console.log('[withCallerID] No empty Sources phase found, creating one manually');
+        const newSourcesUUID = generateUUID();
+        sourcesSection[newSourcesUUID] = {
+          isa: 'PBXSourcesBuildPhase',
+          buildActionMask: 2147483647,
+          files: [{
+            value: buildFileUUID,
+            comment: 'CallDirectoryHandler.swift in Sources',
+          }],
+          runOnlyForDeploymentPostprocessing: 0,
+        };
+        sourcesSection[`${newSourcesUUID}_comment`] = 'Sources';
+        // Add this phase to the extension target
+        const extNT = objects['PBXNativeTarget'][extTargetKey];
+        if (extNT) {
+          extNT.buildPhases = extNT.buildPhases || [];
+          extNT.buildPhases.push({ value: newSourcesUUID, comment: 'Sources' });
+        }
+        console.log(`[withCallerID] Created new Sources phase ${newSourcesUUID} for extension`);
+      }
 
       // ------------------------------------------------------------------
       // 7. Add CallKit framework to the extension target
@@ -513,8 +544,13 @@ function withCallerIDXcodeProject(config) {
             buildConfig.buildSettings['MARKETING_VERSION'] = '"1.0.7"';
             buildConfig.buildSettings['INFOPLIST_FILE'] =
               `"${EXT_DIR}/Info.plist"`;
-            // CODE_SIGN_ENTITLEMENTS is added manually after registering App Groups
-            // in Apple Developer Portal for com.laundromat.app.calldirectory
+            buildConfig.buildSettings['CODE_SIGN_IDENTITY'] =
+              '"Apple Distribution"';
+            buildConfig.buildSettings['CODE_SIGN_STYLE'] = 'Manual';
+            buildConfig.buildSettings['PROVISIONING_PROFILE'] =
+              '"4cd5576f-349a-4047-b0b4-fea6c6e36bd7"';
+            buildConfig.buildSettings['CODE_SIGN_ENTITLEMENTS'] =
+              `"${EXT_DIR}/LaundromatCallDirectory.entitlements"`;
           }
         }
         console.log('[withCallerID] Applied build settings to extension target.');
@@ -530,6 +566,35 @@ function withCallerIDXcodeProject(config) {
       // automatically when type is 'app_extension'. No manual embed phase needed.
     } else {
       console.log(`[withCallerID] Extension target "${EXT_TARGET_NAME}" already exists, skipping target creation.`);
+    }
+
+    // ------------------------------------------------------------------
+    // 10. Set main target signing to Manual to prevent Xcode from
+    //     picking the wrong provisioning profile by name
+    // ------------------------------------------------------------------
+    const mainBuildConfigList = mainTarget.buildConfigurationList;
+    const allBuildConfigs = xcodeProject.pbxXCBuildConfigurationSection();
+    const allConfigLists = xcodeProject.pbxXCConfigurationList();
+
+    if (mainBuildConfigList && allConfigLists[mainBuildConfigList]) {
+      const mainConfigList = allConfigLists[mainBuildConfigList];
+      const mainConfigUUIDs = mainConfigList.buildConfigurations.map((c) =>
+        typeof c === 'object' ? c.value : c
+      );
+
+      for (const uuid of mainConfigUUIDs) {
+        const bc = allBuildConfigs[uuid];
+        if (bc && bc.buildSettings) {
+          bc.buildSettings['CODE_SIGN_STYLE'] = 'Manual';
+          bc.buildSettings['DEVELOPMENT_TEAM'] = TEAM_ID;
+          bc.buildSettings['CODE_SIGN_IDENTITY'] = '"Apple Distribution"';
+          // Use PROVISIONING_PROFILE (UUID) to avoid name-based matching
+          // issues when multiple profiles share the same name
+          bc.buildSettings['PROVISIONING_PROFILE'] =
+            '"16804220-ec1b-419f-8f18-f03371ef59d5"';
+        }
+      }
+      console.log('[withCallerID] Set main target to Manual code signing.');
     }
 
     return cfg;

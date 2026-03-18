@@ -144,12 +144,32 @@ export async function syncAllCustomersToContacts(
   console.log(`[ContactsSync] ${newCustomers.length} new customers to add, ${customers.length - newCustomers.length} already synced`);
   if (newCustomers.length === 0) return { added: 0, skipped: customers.length };
 
+  // Fetch existing device contacts once to check for duplicates by phone number
+  const { data: existingContacts } = await Contacts.getContactsAsync({
+    fields: [Contacts.Fields.PhoneNumbers],
+  });
+  const existingPhones = new Set<string>();
+  for (const c of existingContacts) {
+    if (c.phoneNumbers) {
+      for (const pn of c.phoneNumbers) {
+        if (pn.number) existingPhones.add(normalizePhone(pn.number));
+      }
+    }
+  }
+
   let added = 0;
   let skipped = customers.length - newCustomers.length;
 
   for (let i = 0; i < newCustomers.length; i++) {
     const customer = newCustomers[i];
     const normalized = normalizePhone(customer.phoneNumber!);
+
+    // Skip if this phone number already exists in device contacts
+    if (existingPhones.has(normalized)) {
+      syncedPhones.add(normalized);
+      skipped++;
+      continue;
+    }
 
     const { firstName, lastName } = splitName(customer.name);
     const contactData: Contacts.Contact = {
@@ -167,6 +187,7 @@ export async function syncAllCustomersToContacts(
       await Contacts.addContactAsync(contactData);
       added++;
       syncedPhones.add(normalized);
+      existingPhones.add(normalized); // Track so we don't add twice in same batch
       await saveSyncedPhones(syncedPhones);
     } catch {
       syncedPhones.add(normalized);
