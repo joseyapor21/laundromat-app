@@ -2503,7 +2503,9 @@ export default function OrderDetailScreen() {
                 // - ready_for_pickup, ready_for_delivery, completed: for admin/cashier after final check
                 // All other statuses move through the verification/scan flow
                 const manuallyAllowed: OrderStatus[] = ['on_cart', 'folding', 'folded', 'ready_for_pickup', 'ready_for_delivery', 'completed'];
-                const isClickable = manuallyAllowed.includes(option.value);
+                // Ready/completed require final check
+                const needsFinalCheck = ['ready_for_pickup', 'ready_for_delivery', 'completed'].includes(option.value) && !order.finalCheckedBy;
+                const isClickable = manuallyAllowed.includes(option.value) && !needsFinalCheck;
                 const isCurrent = order.status === option.value;
 
                 return (
