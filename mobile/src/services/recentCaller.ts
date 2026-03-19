@@ -97,12 +97,10 @@ class RecentCallerService {
     }
   }
 
-  private handleAppStateChange = async (nextAppState: AppStateStatus) => {
-    // Only check when app becomes active
-    if (nextAppState === 'active') {
-      // Small delay to allow clipboard to be ready
-      setTimeout(() => this.checkClipboardForPhoneNumber(), 500);
-    }
+  private handleAppStateChange = async (_nextAppState: AppStateStatus) => {
+    // Disabled automatic clipboard checking — iOS shows a paste permission
+    // prompt every time, which is annoying. Clipboard is only checked
+    // when explicitly triggered by the user (e.g., after a call notification).
   };
 
   /**
