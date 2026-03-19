@@ -2713,7 +2713,11 @@ export default function OrderDetailScreen() {
                       </Text>
                       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
                         {bag.photos.map((photo: any, photoIndex: number) => (
-                          <View key={photoIndex} style={{ alignItems: 'center' }}>
+                          <TouchableOpacity
+                            key={photoIndex}
+                            style={{ alignItems: 'center' }}
+                            onPress={() => setExpandedVerificationPhoto(api.getBagPhotoUrl(photo.photoPath))}
+                          >
                             <Image
                               source={{ uri: api.getBagPhotoUrl(photo.photoPath) }}
                               style={{ width: 80, height: 80, borderRadius: 8, backgroundColor: '#f1f5f9' }}
@@ -2722,7 +2726,7 @@ export default function OrderDetailScreen() {
                             {photo.capturedByName && (
                               <Text style={{ fontSize: 10, color: '#94a3b8', marginTop: 4 }}>{photo.capturedByName}</Text>
                             )}
-                          </View>
+                          </TouchableOpacity>
                         ))}
                       </ScrollView>
                     </View>
