@@ -101,6 +101,14 @@ async function generateRecurringOrders() {
           continue; // Already has an active recurring order
         }
 
+        // Parse pickup time from recurring schedule (format: "HH:MM")
+        const pickupTimeStr = customer.recurringSchedule?.pickupTime || '17:00';
+        const [pickupHour, pickupMin] = pickupTimeStr.split(':').map(Number);
+
+        // Set pickup date to today at the scheduled pickup time
+        const pickupDate = new Date(now);
+        pickupDate.setHours(pickupHour, pickupMin, 0, 0);
+
         // Calculate delivery date based on delivery days
         let deliveryDate = new Date(now);
         deliveryDate.setDate(deliveryDate.getDate() + 1); // Default: next day
@@ -116,6 +124,11 @@ async function generateRecurringOrders() {
             }
           }
         }
+
+        // Set delivery time from recurring schedule
+        const deliveryTimeStr = customer.recurringSchedule?.deliveryTime || '17:00';
+        const [deliveryHour, deliveryMin] = deliveryTimeStr.split(':').map(Number);
+        deliveryDate.setHours(deliveryHour, deliveryMin, 0, 0);
 
         // Generate order
         const timestamp = Date.now().toString();
@@ -138,7 +151,8 @@ async function generateRecurringOrders() {
           bags: [],
           weight: 0,
           dropOffDate: now,
-          estimatedPickupDate: deliveryDate,
+          estimatedPickupDate: pickupDate,
+          deliverySchedule: customer.address ? deliveryDate : undefined,
           specialInstructions,
           status: 'new_order',
           employeeId: '',
