@@ -87,6 +87,7 @@ export default function EditOrderScreen() {
   const [extraItems, setExtraItems] = useState<ExtraItem[]>([]);
   const [selectedExtraItems, setSelectedExtraItems] = useState<Record<string, { quantity: number; price: number; overrideTotal?: number }>>({});
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
+  const [extraItemSearch, setExtraItemSearch] = useState('');
   // Multi-instance extra items (same item with different prices)
   const [extraItemInstances, setExtraItemInstances] = useState<Array<{
     instanceId: string;
@@ -1326,6 +1327,8 @@ export default function EditOrderScreen() {
                         onChangeText={(text) => updateBag(index, 'description', text)}
                         placeholder="Description"
                         placeholderTextColor="#94a3b8"
+                        autoCorrect={true}
+                        spellCheck={true}
                       />
                     </View>
                   </View>
@@ -1457,6 +1460,8 @@ export default function EditOrderScreen() {
               onChangeText={setSpecialInstructions}
               placeholder="Enter each instruction on a new line..."
               placeholderTextColor="#94a3b8"
+              autoCorrect={true}
+              spellCheck={true}
               multiline
               numberOfLines={3}
             />
@@ -1742,20 +1747,43 @@ export default function EditOrderScreen() {
       <Modal
         visible={showExtraItemsModal}
         animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={() => setShowExtraItemsModal(false)}
+        onRequestClose={() => { setExtraItemSearch(''); setShowExtraItemsModal(false); }}
       >
-        <SafeAreaView style={styles.extraItemsModalOverlay}>
-          <View style={styles.extraItemsModalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Extra Items</Text>
-              <TouchableOpacity onPress={() => setShowExtraItemsModal(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <Ionicons name="close" size={28} color="#1e293b" />
-              </TouchableOpacity>
-            </View>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+        <View style={{ flex: 1, backgroundColor: '#f1f5f9' }}>
+          <View style={[styles.modalHeader, { paddingTop: insets.top + 12 }]}>
+            <Text style={styles.modalTitle}>Select Extra Items</Text>
+            <TouchableOpacity onPress={() => { setExtraItemSearch(''); setShowExtraItemsModal(false); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Ionicons name="close" size={28} color="#1e293b" />
+            </TouchableOpacity>
+          </View>
 
-          <ScrollView style={styles.extraItemsModalScroll}>
-            {extraItems.map(item => {
+          <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, backgroundColor: '#f1f5f9' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: '#e2e8f0' }}>
+              <Ionicons name="search" size={18} color="#94a3b8" />
+              <TextInput
+                style={{ flex: 1, paddingVertical: 10, paddingLeft: 8, fontSize: 16, color: '#1e293b' }}
+                value={extraItemSearch}
+                onChangeText={setExtraItemSearch}
+                placeholder="Search extra items..."
+                placeholderTextColor="#94a3b8"
+                autoCorrect={false}
+              />
+              {extraItemSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setExtraItemSearch('')}>
+                  <Ionicons name="close-circle" size={20} color="#94a3b8" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          <ScrollView style={styles.extraItemsModalScroll} keyboardShouldPersistTaps="handled">
+            {extraItems.filter(item =>
+              !extraItemSearch.trim() || item.name.toLowerCase().includes(extraItemSearch.trim().toLowerCase())
+            ).map(item => {
               const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
               const isSelected = selectedExtraItems[item._id] !== undefined;
               const data = selectedExtraItems[item._id] || { quantity: 0, price: item.price };
@@ -1876,13 +1904,13 @@ export default function EditOrderScreen() {
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.extraItemsDoneBtn}
-                onPress={() => setShowExtraItemsModal(false)}
+                onPress={() => { setExtraItemSearch(''); setShowExtraItemsModal(false); }}
               >
                 <Text style={styles.extraItemsDoneBtnText}>Done</Text>
               </TouchableOpacity>
             </View>
-          </View>
-        </SafeAreaView>
+        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Multi-Instance Extra Item Modal */}

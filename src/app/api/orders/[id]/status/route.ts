@@ -70,11 +70,12 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // For delivery orders, redirect ready_for_pickup to ready_for_delivery
     let finalStatus = status;
 
-    // Only admins and cashiers can change order status
-    const allowedRoles = ['admin', 'super_admin', 'cashier'];
-    if (!allowedRoles.includes(currentUser.role)) {
+    // All users can set folding/folded; only admins and cashiers can set other statuses
+    const employeeAllowedStatuses = ['folding', 'folded'];
+    const isAdminOrCashier = ['admin', 'super_admin', 'cashier'].includes(currentUser.role);
+    if (!isAdminOrCashier && !employeeAllowedStatuses.includes(finalStatus)) {
       return NextResponse.json(
-        { error: 'Only admins and cashiers can change order status.' },
+        { error: 'Only admins and cashiers can change order status. You can only set folding or folded.' },
         { status: 403 }
       );
     }

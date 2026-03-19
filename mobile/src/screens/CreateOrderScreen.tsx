@@ -113,6 +113,7 @@ export default function CreateOrderScreen() {
   const [specialInstructions, setSpecialInstructions] = useState('');
   const [selectedExtras, setSelectedExtras] = useState<Record<string, { quantity: number; price: number; overrideTotal?: number }>>({});
   const [showExtraItemsModal, setShowExtraItemsModal] = useState(false);
+  const [extraItemSearch, setExtraItemSearch] = useState('');
 
   // Multi-instance extra items (for items like bath mats, blankets with different prices)
   const [extraItemInstances, setExtraItemInstances] = useState<Array<{
@@ -1323,6 +1324,8 @@ export default function CreateOrderScreen() {
                 onChangeText={(v) => updateBag(index, 'description', v)}
                 placeholder="Special instructions for this bag..."
                 placeholderTextColor="#94a3b8"
+                autoCorrect={true}
+                spellCheck={true}
               />
             </View>
             {(orderType === 'storePickup' || deliveryType === 'deliveryOnly') && (
@@ -1958,6 +1961,8 @@ export default function CreateOrderScreen() {
           onChangeText={setSpecialInstructions}
           placeholder="Enter each instruction on a new line..."
           placeholderTextColor="#94a3b8"
+          autoCorrect={true}
+          spellCheck={true}
           multiline={true}
           numberOfLines={3}
         />
@@ -2120,7 +2125,7 @@ export default function CreateOrderScreen() {
       <Modal
         visible={showExtraItemsModal}
         animationType="slide"
-        onRequestClose={() => setShowExtraItemsModal(false)}
+        onRequestClose={() => { setExtraItemSearch(''); setShowExtraItemsModal(false); }}
       >
         <KeyboardAvoidingView
           style={{ flex: 1 }}
@@ -2134,11 +2139,32 @@ export default function CreateOrderScreen() {
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.modalContent}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4, backgroundColor: '#f1f5f9' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#fff', borderRadius: 10, paddingHorizontal: 12, borderWidth: 1, borderColor: '#e2e8f0' }}>
+              <Ionicons name="search" size={18} color="#94a3b8" />
+              <TextInput
+                style={{ flex: 1, paddingVertical: 10, paddingLeft: 8, fontSize: 16, color: '#1e293b' }}
+                value={extraItemSearch}
+                onChangeText={setExtraItemSearch}
+                placeholder="Search extra items..."
+                placeholderTextColor="#94a3b8"
+                autoCorrect={false}
+              />
+              {extraItemSearch.length > 0 && (
+                <TouchableOpacity onPress={() => setExtraItemSearch('')}>
+                  <Ionicons name="close-circle" size={20} color="#94a3b8" />
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+
+          <ScrollView style={styles.modalContent} keyboardShouldPersistTaps="handled">
             {extraItems.length === 0 ? (
               <Text style={styles.modalEmptyText}>No extra items available</Text>
             ) : (
-              extraItems.map((item) => {
+              extraItems.filter((item) =>
+                !extraItemSearch.trim() || item.name.toLowerCase().includes(extraItemSearch.trim().toLowerCase())
+              ).map((item) => {
                 const isWeightBased = item.perWeightUnit && item.perWeightUnit > 0;
                 const totalWeight = getTotalWeight();
                 const autoQuantity = isWeightBased ? calculateWeightBasedQuantity(totalWeight, item.perWeightUnit!) : 0;
@@ -2686,6 +2712,8 @@ export default function CreateOrderScreen() {
                 onChangeText={setQuickAddNotes}
                 placeholder="Enter each instruction on a new line..."
                 placeholderTextColor="#94a3b8"
+                autoCorrect={true}
+                spellCheck={true}
                 multiline
                 numberOfLines={3}
               />

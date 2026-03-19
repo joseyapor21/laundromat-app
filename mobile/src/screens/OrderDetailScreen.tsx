@@ -2494,7 +2494,10 @@ export default function OrderDetailScreen() {
                 // - on_cart: for laying out
                 // - ready_for_pickup, ready_for_delivery, completed: for admin/cashier after final check
                 // All other statuses move through the verification/scan flow
-                const manuallyAllowed: OrderStatus[] = ['on_cart', 'folding', 'folded', 'ready_for_pickup', 'ready_for_delivery', 'completed'];
+                // Admins/cashiers can set more statuses; everyone else only folding/folded
+                const adminAllowed: OrderStatus[] = ['on_cart', 'folding', 'folded', 'ready_for_pickup', 'ready_for_delivery', 'completed'];
+                const userAllowed: OrderStatus[] = ['folding', 'folded'];
+                const manuallyAllowed = (isAdmin || isCashier) ? adminAllowed : userAllowed;
                 // Ready/completed require final check
                 const needsFinalCheck = ['ready_for_pickup', 'ready_for_delivery', 'completed'].includes(option.value) && !order.finalCheckedBy;
                 const isClickable = manuallyAllowed.includes(option.value) && !needsFinalCheck;
@@ -3298,7 +3301,7 @@ export default function OrderDetailScreen() {
               style={styles.printOptionButton}
               onPress={() => {
                 setShowShareOptions(false);
-                handleSharePDF();
+                setTimeout(() => handleSharePDF(), 500);
               }}
             >
               <View style={[styles.printOptionIcon, { backgroundColor: '#fce7f3' }]}>
@@ -3313,7 +3316,7 @@ export default function OrderDetailScreen() {
               style={styles.printOptionButton}
               onPress={() => {
                 setShowShareOptions(false);
-                handleShareOrder();
+                setTimeout(() => handleShareOrder(), 500);
               }}
             >
               <View style={[styles.printOptionIcon, { backgroundColor: '#d1fae5' }]}>

@@ -2,8 +2,29 @@ import { useEffect, useState, useCallback } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { KeyboardProvider } from 'react-native-keyboard-controller';
-import { Platform, View, ActivityIndicator } from 'react-native';
+import { Platform, View, ActivityIndicator, TextInput } from 'react-native';
 import Constants from 'expo-constants';
+
+// Disable autocorrect, spellcheck, and dictation globally for all TextInputs
+const originalRender = (TextInput as any).render;
+if (originalRender) {
+  (TextInput as any).render = function (props: any, ref: any) {
+    return originalRender.call(this, {
+      autoCorrect: false,
+      spellCheck: false,
+      autoComplete: 'off' as any,
+      ...props,
+    }, ref);
+  };
+} else {
+  // Fallback: set defaultProps
+  (TextInput as any).defaultProps = {
+    ...(TextInput as any).defaultProps,
+    autoCorrect: false,
+    spellCheck: false,
+    autoComplete: 'off',
+  };
+}
 import { AuthProvider } from './src/contexts/AuthContext';
 import { LocationProvider } from './src/contexts/LocationContext';
 import { DriverTrackingProvider } from './src/contexts/DriverTrackingContext';

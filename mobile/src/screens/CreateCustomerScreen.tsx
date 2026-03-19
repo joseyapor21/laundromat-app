@@ -309,6 +309,8 @@ export default function CreateCustomerScreen() {
               onChangeText={setNotes}
               placeholder="Enter each instruction on a new line..."
               placeholderTextColor="#94a3b8"
+              autoCorrect={true}
+              spellCheck={true}
               multiline
               numberOfLines={3}
               scrollEnabled={false}
