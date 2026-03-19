@@ -663,6 +663,88 @@ export default function EditCustomerScreen() {
             </View>
           )}
 
+          {/* Active Promotions / Prizes */}
+          {customer.promos && customer.promos.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Promotions & Prizes</Text>
+              {customer.promos.map((promo, idx) => {
+                const now = new Date();
+                const endDate = new Date(promo.endDate);
+                const startDate = new Date(promo.startDate);
+                const isExpired = now > endDate;
+                const remainingLbs = promo.maxWeightLbs - promo.usedWeightLbs;
+                const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+                const usedPercent = promo.maxWeightLbs > 0 ? (promo.usedWeightLbs / promo.maxWeightLbs) * 100 : 0;
+
+                return (
+                  <View key={idx} style={{
+                    backgroundColor: isExpired || !promo.isActive ? '#f8fafc' : '#f0fdf4',
+                    borderRadius: 12,
+                    padding: 14,
+                    marginBottom: 10,
+                    borderWidth: 1,
+                    borderColor: isExpired || !promo.isActive ? '#e2e8f0' : '#86efac',
+                  }}>
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                      <Text style={{ fontSize: 14, fontWeight: '700', color: isExpired ? '#94a3b8' : '#15803d', flex: 1 }}>
+                        {promo.name}
+                      </Text>
+                      <View style={{
+                        backgroundColor: isExpired ? '#ef4444' : remainingLbs <= 0 ? '#f59e0b' : '#10b981',
+                        paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+                      }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#fff' }}>
+                          {isExpired ? 'Expired' : remainingLbs <= 0 ? 'Used Up' : 'Active'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Progress bar */}
+                    <View style={{ backgroundColor: '#e2e8f0', borderRadius: 4, height: 8, marginBottom: 8 }}>
+                      <View style={{
+                        backgroundColor: usedPercent >= 100 ? '#f59e0b' : '#10b981',
+                        borderRadius: 4, height: 8,
+                        width: `${Math.min(100, usedPercent)}%`,
+                      }} />
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>
+                        Used: {promo.usedWeightLbs} / {promo.maxWeightLbs} lbs
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>
+                        {remainingLbs > 0 ? `${remainingLbs} lbs left` : 'No lbs remaining'}
+                      </Text>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+                      <Text style={{ fontSize: 11, color: '#94a3b8' }}>
+                        {startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </Text>
+                      {!isExpired && promo.isActive && (
+                        <Text style={{ fontSize: 11, color: '#7c3aed', fontWeight: '600' }}>
+                          {daysLeft} days left
+                        </Text>
+                      )}
+                    </View>
+
+                    {/* Orders used */}
+                    {promo.ordersUsed && promo.ordersUsed.length > 0 && (
+                      <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: '#e2e8f0', paddingTop: 8 }}>
+                        <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748b', marginBottom: 4 }}>Usage History:</Text>
+                        {promo.ordersUsed.map((usage, uIdx) => (
+                          <Text key={uIdx} style={{ fontSize: 11, color: '#94a3b8' }}>
+                            Order #{usage.orderId} — {usage.weight} lbs — {new Date(usage.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          )}
+
           {/* Credit History */}
           {customer.creditHistory && customer.creditHistory.length > 0 && (
             <View style={styles.section}>

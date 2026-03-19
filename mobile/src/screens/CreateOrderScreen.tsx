@@ -2006,6 +2006,27 @@ export default function CreateOrderScreen() {
         )}
       </View>
 
+      {/* Active Promo */}
+      {selectedCustomer?.promos?.some(p => p.isActive && new Date(p.endDate) > new Date() && p.usedWeightLbs < p.maxWeightLbs) && (
+        <View style={styles.section}>
+          {selectedCustomer.promos!.filter(p => p.isActive && new Date(p.endDate) > new Date() && p.usedWeightLbs < p.maxWeightLbs).map((promo, idx) => {
+            const remainingLbs = promo.maxWeightLbs - promo.usedWeightLbs;
+            const daysLeft = Math.ceil((new Date(promo.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+            return (
+              <View key={idx} style={{ backgroundColor: '#f0fdf4', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#86efac' }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                  <Ionicons name="gift" size={20} color="#15803d" />
+                  <Text style={{ fontSize: 14, fontWeight: '700', color: '#15803d', flex: 1 }}>{promo.name}</Text>
+                </View>
+                <Text style={{ fontSize: 13, color: '#16a34a' }}>
+                  {remainingLbs} lbs remaining — {daysLeft} days left
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       {/* Customer Credit */}
       {selectedCustomer && (selectedCustomer.credit || 0) > 0 && (
         <View style={styles.section}>

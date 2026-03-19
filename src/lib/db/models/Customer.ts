@@ -23,6 +23,16 @@ export interface RecurringScheduleDoc {
   lastGeneratedDate?: Date; // track last date orders were auto-created
 }
 
+export interface PromoDoc {
+  name: string;
+  startDate: Date;
+  endDate: Date;
+  maxWeightLbs: number;
+  usedWeightLbs: number;
+  ordersUsed: Array<{ orderId: number; weight: number; date: Date }>;
+  isActive: boolean;
+}
+
 export interface CustomerDoc {
   _id: Types.ObjectId;
   id: number;
@@ -43,6 +53,8 @@ export interface CustomerDoc {
   smsCarrier?: string;
   // Recurring order schedule
   recurringSchedule?: RecurringScheduleDoc;
+  // Promotions / prizes
+  promos?: PromoDoc[];
 }
 
 const creditTransactionSchema = new mongoose.Schema({
@@ -189,6 +201,20 @@ const customerSchema = new mongoose.Schema({
     type: recurringScheduleSchema,
     default: null,
   },
+  // Promotions / prizes
+  promos: [{
+    name: { type: String, required: true },
+    startDate: { type: Date, required: true },
+    endDate: { type: Date, required: true },
+    maxWeightLbs: { type: Number, required: true },
+    usedWeightLbs: { type: Number, default: 0 },
+    ordersUsed: [{
+      orderId: Number,
+      weight: Number,
+      date: { type: Date, default: Date.now },
+    }],
+    isActive: { type: Boolean, default: true },
+  }],
 }, {
   collection: 'customers',
   timestamps: false,

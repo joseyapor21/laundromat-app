@@ -43,6 +43,16 @@ export interface RecurringSchedule {
   lastGeneratedDate?: Date;
 }
 
+export interface Promo {
+  name: string;
+  startDate: string;
+  endDate: string;
+  maxWeightLbs: number;
+  usedWeightLbs: number;
+  ordersUsed: Array<{ orderId: number; weight: number; date: string }>;
+  isActive: boolean;
+}
+
 export interface Customer {
   _id: string;
   id?: number;
@@ -64,6 +74,8 @@ export interface Customer {
   smsCarrier?: string;
   // Recurring order schedule
   recurringSchedule?: RecurringSchedule;
+  // Promotions / prizes
+  promos?: Promo[];
 }
 
 export interface CreditTransaction {
