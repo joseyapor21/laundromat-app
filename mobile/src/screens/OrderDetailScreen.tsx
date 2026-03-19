@@ -2673,6 +2673,35 @@ export default function OrderDetailScreen() {
           </View>
         </View>
 
+        {/* Soap & Softener Calculator */}
+        {(order.weight || 0) > 0 && settings && (
+          (() => {
+            const OZ_TO_ML = 29.5735;
+            const w = order.weight || 0;
+            const soapOz = (w / (settings.soapLbsPerRatio || 5)) * (settings.soapOzPerRatio || 1);
+            const softenerOz = (w / (settings.softenerLbsPerRatio || 5)) * (settings.softenerOzPerRatio || 0.5);
+            return (
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Soap & Softener ({w} lbs)</Text>
+                <View style={styles.card}>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Soap</Text>
+                    <Text style={styles.detailValue}>
+                      {soapOz.toFixed(1)} oz  /  {(soapOz * OZ_TO_ML).toFixed(0)} mL
+                    </Text>
+                  </View>
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>Softener</Text>
+                    <Text style={styles.detailValue}>
+                      {softenerOz.toFixed(1)} oz  /  {(softenerOz * OZ_TO_ML).toFixed(0)} mL
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            );
+          })()
+        )}
+
         {/* Bags Details */}
         {order.bags && order.bags.length > 0 && (
           <View style={styles.section}>

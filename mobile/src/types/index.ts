@@ -271,6 +271,11 @@ export interface Settings {
   // Break time settings (in minutes)
   breakfastDurationMinutes?: number;
   lunchDurationMinutes?: number;
+  // Soap & Softener calculator ratios
+  soapOzPerRatio?: number;
+  soapLbsPerRatio?: number;
+  softenerOzPerRatio?: number;
+  softenerLbsPerRatio?: number;
   updatedAt: Date;
   updatedBy: string;
 }

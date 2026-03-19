@@ -289,6 +289,10 @@ export default function AdminScreen() {
     thermalPrinterPort: '',
     breakfastDurationMinutes: '',
     lunchDurationMinutes: '',
+    soapOzPerRatio: '',
+    soapLbsPerRatio: '',
+    softenerOzPerRatio: '',
+    softenerLbsPerRatio: '',
   });
 
   const loadData = useCallback(async () => {
@@ -1763,6 +1767,10 @@ export default function AdminScreen() {
         thermalPrinterPort: (settings.thermalPrinterPort || 9100).toString(),
         breakfastDurationMinutes: (settings.breakfastDurationMinutes || 15).toString(),
         lunchDurationMinutes: (settings.lunchDurationMinutes || 30).toString(),
+        soapOzPerRatio: (settings.soapOzPerRatio ?? 1).toString(),
+        soapLbsPerRatio: (settings.soapLbsPerRatio ?? 5).toString(),
+        softenerOzPerRatio: (settings.softenerOzPerRatio ?? 0.5).toString(),
+        softenerLbsPerRatio: (settings.softenerLbsPerRatio ?? 5).toString(),
       });
     }
     setShowSettingsModal(true);
@@ -1785,6 +1793,10 @@ export default function AdminScreen() {
         thermalPrinterPort: parseInt(settingsForm.thermalPrinterPort) || 9100,
         breakfastDurationMinutes: parseInt(settingsForm.breakfastDurationMinutes) || 15,
         lunchDurationMinutes: parseInt(settingsForm.lunchDurationMinutes) || 30,
+        soapOzPerRatio: parseFloat(settingsForm.soapOzPerRatio) || 1,
+        soapLbsPerRatio: parseFloat(settingsForm.soapLbsPerRatio) || 5,
+        softenerOzPerRatio: parseFloat(settingsForm.softenerOzPerRatio) || 0.5,
+        softenerLbsPerRatio: parseFloat(settingsForm.softenerLbsPerRatio) || 5,
       });
       Alert.alert('Success', 'Settings updated');
       setShowSettingsModal(false);
@@ -2428,6 +2440,18 @@ export default function AdminScreen() {
             <View style={styles.settingsRow}>
               <Text style={styles.settingsLabel}>Lunch Duration</Text>
               <Text style={styles.settingsValue}>{settings.lunchDurationMinutes || 30} min</Text>
+            </View>
+          </View>
+
+          <View style={styles.settingsCard}>
+            <Text style={styles.settingsTitle}>Soap & Softener</Text>
+            <View style={styles.settingsRow}>
+              <Text style={styles.settingsLabel}>Soap Ratio</Text>
+              <Text style={styles.settingsValue}>{settings.soapOzPerRatio ?? 1} oz per {settings.soapLbsPerRatio ?? 5} lbs</Text>
+            </View>
+            <View style={styles.settingsRow}>
+              <Text style={styles.settingsLabel}>Softener Ratio</Text>
+              <Text style={styles.settingsValue}>{settings.softenerOzPerRatio ?? 0.5} oz per {settings.softenerLbsPerRatio ?? 5} lbs</Text>
             </View>
           </View>
 
@@ -5752,6 +5776,59 @@ export default function AdminScreen() {
               </View>
               <Text style={styles.hintText}>
                 Set the allowed duration for breakfast and lunch breaks. A timer will alert employees when time is up.
+              </Text>
+
+              <Text style={styles.sectionLabel}>Soap & Softener Calculator</Text>
+              <View style={styles.inputRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Soap (oz)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={settingsForm.soapOzPerRatio}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, soapOzPerRatio: text })}
+                    keyboardType="decimal-pad"
+                    placeholder="1"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>per (lbs)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={settingsForm.soapLbsPerRatio}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, soapLbsPerRatio: text })}
+                    keyboardType="decimal-pad"
+                    placeholder="5"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+              </View>
+              <View style={styles.inputRow}>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>Softener (oz)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={settingsForm.softenerOzPerRatio}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, softenerOzPerRatio: text })}
+                    keyboardType="decimal-pad"
+                    placeholder="0.5"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+                <View style={[styles.inputGroup, { flex: 1 }]}>
+                  <Text style={styles.inputLabel}>per (lbs)</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={settingsForm.softenerLbsPerRatio}
+                    onChangeText={(text) => setSettingsForm({ ...settingsForm, softenerLbsPerRatio: text })}
+                    keyboardType="decimal-pad"
+                    placeholder="5"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+              </View>
+              <Text style={styles.hintText}>
+                Set soap and softener ratios. E.g., 1 oz soap per 5 lbs means a 20 lb order needs 4 oz (118 mL).
               </Text>
 
             </ScrollView>

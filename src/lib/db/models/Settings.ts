@@ -108,6 +108,27 @@ const settingsSchema = new mongoose.Schema<SettingsDocument>({
     required: false,
     default: 30,  // Default 30 minutes for lunch
   },
+  // Soap & Softener calculator ratios
+  soapOzPerRatio: {
+    type: Number,
+    required: false,
+    default: 1,  // oz of soap
+  },
+  soapLbsPerRatio: {
+    type: Number,
+    required: false,
+    default: 5,  // per X lbs
+  },
+  softenerOzPerRatio: {
+    type: Number,
+    required: false,
+    default: 0.5,  // oz of softener
+  },
+  softenerLbsPerRatio: {
+    type: Number,
+    required: false,
+    default: 5,  // per X lbs
+  },
   updatedAt: {
     type: Date,
     default: Date.now,
