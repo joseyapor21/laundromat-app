@@ -1030,45 +1030,59 @@ export default function EditCustomerScreen() {
                       <Text style={styles.inputLabel}>Pickup Time</Text>
                       <TouchableOpacity
                         style={recurringStyles.timeButton}
-                        onPress={() => setShowPickupTimePicker(true)}
+                        onPress={() => {
+                          setShowPickupTimePicker(!showPickupTimePicker);
+                          setShowDeliveryTimePicker(false);
+                        }}
                       >
                         <Ionicons name="time-outline" size={18} color="#7c3aed" />
                         <Text style={recurringStyles.timeButtonText}>{formatTimeDisplay(pickupTime)}</Text>
                       </TouchableOpacity>
-                      {showPickupTimePicker && (
-                        <DateTimePicker
-                          value={pickupTime}
-                          mode="time"
-                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                          onChange={(event, date) => {
-                            setShowPickupTimePicker(Platform.OS === 'ios');
-                            if (date) setPickupTime(date);
-                          }}
-                        />
-                      )}
                     </View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.inputLabel}>Delivery Time</Text>
                       <TouchableOpacity
                         style={recurringStyles.timeButton}
-                        onPress={() => setShowDeliveryTimePicker(true)}
+                        onPress={() => {
+                          setShowDeliveryTimePicker(!showDeliveryTimePicker);
+                          setShowPickupTimePicker(false);
+                        }}
                       >
                         <Ionicons name="time-outline" size={18} color="#2563eb" />
                         <Text style={[recurringStyles.timeButtonText, { color: '#2563eb' }]}>{formatTimeDisplay(deliveryTime)}</Text>
                       </TouchableOpacity>
-                      {showDeliveryTimePicker && (
-                        <DateTimePicker
-                          value={deliveryTime}
-                          mode="time"
-                          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                          onChange={(event, date) => {
-                            setShowDeliveryTimePicker(Platform.OS === 'ios');
-                            if (date) setDeliveryTime(date);
-                          }}
-                        />
-                      )}
                     </View>
                   </View>
+                  {showPickupTimePicker && (
+                    <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#7c3aed', marginBottom: 4 }}>Select Pickup Time</Text>
+                      <DateTimePicker
+                        value={pickupTime}
+                        mode="time"
+                        display="spinner"
+                        onChange={(event, date) => {
+                          if (Platform.OS === 'android') setShowPickupTimePicker(false);
+                          if (date) setPickupTime(date);
+                        }}
+                        style={{ height: 150, width: 200 }}
+                      />
+                    </View>
+                  )}
+                  {showDeliveryTimePicker && (
+                    <View style={{ alignItems: 'center', marginBottom: 10 }}>
+                      <Text style={{ fontSize: 12, fontWeight: '600', color: '#2563eb', marginBottom: 4 }}>Select Delivery Time</Text>
+                      <DateTimePicker
+                        value={deliveryTime}
+                        mode="time"
+                        display="spinner"
+                        onChange={(event, date) => {
+                          if (Platform.OS === 'android') setShowDeliveryTimePicker(false);
+                          if (date) setDeliveryTime(date);
+                        }}
+                        style={{ height: 150, width: 200 }}
+                      />
+                    </View>
+                  )}
 
                   <View style={styles.inputGroup}>
                     <Text style={styles.inputLabel}>Recurring Order Notes</Text>
