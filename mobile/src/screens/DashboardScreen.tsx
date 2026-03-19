@@ -382,6 +382,14 @@ export default function DashboardScreen() {
           break;
         default: // 'all'
           passesFilter = order.status !== 'completed';
+          // Hide delivery orders waiting for driver pickup — those only show in driver screen
+          if (order.orderType === 'delivery' && ['new_order', 'scheduled_pickup'].includes(order.status)) {
+            passesFilter = false;
+          }
+          // Hide ready_for_delivery from all — only show in ready tab
+          if (order.status === 'ready_for_delivery') {
+            passesFilter = false;
+          }
       }
 
       if (!passesFilter) return false;
@@ -433,7 +441,7 @@ export default function DashboardScreen() {
 
   const getCounts = () => {
     return {
-      all: orders.filter(o => o.status !== 'completed').length,
+      all: orders.filter(o => o.status !== 'completed' && o.status !== 'ready_for_delivery' && !(o.orderType === 'delivery' && ['new_order', 'scheduled_pickup'].includes(o.status))).length,
       inStore: orders.filter(o => o.orderType === 'storePickup' && o.status !== 'completed').length,
       delivery: orders.filter(o => o.orderType === 'delivery' && o.status !== 'completed').length,
       newOrder: orders.filter(o => STATUS_GROUPS.new_order.includes(o.status)).length,
@@ -460,7 +468,7 @@ export default function DashboardScreen() {
   };
 
   // Get orders by status group for board view, sorted by date
-  const newOrders = sortByDate(orders.filter(o => STATUS_GROUPS.new_order.includes(o.status)));
+  const newOrders = sortByDate(orders.filter(o => STATUS_GROUPS.new_order.includes(o.status) && !(o.orderType === 'delivery' && ['new_order', 'scheduled_pickup'].includes(o.status))));
   const processingOrders = sortByDate(orders.filter(o => STATUS_GROUPS.processing.includes(o.status)));
   const readyOrders = sortByDate(orders.filter(o => STATUS_GROUPS.ready.includes(o.status)));
 
