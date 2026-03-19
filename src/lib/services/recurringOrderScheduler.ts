@@ -89,7 +89,24 @@ async function generateRecurringOrders() {
           }
         }
 
-        // Also check if there's already an active (non-completed/archived) order for this customer
+        // Check if there's already an active OR deleted recurring order for this customer today
+        // This prevents re-creating orders that were intentionally deleted
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        const todayEnd = new Date(now);
+        todayEnd.setHours(23, 59, 59, 999);
+
+        const existingTodayOrder = await Order.findOne({
+          customerId: customer._id.toString(),
+          isRecurring: true,
+          dropOffDate: { $gte: todayStart, $lte: todayEnd },
+        });
+
+        if (existingTodayOrder) {
+          continue; // Already created (or deleted) a recurring order today
+        }
+
+        // Also check for active non-completed orders (from previous days)
         const existingActiveOrder = await Order.findOne({
           customerId: customer._id.toString(),
           isRecurring: true,
