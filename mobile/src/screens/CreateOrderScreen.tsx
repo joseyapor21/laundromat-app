@@ -2007,10 +2007,9 @@ export default function CreateOrderScreen() {
       </View>
 
       {/* Active Promo */}
-      {selectedCustomer?.promos?.some(p => p.isActive && new Date(p.endDate) > new Date() && p.usedWeightLbs < p.maxWeightLbs) && (
+      {selectedCustomer?.promos?.some(p => p.isActive && new Date(p.endDate) > new Date()) && (
         <View style={styles.section}>
-          {selectedCustomer.promos!.filter(p => p.isActive && new Date(p.endDate) > new Date() && p.usedWeightLbs < p.maxWeightLbs).map((promo, idx) => {
-            const remainingLbs = promo.maxWeightLbs - promo.usedWeightLbs;
+          {selectedCustomer.promos!.filter(p => p.isActive && new Date(p.endDate) > new Date()).map((promo, idx) => {
             const daysLeft = Math.ceil((new Date(promo.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
             return (
               <View key={idx} style={{ backgroundColor: '#f0fdf4', borderRadius: 12, padding: 14, borderWidth: 1, borderColor: '#86efac' }}>
@@ -2019,7 +2018,7 @@ export default function CreateOrderScreen() {
                   <Text style={{ fontSize: 14, fontWeight: '700', color: '#15803d', flex: 1 }}>{promo.name}</Text>
                 </View>
                 <Text style={{ fontSize: 13, color: '#16a34a' }}>
-                  {remainingLbs} lbs remaining — {daysLeft} days left
+                  FREE laundry{promo.maxWeightPerVisitLbs > 0 ? ` (max ${promo.maxWeightPerVisitLbs} lbs per visit)` : ''} — {daysLeft} days left
                 </Text>
               </View>
             );

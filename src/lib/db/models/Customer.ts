@@ -27,9 +27,10 @@ export interface PromoDoc {
   name: string;
   startDate: Date;
   endDate: Date;
-  maxWeightLbs: number;
-  usedWeightLbs: number;
-  ordersUsed: Array<{ orderId: number; weight: number; date: Date }>;
+  maxWeightPerVisitLbs: number; // max lbs per visit (0 = unlimited)
+  ordersUsed: Array<{ orderId: number; weight: number; date: Date; amount: number }>;
+  totalWeightUsed: number;
+  totalAmountSaved: number;
   isActive: boolean;
 }
 
@@ -206,13 +207,15 @@ const customerSchema = new mongoose.Schema({
     name: { type: String, required: true },
     startDate: { type: Date, required: true },
     endDate: { type: Date, required: true },
-    maxWeightLbs: { type: Number, required: true },
-    usedWeightLbs: { type: Number, default: 0 },
+    maxWeightPerVisitLbs: { type: Number, default: 0 },
     ordersUsed: [{
       orderId: Number,
       weight: Number,
+      amount: Number,
       date: { type: Date, default: Date.now },
     }],
+    totalWeightUsed: { type: Number, default: 0 },
+    totalAmountSaved: { type: Number, default: 0 },
     isActive: { type: Boolean, default: true },
   }],
 }, {

@@ -84,6 +84,13 @@ export default function EditCustomerScreen() {
   const [creditPaymentMethod, setCreditPaymentMethod] = useState<'cash' | 'check' | 'venmo' | 'zelle' | 'refund'>('cash');
   const [printing, setPrinting] = useState(false);
 
+  // Promos
+  const [showAddPromo, setShowAddPromo] = useState(false);
+  const [promoName, setPromoName] = useState('');
+  const [promoDays, setPromoDays] = useState('30');
+  const [promoMaxWeight, setPromoMaxWeight] = useState('40');
+  const [savingPromo, setSavingPromo] = useState(false);
+
   // Orders
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
@@ -663,18 +670,113 @@ export default function EditCustomerScreen() {
             </View>
           )}
 
-          {/* Active Promotions / Prizes */}
-          {customer.promos && customer.promos.length > 0 && (
-            <View style={styles.section}>
+          {/* Promotions / Prizes */}
+          <View style={styles.section}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <Text style={styles.sectionTitle}>Promotions & Prizes</Text>
-              {customer.promos.map((promo, idx) => {
+              {isAdmin && (
+                <TouchableOpacity
+                  style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#7c3aed', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, gap: 4 }}
+                  onPress={() => setShowAddPromo(!showAddPromo)}
+                >
+                  <Ionicons name={showAddPromo ? 'close' : 'add'} size={18} color="#fff" />
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{showAddPromo ? 'Cancel' : 'Add Promo'}</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Add Promo Form */}
+            {showAddPromo && (
+              <View style={{ backgroundColor: '#faf5ff', borderRadius: 12, padding: 14, marginBottom: 12, borderWidth: 1, borderColor: '#c4b5fd' }}>
+                <View style={styles.inputGroup}>
+                  <Text style={styles.inputLabel}>Promo Name</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={promoName}
+                    onChangeText={setPromoName}
+                    placeholder="e.g. Grand Opening Raffle - FREE Laundry"
+                    placeholderTextColor="#94a3b8"
+                  />
+                </View>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>Duration (days)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={promoDays}
+                      onChangeText={setPromoDays}
+                      keyboardType="numeric"
+                      placeholder="30"
+                      placeholderTextColor="#94a3b8"
+                    />
+                  </View>
+                  <View style={[styles.inputGroup, { flex: 1 }]}>
+                    <Text style={styles.inputLabel}>Max lbs per visit</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={promoMaxWeight}
+                      onChangeText={setPromoMaxWeight}
+                      keyboardType="numeric"
+                      placeholder="40 (0 = unlimited)"
+                      placeholderTextColor="#94a3b8"
+                    />
+                  </View>
+                </View>
+                <TouchableOpacity
+                  style={{ backgroundColor: '#7c3aed', borderRadius: 8, padding: 12, alignItems: 'center', marginTop: 8, opacity: savingPromo ? 0.6 : 1 }}
+                  onPress={async () => {
+                    if (!promoName.trim()) {
+                      Alert.alert('Error', 'Promo name is required');
+                      return;
+                    }
+                    setSavingPromo(true);
+                    try {
+                      const startDate = new Date();
+                      const endDate = new Date();
+                      endDate.setDate(endDate.getDate() + (parseInt(promoDays) || 30));
+                      endDate.setHours(23, 59, 59, 999);
+
+                      await api.updateCustomer(customer!._id, {
+                        $push: { promos: {
+                          name: promoName.trim(),
+                          startDate,
+                          endDate,
+                          maxWeightPerVisitLbs: parseInt(promoMaxWeight) || 0,
+                          ordersUsed: [],
+                          totalWeightUsed: 0,
+                          totalAmountSaved: 0,
+                          isActive: true,
+                        }}
+                      } as any);
+                      Alert.alert('Success', 'Promo added');
+                      setShowAddPromo(false);
+                      setPromoName('');
+                      setPromoDays('30');
+                      setPromoMaxWeight('40');
+                      await loadCustomer();
+                    } catch (error) {
+                      Alert.alert('Error', 'Failed to add promo');
+                    } finally {
+                      setSavingPromo(false);
+                    }
+                  }}
+                  disabled={savingPromo}
+                >
+                  <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                    {savingPromo ? 'Saving...' : 'Add Promo'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {customer.promos && customer.promos.length > 0 ? (
+              customer.promos.map((promo, idx) => {
                 const now = new Date();
                 const endDate = new Date(promo.endDate);
                 const startDate = new Date(promo.startDate);
                 const isExpired = now > endDate;
-                const remainingLbs = promo.maxWeightLbs - promo.usedWeightLbs;
                 const daysLeft = Math.max(0, Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
-                const usedPercent = promo.maxWeightLbs > 0 ? (promo.usedWeightLbs / promo.maxWeightLbs) * 100 : 0;
+                const visitCount = promo.ordersUsed?.length || 0;
 
                 return (
                   <View key={idx} style={{
@@ -690,32 +792,34 @@ export default function EditCustomerScreen() {
                         {promo.name}
                       </Text>
                       <View style={{
-                        backgroundColor: isExpired ? '#ef4444' : remainingLbs <= 0 ? '#f59e0b' : '#10b981',
+                        backgroundColor: isExpired ? '#ef4444' : '#10b981',
                         paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
                       }}>
                         <Text style={{ fontSize: 11, fontWeight: '600', color: '#fff' }}>
-                          {isExpired ? 'Expired' : remainingLbs <= 0 ? 'Used Up' : 'Active'}
+                          {isExpired ? 'Expired' : 'Active'}
                         </Text>
                       </View>
                     </View>
 
-                    {/* Progress bar */}
-                    <View style={{ backgroundColor: '#e2e8f0', borderRadius: 4, height: 8, marginBottom: 8 }}>
-                      <View style={{
-                        backgroundColor: usedPercent >= 100 ? '#f59e0b' : '#10b981',
-                        borderRadius: 4, height: 8,
-                        width: `${Math.min(100, usedPercent)}%`,
-                      }} />
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>
+                        {promo.maxWeightPerVisitLbs > 0 ? `Max ${promo.maxWeightPerVisitLbs} lbs per visit` : 'Unlimited weight'}
+                      </Text>
+                      <Text style={{ fontSize: 12, color: '#64748b' }}>
+                        {visitCount} visit{visitCount !== 1 ? 's' : ''} used
+                      </Text>
                     </View>
 
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                      <Text style={{ fontSize: 12, color: '#64748b' }}>
-                        Used: {promo.usedWeightLbs} / {promo.maxWeightLbs} lbs
-                      </Text>
-                      <Text style={{ fontSize: 12, color: '#64748b' }}>
-                        {remainingLbs > 0 ? `${remainingLbs} lbs left` : 'No lbs remaining'}
-                      </Text>
-                    </View>
+                    {(promo.totalWeightUsed > 0 || promo.totalAmountSaved > 0) && (
+                      <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <Text style={{ fontSize: 12, color: '#16a34a', fontWeight: '600' }}>
+                          Total: {promo.totalWeightUsed || 0} lbs washed
+                        </Text>
+                        <Text style={{ fontSize: 12, color: '#16a34a', fontWeight: '600' }}>
+                          Saved: ${(promo.totalAmountSaved || 0).toFixed(2)}
+                        </Text>
+                      </View>
+                    )}
 
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
                       <Text style={{ fontSize: 11, color: '#94a3b8' }}>
@@ -734,16 +838,18 @@ export default function EditCustomerScreen() {
                         <Text style={{ fontSize: 11, fontWeight: '600', color: '#64748b', marginBottom: 4 }}>Usage History:</Text>
                         {promo.ordersUsed.map((usage, uIdx) => (
                           <Text key={uIdx} style={{ fontSize: 11, color: '#94a3b8' }}>
-                            Order #{usage.orderId} — {usage.weight} lbs — {new Date(usage.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            Order #{usage.orderId} — {usage.weight} lbs — ${(usage.amount || 0).toFixed(2)} — {new Date(usage.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </Text>
                         ))}
                       </View>
                     )}
                   </View>
                 );
-              })}
-            </View>
-          )}
+              })
+            ) : (
+              <Text style={{ fontSize: 13, color: '#94a3b8', textAlign: 'center', paddingVertical: 10 }}>No promotions</Text>
+            )}
+          </View>
 
           {/* Credit History */}
           {customer.creditHistory && customer.creditHistory.length > 0 && (

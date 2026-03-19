@@ -124,6 +124,18 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
       }
     }
 
+    // Handle $push operations (e.g., adding promos)
+    if (updates.$push) {
+      for (const [field, value] of Object.entries(updates.$push)) {
+        if (Array.isArray((customer as any)[field])) {
+          (customer as any)[field].push(value);
+        } else {
+          (customer as any)[field] = [value];
+        }
+      }
+      delete updates.$push;
+    }
+
     // Update the customer
     Object.assign(customer, updates);
     await customer.save();

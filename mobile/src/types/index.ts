@@ -44,12 +44,14 @@ export interface RecurringSchedule {
 }
 
 export interface Promo {
+  _id?: string;
   name: string;
   startDate: string;
   endDate: string;
-  maxWeightLbs: number;
-  usedWeightLbs: number;
-  ordersUsed: Array<{ orderId: number; weight: number; date: string }>;
+  maxWeightPerVisitLbs: number;
+  ordersUsed: Array<{ orderId: number; weight: number; amount: number; date: string }>;
+  totalWeightUsed: number;
+  totalAmountSaved: number;
   isActive: boolean;
 }
 
