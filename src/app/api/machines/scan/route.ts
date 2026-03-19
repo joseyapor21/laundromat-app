@@ -115,6 +115,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Block dryer scanning if transfer hasn't been verified yet
+    // Check FIRST before any bag selection or assignment logic
+    if (machine.type === 'dryer') {
+      if (order.status === 'transferred' || order.status === 'in_washer') {
+        console.log('Scan error: Transfer not verified yet, status:', order.status);
+        return NextResponse.json(
+          { error: 'Please verify the transfer first before scanning dryers. Another person must check that all items were transferred correctly.' },
+          { status: 400 }
+        );
+      }
+      if (order.status !== 'transfer_checked' && order.status !== 'in_dryer') {
+        console.log('Scan error: Cannot assign dryer in status:', order.status);
+        return NextResponse.json(
+          { error: `Cannot assign dryer when order is in "${order.status.replace(/_/g, ' ')}" status. The order must go through the transfer verification process first.` },
+          { status: 400 }
+        );
+      }
+    }
+
     // For keepSeparated orders, validate per-bag assignment
     // wash_only: only require bag selection for washers, not dryers
     // all_the_way: require bag selection for both washers and dryers
@@ -185,26 +204,6 @@ export async function POST(request: NextRequest) {
         { error: `Order is already assigned to ${machine.name}` },
         { status: 400 }
       );
-    }
-
-    // Block dryer scanning if transfer hasn't been verified yet
-    // Must check BEFORE adding the assignment to prevent orphaned assignments
-    if (machine.type === 'dryer') {
-      if (order.status === 'transferred' || order.status === 'in_washer') {
-        console.log('Scan error: Transfer not verified yet, status:', order.status);
-        return NextResponse.json(
-          { error: 'Please verify the transfer first before scanning dryers. Another person must check that all items were transferred correctly.' },
-          { status: 400 }
-        );
-      }
-      // Only allow dryer assignment when status is transfer_checked or already in_dryer
-      if (order.status !== 'transfer_checked' && order.status !== 'in_dryer') {
-        console.log('Scan error: Cannot assign dryer in status:', order.status);
-        return NextResponse.json(
-          { error: `Cannot assign dryer when order is in "${order.status.replace(/_/g, ' ')}" status. The order must go through the transfer verification process first.` },
-          { status: 400 }
-        );
-      }
     }
 
     // Add machine assignment to order

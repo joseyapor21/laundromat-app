@@ -386,8 +386,8 @@ export default function DashboardScreen() {
           if (order.orderType === 'delivery' && ['new_order', 'scheduled_pickup'].includes(order.status)) {
             passesFilter = false;
           }
-          // Hide ready_for_delivery from all — only show in ready tab
-          if (order.status === 'ready_for_delivery') {
+          // Hide ready orders from all — only show in ready tab
+          if (order.status === 'ready_for_delivery' || order.status === 'ready_for_pickup') {
             passesFilter = false;
           }
       }

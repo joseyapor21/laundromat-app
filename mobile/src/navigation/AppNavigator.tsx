@@ -317,7 +317,6 @@ function AuthenticatedAppContent() {
   const [showPinLock, setShowPinLock] = useState(false);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const showPinLockRef = useRef(() => setShowPinLock(true));
-  const contactsSynced = useRef(false);
 
   // Keep ref current
   useEffect(() => { showPinLockRef.current = () => setShowPinLock(true); }, []);
@@ -345,29 +344,49 @@ function AuthenticatedAppContent() {
   }, [isStorePhoneMode]);
 
   // Sync all customers to contacts — ONLY on store phones
-  // Uses SecureStore cache — only new customers are added on subsequent launches
+  // Initial sync on launch + periodic sync every 5 minutes + sync on foreground resume
   useEffect(() => {
     if (!isStorePhoneMode) {
       console.log('[ContactsSync] Skipping — not a store phone');
       return;
     }
-    if (contactsSynced.current) return;
-    contactsSynced.current = true;
-    console.log('[ContactsSync] Scheduling contacts sync in 10s (store phone)...');
-    const timer = setTimeout(async () => {
+
+    const runSync = async () => {
       try {
         const customers = await api.getCustomers();
         if (customers?.length) {
           const result = await syncAllCustomersToContacts(customers);
-          console.log('[ContactsSync] Done:', result);
+          if (result.added > 0) {
+            console.log('[ContactsSync] Synced:', result);
+          }
         }
-        // Register background sync so new contacts sync even when app is closed
-        registerBackgroundSync();
       } catch (e) {
         console.log('[ContactsSync] Error:', e);
       }
+    };
+
+    // Initial sync after 10s delay
+    const initialTimer = setTimeout(() => {
+      runSync();
+      registerBackgroundSync();
     }, 10000);
-    return () => clearTimeout(timer);
+
+    // Periodic sync every 5 minutes to pick up customers added from other devices
+    const intervalTimer = setInterval(runSync, 5 * 60 * 1000);
+
+    // Sync immediately when app comes back to foreground (after screen unlock)
+    const { AppState } = require('react-native');
+    const subscription = AppState.addEventListener('change', (nextState: string) => {
+      if (nextState === 'active') {
+        runSync();
+      }
+    });
+
+    return () => {
+      clearTimeout(initialTimer);
+      clearInterval(intervalTimer);
+      subscription.remove();
+    };
   }, [isStorePhoneMode]);
 
   // Recurring order alarm — play alarm sound when recurring notification arrives

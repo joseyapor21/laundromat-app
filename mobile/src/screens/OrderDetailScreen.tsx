@@ -1764,7 +1764,7 @@ export default function OrderDetailScreen() {
           <View style={styles.card}>
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
               <Text style={styles.customerName}>{order.customerName}</Text>
-              {(order.customer?._id || order.customerId) && (isAdmin || isCashier) && (
+              {(order.customer?._id || order.customerId) && (
                 <TouchableOpacity
                   style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, gap: 4 }}
                   onPress={() => navigation.navigate('EditCustomer' as never, { customerId: order.customer?._id || order.customerId } as never)}
@@ -1774,7 +1774,7 @@ export default function OrderDetailScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            {order.orderType !== 'delivery' && order.customerPhone && (
+            {order.customerPhone && (
               <TouchableOpacity
                 style={styles.contactRow}
                 onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
@@ -1783,15 +1783,10 @@ export default function OrderDetailScreen() {
                 <Text style={styles.contactText}>{formatPhoneNumber(order.customerPhone)}</Text>
               </TouchableOpacity>
             )}
-            {currentLocation?._id === '698a55eae28eb750c51148c0' && order.customerPhone && (user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
+            {order.customerPhone && (
               <TouchableOpacity
                 style={[styles.contactRow, { backgroundColor: '#10b981', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 }]}
                 onPress={async () => {
-                  const isAvailable = await SMS.isAvailableAsync();
-                  if (!isAvailable) {
-                    Alert.alert('Error', 'SMS is not available on this device');
-                    return;
-                  }
                   const statusLabels: Record<string, string> = {
                     'new_order': 'has been received',
                     'scheduled_pickup': 'pickup has been scheduled',
@@ -1810,6 +1805,7 @@ export default function OrderDetailScreen() {
                   };
                   const statusLabel = statusLabels[order.status] || `is currently ${order.status.replace(/_/g, ' ')}`;
                   const defaultMsg = `Hi ${order.customerName?.split(' ')[0]}, your laundry order #${order.orderId} ${statusLabel}!`;
+
                   await SMS.sendSMSAsync([order.customerPhone], defaultMsg);
                 }}
               >
@@ -1940,16 +1936,14 @@ export default function OrderDetailScreen() {
               <Ionicons name="cube" size={20} color="#fff" />
               <Text style={styles.printButtonText}>Print Bag Labels ({order?.bags?.length || 0})</Text>
             </TouchableOpacity>
-            {!isStorePhoneMode && (
-              <TouchableOpacity
-                style={[styles.printButton, styles.shareButton, { marginTop: 10 }]}
-                onPress={() => setShowShareOptions(true)}
-              >
-                <Ionicons name="share-outline" size={20} color="#fff" />
-                <Text style={styles.printButtonText}>Share Order Details</Text>
-                <Ionicons name="chevron-down" size={16} color="#fff" />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={[styles.printButton, styles.shareButton, { marginTop: 10 }]}
+              onPress={() => setShowShareOptions(true)}
+            >
+              <Ionicons name="share-outline" size={20} color="#fff" />
+              <Text style={styles.printButtonText}>Share Order Details</Text>
+              <Ionicons name="chevron-down" size={16} color="#fff" />
+            </TouchableOpacity>
           </View>
         </View>
 

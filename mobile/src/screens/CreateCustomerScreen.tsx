@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,13 @@ import {
   Alert,
   ActivityIndicator,
   Platform,
+  FlatList,
 } from 'react-native';
 import { KeyboardAwareScrollView } from 'react-native-keyboard-controller';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { api } from '../services/api';
+import { Customer } from '../types';
 import { formatPhoneInput, unformatPhone } from '../utils/phoneFormat';
 import AddressInput from '../components/AddressInput';
 import { saveCustomerToContacts } from '../services/contactsSync';
@@ -39,6 +41,41 @@ export default function CreateCustomerScreen() {
   const [buzzerCode, setBuzzerCode] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Referral state
+  const [referralSearch, setReferralSearch] = useState('');
+  const [referralResults, setReferralResults] = useState<Customer[]>([]);
+  const [selectedReferrer, setSelectedReferrer] = useState<Customer | null>(null);
+  const [searchingReferral, setSearchingReferral] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const searchReferrer = useCallback((text: string) => {
+    setReferralSearch(text);
+    setSelectedReferrer(null);
+
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (text.trim().length < 2) {
+      setReferralResults([]);
+      return;
+    }
+
+    searchTimeout.current = setTimeout(async () => {
+      setSearchingReferral(true);
+      try {
+        const customers = await api.getCustomers();
+        const query = text.trim().toLowerCase();
+        const matches = customers.filter((c: Customer) =>
+          c.name.toLowerCase().includes(query) ||
+          c.phoneNumber.includes(query)
+        ).slice(0, 5);
+        setReferralResults(matches);
+      } catch {
+        setReferralResults([]);
+      } finally {
+        setSearchingReferral(false);
+      }
+    }, 300);
+  }, []);
+
   const handleSave = async () => {
     if (!name.trim()) {
       Alert.alert('Error', 'Customer name is required');
@@ -63,6 +100,26 @@ export default function CreateCustomerScreen() {
 
       const newCustomer = await api.createCustomer(customerData);
 
+      // Apply referral credits
+      if (selectedReferrer && newCustomer._id) {
+        try {
+          // $10 credit for new customer
+          await api.addCustomerCredit(
+            newCustomer._id,
+            10,
+            `Referral bonus - referred by ${selectedReferrer.name}`,
+          );
+          // $5 credit for referrer
+          await api.addCustomerCredit(
+            selectedReferrer._id,
+            5,
+            `Referral bonus - referred ${name.trim()}`,
+          );
+        } catch (creditError) {
+          console.error('Failed to apply referral credits:', creditError);
+        }
+      }
+
       // Auto-save new customer to contacts — only on store phones
       if (isStorePhoneMode) {
         saveCustomerToContacts({
@@ -73,7 +130,11 @@ export default function CreateCustomerScreen() {
         }).catch(() => {}); // fire and forget
       }
 
-      Alert.alert('Success', 'Customer created successfully', [
+      const successMsg = selectedReferrer
+        ? `Customer created! $10 credit applied. $5 credit added to ${selectedReferrer.name}.`
+        : 'Customer created successfully';
+
+      Alert.alert('Success', successMsg, [
         { text: 'OK', onPress: () => {
           // Pass the new customer back to the previous screen
           navigation.navigate('CreateOrder', { newCustomer });
@@ -184,6 +245,58 @@ export default function CreateCustomerScreen() {
                   />
                 </View>
               </View>
+            </View>
+          </View>
+
+          {/* Referral */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Referred By (Optional)</Text>
+            <View style={styles.card}>
+              {selectedReferrer ? (
+                <View style={styles.referrerSelected}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.referrerName}>{selectedReferrer.name}</Text>
+                    <Text style={styles.referrerPhone}>{selectedReferrer.phoneNumber}</Text>
+                    <Text style={styles.referralInfo}>New customer gets $10 off, {selectedReferrer.name} gets $5 off</Text>
+                  </View>
+                  <TouchableOpacity onPress={() => { setSelectedReferrer(null); setReferralSearch(''); }}>
+                    <Ionicons name="close-circle" size={24} color="#ef4444" />
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <>
+                  <View style={styles.inputGroup}>
+                    <TextInput
+                      style={styles.input}
+                      value={referralSearch}
+                      onChangeText={searchReferrer}
+                      placeholder="Search existing customer name or phone..."
+                      placeholderTextColor="#94a3b8"
+                    />
+                    {searchingReferral && (
+                      <ActivityIndicator size="small" color="#2563eb" style={{ position: 'absolute', right: 12, top: 12 }} />
+                    )}
+                  </View>
+                  {referralResults.length > 0 && (
+                    <View style={styles.referralResults}>
+                      {referralResults.map((c) => (
+                        <TouchableOpacity
+                          key={c._id}
+                          style={styles.referralResultItem}
+                          onPress={() => {
+                            setSelectedReferrer(c);
+                            setReferralSearch(c.name);
+                            setReferralResults([]);
+                          }}
+                        >
+                          <Text style={styles.referralResultName}>{c.name}</Text>
+                          <Text style={styles.referralResultPhone}>{c.phoneNumber}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </>
+              )}
             </View>
           </View>
 
@@ -338,5 +451,51 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: {
     opacity: 0.6,
+  },
+  referrerSelected: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f0fdf4',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#bbf7d0',
+  },
+  referrerName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1e293b',
+  },
+  referrerPhone: {
+    fontSize: 14,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  referralInfo: {
+    fontSize: 12,
+    color: '#16a34a',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  referralResults: {
+    borderTopWidth: 1,
+    borderTopColor: '#e2e8f0',
+    marginTop: 4,
+  },
+  referralResultItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  referralResultName: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#1e293b',
+  },
+  referralResultPhone: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 2,
   },
 });
