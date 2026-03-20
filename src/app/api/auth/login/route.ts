@@ -129,10 +129,11 @@ export async function POST(request: NextRequest) {
       isDriver = appUser.isDriver || false;
     } else {
       // Fall back to auth database fields
-      if (isAdmin || isSuperUser) {
-        role = 'admin';
-      } else if (user.appRole) {
+      // appRole (set by admin screen) takes precedence over adminIds
+      if (user.appRole) {
         role = user.appRole;
+      } else if (isAdmin || isSuperUser) {
+        role = 'admin';
       }
       isDriver = user.isDriver || false;
     }

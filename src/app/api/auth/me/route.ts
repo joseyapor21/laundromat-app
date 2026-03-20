@@ -69,12 +69,12 @@ export async function GET() {
     const adminIds = department ? (department.adminIds || []).map((id: unknown) => id?.toString()) : [];
     const isAdmin = adminIds.includes(userId);
 
-    // Determine role: admin/super_admin if in adminIds, otherwise use stored appRole
+    // Determine role: appRole (set by admin screen) takes precedence over adminIds
     let role = 'user';
-    if (isAdmin || isSuperUser) {
-      role = 'admin';
-    } else if (user.appRole) {
+    if (user.appRole) {
       role = user.appRole;
+    } else if (isAdmin || isSuperUser) {
+      role = 'admin';
     }
 
     // Handle both v5users (has 'name') and users (has 'firstName'/'lastName') formats
