@@ -36,6 +36,7 @@ try {
 }
 import { useTimeClock, BreakType } from '../contexts/TimeClockContext';
 import { useLocation } from '../contexts/LocationContext';
+import { useStorePhone } from '../contexts/StorePhoneContext';
 import { api } from '../services/api';
 import { callerIDService } from '../services/callerID';
 import ClockInScreen from './ClockInScreen';
@@ -94,6 +95,7 @@ export default function ProfileScreen() {
   const { user, logout, refreshUser } = useAuth();
   const { isClockedIn, isOnBreak, breakType, lastClockIn, lastBreakStart, startBreak, endBreak, isLoading: isClockLoading } = useTimeClock();
   const { currentLocation, availableLocations, selectLocation, refreshLocations } = useLocation();
+  const { isStorePhoneMode } = useStorePhone();
   const isKioskMode = user?.isKioskMode;
 
   // Clock out modal
@@ -1333,8 +1335,8 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        {/* Caller ID - iOS only, hidden in Kiosk Mode */}
-        {Platform.OS === 'ios' && !isKioskMode && (
+        {/* Caller ID - iOS only, store phones or admins only, hidden in Kiosk Mode */}
+        {Platform.OS === 'ios' && !isKioskMode && (isStorePhoneMode || user?.role === 'admin' || user?.role === 'super_admin') && (
           <View style={styles.card}>
             <View style={styles.cardRow}>
               <View style={[styles.cardIcon, {

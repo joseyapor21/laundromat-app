@@ -82,10 +82,10 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Handle role change (move between adminIds and memberIds)
     if (updates.role !== undefined) {
-      const adminIds = department.adminIds || [];
-      const memberIds = department.memberIds || [];
+      const adminIds = (department.adminIds || []).map((aid: unknown) => aid?.toString());
+      const memberIds = (department.memberIds || []).map((mid: unknown) => mid?.toString());
 
-      // Remove user from both arrays first
+      // Remove user from both arrays first (compare as strings to handle ObjectId)
       const newAdminIds = adminIds.filter((aid: string) => aid !== id);
       const newMemberIds = memberIds.filter((mid: string) => mid !== id);
 
@@ -209,8 +209,8 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const adminIds = (department.adminIds || []).filter((aid: string) => aid !== id);
-    const memberIds = (department.memberIds || []).filter((mid: string) => mid !== id);
+    const adminIds = (department.adminIds || []).map((a: unknown) => a?.toString()).filter((aid: string) => aid !== id);
+    const memberIds = (department.memberIds || []).map((m: unknown) => m?.toString()).filter((mid: string) => mid !== id);
 
     await db.collection('v5departments').updateOne(
       { _id: department._id },

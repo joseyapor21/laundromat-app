@@ -169,11 +169,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('Push notifications not available');
         }
       }
-      await api.logout();
-      await clearCachedUser();
-      await clearContactsSyncCache();
-      await unregisterBackgroundSync();
+      try {
+        await api.logout();
+      } catch (e) {
+        console.log('Logout API call failed, continuing cleanup');
+      }
     } finally {
+      // Always clear ALL cached data regardless of API errors
+      await clearCachedUser();
+      try { await clearContactsSyncCache(); } catch {}
+      try { await unregisterBackgroundSync(); } catch {}
+      await api.clearToken();
       setUser(null);
     }
   }

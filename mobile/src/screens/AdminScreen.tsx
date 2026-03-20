@@ -705,8 +705,11 @@ export default function AdminScreen() {
     try {
       if (editingUser) {
         // Update user role and driver status
+        const roleChanged = editingUser.role !== userForm.role;
         await api.updateUser(editingUser._id, { role: userForm.role, isDriver: userForm.isDriver });
-        Alert.alert('Success', 'User updated successfully');
+        Alert.alert('Success', roleChanged
+          ? 'User updated. They must log out and log back in for the role change to take effect.'
+          : 'User updated successfully');
       } else {
         // Create/invite new user
         if (!userForm.password) {
@@ -4593,6 +4596,8 @@ export default function AdminScreen() {
                   />
                 </View>
               </View>
+              {/* Role picker - only admins can change roles, cashiers cannot */}
+              {isAdmin && (
               <View style={styles.inputGroup}>
                 <Text style={styles.inputLabel}>Role</Text>
                 <View style={styles.roleOptions}>
@@ -4609,6 +4614,7 @@ export default function AdminScreen() {
                   ))}
                 </View>
               </View>
+              )}
               <View style={styles.inputGroup}>
                 <View style={styles.driverToggleRow}>
                   <View>

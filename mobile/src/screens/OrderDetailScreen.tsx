@@ -1802,7 +1802,7 @@ export default function OrderDetailScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            {order.customerPhone && (
+            {order.customerPhone && (isStorePhoneMode || isAdmin || isCashier) && (
               <TouchableOpacity
                 style={styles.contactRow}
                 onPress={() => Linking.openURL(`tel:${order.customerPhone}`)}
@@ -1811,7 +1811,7 @@ export default function OrderDetailScreen() {
                 <Text style={styles.contactText}>{formatPhoneNumber(order.customerPhone)}</Text>
               </TouchableOpacity>
             )}
-            {order.customerPhone && (
+            {order.customerPhone && (isStorePhoneMode || isAdmin || isCashier) && (
               <TouchableOpacity
                 style={[styles.contactRow, { backgroundColor: '#10b981', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10 }]}
                 onPress={async () => {
@@ -2503,8 +2503,8 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Status Update - Only admins and cashiers can change process status */}
-        {!isStorePhoneMode && (isAdmin || isCashier) && (
+        {/* Status Update - visible to all users, but non-admin/cashier can only set folding/folded */}
+        {!isStorePhoneMode && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Process Status</Text>
             <View style={styles.statusGrid}>

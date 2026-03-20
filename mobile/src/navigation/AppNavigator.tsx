@@ -520,6 +520,21 @@ function handleNotificationResponse(response: any) {
   }
 }
 
+// Deep linking configuration
+const linking = {
+  prefixes: ['laundromat://'],
+  config: {
+    screens: {
+      Main: {
+        screens: {
+          Dashboard: 'dashboard',
+        },
+      },
+      EditCustomer: 'customer/:customerId',
+    },
+  },
+};
+
 export default function AppNavigator() {
   const { isAuthenticated, isLoading } = useAuth();
   const { currentLocation, isLoadingLocations, availableLocations, refreshLocations } = useLocation();
@@ -596,7 +611,7 @@ export default function AppNavigator() {
   };
 
   return (
-    <NavigationContainer ref={navigationRef}>
+    <NavigationContainer ref={navigationRef} linking={isAuthenticated ? linking : undefined}>
       {getContent()}
     </NavigationContainer>
   );

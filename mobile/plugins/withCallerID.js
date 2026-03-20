@@ -591,7 +591,7 @@ function withCallerIDXcodeProject(config) {
           // Use PROVISIONING_PROFILE (UUID) to avoid name-based matching
           // issues when multiple profiles share the same name
           bc.buildSettings['PROVISIONING_PROFILE'] =
-            '"16804220-ec1b-419f-8f18-f03371ef59d5"';
+            '"3d21e098-7d37-435c-bebd-60b6f1457414"';
         }
       }
       console.log('[withCallerID] Set main target to Manual code signing.');

@@ -86,7 +86,7 @@ export async function GET() {
       email: user.email,
       firstName,
       lastName,
-      role: user.role || role,
+      role: role,
       isDriver: user.isDriver || false,
       isActive: user.isActive !== false,
       isSuperUser: isSuperUser,

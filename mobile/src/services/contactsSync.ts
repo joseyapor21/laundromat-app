@@ -78,7 +78,7 @@ export async function deleteAllSyncedContacts(): Promise<number> {
 
 // Save a single customer to iPhone contacts (used when creating new customers)
 export async function saveCustomerToContacts(
-  customer: Pick<Customer, 'name' | 'phoneNumber' | 'address' | 'email' | 'notes'>
+  customer: Pick<Customer, 'name' | 'phoneNumber' | 'address' | 'email' | 'notes'> & { _id?: string }
 ): Promise<'created' | 'updated' | 'skipped'> {
   const granted = await requestPermission();
   if (!granted) return 'skipped';
@@ -105,6 +105,7 @@ export async function saveCustomerToContacts(
   };
   if (customer.email) contactData.emails = [{ email: customer.email, label: 'work' }];
   if (customer.address) contactData.addresses = [{ street: customer.address, label: 'home' }];
+  if (customer._id) contactData.urlAddresses = [{ url: `laundromat://customer/${customer._id}`, label: 'Laundromat' }];
 
   if (existing?.id) {
     if (existing.company?.includes(LAUNDROMAT_TAG) || existing.note?.includes(LAUNDROMAT_TAG)) {
@@ -127,7 +128,7 @@ export async function saveCustomerToContacts(
 // Sync all customers to contacts — only adds customers not yet synced
 // Skips customers without a name or phone number
 export async function syncAllCustomersToContacts(
-  customers: Pick<Customer, 'name' | 'phoneNumber' | 'address' | 'email' | 'notes'>[]
+  customers: (Pick<Customer, 'name' | 'phoneNumber' | 'address' | 'email' | 'notes'> & { _id?: string })[]
 ): Promise<{ added: number; skipped: number }> {
   const granted = await requestPermission();
   if (!granted) return { added: 0, skipped: 0 };
@@ -182,6 +183,7 @@ export async function syncAllCustomersToContacts(
     };
     if (customer.email) contactData.emails = [{ email: customer.email, label: 'work' }];
     if (customer.address) contactData.addresses = [{ street: customer.address, label: 'home' }];
+    if (customer._id) contactData.urlAddresses = [{ url: `laundromat://customer/${customer._id}`, label: 'Laundromat' }];
 
     try {
       await Contacts.addContactAsync(contactData);
