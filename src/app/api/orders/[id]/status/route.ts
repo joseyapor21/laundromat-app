@@ -82,17 +82,19 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
 
     // Enforce workflow order — prevent skipping process steps
     // Statuses that can only be set through their dedicated verification endpoints:
+    // Admins can bypass this to go back in the process
+    const isAdmin = ['admin', 'super_admin'].includes(currentUser.role);
     const verificationOnlyStatuses = ['in_washer', 'transferred', 'transfer_checked', 'in_dryer'];
-    if (verificationOnlyStatuses.includes(finalStatus)) {
+    if (!isAdmin && verificationOnlyStatuses.includes(finalStatus)) {
       return NextResponse.json(
         { error: `"${finalStatus.replace(/_/g, ' ')}" status is set automatically through the verification flow (scanning machines, transfer buttons). It cannot be set manually.` },
         { status: 400 }
       );
     }
 
-    // Ready/completed statuses require final check to be done
+    // Ready/completed statuses require final check to be done (admins can bypass)
     const requiresFinalCheck = ['ready_for_pickup', 'ready_for_delivery', 'completed'];
-    if (requiresFinalCheck.includes(finalStatus) && !order.finalCheckedBy) {
+    if (!isAdmin && requiresFinalCheck.includes(finalStatus) && !order.finalCheckedBy) {
       return NextResponse.json(
         { error: 'The final check must be completed before marking the order as ready or completed. Please have a checker inspect the fold first.' },
         { status: 400 }
