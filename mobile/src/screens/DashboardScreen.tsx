@@ -441,7 +441,7 @@ export default function DashboardScreen() {
 
   const getCounts = () => {
     return {
-      all: orders.filter(o => o.status !== 'completed' && o.status !== 'ready_for_delivery' && !(o.orderType === 'delivery' && ['new_order', 'scheduled_pickup'].includes(o.status))).length,
+      all: orders.filter(o => o.status !== 'completed' && o.status !== 'ready_for_delivery' && o.status !== 'ready_for_pickup' && !(o.orderType === 'delivery' && ['new_order', 'scheduled_pickup'].includes(o.status))).length,
       inStore: orders.filter(o => o.orderType === 'storePickup' && o.status !== 'completed').length,
       delivery: orders.filter(o => o.orderType === 'delivery' && o.status !== 'completed').length,
       newOrder: orders.filter(o => STATUS_GROUPS.new_order.includes(o.status)).length,
@@ -686,6 +686,12 @@ export default function DashboardScreen() {
             <View style={styles.landscapeActions}>
               <TouchableOpacity
                 style={styles.deliveryPayBtnLandscape}
+                onPress={() => navigation.navigate('TrackingBoard' as never)}
+              >
+                <Ionicons name="grid-outline" size={18} color="#0d9488" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.deliveryPayBtnLandscape}
                 onPress={() => navigation.navigate('DeliveryPayments' as never)}
               >
                 <Ionicons name="car-outline" size={18} color="#7c3aed" />
@@ -712,6 +718,13 @@ export default function DashboardScreen() {
               <Text style={styles.headerSubtitle}>Welcome, {user?.firstName || 'User'}</Text>
             </View>
             <View style={styles.headerActions}>
+              {/* Tracking Board Button */}
+              <TouchableOpacity
+                style={styles.deliveryPayBtn}
+                onPress={() => navigation.navigate('TrackingBoard' as never)}
+              >
+                <Ionicons name="grid-outline" size={20} color="#0d9488" />
+              </TouchableOpacity>
               {/* Delivery Payments Button - Only for admin/cashier */}
               {(user?.role === 'admin' || user?.role === 'super_admin' || user?.role === 'cashier') && (
                 <TouchableOpacity

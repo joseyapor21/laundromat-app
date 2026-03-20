@@ -158,8 +158,8 @@ export default function OrderDetailScreen() {
   async function updateStatus(newStatus: OrderStatus) {
     if (!order) return;
 
-    // Check if trying to move to folding - all machines must be checked first
-    if (newStatus === 'folding' || newStatus === 'on_cart' || newStatus === 'folded') {
+    // Check if trying to move to folding - all machines must be checked first (admins can bypass)
+    if (!isAdmin && (newStatus === 'folding' || newStatus === 'on_cart' || newStatus === 'folded')) {
       const activeMachinesList = order.machineAssignments?.filter(a => !a.removedAt) || [];
       const uncheckedMachines = activeMachinesList.filter(a => !a.isChecked);
 
@@ -186,6 +186,34 @@ export default function OrderDetailScreen() {
     } finally {
       setUpdating(false);
     }
+  }
+
+  async function handleDeleteOrder() {
+    if (!order) return;
+    Alert.alert(
+      'Delete Order',
+      `Are you sure you want to delete order #${order.ticketNumber || order.orderId}? This cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            setUpdating(true);
+            try {
+              await api.deleteOrder(order._id);
+              Alert.alert('Deleted', 'Order has been deleted.');
+              navigation.goBack();
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : 'Failed to delete order';
+              Alert.alert('Error', errorMessage);
+            } finally {
+              setUpdating(false);
+            }
+          },
+        },
+      ]
+    );
   }
 
   function showPrintMenu() {
@@ -2495,11 +2523,13 @@ export default function OrderDetailScreen() {
                 // - ready_for_pickup, ready_for_delivery, completed: for admin/cashier after final check
                 // All other statuses move through the verification/scan flow
                 // Admins/cashiers can set more statuses; everyone else only folding/folded
-                const adminAllowed: OrderStatus[] = ['on_cart', 'folding', 'folded', 'ready_for_pickup', 'ready_for_delivery', 'completed'];
+                // Admins can set ANY status (including going back in the process)
+                const adminAllowed: OrderStatus[] = STATUS_OPTIONS.map(s => s.value);
+                const cashierAllowed: OrderStatus[] = ['on_cart', 'folding', 'folded', 'ready_for_pickup', 'ready_for_delivery', 'completed'];
                 const userAllowed: OrderStatus[] = ['folding', 'folded'];
-                const manuallyAllowed = (isAdmin || isCashier) ? adminAllowed : userAllowed;
-                // Ready/completed require final check
-                const needsFinalCheck = ['ready_for_pickup', 'ready_for_delivery', 'completed'].includes(option.value) && !order.finalCheckedBy;
+                const manuallyAllowed = isAdmin ? adminAllowed : isCashier ? cashierAllowed : userAllowed;
+                // Ready/completed require final check (but admins can bypass)
+                const needsFinalCheck = !isAdmin && ['ready_for_pickup', 'ready_for_delivery', 'completed'].includes(option.value) && !order.finalCheckedBy;
                 const isClickable = manuallyAllowed.includes(option.value) && !needsFinalCheck;
                 const isCurrent = order.status === option.value;
 
@@ -2524,6 +2554,17 @@ export default function OrderDetailScreen() {
                 );
               })}
             </View>
+            {/* Delete Order - Admin only */}
+            {isAdmin && (
+              <TouchableOpacity
+                style={styles.deleteOrderButton}
+                onPress={handleDeleteOrder}
+                disabled={updating}
+              >
+                <Ionicons name="trash-outline" size={18} color="#fff" />
+                <Text style={styles.deleteOrderButtonText}>Delete Order</Text>
+              </TouchableOpacity>
+            )}
           </View>
         )}
 
@@ -4161,6 +4202,21 @@ const styles = StyleSheet.create({
   },
   statusButtonTextActive: {
     color: '#fff',
+  },
+  deleteOrderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dc2626',
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 6,
+  },
+  deleteOrderButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   },
   // Details
   detailRow: {

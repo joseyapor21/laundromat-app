@@ -46,6 +46,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import BluetoothPrinterScreen from '../screens/BluetoothPrinterScreen';
 import ClockInScreen from '../screens/ClockInScreen';
 import DeliveryPaymentsScreen from '../screens/DeliveryPaymentsScreen';
+import TrackingBoardScreen from '../screens/TrackingBoardScreen';
 import KioskLoginScreen from '../screens/KioskLoginScreen';
 
 const Stack = createNativeStackNavigator();
@@ -282,6 +283,11 @@ function MainStack() {
       <Stack.Screen
         name="DeliveryPayments"
         component={DeliveryPaymentsScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="TrackingBoard"
+        component={TrackingBoardScreen}
         options={{ headerShown: false }}
       />
     </Stack.Navigator>
