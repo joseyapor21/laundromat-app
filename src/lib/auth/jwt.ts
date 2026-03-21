@@ -18,6 +18,7 @@ export interface TokenUserPayload {
   firstName: string;
   lastName: string;
   role: string;
+  isDriver?: boolean;
 }
 
 export async function createToken(user: TokenUserPayload): Promise<string> {
@@ -27,6 +28,7 @@ export async function createToken(user: TokenUserPayload): Promise<string> {
     role: user.role,
     firstName: user.firstName,
     lastName: user.lastName,
+    isDriver: user.isDriver || false,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
