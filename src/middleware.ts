@@ -76,6 +76,9 @@ export async function middleware(request: NextRequest) {
     if (payload.isKioskMode) {
       requestHeaders.set('x-is-kiosk-mode', 'true');
     }
+    if (payload.isDriver) {
+      requestHeaders.set('x-is-driver', 'true');
+    }
 
     return NextResponse.next({
       request: {

@@ -7,6 +7,7 @@ export interface CurrentUser {
   role: UserRole;
   name: string;
   locationId?: string;
+  isDriver?: boolean;
 }
 
 export async function getCurrentUser(): Promise<CurrentUser | null> {
@@ -22,12 +23,15 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     return null;
   }
 
+  const isDriver = headersList.get('x-is-driver') === 'true';
+
   return {
     userId,
     email,
     role,
     name: name || '',
     locationId: locationId || undefined,
+    isDriver: isDriver || undefined,
   };
 }
 

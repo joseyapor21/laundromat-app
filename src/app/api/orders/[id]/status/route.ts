@@ -70,12 +70,14 @@ export async function PUT(request: NextRequest, { params }: RouteParams) {
     // For delivery orders, redirect ready_for_pickup to ready_for_delivery
     let finalStatus = status;
 
-    // All users can set folding/folded; only admins and cashiers can set other statuses
+    // All users can set folding/folded; drivers can set driver-related statuses; only admins and cashiers can set other statuses
     const employeeAllowedStatuses = ['folding', 'folded'];
+    const driverAllowedStatuses = ['scheduled_pickup', 'picked_up', 'received', 'ready_for_delivery', 'out_for_delivery', 'completed'];
     const isAdminOrCashier = ['admin', 'super_admin', 'cashier'].includes(currentUser.role);
-    if (!isAdminOrCashier && !employeeAllowedStatuses.includes(finalStatus)) {
+    const isDriverUser = currentUser.isDriver === true;
+    if (!isAdminOrCashier && !employeeAllowedStatuses.includes(finalStatus) && !(isDriverUser && driverAllowedStatuses.includes(finalStatus))) {
       return NextResponse.json(
-        { error: 'Only admins and cashiers can change order status. You can only set folding or folded.' },
+        { error: 'You do not have permission to set this status.' },
         { status: 403 }
       );
     }

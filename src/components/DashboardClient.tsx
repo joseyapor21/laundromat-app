@@ -51,6 +51,7 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
             email: data.email,
             name: `${data.firstName} ${data.lastName}`,
             role: data.role,
+            isDriver: data.isDriver || false,
           });
         }
       })
@@ -261,7 +262,7 @@ export default function DashboardClient({ initialOrders, user }: DashboardClient
 
   const counts = getCounts();
   const canManage = currentUser && ['super_admin', 'admin', 'supervisor'].includes(currentUser.role);
-  const canDrive = currentUser && ['super_admin', 'admin', 'driver'].includes(currentUser.role);
+  const canDrive = currentUser && (currentUser.isDriver || ['super_admin', 'admin'].includes(currentUser.role));
 
   return (
     <div className="min-h-screen bg-slate-50">
